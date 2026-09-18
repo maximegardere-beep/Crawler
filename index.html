@@ -98,14 +98,14 @@
                 <span class="relative z-10 block text-xs text-blue-300 font-normal mt-1 opacity-80">(Tirer une carte : -1 Heure)</span>
             </button>
             
-            <!-- Boutons de Test (Combat) -->
-            <div class="flex gap-4 justify-center mt-2 p-3 bg-red-950/20 border border-red-900/30 rounded-lg">
-                <span class="absolute text-[10px] text-red-900/50 -mt-5 bg-gray-900 px-2">Zone de Test Développeur</span>
-                <button id="btn-test-win" class="px-4 py-2 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all shadow-[0_0_10px_rgba(153,27,27,0.2)] hover:shadow-[0_0_15px_rgba(239,68,68,0.4)]">
-                    [Test] Victoire Combat
-                </button>
-                <button id="btn-test-lose" class="px-4 py-2 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all shadow-[0_0_10px_rgba(153,27,27,0.2)] hover:shadow-[0_0_15px_rgba(239,68,68,0.4)]">
-                    [Test] Défaite Combat
+            <!-- Zone de Combat (visible uniquement pendant un affrontement) -->
+            <div id="combat-zone" class="hidden mt-2 p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
+                <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Zone de Combat</span>
+                <div class="text-center text-sm text-red-300 mb-3">
+                    <span id="enemy-name" class="font-bold">-</span> — PV: <span id="enemy-hp">0</span>
+                </div>
+                <button id="btn-attack" class="w-full px-4 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-sm text-red-400 uppercase tracking-wider transition-all shadow-[0_0_10px_rgba(153,27,27,0.2)] hover:shadow-[0_0_15px_rgba(239,68,68,0.4)]">
+                    Attaquer
                 </button>
             </div>
         </section>
