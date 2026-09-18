@@ -11,7 +11,12 @@ const gameState = {
     timeLeft: 100,
     maxTime: 100, // Temps alloué pour un niveau
     currentFloor: 1,
-    currentDistrict: "Quartier des Gobelins de Cuivre",
+    // Le quartier de départ est tiré parmi ceux réellement définis dans bestiary.js,
+    // pour garantir que generateMob() trouvera toujours une correspondance.
+    currentDistrict: (() => {
+        const names = Object.keys(districts);
+        return names[Math.floor(Math.random() * names.length)];
+    })(),
     inventory: [],
     maxInventory: 5,
     cardsDrawnThisFloor: 0, // Compteur de cartes pour calculer la probabilité de l'escalier
@@ -35,8 +40,7 @@ const config = {
     stairGuardedChance: 20 // 20% de chance qu'un escalier trouvé soit gardé par des mobs
 };
 
-// Quelques données pour générer de l'aléatoire
-const dbDistricts = ["Quartier des Rivières de Sang", "Secteur Industriel Abandonné", "Catacombes Néons", "Bazar des Poupées Cassées", "Jardins de Fer"];
+// Note : les quartiers viennent désormais uniquement de `districts` (bestiary.js).
 const dbLoot = ["Épée Rouillée", "Casque Cabossé", "Ration de Survie", "Pistolet Laser Vide", "Anneau Étrange", "Bottes Usées"];
 
 // ==========================================
@@ -183,7 +187,8 @@ function resolveCardEvent() {
     // 15% Changement de quartier
     cumulative += config.chances.districtChange;
     if (d100 < cumulative) {
-        const newDistrict = dbDistricts[Math.floor(Math.random() * dbDistricts.length)];
+        const districtNames = Object.keys(districts);
+        const newDistrict = districtNames[Math.floor(Math.random() * districtNames.length)];
         gameState.currentDistrict = newDistrict;
         logEvent(`Le décor change brusquement. Vous entrez dans : ${newDistrict}.`, "info");
         return;
