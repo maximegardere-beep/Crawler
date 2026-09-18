@@ -1,5 +1,3 @@
-Voici le script app.js conçu pour fonctionner parfaitement avec votre fichier index.html. Il implémente toutes les mécaniques de jeu (l'état, la boucle d'exploration, le moteur de probabilités avec le D100, et le système de combat factice) de manière modulaire, comme prévu dans votre plan de développement.
-Vous pouvez créer un fichier nommé app.js dans le même dossier que votre fichier HTML et y coller le code suivant. J'ai ajouté de nombreux commentaires pour que vous puissiez ajuster les probabilités et les textes très facilement.
 // app.js - Moteur principal du Rogue-like textuel (Crawler)
 // Conçu pour s'interfacer avec index.html
 
