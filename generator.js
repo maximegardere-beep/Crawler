@@ -15,16 +15,23 @@
  * @returns {object} - L'objet du monstre final généré
  */
 function generateMob(districtName) {
-    // 1. Récupération du quartier et d'un mob de base
+    // 1. Récupération du quartier et d'un nom de monstre autorisé dans ce quartier
     const district = districts[districtName];
-    if (!district || !district.baseMobs || district.baseMobs.length === 0) {
+    if (!district || !district.mobNames || district.mobNames.length === 0) {
         console.error(`Erreur: Quartier "${districtName}" introuvable ou vide.`);
         return null;
     }
 
-    const baseMobIndex = Math.floor(Math.random() * district.baseMobs.length);
+    const mobName = district.mobNames[Math.floor(Math.random() * district.mobNames.length)];
+
+    // 2. Récupération des stats complètes du monstre dans le catalogue (bestiary.js)
+    const baseMob = findMobByName(mobName);
+    if (!baseMob) {
+        console.error(`Erreur: Monstre "${mobName}" introuvable dans le catalogue (bestiary.js).`);
+        return null;
+    }
     // On fait une copie profonde pour ne pas altérer la base de données
-    const finalMob = JSON.parse(JSON.stringify(district.baseMobs[baseMobIndex]));
+    const finalMob = JSON.parse(JSON.stringify(baseMob));
     
     // 2. Jet de dés pour le nombre de modificateurs (Ex: 15% pour 2, 35% pour 1 (total 50%), 50% pour 0)
     const roll = Math.random() * 100;
@@ -155,47 +162,4 @@ function generateItem() {
     return finalItem;
 }
 
-// ==========================================
-// 3. INTÉGRATION AVEC LA BOUCLE PRINCIPALE (app.js)
-// ==========================================
 
-/* 
- * COMMENT INTÉGRER CE CODE DANS app.js :
- * 
- * 1. Lier ce fichier dans index.html :
- *    Assurez-vous de mettre les scripts dans le bon ordre à la fin du <body> :
- *    <script src="bestiary.js"></script>
- *    <script src="generators.js"></script>
- *    <script src="app.js"></script>
- * 
- * 2. Dans app.js, modifier la fonction initiateCombat() :
- *    function initiateCombat() {
- *        // On génère le mob en fonction du quartier actuel
- *        const enemy = generateMob(gameState.currentDistrict);
- *        
- *        // On stocke l'ennemi dans l'état du jeu pour s'en servir dans les boutons de combat
- *        gameState.currentEnemy = enemy; 
- *        gameState.inCombat = true;
- *        
- *        // On affiche le nom généré dans le log !
- *        addLog(`COMBAT INITIÉ ! Un [${enemy.name}] (PV: ${enemy.hp}) vous attaque.`, "text-red-500");
- *        
- *        if(DOM.btnAdvance) DOM.btnAdvance.disabled = true;
- *        if(DOM.btnVictory) DOM.btnVictory.classList.remove('hidden');
- *        if(DOM.btnDefeat) DOM.btnDefeat.classList.remove('hidden');
- *    }
- * 
- * 3. Dans app.js, modifier la fonction findItem() :
- *    function findItem() {
- *        // On remplace le nom fixe par un objet généré
- *        const newItem = generateItem();
- *        
- *        // On l'ajoute à l'inventaire
- *        gameState.inventory.push(newItem); 
- *        
- *        // On affiche son nom généré
- *        addLog(`Vous avez trouvé un objet : [${newItem.name}] !`, "text-yellow-300");
- *        updateUI(); 
- *        // Pensez à modifier updateUI() pour afficher item.name si votre inventaire stocke désormais des objets et plus de simples strings.
- *    }
- */
