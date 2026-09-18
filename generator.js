@@ -95,9 +95,13 @@ function generateMob(districtName) {
  * @returns {object} - L'objet final généré
  */
 function generateItem() {
-    // 1. Choix d'un objet de base
-    const baseItemIndex = Math.floor(Math.random() * baseItems.length);
-    const finalItem = JSON.parse(JSON.stringify(baseItems[baseItemIndex]));
+    // 1. Choix d'une catégorie d'objet (weapons, armors, consumables), puis d'un objet de base dedans
+    const categories = Object.keys(baseItems);
+    const categoryName = categories[Math.floor(Math.random() * categories.length)];
+    const categoryItems = baseItems[categoryName];
+    const baseItemIndex = Math.floor(Math.random() * categoryItems.length);
+    const finalItem = JSON.parse(JSON.stringify(categoryItems[baseItemIndex]));
+    finalItem.category = categoryName; // conserve la catégorie (utile pour l'UI/logique future)
 
     // 2. Jet de dés pour les modificateurs (Qualité et/ou Effet)
     // On force un peu plus le loot à avoir au moins un adjectif pour le côté RPG
