@@ -261,10 +261,14 @@ function initiateCombat() {
     updateUI();
 }
 
-// Une "variance" aléatoire légère évite que chaque round soit parfaitement identique
+// Formule de mitigation multiplicative : le ratio ATQ/(ATQ+DEF) donne la part des dégâts qui passe.
+// Avantage sur une formule additive (ATQ - DEF) : jamais de dégâts négatifs à écrêter artificiellement,
+// et la DEF réduit toujours les dégâts proportionnellement, sans effet de seuil brutal.
 function rollDamage(attackerAtk, defenderDef) {
-    const variance = Math.random() * 6 - 3; // entre -3 et +3
-    return Math.max(1, Math.round(attackerAtk - defenderDef + variance));
+    const mitigation = attackerAtk / (attackerAtk + Math.max(0, defenderDef));
+    const variance = 1 + (Math.random() * 0.3 - 0.15); // ±15%
+    const damage = attackerAtk * mitigation * variance;
+    return Math.max(1, Math.round(damage));
 }
 
 // Un clic sur "Attaquer" = un round complet (le joueur frappe, puis l'ennemi riposte s'il survit)
