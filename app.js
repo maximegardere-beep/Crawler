@@ -8,6 +8,8 @@ const gameState = {
     playerName: "CRAWLER_01",
     hp: 100,
     maxHp: 100,
+    atk: 10, // Dégâts de base infligés par round de combat
+    def: 5,  // Réduction des dégâts subis par round de combat
     timeLeft: 100,
     maxTime: 100, // Temps alloué pour un niveau
     currentFloor: 1,
@@ -58,8 +60,10 @@ const ui = {
     inventoryCount: document.getElementById('inventory-count'),
     inventoryContainer: document.getElementById('inventory'),
     btnAdvance: document.getElementById('btn-advance'),
-    btnTestWin: document.getElementById('btn-test-win'),
-    btnTestLose: document.getElementById('btn-test-lose'),
+    combatZone: document.getElementById('combat-zone'),
+    enemyName: document.getElementById('enemy-name'),
+    enemyHp: document.getElementById('enemy-hp'),
+    btnAttack: document.getElementById('btn-attack'),
     btnDevLogs: document.getElementById('btn-dev-logs')
 };
 
@@ -89,13 +93,17 @@ function updateUI() {
         ui.timeBar.style.boxShadow = "0 0 15px rgba(37, 99, 235, 1)";
     }
 
-    // Gestion de l'affichage des boutons de combat
+    // Gestion de l'affichage de la zone de combat et des PV de l'ennemi en temps réel
     if (gameState.inCombat) {
         ui.btnAdvance.classList.add('opacity-50', 'pointer-events-none');
-        ui.btnTestWin.parentElement.classList.remove('hidden');
+        ui.combatZone.classList.remove('hidden');
+        if (gameState.currentEnemy) {
+            ui.enemyName.innerText = gameState.currentEnemy.name;
+            ui.enemyHp.innerText = Math.max(0, Math.round(gameState.currentEnemy.hp));
+        }
     } else {
         ui.btnAdvance.classList.remove('opacity-50', 'pointer-events-none');
-        ui.btnTestWin.parentElement.classList.add('hidden'); // On cache la zone des boutons de test
+        ui.combatZone.classList.add('hidden');
     }
 }
 
@@ -236,7 +244,7 @@ function addLoot() {
 }
 
 // ==========================================
-// 4. SYSTÈME DE COMBAT (TEST)
+// 4. SYSTÈME DE COMBAT
 // ==========================================
 function initiateCombat() {
     const enemy = generateMob(gameState.currentDistrict);
@@ -245,7 +253,7 @@ function initiateCombat() {
 
     logEvent("--- COMBAT INITIÉ ---", "danger");
     if (enemy) {
-        logEvent(`Un [${enemy.name}] apparaît ! (PV: ${enemy.hp} | ATQ: ${enemy.atk} | DEF: ${enemy.def})`, "danger");
+        logEvent(`Un [${enemy.name}] apparaît ! (PV: ${Math.round(enemy.hp)} | ATQ: ${enemy.atk} | DEF: ${enemy.def})`, "danger");
     } else {
         // Sécurité : si la génération échoue pour une raison imprévue, on ne bloque pas le jeu
         logEvent("Une présence hostile rôde, mais reste indistincte...", "danger");
@@ -253,25 +261,49 @@ function initiateCombat() {
     updateUI();
 }
 
-function resolveCombat(win) {
-    if (win) {
-        logEvent("Vous avez massacré vos ennemis !", "success");
-        // Chance d'obtenir du butin après un combat
-        if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
-            addLoot();
-        }
-    } else {
-        const damage = Math.floor(Math.random() * 25) + 10; // Dégâts entre 10 et 35
-        gameState.hp -= damage;
-        logEvent(`Vous avez fui en subissant des coups. Perte de ${damage} PV.`, "danger");
-        
-        if (gameState.hp <= 0) {
-            gameState.hp = 0;
-            gameOver();
-            return;
-        }
+// Une "variance" aléatoire légère évite que chaque round soit parfaitement identique
+function rollDamage(attackerAtk, defenderDef) {
+    const variance = Math.random() * 6 - 3; // entre -3 et +3
+    return Math.max(1, Math.round(attackerAtk - defenderDef + variance));
+}
+
+// Un clic sur "Attaquer" = un round complet (le joueur frappe, puis l'ennemi riposte s'il survit)
+function fightRound() {
+    if (!gameState.inCombat || !gameState.currentEnemy) return;
+    const enemy = gameState.currentEnemy;
+
+    // 1. Le joueur attaque
+    const playerDamage = rollDamage(gameState.atk, enemy.def);
+    enemy.hp -= playerDamage;
+    logEvent(`Vous infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
+
+    if (enemy.hp <= 0) {
+        logEvent(`[${enemy.name}] s'effondre, vaincu !`, "success");
+        winCombat();
+        return;
     }
-    
+
+    // 2. L'ennemi riposte
+    const enemyDamage = rollDamage(enemy.atk, gameState.def);
+    gameState.hp -= enemyDamage;
+    logEvent(`[${enemy.name}] vous inflige ${enemyDamage} dégâts.`, "danger");
+
+    if (gameState.hp <= 0) {
+        gameState.hp = 0;
+        gameOver();
+        return;
+    }
+
+    updateUI();
+}
+
+function winCombat() {
+    logEvent("Vous remportez le combat !", "success");
+    // Chance d'obtenir du butin après un combat
+    if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
+        addLoot();
+    }
+
     gameState.currentEnemy = null;
     gameState.inCombat = false;
     updateUI();
@@ -301,7 +333,7 @@ function advance() {
 
 function gameOver(timeout = false) {
     gameState.inCombat = true; // Bloque le bouton Avancer
-    ui.btnTestWin.parentElement.classList.add('hidden'); // Cache les boutons de combat
+    ui.combatZone.classList.add('hidden'); // Cache la zone de combat
     
     if (timeout) {
         logEvent("Le temps est écoulé. Le donjon s'effondre sur vous...", "danger");
@@ -319,15 +351,11 @@ function gameOver(timeout = false) {
 // INITIALISATION ET ÉCOUTEURS D'ÉVÉNEMENTS
 // ==========================================
 
-// Masquer la zone de boutons de test par défaut
-ui.btnTestWin.parentElement.classList.add('hidden');
-
 // Clic sur le bouton Avancer
 ui.btnAdvance.addEventListener('click', advance);
 
-// Clics sur les boutons de test du combat
-ui.btnTestWin.addEventListener('click', () => resolveCombat(true));
-ui.btnTestLose.addEventListener('click', () => resolveCombat(false));
+// Clic sur le bouton Attaquer (un clic = un round de combat)
+ui.btnAttack.addEventListener('click', fightRound);
 
 // Clic sur l'export des logs Dev
 ui.btnDevLogs.addEventListener('click', () => {
