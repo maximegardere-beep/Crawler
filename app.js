@@ -20,7 +20,8 @@ const gameState = {
     inventory: [],
     maxInventory: 5,
     cardsDrawnThisFloor: 0, // Compteur de cartes pour calculer la probabilité de l'escalier
-    inCombat: false // Verrouille l'avancée si un combat est en cours
+    inCombat: false, // Verrouille l'avancée si un combat est en cours
+    currentEnemy: null // Ennemi généré procéduralement, actif pendant un combat
 };
 
 // ==========================================
@@ -40,8 +41,7 @@ const config = {
     stairGuardedChance: 20 // 20% de chance qu'un escalier trouvé soit gardé par des mobs
 };
 
-// Note : les quartiers viennent désormais uniquement de `districts` (bestiary.js).
-const dbLoot = ["Épée Rouillée", "Casque Cabossé", "Ration de Survie", "Pistolet Laser Vide", "Anneau Étrange", "Bottes Usées"];
+// Note : les quartiers viennent de `districts` (districts.js), le catalogue d'objets de `baseItems` (items.js).
 
 // ==========================================
 // SÉLECTION DES ÉLÉMENTS DU DOM
@@ -128,7 +128,8 @@ function updateInventoryUI() {
         slot.className = "aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-xs text-center p-1 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)] overflow-hidden text-ellipsis";
         
         if (i < gameState.inventory.length) {
-            slot.innerText = gameState.inventory[i];
+            slot.innerText = gameState.inventory[i].name;
+            slot.title = gameState.inventory[i].name; // infobulle si le nom est tronqué visuellement
             slot.classList.add('text-yellow-500', 'border-yellow-900/50');
         } else {
             slot.innerText = "+";
@@ -225,9 +226,9 @@ function nextFloor() {
 
 function addLoot() {
     if (gameState.inventory.length < gameState.maxInventory) {
-        const item = dbLoot[Math.floor(Math.random() * dbLoot.length)];
+        const item = generateItem();
         gameState.inventory.push(item);
-        logEvent(`Objet obtenu : [${item}] !`, "loot");
+        logEvent(`Objet obtenu : [${item.name}] !`, "loot");
         updateInventoryUI();
     } else {
         logEvent("Vous trouvez un objet, mais votre inventaire est plein !", "danger");
@@ -238,8 +239,17 @@ function addLoot() {
 // 4. SYSTÈME DE COMBAT (TEST)
 // ==========================================
 function initiateCombat() {
+    const enemy = generateMob(gameState.currentDistrict);
+    gameState.currentEnemy = enemy;
     gameState.inCombat = true;
+
     logEvent("--- COMBAT INITIÉ ---", "danger");
+    if (enemy) {
+        logEvent(`Un [${enemy.name}] apparaît ! (PV: ${enemy.hp} | ATQ: ${enemy.atk} | DEF: ${enemy.def})`, "danger");
+    } else {
+        // Sécurité : si la génération échoue pour une raison imprévue, on ne bloque pas le jeu
+        logEvent("Une présence hostile rôde, mais reste indistincte...", "danger");
+    }
     updateUI();
 }
 
@@ -262,6 +272,7 @@ function resolveCombat(win) {
         }
     }
     
+    gameState.currentEnemy = null;
     gameState.inCombat = false;
     updateUI();
 }
