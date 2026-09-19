@@ -13,6 +13,12 @@ const gameState = {
     level: 1,
     xp: 0,
     xpToNextLevel: 50,
+    // Compétences par type d'attaque : progressent uniquement à l'usage en combat (XP dédiée)
+    skills: {
+        weapon: { level: 1, xp: 0, xpToNext: 30 },
+        unarmed: { level: 1, xp: 0, xpToNext: 30 },
+        magic: { level: 1, xp: 0, xpToNext: 30 }
+    },
     timeLeft: 100,
     maxTime: 100, // Temps alloué pour un niveau
     currentFloor: 1,
@@ -110,6 +116,12 @@ const ui = {
     playerLevel: document.getElementById('player-level'),
     xpBar: document.getElementById('xp-bar'),
     xpText: document.getElementById('xp-text'),
+    skillWeaponLevel: document.getElementById('skill-weapon-level'),
+    skillWeaponBar: document.getElementById('skill-weapon-bar'),
+    skillUnarmedLevel: document.getElementById('skill-unarmed-level'),
+    skillUnarmedBar: document.getElementById('skill-unarmed-bar'),
+    skillMagicLevel: document.getElementById('skill-magic-level'),
+    skillMagicBar: document.getElementById('skill-magic-bar'),
     timeText: document.getElementById('time-text'),
     timeBar: document.getElementById('time-bar'),
     eventLog: document.getElementById('event-log'),
@@ -142,6 +154,19 @@ function updateUI() {
     ui.playerLevel.innerText = gameState.level;
     ui.xpText.innerText = `${gameState.xp}/${gameState.xpToNextLevel}`;
     ui.xpBar.style.width = `${Math.min(100, (gameState.xp / gameState.xpToNextLevel) * 100)}%`;
+
+    // Mise à jour de la carte joueur (compétences)
+    const skillBarMap = {
+        weapon: [ui.skillWeaponLevel, ui.skillWeaponBar],
+        unarmed: [ui.skillUnarmedLevel, ui.skillUnarmedBar],
+        magic: [ui.skillMagicLevel, ui.skillMagicBar]
+    };
+    for (const key in skillBarMap) {
+        const skill = gameState.skills[key];
+        const [levelEl, barEl] = skillBarMap[key];
+        levelEl.innerText = `Nv.${skill.level}`;
+        barEl.style.width = `${Math.min(100, (skill.xp / skill.xpToNext) * 100)}%`;
+    }
     
     // Mise à jour du temps
     ui.timeText.innerText = `${gameState.timeLeft} H`;
@@ -383,6 +408,26 @@ function gainXp(amount) {
     updateUI();
 }
 
+// Gain d'XP dédiée à une compétence (arme / mains nues / magie), uniquement via l'usage en combat.
+// Chaque compétence progresse indépendamment des autres et du niveau général du joueur.
+function gainSkillXp(skillKey, amount) {
+    const skill = gameState.skills[skillKey];
+    if (!skill || !amount) return;
+
+    skill.xp += amount;
+    while (skill.xp >= skill.xpToNext) {
+        skill.xp -= skill.xpToNext;
+        skill.level += 1;
+        skill.xpToNext = Math.round(skill.xpToNext * 1.3);
+        logEvent(`📈 Compétence "${skillLabel(skillKey)}" améliorée ! Niveau ${skill.level}.`, "success");
+    }
+    updateUI();
+}
+
+function skillLabel(key) {
+    return { weapon: "Arme", unarmed: "Mains nues", magic: "Magie" }[key] || key;
+}
+
 // ==========================================
 // 4. SYSTÈME DE COMBAT
 // ==========================================
@@ -424,7 +469,7 @@ function rollDamage(attackerAtk, defenderDef, options = {}) {
 // Portion commune à toute attaque du joueur : applique les dégâts, vérifie la victoire,
 // et laisse l'ennemi riposter s'il survit.
 function performPlayerAttack(options, label) {
-    if (!gameState.inCombat || !gameState.currentEnemy) return;
+    if (!gameState.inCombat || !gameState.currentEnemy) return false;
     const enemy = gameState.currentEnemy;
 
     const playerDamage = rollDamage(gameState.atk, enemy.def, options);
@@ -434,10 +479,11 @@ function performPlayerAttack(options, label) {
     if (enemy.hp <= 0) {
         logEvent(`[${enemy.name}] s'effondre, vaincu !`, "success");
         winCombat();
-        return;
+        return true;
     }
 
     enemyCounterAttack();
+    return true;
 }
 
 // Riposte de l'ennemi (dégâts standards, sans type d'attaque particulier pour l'instant)
@@ -459,28 +505,47 @@ function enemyCounterAttack() {
 }
 
 // --- Les 3 types d'attaque ---
-// Arme : la référence, équilibrée. (Plus tard : nécessitera une arme équipée.)
+// Chacune est reliée à sa propre compétence : plus elle est utilisée en combat, plus elle progresse
+// (XP dédiée, indépendante des autres compétences et du niveau général du joueur).
+const SKILL_XP_PER_USE = 3;
+
+// Arme : la référence, équilibrée. Chaque niveau de compétence Arme améliore sa puissance.
+// (Plus tard : nécessitera une arme équipée.)
 function attackWeapon() {
-    performPlayerAttack({ atkMultiplier: 1.0, varianceRange: 0.15, defReduction: 0 }, "à l'arme");
+    const skill = gameState.skills.weapon;
+    const atkMultiplier = 1.0 + 0.04 * (skill.level - 1); // +4% par niveau
+    const used = performPlayerAttack({ atkMultiplier, varianceRange: 0.15, defReduction: 0 }, "à l'arme");
+    if (used) gainSkillXp('weapon', SKILL_XP_PER_USE);
 }
 
-// Mains nues : moins puissant, mais ignore une bonne partie de la DEF adverse (frappe les points faibles).
+// Mains nues : moins puissant, mais ignore une bonne partie de la DEF adverse.
+// Chaque niveau de compétence Mains nues améliore la capacité à contourner la DEF adverse.
 function attackUnarmed() {
-    performPlayerAttack({ atkMultiplier: 0.75, varianceRange: 0.10, defReduction: 0.35 }, "à mains nues");
+    const skill = gameState.skills.unarmed;
+    const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
+    const used = performPlayerAttack({ atkMultiplier: 0.75, varianceRange: 0.10, defReduction }, "à mains nues");
+    if (used) gainSkillXp('unarmed', SKILL_XP_PER_USE);
 }
 
 // Magie : la plus puissante en moyenne, mais imprévisible, et peut totalement rater (thème absurde/chaotique).
+// Chaque niveau de compétence Magie réduit le risque de rater son sort ET augmente légèrement sa puissance.
 // (Plus tard : nécessitera un sort appris et du mana.)
 function attackMagic() {
     if (!gameState.inCombat || !gameState.currentEnemy) return;
 
-    if (Math.random() * 100 < 15) { // 15% de chance de sort raté
+    const skill = gameState.skills.magic;
+    const backfireChance = Math.max(3, 15 - 1.5 * (skill.level - 1)); // 15% de base, jusqu'à 3% minimum
+    const atkMultiplier = 1.4 + 0.02 * (skill.level - 1);
+
+    if (Math.random() * 100 < backfireChance) {
         logEvent("Votre sort part de travers et fait un flop retentissant. Aucun dégât.", "danger");
         enemyCounterAttack();
+        gainSkillXp('magic', SKILL_XP_PER_USE); // On apprend même de ses échecs
         return;
     }
 
-    performPlayerAttack({ atkMultiplier: 1.4, varianceRange: 0.35, defReduction: 0 }, "magiquement");
+    const used = performPlayerAttack({ atkMultiplier, varianceRange: 0.35, defReduction: 0 }, "magiquement");
+    if (used) gainSkillXp('magic', SKILL_XP_PER_USE);
 }
 
 // Tentative de fuite : quitte le combat sans le gagner ni obtenir de loot/XP.
