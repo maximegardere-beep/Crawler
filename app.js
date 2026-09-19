@@ -147,11 +147,18 @@ const ui = {
     equippedWeapon: document.getElementById('equipped-weapon'),
     equippedArmor: document.getElementById('equipped-armor'),
     playerStatusIcons: document.getElementById('player-status-icons'),
-    enemyStatusIcons: document.getElementById('enemy-status-icons'),
+    combatSideEnemy: document.getElementById('combat-side-enemy'),
+    combatSidePlayer: document.getElementById('combat-side-player'),
+    combatEnemyHp: document.getElementById('combat-enemy-hp'),
+    combatEnemyStatus: document.getElementById('combat-enemy-status'),
+    combatEnemyDie: document.getElementById('combat-enemy-die'),
+    combatPlayerHp: document.getElementById('combat-player-hp'),
+    combatPlayerStatus: document.getElementById('combat-player-status'),
+    combatPlayerDie: document.getElementById('combat-player-die'),
+    cardStackWrapper: document.getElementById('card-stack-wrapper'),
     btnAdvance: document.getElementById('btn-advance'),
     combatZone: document.getElementById('combat-zone'),
     enemyName: document.getElementById('enemy-name'),
-    enemyHp: document.getElementById('enemy-hp'),
     btnAttackWeapon: document.getElementById('btn-attack-weapon'),
     btnAttackUnarmed: document.getElementById('btn-attack-unarmed'),
     btnAttackMagic: document.getElementById('btn-attack-magic'),
@@ -215,29 +222,59 @@ function updateUI() {
         ui.timeBar.style.boxShadow = "0 0 15px rgba(37, 99, 235, 1)";
     }
 
-    // Gestion de l'affichage de la zone de combat et des PV de l'ennemi en temps réel
+    // Gestion de l'affichage du combat : rétrécissement de la carte, panneaux latéraux PV/statut
     if (gameState.inCombat) {
         ui.btnAdvance.classList.add('opacity-50', 'pointer-events-none');
         ui.combatZone.classList.remove('hidden');
+        ui.cardStackWrapper.style.maxWidth = '170px'; // La carte se réduit pour laisser place aux panneaux
+
+        // Panneau joueur (toujours à jour dès qu'on est en combat)
+        ui.combatSidePlayer.classList.remove('hidden');
+        ui.combatSidePlayer.classList.add('flex', 'flex-col');
+        ui.combatPlayerHp.innerText = Math.max(0, Math.round(gameState.hp));
+        let playerIcons = "";
+        if (gameState.status.bleed && gameState.status.bleed.rounds > 0) playerIcons += "🔥";
+        if (gameState.status.stunned) playerIcons += "💫";
+        if (gameState.status.slowed && gameState.status.slowed.rounds > 0) playerIcons += "🐌";
+        ui.combatPlayerStatus.innerText = playerIcons || "—";
+
         if (gameState.currentEnemy) {
             ui.enemyName.innerText = gameState.currentEnemy.isBoss
                 ? `👑 ${gameState.currentEnemy.name}`
                 : gameState.currentEnemy.name;
             ui.enemyName.classList.toggle('text-yellow-400', !!gameState.currentEnemy.isBoss);
-            ui.enemyHp.innerText = Math.max(0, Math.round(gameState.currentEnemy.hp));
+
+            ui.combatSideEnemy.classList.remove('hidden');
+            ui.combatSideEnemy.classList.add('flex', 'flex-col');
+            ui.combatEnemyHp.innerText = Math.max(0, Math.round(gameState.currentEnemy.hp));
 
             let enemyIcons = "";
             const enemyStatus = gameState.currentEnemy.status;
             if (enemyStatus) {
-                if (enemyStatus.bleed && enemyStatus.bleed.rounds > 0) enemyIcons += "🩸";
+                if (enemyStatus.bleed && enemyStatus.bleed.rounds > 0) enemyIcons += "🔥";
                 if (enemyStatus.stunned) enemyIcons += "💫";
             }
-            ui.enemyStatusIcons.innerText = enemyIcons;
+            ui.combatEnemyStatus.innerText = enemyIcons || "—";
         }
     } else {
         ui.btnAdvance.classList.remove('opacity-50', 'pointer-events-none');
         ui.combatZone.classList.add('hidden');
+        ui.cardStackWrapper.style.maxWidth = '240px'; // Retour à la taille normale hors combat
+
+        ui.combatSideEnemy.classList.add('hidden');
+        ui.combatSideEnemy.classList.remove('flex', 'flex-col');
+        ui.combatSidePlayer.classList.add('hidden');
+        ui.combatSidePlayer.classList.remove('flex', 'flex-col');
     }
+}
+
+// Affiche un résultat de dégâts sous forme de "dé" avec une petite animation, sur le panneau
+// latéral correspondant (joueur ou ennemi). `value` peut être un nombre ou un court symbole (ex: "✗").
+function showDie(el, value) {
+    el.innerText = value;
+    el.classList.remove('die-pop');
+    void el.offsetWidth; // force le navigateur à relire le style pour pouvoir rejouer l'animation
+    el.classList.add('die-pop');
 }
 
 // Fonction pour ajouter un message : sur la carte active (fond clair) ET dans le journal complet (fond sombre)
@@ -596,6 +633,12 @@ function initiateCombat(forcedEnemy = null) {
         enemy.status = { bleed: null, stunned: false };
     }
 
+    // Les dés de dégâts repartent à zéro visuellement (aucune action encore jouée ce combat)
+    ui.combatPlayerDie.innerText = "–";
+    ui.combatPlayerDie.classList.remove('die-pop');
+    ui.combatEnemyDie.innerText = "–";
+    ui.combatEnemyDie.classList.remove('die-pop');
+
     if (enemy && enemy.isBoss) {
         logEvent("--- 👑 COMBAT DE BOSS ---", "danger");
         logEvent(`${enemy.name} se dresse devant vous ! (PV: ${Math.round(enemy.hp)} | ATQ: ${enemy.atk} | DEF: ${enemy.def})`, "danger");
@@ -659,6 +702,7 @@ function tryPlayerAction() {
     if (gameState.status.stunned) {
         logEvent("Vous êtes étourdi et ne parvenez pas à agir ce tour-ci !", "danger");
         gameState.status.stunned = false; // L'étourdissement se consomme après ce tour manqué
+        showDie(ui.combatPlayerDie, "😵");
         enemyCounterAttack();
         return false;
     }
@@ -684,6 +728,7 @@ function performPlayerAttack(attackerAtk, options, label) {
 
     const playerDamage = rollDamage(attackerAtk, enemy.def, effectiveOptions);
     enemy.hp -= playerDamage;
+    showDie(ui.combatPlayerDie, playerDamage);
     logEvent(`Vous attaquez ${label}${slowedNote} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
 
     if (enemy.hp <= 0) {
@@ -744,11 +789,36 @@ function applyMobEffectOnPlayer(enemy) {
     }
 }
 
+// Durée de la pause entre l'action du joueur et la riposte de l'ennemi : juste assez pour bien
+// séparer visuellement les deux dés, sans ralentir le rythme du combat.
+const COMBAT_BEAT_MS = 400;
+
+// Empêche de spammer les boutons de combat pendant la petite pause entre deux actions
+function setCombatInputLocked(locked) {
+    [ui.btnAttackWeapon, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnFlee].forEach(btn => {
+        if (!btn) return;
+        btn.disabled = locked;
+        btn.classList.toggle('opacity-40', locked);
+        btn.classList.toggle('pointer-events-none', locked);
+    });
+}
+
+// Riposte de l'ennemi : marque une courte pause (le temps que le dé du joueur reste bien visible)
+// avant de résoudre réellement l'attaque, pour que chaque camp "joue son tour" séparément à l'écran.
+function enemyCounterAttack() {
+    if (!gameState.currentEnemy) return; // sécurité si le combat vient d'être résolu
+    setCombatInputLocked(true);
+    setTimeout(() => {
+        resolveEnemyCounterAttack();
+        setCombatInputLocked(false);
+    }, COMBAT_BEAT_MS);
+}
+
 // Riposte de l'ennemi : tient compte de son propre saignement/étourdissement en cours,
 // de l'armure équipée du joueur, et peut infliger un effet de statut selon son trait élémentaire.
-function enemyCounterAttack() {
+function resolveEnemyCounterAttack() {
     const enemy = gameState.currentEnemy;
-    if (!enemy) return; // sécurité si le combat vient d'être résolu
+    if (!enemy) return; // sécurité si le combat vient d'être résolu pendant la pause
 
     // Saignement en cours sur l'ennemi (infligé par une arme du joueur) : tique avant son action
     if (enemy.status && enemy.status.bleed && enemy.status.bleed.rounds > 0) {
@@ -768,12 +838,14 @@ function enemyCounterAttack() {
     if (enemy.status && enemy.status.stunned) {
         logEvent(`[${enemy.name}] est étourdi et ne peut pas riposter !`, "info");
         enemy.status.stunned = false;
+        showDie(ui.combatEnemyDie, "😴");
         updateUI();
         return;
     }
 
     const enemyDamage = rollDamage(enemy.atk, getEffectiveDef());
     gameState.hp -= enemyDamage;
+    showDie(ui.combatEnemyDie, enemyDamage);
     logEvent(`[${enemy.name}] vous inflige ${enemyDamage} dégâts.`, "danger");
 
     if (gameState.hp <= 0) {
@@ -830,6 +902,7 @@ function attackMagic() {
     const atkMultiplier = 1.4 + 0.02 * (skill.level - 1);
 
     if (Math.random() * 100 < backfireChance) {
+        showDie(ui.combatPlayerDie, "✗");
         logEvent("Votre sort part de travers et fait un flop retentissant. Aucun dégât.", "danger");
         enemyCounterAttack();
         gainSkillXp('magic', SKILL_XP_PER_USE); // On apprend même de ses échecs
