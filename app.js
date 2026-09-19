@@ -10,6 +10,9 @@ const gameState = {
     maxHp: 100,
     atk: 10, // Dégâts de base infligés par round de combat
     def: 5,  // Réduction des dégâts subis par round de combat
+    level: 1,
+    xp: 0,
+    xpToNextLevel: 50,
     timeLeft: 100,
     maxTime: 100, // Temps alloué pour un niveau
     currentFloor: 1,
@@ -54,6 +57,9 @@ const ui = {
     districtName: document.getElementById('district-name'),
     currentHp: document.getElementById('current-hp'),
     maxHp: document.getElementById('max-hp'),
+    playerLevel: document.getElementById('player-level'),
+    xpBar: document.getElementById('xp-bar'),
+    xpText: document.getElementById('xp-text'),
     timeText: document.getElementById('time-text'),
     timeBar: document.getElementById('time-bar'),
     eventLog: document.getElementById('event-log'),
@@ -78,6 +84,11 @@ function updateUI() {
     // Mise à jour des PV
     ui.currentHp.innerText = gameState.hp;
     ui.maxHp.innerText = gameState.maxHp;
+
+    // Mise à jour du niveau et de l'XP
+    ui.playerLevel.innerText = gameState.level;
+    ui.xpText.innerText = `${gameState.xp}/${gameState.xpToNextLevel}`;
+    ui.xpBar.style.width = `${Math.min(100, (gameState.xp / gameState.xpToNextLevel) * 100)}%`;
     
     // Mise à jour du temps
     ui.timeText.innerText = `${gameState.timeLeft} H`;
@@ -244,6 +255,36 @@ function addLoot() {
 }
 
 // ==========================================
+// SYSTÈME DE NIVEAU ET D'EXPÉRIENCE
+// ==========================================
+function gainXp(amount) {
+    if (!amount || amount <= 0) return;
+    gameState.xp += amount;
+    logEvent(`+${amount} XP`, "success");
+
+    // On utilise une boucle "while" pour gérer le cas (rare) d'un gain d'XP
+    // suffisant pour franchir plusieurs niveaux d'un coup.
+    while (gameState.xp >= gameState.xpToNextLevel) {
+        gameState.xp -= gameState.xpToNextLevel;
+        gameState.level += 1;
+        gameState.xpToNextLevel = Math.round(gameState.xpToNextLevel * 1.4); // Chaque niveau demande un peu plus d'XP
+
+        // Gains de statistiques à la montée de niveau
+        const hpGain = 15;
+        const atkGain = 2;
+        const defGain = 1;
+        gameState.maxHp += hpGain;
+        gameState.hp = gameState.maxHp; // Montée de niveau = soin complet (récompense marquante)
+        gameState.atk += atkGain;
+        gameState.def += defGain;
+
+        logEvent(`⭐ NIVEAU SUPÉRIEUR ! Vous êtes maintenant niveau ${gameState.level}. (+${hpGain} PV max, +${atkGain} ATQ, +${defGain} DEF — PV entièrement restaurés)`, "success");
+    }
+
+    updateUI();
+}
+
+// ==========================================
 // 4. SYSTÈME DE COMBAT
 // ==========================================
 function initiateCombat() {
@@ -303,6 +344,11 @@ function fightRound() {
 
 function winCombat() {
     logEvent("Vous remportez le combat !", "success");
+
+    // Gain d'XP basé sur le monstre vaincu (valeur de repli si jamais xpReward est absent)
+    const xpGained = (gameState.currentEnemy && gameState.currentEnemy.xpReward) || 10;
+    gainXp(xpGained);
+
     // Chance d'obtenir du butin après un combat
     if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
         addLoot();
