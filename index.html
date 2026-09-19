@@ -26,6 +26,37 @@
         ::-webkit-scrollbar-thumb:hover {
             background: #3b82f6; 
         }
+
+        /* --- Deck de cartes --- */
+        .card-back {
+            background: repeating-linear-gradient(135deg, #eee6d3 0px, #eee6d3 6px, #e3d9c0 6px, #e3d9c0 12px);
+            border: 1px solid rgba(0,0,0,0.15);
+            box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+        }
+        .game-card {
+            background-color: #f6f1e4; /* papier crème */
+            background-image: radial-gradient(rgba(0,0,0,0.035) 1px, transparent 1px);
+            background-size: 10px 10px; /* texture papier subtile */
+            border: 1px solid rgba(0,0,0,0.12);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.4);
+        }
+        /* Scrollbar du corps de carte adaptée au fond clair (le style sombre global jurerait ici) */
+        #card-body::-webkit-scrollbar { width: 4px; }
+        #card-body::-webkit-scrollbar-track { background: transparent; }
+        #card-body::-webkit-scrollbar-thumb { background: #b8ac8e; border-radius: 4px; }
+
+        /* Animation de tirage : la carte "pop" légèrement à chaque nouvelle carte révélée.
+           (Un vrai retournement 3D face/dos demanderait deux éléments superposés ; ce pop, plus
+           simple et robuste, évite tout risque de désynchronisation avec le contenu qui s'affiche
+           en direct pendant les combats à plusieurs échanges.) */
+        @keyframes cardDraw {
+            0%   { transform: scale(0.92) rotate(-2deg); opacity: 0.5; }
+            60%  { transform: scale(1.04) rotate(1deg);  opacity: 1; }
+            100% { transform: scale(1) rotate(0deg);     opacity: 1; }
+        }
+        .card-draw-anim {
+            animation: cardDraw 0.35s ease-out;
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-200 min-h-screen flex justify-center items-center py-6 px-4 selection:bg-blue-900 selection:text-white">
@@ -53,6 +84,10 @@
                 <span class="text-gray-500 text-xs uppercase tracking-widest block mb-1">Intégrité Physique</span>
                 <div class="text-2xl font-bold text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
                     PV: <span id="current-hp">100</span>/<span id="max-hp">100</span> <span id="player-status-icons" class="text-sm"></span>
+                </div>
+                <div class="flex gap-3 text-[10px] text-gray-500 mt-1 justify-end uppercase tracking-widest">
+                    <span>⚔️ ATK <span id="player-atk" class="text-gray-300 font-bold">10</span></span>
+                    <span>🛡️ DEF <span id="player-def" class="text-gray-300 font-bold">5</span></span>
                 </div>
             </div>
         </header>
@@ -99,15 +134,36 @@
             </div>
         </section>
 
-        <!-- 3. Log de Cartes (Zone d'événements) -->
-        <section class="flex flex-col gap-2">
-            <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Log des Événements</h2>
-            <div id="event-log" class="h-60 bg-gray-950 border border-gray-800 rounded-lg p-4 overflow-y-auto text-sm flex flex-col gap-3 shadow-[inset_0_0_20px_rgba(0,0,0,0.8)]">
-                <div class="text-gray-500 italic">>> Initialisation du système d'exploration...</div>
-                <div class="text-blue-400 drop-shadow-[0_0_2px_rgba(96,165,250,0.8)]">>> Bienvenue dans le Donjon. Tirez votre première carte.</div>
-                <!-- Les nouveaux événements s'ajouteront ici dynamiquement -->
+        <!-- 3. Deck de Cartes -->
+        <section class="flex flex-col items-center gap-2 py-1">
+            <div class="relative w-full max-w-[240px] mx-auto" style="aspect-ratio: 5 / 7;">
+                <!-- Pile décorative (dos de cartes empilés, purement visuel — ne représente pas un vrai deck fini) -->
+                <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(-7deg) translate(-8px, 5px);"></div>
+                <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(5deg) translate(6px, 3px);"></div>
+                <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(-3deg) translate(-3px, -2px);"></div>
+
+                <!-- Carte active : révèle l'événement du tirage en cours -->
+                <div id="active-card" class="game-card absolute inset-0 rounded-2xl flex flex-col p-4">
+                    <div class="flex justify-between items-center text-[9px] uppercase tracking-widest text-stone-500 font-bold">
+                        <span id="card-type-label">Donjon</span>
+                        <span id="card-floor-label">Étage 1</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center justify-center text-center gap-2 min-h-0">
+                        <div id="card-icon" class="text-5xl leading-none">🚪</div>
+                        <div id="card-title" class="text-base font-black uppercase tracking-wide text-stone-800">En Exploration</div>
+                    </div>
+                    <div id="card-body" class="text-[11px] leading-snug text-stone-700 max-h-24 overflow-y-auto border-t border-stone-300 pt-2 space-y-1 shrink-0">
+                        <p class="italic text-stone-500">Touchez "Avancer" pour tirer une carte...</p>
+                    </div>
+                </div>
             </div>
         </section>
+
+        <!-- Journal complet (repli discret, pour qui veut relire tout l'historique) -->
+        <details class="text-[10px] text-gray-600">
+            <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-400">Journal complet</summary>
+            <div id="full-log" class="mt-2 h-28 overflow-y-auto bg-gray-950 border border-gray-800 rounded p-2 flex flex-col gap-1"></div>
+        </details>
 
         <!-- 4. Inventaire -->
         <section class="flex flex-col gap-2">
@@ -170,10 +226,10 @@
     </main>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=7"></script>
-    <script src="items.js?v=7"></script>
-    <script src="districts.js?v=7"></script>
-    <script src="generator.js?v=7"></script>
-    <script src="app.js?v=7"></script>
+    <script src="bestiary.js?v=8"></script>
+    <script src="items.js?v=8"></script>
+    <script src="districts.js?v=8"></script>
+    <script src="generator.js?v=8"></script>
+    <script src="app.js?v=8"></script>
 </body>
 </html>
