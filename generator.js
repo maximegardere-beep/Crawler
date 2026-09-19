@@ -96,6 +96,29 @@ function generateMob(districtName) {
 }
 
 // ==========================================
+// 1bis. GÉNÉRATION DU BOSS DE QUARTIER
+// ==========================================
+
+/**
+ * Récupère le boss attitré d'un quartier (catalogue curaté dans bestiary.js).
+ * Contrairement à generateMob(), aucun modificateur aléatoire n'est appliqué :
+ * un boss de quartier a des stats fixes et intentionnelles.
+ *
+ * @param {string} districtName
+ * @returns {object|null}
+ */
+function generateBoss(districtName) {
+    const bossTemplate = findBossForDistrict(districtName);
+    if (!bossTemplate) {
+        console.error(`Erreur: Aucun boss défini pour le quartier "${districtName}".`);
+        return null;
+    }
+    const boss = JSON.parse(JSON.stringify(bossTemplate));
+    boss.isGenerated = true;
+    return boss;
+}
+
+// ==========================================
 // 2. GÉNÉRATION DES OBJETS (LOOT)
 // ==========================================
 
