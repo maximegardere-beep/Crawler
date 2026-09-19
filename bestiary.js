@@ -66,7 +66,41 @@ function findMobByName(name) {
     return baseMobs.find(mob => mob.name === name);
 }
 
+// ==========================================
+// 3. BOSS DE QUARTIER
+// ==========================================
+// Un boss unique et curaté à la main par quartier (pas de modificateurs aléatoires, contrairement
+// aux mobs standards). Affronté uniquement quand l'escalier de ce quartier est gardé.
+// Volontairement très coriaces : ces combats sont censés être hors de portée en début de partie
+// (fuir est la bonne décision), et devenir gagnables après quelques niveaux.
+const districtBosses = {
+    "Tunnels de Métro Abandonnés": {
+        name: "Le Chef de Gare Nécrosé",
+        hp: 220, atk: 15, def: 10, xpReward: 90, effect: "stun",
+        isBoss: true
+    },
+    "Jardins Carnivores": {
+        name: "La Mère-Liane",
+        hp: 210, atk: 14, def: 9, xpReward: 90, effect: "poison",
+        isBoss: true
+    },
+    "Bureaux de l'Administration Pénitentiaire": {
+        name: "Le Directeur Général (Édition Cauchemar)",
+        hp: 230, atk: 16, def: 11, xpReward: 100, effect: "slow",
+        isBoss: true
+    }
+};
+
+/**
+ * Retrouve le boss attitré d'un quartier donné.
+ * @param {string} districtName
+ * @returns {object|null}
+ */
+function findBossForDistrict(districtName) {
+    return districtBosses[districtName] || null;
+}
+
 // Export (utile si tu passes sur un environnement modulaire avec Node ou des modules ES6)
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { mobModifiers, baseMobs, findMobByName };
+    module.exports = { mobModifiers, baseMobs, findMobByName, districtBosses, findBossForDistrict };
 }
