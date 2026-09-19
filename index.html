@@ -52,7 +52,7 @@
             <div class="text-right bg-gray-950 px-4 py-2 rounded border border-red-900/50 shadow-[inset_0_0_10px_rgba(153,27,27,0.3)]">
                 <span class="text-gray-500 text-xs uppercase tracking-widest block mb-1">Intégrité Physique</span>
                 <div class="text-2xl font-bold text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
-                    PV: <span id="current-hp">100</span>/<span id="max-hp">100</span>
+                    PV: <span id="current-hp">100</span>/<span id="max-hp">100</span> <span id="player-status-icons" class="text-sm"></span>
                 </div>
             </div>
         </header>
@@ -115,6 +115,11 @@
                 <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Inventaire</h2>
                 <span class="text-[10px] text-gray-500">Capacité: <span id="inventory-count">0</span>/5</span>
             </div>
+            <div class="flex gap-4 text-[11px] text-gray-500 bg-gray-950/50 border border-gray-800 rounded px-3 py-2">
+                <span>⚔️ Arme : <span id="equipped-weapon" class="text-gray-300">Aucune</span></span>
+                <span>🛡️ Armure : <span id="equipped-armor" class="text-gray-300">Aucune</span></span>
+            </div>
+            <p class="text-[10px] text-gray-600 italic">Touchez un objet pour l'équiper (arme/armure) ou l'utiliser (consommable).</p>
             <div id="inventory" class="grid grid-cols-5 gap-3">
                 <!-- 5 emplacements vides par défaut -->
                 <div class="aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-gray-800 text-2xl shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">+</div>
@@ -138,7 +143,7 @@
             <div id="combat-zone" class="hidden mt-2 p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
                 <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Zone de Combat</span>
                 <div class="text-center text-sm text-red-300 mb-3">
-                    <span id="enemy-name" class="font-bold">-</span> — PV: <span id="enemy-hp">0</span>
+                    <span id="enemy-name" class="font-bold">-</span> — PV: <span id="enemy-hp">0</span> <span id="enemy-status-icons"></span>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <button id="btn-attack-weapon" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
@@ -165,10 +170,10 @@
     </main>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=5"></script>
-    <script src="items.js?v=5"></script>
-    <script src="districts.js?v=5"></script>
-    <script src="generator.js?v=5"></script>
-    <script src="app.js?v=5"></script>
+    <script src="bestiary.js?v=6"></script>
+    <script src="items.js?v=6"></script>
+    <script src="districts.js?v=6"></script>
+    <script src="generator.js?v=6"></script>
+    <script src="app.js?v=6"></script>
 </body>
 </html>
