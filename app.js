@@ -30,6 +30,15 @@ const gameState = {
     })(),
     inventory: [],
     maxInventory: 5,
+    equipment: {
+        weapon: null, // Objet de catégorie 'weapons' équipé, ou null
+        armor: null   // Objet de catégorie 'armors' équipé, ou null
+    },
+    status: {
+        bleed: null,    // { rounds, dmgPerRound } ou null
+        stunned: false, // Rate son prochain tour si vrai
+        slowed: null    // { rounds } : dégâts infligés par le joueur divisés par 2 pendant ces rounds
+    },
     cardsDrawnThisFloor: 0, // Compteur de cartes pour calculer la probabilité de l'escalier
     inCombat: false, // Verrouille l'avancée si un combat est en cours
     currentEnemy: null, // Ennemi généré procéduralement, actif pendant un combat
@@ -127,6 +136,10 @@ const ui = {
     eventLog: document.getElementById('event-log'),
     inventoryCount: document.getElementById('inventory-count'),
     inventoryContainer: document.getElementById('inventory'),
+    equippedWeapon: document.getElementById('equipped-weapon'),
+    equippedArmor: document.getElementById('equipped-armor'),
+    playerStatusIcons: document.getElementById('player-status-icons'),
+    enemyStatusIcons: document.getElementById('enemy-status-icons'),
     btnAdvance: document.getElementById('btn-advance'),
     combatZone: document.getElementById('combat-zone'),
     enemyName: document.getElementById('enemy-name'),
@@ -149,6 +162,13 @@ function updateUI() {
     // Mise à jour des PV
     ui.currentHp.innerText = gameState.hp;
     ui.maxHp.innerText = gameState.maxHp;
+
+    // Icônes de statut du joueur
+    let playerIcons = "";
+    if (gameState.status.bleed && gameState.status.bleed.rounds > 0) playerIcons += "🩸";
+    if (gameState.status.stunned) playerIcons += "💫";
+    if (gameState.status.slowed && gameState.status.slowed.rounds > 0) playerIcons += "🐌";
+    ui.playerStatusIcons.innerText = playerIcons;
 
     // Mise à jour du niveau et de l'XP
     ui.playerLevel.innerText = gameState.level;
@@ -189,6 +209,14 @@ function updateUI() {
         if (gameState.currentEnemy) {
             ui.enemyName.innerText = gameState.currentEnemy.name;
             ui.enemyHp.innerText = Math.max(0, Math.round(gameState.currentEnemy.hp));
+
+            let enemyIcons = "";
+            const enemyStatus = gameState.currentEnemy.status;
+            if (enemyStatus) {
+                if (enemyStatus.bleed && enemyStatus.bleed.rounds > 0) enemyIcons += "🩸";
+                if (enemyStatus.stunned) enemyIcons += "💫";
+            }
+            ui.enemyStatusIcons.innerText = enemyIcons;
         }
     } else {
         ui.btnAdvance.classList.remove('opacity-50', 'pointer-events-none');
@@ -218,22 +246,86 @@ function logEvent(message, type = "normal") {
 function updateInventoryUI() {
     ui.inventoryCount.innerText = gameState.inventory.length;
     ui.inventoryContainer.innerHTML = ""; // On vide l'inventaire
-    
+
+    // Affichage de l'équipement actuel
+    ui.equippedWeapon.innerText = gameState.equipment.weapon ? gameState.equipment.weapon.name : "Aucune";
+    ui.equippedArmor.innerText = gameState.equipment.armor ? gameState.equipment.armor.name : "Aucune";
+
+    // Couleur distincte par catégorie d'objet, pour repérer les types d'un coup d'œil
+    const categoryStyles = {
+        weapons: ['text-red-400', 'border-red-900/50'],
+        armors: ['text-blue-400', 'border-blue-900/50'],
+        consumables: ['text-green-400', 'border-green-900/50']
+    };
+
     // On recrée les 5 cases
     for (let i = 0; i < gameState.maxInventory; i++) {
         const slot = document.createElement('div');
         slot.className = "aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-xs text-center p-1 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)] overflow-hidden text-ellipsis";
-        
+
         if (i < gameState.inventory.length) {
-            slot.innerText = gameState.inventory[i].name;
-            slot.title = gameState.inventory[i].name; // infobulle si le nom est tronqué visuellement
-            slot.classList.add('text-yellow-500', 'border-yellow-900/50');
+            const item = gameState.inventory[i];
+            slot.innerText = item.name;
+            slot.title = `${item.name} — touchez pour ${item.category === 'consumables' ? 'utiliser' : 'équiper'}`;
+            const [textClass, borderClass] = categoryStyles[item.category] || ['text-yellow-500', 'border-yellow-900/50'];
+            slot.classList.add(textClass, borderClass, 'cursor-pointer', 'hover:brightness-125');
+            slot.addEventListener('click', () => useOrEquipItem(i));
         } else {
             slot.innerText = "+";
             slot.classList.add('text-gray-800');
         }
         ui.inventoryContainer.appendChild(slot);
     }
+}
+
+// ==========================================
+// SYSTÈME D'ÉQUIPEMENT ET DE CONSOMMABLES
+// ==========================================
+
+// Point d'entrée unique quand on touche un objet de l'inventaire : équipe ou consomme selon la catégorie
+function useOrEquipItem(index) {
+    const item = gameState.inventory[index];
+    if (!item) return;
+
+    if (item.category === 'consumables') {
+        useConsumable(index);
+    } else if (item.category === 'weapons' || item.category === 'armors') {
+        equipItem(index);
+    }
+}
+
+// Équipe une arme ou une armure. L'éventuel équipement précédent retourne dans l'inventaire
+// (jamais de perte d'objet lors d'un changement d'équipement).
+function equipItem(index) {
+    const item = gameState.inventory[index];
+    if (!item) return;
+
+    const slot = item.category === 'weapons' ? 'weapon' : 'armor';
+    const previouslyEquipped = gameState.equipment[slot];
+
+    gameState.equipment[slot] = item;
+    gameState.inventory.splice(index, 1);
+    if (previouslyEquipped) {
+        gameState.inventory.push(previouslyEquipped);
+    }
+
+    logEvent(`Vous équipez [${item.name}] (${slot === 'weapon' ? 'Arme' : 'Armure'}).`, "info");
+    updateUI();
+    updateInventoryUI();
+}
+
+// Consomme un objet de type consommable : soigne puis disparaît de l'inventaire
+function useConsumable(index) {
+    const item = gameState.inventory[index];
+    if (!item) return;
+
+    const healAmount = item.heal || 0;
+    gameState.hp = Math.min(gameState.maxHp, gameState.hp + healAmount);
+    logEvent(`Vous consommez [${item.name}] et récupérez ${healAmount} PV.`, "success");
+
+    gameState.inventory.splice(index, 1);
+    updateUI();
+    updateInventoryUI();
 }
 
 // ==========================================
@@ -436,6 +528,12 @@ function initiateCombat() {
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
 
+    // Statuts remis à zéro à chaque nouveau combat (des deux côtés)
+    gameState.status = { bleed: null, stunned: false, slowed: null };
+    if (enemy) {
+        enemy.status = { bleed: null, stunned: false };
+    }
+
     logEvent("--- COMBAT INITIÉ ---", "danger");
     if (enemy) {
         logEvent(`Un [${enemy.name}] apparaît ! (PV: ${Math.round(enemy.hp)} | ATQ: ${enemy.atk} | DEF: ${enemy.def})`, "danger");
@@ -466,15 +564,61 @@ function rollDamage(attackerAtk, defenderDef, options = {}) {
     return Math.max(1, Math.round(damage));
 }
 
+// DEF effective du joueur : sa DEF de base + le bonus de l'armure équipée, le cas échéant
+function getEffectiveDef() {
+    const armorBonus = gameState.equipment.armor ? (gameState.equipment.armor.baseArmor || 0) : 0;
+    return gameState.def + armorBonus;
+}
+
+// Vérifie que le joueur peut agir (combat en cours, pas étourdi), et applique le saignement
+// éventuellement en cours sur le joueur AVANT son action. Retourne false si le joueur ne peut pas
+// agir ce tour-ci (combat terminé entre-temps, ou étourdi).
+function tryPlayerAction() {
+    if (!gameState.inCombat || !gameState.currentEnemy) return false;
+
+    // Saignement en cours sur le joueur : tique avant son action
+    if (gameState.status.bleed && gameState.status.bleed.rounds > 0) {
+        const dmg = gameState.status.bleed.dmgPerRound;
+        gameState.hp -= dmg;
+        gameState.status.bleed.rounds -= 1;
+        if (gameState.status.bleed.rounds <= 0) gameState.status.bleed = null;
+        logEvent(`🩸 Votre état vous fait perdre ${dmg} PV.`, "danger");
+        if (gameState.hp <= 0) {
+            gameState.hp = 0;
+            gameOver();
+            return false;
+        }
+    }
+
+    if (gameState.status.stunned) {
+        logEvent("Vous êtes étourdi et ne parvenez pas à agir ce tour-ci !", "danger");
+        gameState.status.stunned = false; // L'étourdissement se consomme après ce tour manqué
+        enemyCounterAttack();
+        return false;
+    }
+
+    return true;
+}
+
 // Portion commune à toute attaque du joueur : applique les dégâts, vérifie la victoire,
 // et laisse l'ennemi riposter s'il survit.
-function performPlayerAttack(options, label) {
+function performPlayerAttack(attackerAtk, options, label) {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
     const enemy = gameState.currentEnemy;
 
-    const playerDamage = rollDamage(gameState.atk, enemy.def, options);
+    // Un joueur ralenti inflige moitié moins de dégâts, le temps que l'effet se dissipe
+    let effectiveOptions = options;
+    let slowedNote = "";
+    if (gameState.status.slowed && gameState.status.slowed.rounds > 0) {
+        effectiveOptions = { ...options, atkMultiplier: (options.atkMultiplier ?? 1) * 0.5 };
+        slowedNote = " (ralenti)";
+        gameState.status.slowed.rounds -= 1;
+        if (gameState.status.slowed.rounds <= 0) gameState.status.slowed = null;
+    }
+
+    const playerDamage = rollDamage(attackerAtk, enemy.def, effectiveOptions);
     enemy.hp -= playerDamage;
-    logEvent(`Vous attaquez ${label} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
+    logEvent(`Vous attaquez ${label}${slowedNote} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
 
     if (enemy.hp <= 0) {
         logEvent(`[${enemy.name}] s'effondre, vaincu !`, "success");
@@ -486,12 +630,83 @@ function performPlayerAttack(options, label) {
     return true;
 }
 
-// Riposte de l'ennemi (dégâts standards, sans type d'attaque particulier pour l'instant)
+// Applique la mécanique spéciale de l'arme équipée (Tranchant->saignement, Lourd->étourdissement),
+// avec une chance de déclenchement. Appelée uniquement après une attaque à l'arme réussie.
+function applyWeaponMechanic() {
+    const weapon = gameState.equipment.weapon;
+    const enemy = gameState.currentEnemy;
+    if (!weapon || !weapon.mechanic || !enemy) return;
+
+    const triggerChance = 30; // 30% de chance que la mécanique de l'arme se déclenche
+    if (Math.random() * 100 >= triggerChance) return;
+
+    if (weapon.mechanic === 'bleed') {
+        enemy.status.bleed = { rounds: 3, dmgPerRound: Math.max(2, Math.round((weapon.baseDmg || 5) * 0.3)) };
+        logEvent(`🩸 [${enemy.name}] se met à saigner !`, "danger");
+    } else if (weapon.mechanic === 'stun') {
+        enemy.status.stunned = true;
+        logEvent(`💫 [${enemy.name}] est étourdi par le choc !`, "danger");
+    }
+    // "pleasure_or_pain" (Vibrant) reste un effet purement comique, sans mécanique de combat
+    updateUI();
+}
+
+// Tente d'appliquer un effet de statut au joueur selon le trait élémentaire du monstre
+// (burn/poison/slow/stun, définis dans mobModifiers). Appelée après une riposte ennemie réussie.
+function applyMobEffectOnPlayer(enemy) {
+    if (!enemy.effect) return;
+    const triggerChance = 25; // 25% de chance que le trait élémentaire du monstre fasse effet
+    if (Math.random() * 100 >= triggerChance) return;
+
+    switch (enemy.effect) {
+        case 'burn':
+            gameState.status.bleed = { rounds: 3, dmgPerRound: 5 };
+            logEvent("🔥 Vous prenez feu ! La brûlure va vous ronger quelques instants.", "danger");
+            break;
+        case 'poison':
+            gameState.status.bleed = { rounds: 4, dmgPerRound: 4 };
+            logEvent("☢️ Une sensation toxique se propage en vous.", "danger");
+            break;
+        case 'slow':
+            gameState.status.slowed = { rounds: 2 };
+            logEvent("🐌 Vos mouvements sont englués, vous vous sentez ralenti.", "danger");
+            break;
+        case 'stun':
+            gameState.status.stunned = true;
+            logEvent("⚡ Le choc vous étourdit !", "danger");
+            break;
+    }
+}
+
+// Riposte de l'ennemi : tient compte de son propre saignement/étourdissement en cours,
+// de l'armure équipée du joueur, et peut infliger un effet de statut selon son trait élémentaire.
 function enemyCounterAttack() {
     const enemy = gameState.currentEnemy;
     if (!enemy) return; // sécurité si le combat vient d'être résolu
 
-    const enemyDamage = rollDamage(enemy.atk, gameState.def);
+    // Saignement en cours sur l'ennemi (infligé par une arme du joueur) : tique avant son action
+    if (enemy.status && enemy.status.bleed && enemy.status.bleed.rounds > 0) {
+        const dmg = enemy.status.bleed.dmgPerRound;
+        enemy.hp -= dmg;
+        enemy.status.bleed.rounds -= 1;
+        if (enemy.status.bleed.rounds <= 0) enemy.status.bleed = null;
+        logEvent(`🩸 [${enemy.name}] souffre de son saignement (-${dmg} PV).`, "danger");
+        if (enemy.hp <= 0) {
+            logEvent(`[${enemy.name}] succombe à ses blessures !`, "success");
+            winCombat();
+            return;
+        }
+    }
+
+    // Étourdissement en cours sur l'ennemi : il rate son tour
+    if (enemy.status && enemy.status.stunned) {
+        logEvent(`[${enemy.name}] est étourdi et ne peut pas riposter !`, "info");
+        enemy.status.stunned = false;
+        updateUI();
+        return;
+    }
+
+    const enemyDamage = rollDamage(enemy.atk, getEffectiveDef());
     gameState.hp -= enemyDamage;
     logEvent(`[${enemy.name}] vous inflige ${enemyDamage} dégâts.`, "danger");
 
@@ -501,6 +716,7 @@ function enemyCounterAttack() {
         return;
     }
 
+    applyMobEffectOnPlayer(enemy);
     updateUI();
 }
 
@@ -509,21 +725,31 @@ function enemyCounterAttack() {
 // (XP dédiée, indépendante des autres compétences et du niveau général du joueur).
 const SKILL_XP_PER_USE = 3;
 
-// Arme : la référence, équilibrée. Chaque niveau de compétence Arme améliore sa puissance.
-// (Plus tard : nécessitera une arme équipée.)
+// Arme : la référence, équilibrée. Bénéficie du bonus de dégâts et de la mécanique spéciale
+// (saignement/étourdissement) de l'arme équipée, le cas échéant.
 function attackWeapon() {
+    if (!tryPlayerAction()) return;
+
     const skill = gameState.skills.weapon;
     const atkMultiplier = 1.0 + 0.04 * (skill.level - 1); // +4% par niveau
-    const used = performPlayerAttack({ atkMultiplier, varianceRange: 0.15, defReduction: 0 }, "à l'arme");
-    if (used) gainSkillXp('weapon', SKILL_XP_PER_USE);
+    const weaponBonus = gameState.equipment.weapon ? (gameState.equipment.weapon.baseDmg || 0) : 0;
+    const effectiveAtk = gameState.atk + weaponBonus;
+
+    const used = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0 }, "à l'arme");
+    if (used) {
+        gainSkillXp('weapon', SKILL_XP_PER_USE);
+        applyWeaponMechanic(); // Ne fait rien si le combat vient de se terminer ou si l'arme n'a pas de mécanique
+    }
 }
 
 // Mains nues : moins puissant, mais ignore une bonne partie de la DEF adverse.
 // Chaque niveau de compétence Mains nues améliore la capacité à contourner la DEF adverse.
 function attackUnarmed() {
+    if (!tryPlayerAction()) return;
+
     const skill = gameState.skills.unarmed;
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
-    const used = performPlayerAttack({ atkMultiplier: 0.75, varianceRange: 0.10, defReduction }, "à mains nues");
+    const used = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75, varianceRange: 0.10, defReduction }, "à mains nues");
     if (used) gainSkillXp('unarmed', SKILL_XP_PER_USE);
 }
 
@@ -531,7 +757,7 @@ function attackUnarmed() {
 // Chaque niveau de compétence Magie réduit le risque de rater son sort ET augmente légèrement sa puissance.
 // (Plus tard : nécessitera un sort appris et du mana.)
 function attackMagic() {
-    if (!gameState.inCombat || !gameState.currentEnemy) return;
+    if (!tryPlayerAction()) return;
 
     const skill = gameState.skills.magic;
     const backfireChance = Math.max(3, 15 - 1.5 * (skill.level - 1)); // 15% de base, jusqu'à 3% minimum
@@ -544,7 +770,7 @@ function attackMagic() {
         return;
     }
 
-    const used = performPlayerAttack({ atkMultiplier, varianceRange: 0.35, defReduction: 0 }, "magiquement");
+    const used = performPlayerAttack(gameState.atk, { atkMultiplier, varianceRange: 0.35, defReduction: 0 }, "magiquement");
     if (used) gainSkillXp('magic', SKILL_XP_PER_USE);
 }
 
@@ -560,6 +786,7 @@ function attemptFlee() {
         gameState.currentEnemy = null;
         gameState.inCombat = false;
         gameState.pendingStairAfterCombat = false; // La fuite ne compte pas comme une victoire sur le gardien
+        gameState.status = { bleed: null, stunned: false, slowed: null }; // Les statuts ne survivent pas au combat
         updateUI();
     } else {
         logEvent(`Votre fuite échoue ! [${enemy.name}] profite de l'ouverture.`, "danger");
@@ -581,6 +808,7 @@ function winCombat() {
 
     gameState.currentEnemy = null;
     gameState.inCombat = false;
+    gameState.status = { bleed: null, stunned: false, slowed: null }; // Les statuts ne survivent pas au combat
 
     // Si ce combat gardait un escalier, la victoire ouvre le passage vers l'étage suivant
     if (gameState.pendingStairAfterCombat) {
