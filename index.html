@@ -109,9 +109,20 @@
                 <div class="text-center text-sm text-red-300 mb-3">
                     <span id="enemy-name" class="font-bold">-</span> — PV: <span id="enemy-hp">0</span>
                 </div>
-                <button id="btn-attack" class="w-full px-4 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-sm text-red-400 uppercase tracking-wider transition-all shadow-[0_0_10px_rgba(153,27,27,0.2)] hover:shadow-[0_0_15px_rgba(239,68,68,0.4)]">
-                    Attaquer
-                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-attack-weapon" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
+                        ⚔️ Arme
+                    </button>
+                    <button id="btn-attack-unarmed" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
+                        👊 Mains nues
+                    </button>
+                    <button id="btn-attack-magic" class="px-3 py-3 bg-gray-900 border border-purple-800/80 hover:border-purple-500 hover:bg-purple-900/30 rounded text-xs text-purple-400 uppercase tracking-wider transition-all">
+                        ✨ Magie
+                    </button>
+                    <button id="btn-flee" class="px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
+                        🏃 Fuir
+                    </button>
+                </div>
             </div>
         </section>
 
@@ -123,10 +134,10 @@
     </main>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js"></script>
-    <script src="items.js"></script>
-    <script src="districts.js"></script>
-    <script src="generator.js"></script>
-    <script src="app.js"></script>
+    <script src="bestiary.js?v=3"></script>
+    <script src="items.js?v=3"></script>
+    <script src="districts.js?v=3"></script>
+    <script src="generator.js?v=3"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>
