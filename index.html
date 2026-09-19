@@ -57,6 +57,25 @@
         .card-draw-anim {
             animation: cardDraw 0.35s ease-out;
         }
+
+        /* --- Dés de dégâts (combat) --- */
+        .die-badge {
+            width: 26px; height: 26px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: bold;
+            background: #030712; border: 1px solid #374151; border-radius: 6px;
+            opacity: 0.3;
+            transition: opacity 0.15s;
+        }
+        @keyframes diePop {
+            0%   { transform: scale(0.4) rotate(-15deg); opacity: 0.3; }
+            60%  { transform: scale(1.2) rotate(8deg);   opacity: 1; }
+            100% { transform: scale(1) rotate(0deg);     opacity: 1; }
+        }
+        .die-pop {
+            animation: diePop 0.25s ease-out;
+            opacity: 1;
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-200 min-h-screen flex justify-center items-center py-6 px-4 selection:bg-blue-900 selection:text-white">
@@ -136,25 +155,43 @@
 
         <!-- 3. Deck de Cartes -->
         <section class="flex flex-col items-center gap-2 py-1">
-            <div class="relative w-full max-w-[240px] mx-auto" style="aspect-ratio: 5 / 7;">
-                <!-- Pile décorative (dos de cartes empilés, purement visuel — ne représente pas un vrai deck fini) -->
-                <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(-7deg) translate(-8px, 5px);"></div>
-                <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(5deg) translate(6px, 3px);"></div>
-                <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(-3deg) translate(-3px, -2px);"></div>
+            <div class="w-full flex items-center justify-center gap-2">
+                <!-- Colonne Ennemi (visible uniquement en combat) : PV, statut, dé de dégâts subis -->
+                <div id="combat-side-enemy" class="hidden w-14 shrink-0 text-center gap-1">
+                    <span class="text-[8px] uppercase tracking-widest text-red-400 block">Ennemi</span>
+                    <span id="combat-enemy-hp" class="text-base font-bold text-red-400 leading-none block">0</span>
+                    <span id="combat-enemy-status" class="text-xs leading-none block">—</span>
+                    <div id="combat-enemy-die" class="die-badge border-red-700 text-red-300 mx-auto mt-1">–</div>
+                </div>
 
-                <!-- Carte active : révèle l'événement du tirage en cours -->
-                <div id="active-card" class="game-card absolute inset-0 rounded-2xl flex flex-col p-4">
-                    <div class="flex justify-between items-center text-[9px] uppercase tracking-widest text-stone-500 font-bold">
-                        <span id="card-type-label">Donjon</span>
-                        <span id="card-floor-label">Étage 1</span>
+                <!-- Carte active : révèle l'événement du tirage en cours (rétrécit pendant un combat) -->
+                <div id="card-stack-wrapper" class="relative w-full max-w-[240px] mx-auto" style="aspect-ratio: 5 / 7; transition: max-width 0.3s ease;">
+                    <!-- Pile décorative (dos de cartes empilés, purement visuel) -->
+                    <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(-7deg) translate(-8px, 5px);"></div>
+                    <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(5deg) translate(6px, 3px);"></div>
+                    <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(-3deg) translate(-3px, -2px);"></div>
+
+                    <div id="active-card" class="game-card absolute inset-0 rounded-2xl flex flex-col p-4">
+                        <div class="flex justify-between items-center text-[9px] uppercase tracking-widest text-stone-500 font-bold">
+                            <span id="card-type-label">Donjon</span>
+                            <span id="card-floor-label">Étage 1</span>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-center text-center gap-2 min-h-0">
+                            <div id="card-icon" class="text-5xl leading-none">🚪</div>
+                            <div id="card-title" class="text-base font-black uppercase tracking-wide text-stone-800">En Exploration</div>
+                        </div>
+                        <div id="card-body" class="text-[11px] leading-snug text-stone-700 max-h-24 overflow-y-auto border-t border-stone-300 pt-2 space-y-1 shrink-0">
+                            <p class="italic text-stone-500">Touchez "Avancer" pour tirer une carte...</p>
+                        </div>
                     </div>
-                    <div class="flex-1 flex flex-col items-center justify-center text-center gap-2 min-h-0">
-                        <div id="card-icon" class="text-5xl leading-none">🚪</div>
-                        <div id="card-title" class="text-base font-black uppercase tracking-wide text-stone-800">En Exploration</div>
-                    </div>
-                    <div id="card-body" class="text-[11px] leading-snug text-stone-700 max-h-24 overflow-y-auto border-t border-stone-300 pt-2 space-y-1 shrink-0">
-                        <p class="italic text-stone-500">Touchez "Avancer" pour tirer une carte...</p>
-                    </div>
+                </div>
+
+                <!-- Colonne Joueur (visible uniquement en combat) : PV, statut, dé de dégâts infligés -->
+                <div id="combat-side-player" class="hidden w-14 shrink-0 text-center gap-1">
+                    <span class="text-[8px] uppercase tracking-widest text-blue-400 block">Vous</span>
+                    <span id="combat-player-hp" class="text-base font-bold text-blue-400 leading-none block">0</span>
+                    <span id="combat-player-status" class="text-xs leading-none block">—</span>
+                    <div id="combat-player-die" class="die-badge border-blue-700 text-blue-300 mx-auto mt-1">–</div>
                 </div>
             </div>
         </section>
@@ -165,7 +202,34 @@
             <div id="full-log" class="mt-2 h-28 overflow-y-auto bg-gray-950 border border-gray-800 rounded p-2 flex flex-col gap-1"></div>
         </details>
 
-        <!-- 4. Inventaire -->
+        <!-- 4. Zone de Combat (visible uniquement pendant un affrontement, juste sous la carte) -->
+        <div id="combat-zone" class="hidden p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Zone de Combat</span>
+            <div class="text-center text-sm text-red-300 mb-3 font-bold" id="enemy-name">-</div>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-attack-weapon" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
+                    ⚔️ Arme
+                </button>
+                <button id="btn-attack-unarmed" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
+                    👊 Mains nues
+                </button>
+                <button id="btn-attack-magic" class="px-3 py-3 bg-gray-900 border border-purple-800/80 hover:border-purple-500 hover:bg-purple-900/30 rounded text-xs text-purple-400 uppercase tracking-wider transition-all">
+                    ✨ Magie
+                </button>
+                <button id="btn-flee" class="px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
+                    🏃 Fuir
+                </button>
+            </div>
+        </div>
+
+        <!-- 5. Bouton Avancer (juste au-dessus de l'inventaire) -->
+        <button id="btn-advance" class="group relative w-full py-5 bg-gray-900 border-2 border-blue-600 rounded-lg text-white font-bold text-xl uppercase tracking-widest overflow-hidden transition-all hover:border-blue-400 hover:shadow-[0_0_25px_rgba(59,130,246,0.5)] active:scale-[0.98]">
+            <div class="absolute inset-0 bg-blue-600/20 group-hover:bg-blue-500/30 transition-colors"></div>
+            <span class="relative z-10 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">Avancer</span>
+            <span class="relative z-10 block text-xs text-blue-300 font-normal mt-1 opacity-80">(Tirer une carte : -1 Heure)</span>
+        </button>
+
+        <!-- 6. Inventaire -->
         <section class="flex flex-col gap-2">
             <div class="flex justify-between items-end">
                 <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Inventaire</h2>
@@ -186,38 +250,6 @@
             </div>
         </section>
 
-        <!-- 5. Contrôles -->
-        <section class="flex flex-col gap-4 mt-2">
-            <!-- Bouton Principal -->
-            <button id="btn-advance" class="group relative w-full py-5 bg-gray-900 border-2 border-blue-600 rounded-lg text-white font-bold text-xl uppercase tracking-widest overflow-hidden transition-all hover:border-blue-400 hover:shadow-[0_0_25px_rgba(59,130,246,0.5)] active:scale-[0.98]">
-                <div class="absolute inset-0 bg-blue-600/20 group-hover:bg-blue-500/30 transition-colors"></div>
-                <span class="relative z-10 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">Avancer</span>
-                <span class="relative z-10 block text-xs text-blue-300 font-normal mt-1 opacity-80">(Tirer une carte : -1 Heure)</span>
-            </button>
-            
-            <!-- Zone de Combat (visible uniquement pendant un affrontement) -->
-            <div id="combat-zone" class="hidden mt-2 p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
-                <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Zone de Combat</span>
-                <div class="text-center text-sm text-red-300 mb-3">
-                    <span id="enemy-name" class="font-bold">-</span> — PV: <span id="enemy-hp">0</span> <span id="enemy-status-icons"></span>
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <button id="btn-attack-weapon" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
-                        ⚔️ Arme
-                    </button>
-                    <button id="btn-attack-unarmed" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
-                        👊 Mains nues
-                    </button>
-                    <button id="btn-attack-magic" class="px-3 py-3 bg-gray-900 border border-purple-800/80 hover:border-purple-500 hover:bg-purple-900/30 rounded text-xs text-purple-400 uppercase tracking-wider transition-all">
-                        ✨ Magie
-                    </button>
-                    <button id="btn-flee" class="px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
-                        🏃 Fuir
-                    </button>
-                </div>
-            </div>
-        </section>
-
         <!-- 6. Logs de Dev (Bouton discret) -->
         <button id="btn-dev-logs" class="absolute bottom-2 right-4 text-[10px] text-gray-700 hover:text-gray-400 transition-colors uppercase tracking-widest cursor-pointer">
             >_ Exporter Logs Dev
@@ -226,10 +258,10 @@
     </main>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=8"></script>
-    <script src="items.js?v=8"></script>
-    <script src="districts.js?v=8"></script>
-    <script src="generator.js?v=8"></script>
-    <script src="app.js?v=8"></script>
+    <script src="bestiary.js?v=9"></script>
+    <script src="items.js?v=9"></script>
+    <script src="districts.js?v=9"></script>
+    <script src="generator.js?v=9"></script>
+    <script src="app.js?v=9"></script>
 </body>
 </html>
