@@ -43,7 +43,7 @@ const mobModifiers = {
 const baseMobs = [
     // -- Tunnels de Métro Abandonnés --
     { name: "Rat Goulot", hp: 30, atk: 5, def: 2, allowedTags: ["mental", "physical", "elemental"] },
-    { name: "Distributeur de Snacks Hanté", hp: 80, atk: 12, def: 15, allowedTags: ["elemental", "physical"] }, // Machine : pas de tag mental
+    { name: "Distributeur de Snacks Hanté", hp: 70, atk: 11, def: 10, allowedTags: ["elemental", "physical"] }, // Machine : pas de tag mental
     { name: "Contrôleur de Billets Zombifié", hp: 45, atk: 8, def: 4, allowedTags: ["mental", "physical", "elemental"] },
 
     // -- Jardins Carnivores --
@@ -52,7 +52,7 @@ const baseMobs = [
     { name: "Gobelin Paysagiste", hp: 35, atk: 7, def: 2, allowedTags: ["mental", "physical", "elemental"] },
 
     // -- Bureaux de l'Administration Pénitentiaire --
-    { name: "Photocopieuse Carnivore", hp: 100, atk: 18, def: 20, allowedTags: ["elemental", "physical"] }, // Machine
+    { name: "Photocopieuse Carnivore", hp: 100, atk: 10, def: 6, allowedTags: ["elemental", "physical"] }, // Machine
     { name: "Stagiaire Démoniaque", hp: 25, atk: 4, def: 1, allowedTags: ["mental", "physical", "elemental"] },
     { name: "Garde-Chiourme Bureaucrate", hp: 70, atk: 11, def: 8, allowedTags: ["mental", "physical"] }
 ];
