@@ -207,7 +207,10 @@ function updateUI() {
         ui.btnAdvance.classList.add('opacity-50', 'pointer-events-none');
         ui.combatZone.classList.remove('hidden');
         if (gameState.currentEnemy) {
-            ui.enemyName.innerText = gameState.currentEnemy.name;
+            ui.enemyName.innerText = gameState.currentEnemy.isBoss
+                ? `👑 ${gameState.currentEnemy.name}`
+                : gameState.currentEnemy.name;
+            ui.enemyName.classList.toggle('text-yellow-400', !!gameState.currentEnemy.isBoss);
             ui.enemyHp.innerText = Math.max(0, Math.round(gameState.currentEnemy.hp));
 
             let enemyIcons = "";
@@ -347,9 +350,15 @@ function resolveCardEvent() {
 
         const guardedRoll = Math.random() * 100;
         if (guardedRoll < config.stairGuardedChance) {
-            logEvent("Un gardien se poste devant les marches. Il faudra le vaincre pour descendre.", "danger");
+            const boss = generateBoss(gameState.currentDistrict);
+            logEvent(
+                boss
+                    ? `${boss.name}, gardien de ce quartier, vous barre la route vers l'étage suivant !`
+                    : "Un gardien se poste devant les marches. Il faudra le vaincre pour descendre.",
+                "danger"
+            );
             gameState.pendingStairAfterCombat = true; // Gagner CE combat déclenchera nextFloor()
-            initiateCombat();
+            initiateCombat(boss); // Repli automatique sur un mob générique si boss === null
         } else {
             nextFloor();
         }
@@ -523,8 +532,8 @@ function skillLabel(key) {
 // ==========================================
 // 4. SYSTÈME DE COMBAT
 // ==========================================
-function initiateCombat() {
-    const enemy = generateMob(gameState.currentDistrict);
+function initiateCombat(forcedEnemy = null) {
+    const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
 
@@ -534,10 +543,14 @@ function initiateCombat() {
         enemy.status = { bleed: null, stunned: false };
     }
 
-    logEvent("--- COMBAT INITIÉ ---", "danger");
-    if (enemy) {
+    if (enemy && enemy.isBoss) {
+        logEvent("--- 👑 COMBAT DE BOSS ---", "danger");
+        logEvent(`${enemy.name} se dresse devant vous ! (PV: ${Math.round(enemy.hp)} | ATQ: ${enemy.atk} | DEF: ${enemy.def})`, "danger");
+    } else if (enemy) {
+        logEvent("--- COMBAT INITIÉ ---", "danger");
         logEvent(`Un [${enemy.name}] apparaît ! (PV: ${Math.round(enemy.hp)} | ATQ: ${enemy.atk} | DEF: ${enemy.def})`, "danger");
     } else {
+        logEvent("--- COMBAT INITIÉ ---", "danger");
         // Sécurité : si la génération échoue pour une raison imprévue, on ne bloque pas le jeu
         logEvent("Une présence hostile rôde, mais reste indistincte...", "danger");
     }
@@ -795,14 +808,23 @@ function attemptFlee() {
 }
 
 function winCombat() {
-    logEvent("Vous remportez le combat !", "success");
+    const wasBoss = gameState.currentEnemy && gameState.currentEnemy.isBoss;
+
+    if (wasBoss) {
+        logEvent(`👑 Vous avez triomphé de ${gameState.currentEnemy.name} !`, "success");
+    } else {
+        logEvent("Vous remportez le combat !", "success");
+    }
 
     // Gain d'XP basé sur le monstre vaincu (valeur de repli si jamais xpReward est absent)
     const xpGained = (gameState.currentEnemy && gameState.currentEnemy.xpReward) || 10;
     gainXp(xpGained);
 
-    // Chance d'obtenir du butin après un combat
-    if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
+    // Butin : garanti pour un boss (avec une chance de second objet), sinon la chance standard
+    if (wasBoss) {
+        addLoot();
+        if (Math.random() * 100 < 50) addLoot(); // 50% de chance d'un deuxième objet
+    } else if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
         addLoot();
     }
 
