@@ -69,7 +69,10 @@ const ui = {
     combatZone: document.getElementById('combat-zone'),
     enemyName: document.getElementById('enemy-name'),
     enemyHp: document.getElementById('enemy-hp'),
-    btnAttack: document.getElementById('btn-attack'),
+    btnAttackWeapon: document.getElementById('btn-attack-weapon'),
+    btnAttackUnarmed: document.getElementById('btn-attack-unarmed'),
+    btnAttackMagic: document.getElementById('btn-attack-magic'),
+    btnFlee: document.getElementById('btn-flee'),
     btnDevLogs: document.getElementById('btn-dev-logs')
 };
 
@@ -305,22 +308,32 @@ function initiateCombat() {
 // Formule de mitigation multiplicative : le ratio ATQ/(ATQ+DEF) donne la part des dégâts qui passe.
 // Avantage sur une formule additive (ATQ - DEF) : jamais de dégâts négatifs à écrêter artificiellement,
 // et la DEF réduit toujours les dégâts proportionnellement, sans effet de seuil brutal.
-function rollDamage(attackerAtk, defenderDef) {
-    const mitigation = attackerAtk / (attackerAtk + Math.max(0, defenderDef));
-    const variance = 1 + (Math.random() * 0.3 - 0.15); // ±15%
-    const damage = attackerAtk * mitigation * variance;
+// `options` permet de différencier les types d'attaque (arme / mains nues / magie) :
+//   - atkMultiplier : multiplie l'ATQ de base (ex: 1.4 pour la magie, plus puissante)
+//   - varianceRange : amplitude de l'aléatoire (ex: 0.35 pour la magie, plus imprévisible)
+//   - defReduction  : fraction de la DEF adverse ignorée (ex: 0.35 pour les mains nues, qui passent sous la garde)
+function rollDamage(attackerAtk, defenderDef, options = {}) {
+    const atkMultiplier = options.atkMultiplier ?? 1;
+    const varianceRange = options.varianceRange ?? 0.15;
+    const defReduction = options.defReduction ?? 0;
+
+    const effectiveAtk = attackerAtk * atkMultiplier;
+    const effectiveDef = Math.max(0, defenderDef * (1 - defReduction));
+    const mitigation = effectiveAtk / (effectiveAtk + effectiveDef);
+    const variance = 1 + (Math.random() * varianceRange * 2 - varianceRange);
+    const damage = effectiveAtk * mitigation * variance;
     return Math.max(1, Math.round(damage));
 }
 
-// Un clic sur "Attaquer" = un round complet (le joueur frappe, puis l'ennemi riposte s'il survit)
-function fightRound() {
+// Portion commune à toute attaque du joueur : applique les dégâts, vérifie la victoire,
+// et laisse l'ennemi riposter s'il survit.
+function performPlayerAttack(options, label) {
     if (!gameState.inCombat || !gameState.currentEnemy) return;
     const enemy = gameState.currentEnemy;
 
-    // 1. Le joueur attaque
-    const playerDamage = rollDamage(gameState.atk, enemy.def);
+    const playerDamage = rollDamage(gameState.atk, enemy.def, options);
     enemy.hp -= playerDamage;
-    logEvent(`Vous infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
+    logEvent(`Vous attaquez ${label} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
 
     if (enemy.hp <= 0) {
         logEvent(`[${enemy.name}] s'effondre, vaincu !`, "success");
@@ -328,7 +341,14 @@ function fightRound() {
         return;
     }
 
-    // 2. L'ennemi riposte
+    enemyCounterAttack();
+}
+
+// Riposte de l'ennemi (dégâts standards, sans type d'attaque particulier pour l'instant)
+function enemyCounterAttack() {
+    const enemy = gameState.currentEnemy;
+    if (!enemy) return; // sécurité si le combat vient d'être résolu
+
     const enemyDamage = rollDamage(enemy.atk, gameState.def);
     gameState.hp -= enemyDamage;
     logEvent(`[${enemy.name}] vous inflige ${enemyDamage} dégâts.`, "danger");
@@ -340,6 +360,49 @@ function fightRound() {
     }
 
     updateUI();
+}
+
+// --- Les 3 types d'attaque ---
+// Arme : la référence, équilibrée. (Plus tard : nécessitera une arme équipée.)
+function attackWeapon() {
+    performPlayerAttack({ atkMultiplier: 1.0, varianceRange: 0.15, defReduction: 0 }, "à l'arme");
+}
+
+// Mains nues : moins puissant, mais ignore une bonne partie de la DEF adverse (frappe les points faibles).
+function attackUnarmed() {
+    performPlayerAttack({ atkMultiplier: 0.75, varianceRange: 0.10, defReduction: 0.35 }, "à mains nues");
+}
+
+// Magie : la plus puissante en moyenne, mais imprévisible, et peut totalement rater (thème absurde/chaotique).
+// (Plus tard : nécessitera un sort appris et du mana.)
+function attackMagic() {
+    if (!gameState.inCombat || !gameState.currentEnemy) return;
+
+    if (Math.random() * 100 < 15) { // 15% de chance de sort raté
+        logEvent("Votre sort part de travers et fait un flop retentissant. Aucun dégât.", "danger");
+        enemyCounterAttack();
+        return;
+    }
+
+    performPlayerAttack({ atkMultiplier: 1.4, varianceRange: 0.35, defReduction: 0 }, "magiquement");
+}
+
+// Tentative de fuite : quitte le combat sans le gagner ni obtenir de loot/XP.
+// En cas d'échec, l'ennemi place une attaque gratuite.
+function attemptFlee() {
+    if (!gameState.inCombat || !gameState.currentEnemy) return;
+    const enemy = gameState.currentEnemy;
+    const fleeChance = 60; // 60% de réussite (pourra dépendre de compétences/stats plus tard)
+
+    if (Math.random() * 100 < fleeChance) {
+        logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !`, "info");
+        gameState.currentEnemy = null;
+        gameState.inCombat = false;
+        updateUI();
+    } else {
+        logEvent(`Votre fuite échoue ! [${enemy.name}] profite de l'ouverture.`, "danger");
+        enemyCounterAttack();
+    }
 }
 
 function winCombat() {
@@ -404,8 +467,11 @@ function gameOver(timeout = false) {
 // Clic sur le bouton Avancer
 ui.btnAdvance.addEventListener('click', advance);
 
-// Clic sur le bouton Attaquer (un clic = un round de combat)
-ui.btnAttack.addEventListener('click', fightRound);
+// Clics sur les boutons de combat
+ui.btnAttackWeapon.addEventListener('click', attackWeapon);
+ui.btnAttackUnarmed.addEventListener('click', attackUnarmed);
+ui.btnAttackMagic.addEventListener('click', attackMagic);
+ui.btnFlee.addEventListener('click', attemptFlee);
 
 // Clic sur l'export des logs Dev
 ui.btnDevLogs.addEventListener('click', () => {
