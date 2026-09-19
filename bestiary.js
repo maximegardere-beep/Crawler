@@ -42,19 +42,19 @@ const mobModifiers = {
 // Chaque monstre est défini une seule fois. Les quartiers (districts.js) le référencent par son "name".
 const baseMobs = [
     // -- Tunnels de Métro Abandonnés --
-    { name: "Rat Goulot", hp: 30, atk: 5, def: 2, allowedTags: ["mental", "physical", "elemental"] },
-    { name: "Distributeur de Snacks Hanté", hp: 70, atk: 11, def: 10, allowedTags: ["elemental", "physical"] }, // Machine : pas de tag mental
-    { name: "Contrôleur de Billets Zombifié", hp: 45, atk: 8, def: 4, allowedTags: ["mental", "physical", "elemental"] },
+    { name: "Rat Goulot", hp: 30, atk: 5, def: 2, xpReward: 10, allowedTags: ["mental", "physical", "elemental"] },
+    { name: "Distributeur de Snacks Hanté", hp: 70, atk: 11, def: 10, xpReward: 40, allowedTags: ["elemental", "physical"] }, // Machine : pas de tag mental
+    { name: "Contrôleur de Billets Zombifié", hp: 45, atk: 8, def: 4, xpReward: 15, allowedTags: ["mental", "physical", "elemental"] },
 
     // -- Jardins Carnivores --
-    { name: "Tulipe Géante", hp: 40, atk: 10, def: 3, allowedTags: ["elemental", "physical"] }, // Plante : pas de tag mental
-    { name: "Ronce Étrangleuse", hp: 60, atk: 15, def: 5, allowedTags: ["elemental", "physical"] },
-    { name: "Gobelin Paysagiste", hp: 35, atk: 7, def: 2, allowedTags: ["mental", "physical", "elemental"] },
+    { name: "Tulipe Géante", hp: 40, atk: 10, def: 3, xpReward: 12, allowedTags: ["elemental", "physical"] }, // Plante : pas de tag mental
+    { name: "Ronce Étrangleuse", hp: 60, atk: 15, def: 5, xpReward: 18, allowedTags: ["elemental", "physical"] },
+    { name: "Gobelin Paysagiste", hp: 35, atk: 7, def: 2, xpReward: 12, allowedTags: ["mental", "physical", "elemental"] },
 
     // -- Bureaux de l'Administration Pénitentiaire --
-    { name: "Photocopieuse Carnivore", hp: 100, atk: 10, def: 6, allowedTags: ["elemental", "physical"] }, // Machine
-    { name: "Stagiaire Démoniaque", hp: 25, atk: 4, def: 1, allowedTags: ["mental", "physical", "elemental"] },
-    { name: "Garde-Chiourme Bureaucrate", hp: 70, atk: 11, def: 8, allowedTags: ["mental", "physical"] }
+    { name: "Photocopieuse Carnivore", hp: 100, atk: 10, def: 6, xpReward: 55, allowedTags: ["elemental", "physical"] }, // Machine
+    { name: "Stagiaire Démoniaque", hp: 25, atk: 4, def: 1, xpReward: 8, allowedTags: ["mental", "physical", "elemental"] },
+    { name: "Garde-Chiourme Bureaucrate", hp: 70, atk: 11, def: 8, xpReward: 25, allowedTags: ["mental", "physical"] }
 ];
 
 /**
