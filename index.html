@@ -57,6 +57,37 @@
             </div>
         </header>
 
+        <!-- 1bis. Carte Joueur : Compétences -->
+        <section class="grid grid-cols-3 gap-2 bg-gray-950/60 border border-gray-800 rounded-lg p-3">
+            <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
+                    <span>⚔️ Arme</span>
+                    <span id="skill-weapon-level" class="text-red-400 font-bold">Nv.1</span>
+                </div>
+                <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                    <div id="skill-weapon-bar" class="bg-red-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
+                    <span>👊 Mains nues</span>
+                    <span id="skill-unarmed-level" class="text-orange-400 font-bold">Nv.1</span>
+                </div>
+                <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                    <div id="skill-unarmed-bar" class="bg-orange-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
+                    <span>✨ Magie</span>
+                    <span id="skill-magic-level" class="text-purple-400 font-bold">Nv.1</span>
+                </div>
+                <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                    <div id="skill-magic-bar" class="bg-purple-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+        </section>
+
         <!-- 2. Temps Restant (Barre de progression) -->
         <section class="flex flex-col gap-1">
             <div class="flex justify-between items-center text-sm">
@@ -134,10 +165,10 @@
     </main>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=4"></script>
-    <script src="items.js?v=4"></script>
-    <script src="districts.js?v=4"></script>
-    <script src="generator.js?v=4"></script>
-    <script src="app.js?v=4"></script>
+    <script src="bestiary.js?v=5"></script>
+    <script src="items.js?v=5"></script>
+    <script src="districts.js?v=5"></script>
+    <script src="generator.js?v=5"></script>
+    <script src="app.js?v=5"></script>
 </body>
 </html>
