@@ -63,7 +63,10 @@ function generateMob(districtName) {
             const modifier = modifiersList[modIndex];
             
             appliedModifiers.push(modifier.name);
-            
+
+            // Transmission de l'effet élémentaire éventuel (burn/poison/slow/stun) au monstre final
+            if (modifier.effect) finalMob.effect = modifier.effect;
+
             // Application des statistiques (Addition)
             // On s'assure que la stat existe avant de l'additionner
             if (modifier.stats) {
@@ -137,8 +140,8 @@ function generateItem() {
             
             appliedModifiers.push(modifier.name);
             
-            // On peut ajouter des effets spéciaux ici en plus des stats
-            if (modifier.effect) finalItem.specialEffect = modifier.effect;
+            // On transmet la mécanique spéciale de l'objet (bleed/stun/...), en plus des stats
+            if (modifier.mechanic) finalItem.mechanic = modifier.mechanic;
             
             if (modifier.stats) {
                 for (let stat in modifier.stats) {
