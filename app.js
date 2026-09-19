@@ -122,6 +122,15 @@ const ui = {
     districtName: document.getElementById('district-name'),
     currentHp: document.getElementById('current-hp'),
     maxHp: document.getElementById('max-hp'),
+    playerAtk: document.getElementById('player-atk'),
+    playerDef: document.getElementById('player-def'),
+    activeCard: document.getElementById('active-card'),
+    cardTypeLabel: document.getElementById('card-type-label'),
+    cardFloorLabel: document.getElementById('card-floor-label'),
+    cardIcon: document.getElementById('card-icon'),
+    cardTitle: document.getElementById('card-title'),
+    cardBody: document.getElementById('card-body'),
+    fullLog: document.getElementById('full-log'),
     playerLevel: document.getElementById('player-level'),
     xpBar: document.getElementById('xp-bar'),
     xpText: document.getElementById('xp-text'),
@@ -133,7 +142,6 @@ const ui = {
     skillMagicBar: document.getElementById('skill-magic-bar'),
     timeText: document.getElementById('time-text'),
     timeBar: document.getElementById('time-bar'),
-    eventLog: document.getElementById('event-log'),
     inventoryCount: document.getElementById('inventory-count'),
     inventoryContainer: document.getElementById('inventory'),
     equippedWeapon: document.getElementById('equipped-weapon'),
@@ -159,9 +167,14 @@ function updateUI() {
     ui.floorLevel.innerText = gameState.currentFloor;
     ui.districtName.innerText = gameState.currentDistrict;
     
-    // Mise à jour des PV
+    // Mise à jour des PV, ATK et DEF
     ui.currentHp.innerText = gameState.hp;
     ui.maxHp.innerText = gameState.maxHp;
+    ui.playerAtk.innerText = gameState.atk;
+    ui.playerDef.innerText = getEffectiveDef();
+
+    // Le libellé d'étage sur la carte active reste toujours synchronisé
+    ui.cardFloorLabel.innerText = `Étage ${gameState.currentFloor}`;
 
     // Icônes de statut du joueur
     let playerIcons = "";
@@ -227,22 +240,50 @@ function updateUI() {
     }
 }
 
-// Fonction pour ajouter un message dans le log
+// Fonction pour ajouter un message : sur la carte active (fond clair) ET dans le journal complet (fond sombre)
 function logEvent(message, type = "normal") {
-    const logEntry = document.createElement('div');
-    
-    // Couleurs selon le type d'événement
-    if (type === "danger") logEntry.className = "text-red-400 font-bold drop-shadow-[0_0_2px_rgba(248,113,113,0.8)]";
-    else if (type === "success") logEntry.className = "text-green-400 drop-shadow-[0_0_2px_rgba(74,222,128,0.8)]";
-    else if (type === "info") logEntry.className = "text-blue-300 italic";
-    else if (type === "loot") logEntry.className = "text-yellow-400 font-bold";
-    else logEntry.className = "text-gray-300";
+    // Couleurs adaptées au fond clair de la carte (papier crème)
+    const cardColors = {
+        danger: "text-red-700 font-bold",
+        success: "text-green-700 font-bold",
+        info: "text-blue-700 italic",
+        loot: "text-amber-700 font-bold",
+        normal: "text-stone-700"
+    };
+    const cardLine = document.createElement('p');
+    cardLine.className = cardColors[type] || cardColors.normal;
+    cardLine.innerText = message;
+    ui.cardBody.appendChild(cardLine);
+    ui.cardBody.scrollTop = ui.cardBody.scrollHeight;
 
-    logEntry.innerText = `>> ${message}`;
-    ui.eventLog.appendChild(logEntry);
-    
-    // Auto-scroll vers le bas
-    ui.eventLog.scrollTop = ui.eventLog.scrollHeight;
+    // Couleurs adaptées au fond sombre du journal complet (reprend l'ancien style)
+    const logColors = {
+        danger: "text-red-400 font-bold",
+        success: "text-green-400",
+        info: "text-blue-300 italic",
+        loot: "text-yellow-400 font-bold",
+        normal: "text-gray-300"
+    };
+    const logLine = document.createElement('div');
+    logLine.className = logColors[type] || logColors.normal;
+    logLine.innerText = `>> ${message}`;
+    ui.fullLog.appendChild(logLine);
+    ui.fullLog.scrollTop = ui.fullLog.scrollHeight;
+}
+
+// Prépare l'en-tête de la carte active (icône, titre, type) : appelé au début de chaque nouvelle
+// branche d'événement dans resolveCardEvent(), avant que logEvent() ne remplisse le corps.
+function setCardHeader(icon, title, typeLabel) {
+    ui.cardIcon.innerText = icon;
+    ui.cardTitle.innerText = title;
+    ui.cardTypeLabel.innerText = typeLabel;
+}
+
+// Petite animation de "pop" à chaque nouvelle carte tirée (voir le commentaire CSS de .card-draw-anim)
+function playCardDrawAnimation() {
+    ui.activeCard.classList.remove('card-draw-anim');
+    void ui.activeCard.offsetWidth; // force le navigateur à relire le style pour pouvoir rejouer l'animation
+    ui.activeCard.classList.add('card-draw-anim');
 }
 
 // Fonction pour mettre à jour l'inventaire visuel
@@ -346,11 +387,13 @@ function resolveCardEvent() {
 
     // A. ÉVÉNEMENT : ESCALIER TROUVÉ (le moment fort du palier)
     if (stairRoll < stairChance) {
+        setCardHeader('🪜', 'Escalier', 'Progression');
         logEvent(`🎬 Un escalier vers l'étage ${gameState.currentFloor + 1} se matérialise devant vous !`, "success");
 
         const guardedRoll = Math.random() * 100;
         if (guardedRoll < config.stairGuardedChance) {
             const boss = generateBoss(gameState.currentDistrict);
+            setCardHeader('👑', boss ? boss.name : 'Gardien', 'Boss de Quartier');
             logEvent(
                 boss
                     ? `${boss.name}, gardien de ce quartier, vous barre la route vers l'étage suivant !`
@@ -372,6 +415,7 @@ function resolveCardEvent() {
     // Rien de notable
     cumulative += config.chances.nothing;
     if (d100 < cumulative) {
+        setCardHeader('🌑', 'Silence', 'Exploration');
         logEvent(pick(flavorText.nothing), "normal");
         return;
     }
@@ -379,6 +423,7 @@ function resolveCardEvent() {
     // Combat
     cumulative += config.chances.combat;
     if (d100 < cumulative) {
+        setCardHeader('⚔️', 'Combat', 'Danger');
         logEvent(`Des bruits de pas approchent... Des créatures de ${gameState.currentDistrict} vous attaquent !`, "danger");
         initiateCombat();
         return;
@@ -390,6 +435,7 @@ function resolveCardEvent() {
         const districtNames = Object.keys(districts);
         const newDistrict = districtNames[Math.floor(Math.random() * districtNames.length)];
         gameState.currentDistrict = newDistrict;
+        setCardHeader('🧭', 'Nouveau Quartier', 'Exploration');
         logEvent(`Le décor change brusquement. Vous entrez dans : ${newDistrict}.`, "info");
         return;
     }
@@ -399,6 +445,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         const heal = Math.floor(Math.random() * 20) + 10; // 10 à 30 PV
         gameState.hp = Math.min(gameState.hp + heal, gameState.maxHp);
+        setCardHeader('🏥', 'Salle Sécurisée', 'Repos');
         logEvent(`Vous découvrez une salle sécurisée. Vous vous reposez et récupérez ${heal} PV.`, "success");
         return;
     }
@@ -406,6 +453,7 @@ function resolveCardEvent() {
     // Découverte d'objet (générateur procédural)
     cumulative += config.chances.loot;
     if (d100 < cumulative) {
+        setCardHeader('💰', 'Trésor', 'Butin');
         logEvent("Vous trébuchez sur quelque chose de brillant...", "info");
         addLoot();
         return;
@@ -417,6 +465,7 @@ function resolveCardEvent() {
         const trap = pick(flavorText.trap);
         const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
         gameState.hp = Math.max(0, gameState.hp - dmg);
+        setCardHeader('⚠️', 'Piège', 'Danger');
         logEvent(`${trap.text} (-${dmg} PV)`, "danger");
         if (gameState.hp <= 0) {
             gameOver();
@@ -430,6 +479,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         const lost = Math.floor(Math.random() * 3) + 1; // 1 à 3 heures perdues en plus
         gameState.timeLeft = Math.max(0, gameState.timeLeft - lost);
+        setCardHeader('⏳', 'Contretemps', 'Danger');
         logEvent(`${pick(flavorText.timeLoss)} (-${lost}H supplémentaires)`, "danger");
         if (gameState.timeLeft <= 0) {
             gameOver(true);
@@ -443,6 +493,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         const heal = Math.floor(Math.random() * 8) + 5; // 5 à 12 PV
         gameState.hp = Math.min(gameState.hp + heal, gameState.maxHp);
+        setCardHeader('🎒', 'Petite Trouvaille', 'Butin');
         logEvent(`${pick(flavorText.minorFind)} (+${heal} PV)`, "success");
         return;
     }
@@ -451,12 +502,14 @@ function resolveCardEvent() {
     cumulative += config.chances.audienceGift;
     if (d100 < cumulative) {
         const bonusXp = Math.floor(Math.random() * 6) + 5; // 5 à 10 XP
+        setCardHeader('📢', 'Cadeau du Public', 'Bonus');
         logEvent(pick(flavorText.audienceGift), "success");
         gainXp(bonusXp);
         return;
     }
 
     // Reste : moment purement narratif, sans effet mécanique
+    setCardHeader('🎬', 'Ambiance', 'Exploration');
     logEvent(pick(flavorText.flavorOnly), "normal");
 }
 
@@ -854,7 +907,9 @@ function advance() {
     gameState.timeLeft -= 1;
     gameState.cardsDrawnThisFloor += 1;
 
-    logEvent(`Heure ${gameState.maxTime - gameState.timeLeft} : Vous avancez dans les ténèbres...`);
+    // Nouvelle carte : on repart d'un corps vide et on joue l'animation de tirage
+    ui.cardBody.innerHTML = "";
+    playCardDrawAnimation();
 
     if (gameState.timeLeft <= 0) {
         gameOver(true); // Game over par temps écoulé
