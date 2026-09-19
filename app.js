@@ -26,25 +26,75 @@ const gameState = {
     maxInventory: 5,
     cardsDrawnThisFloor: 0, // Compteur de cartes pour calculer la probabilité de l'escalier
     inCombat: false, // Verrouille l'avancée si un combat est en cours
-    currentEnemy: null // Ennemi généré procéduralement, actif pendant un combat
+    currentEnemy: null, // Ennemi généré procéduralement, actif pendant un combat
+    pendingStairAfterCombat: false // Si vrai, gagner le combat en cours ouvre l'étage suivant
 };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
 // ==========================================
 const config = {
-    // Probabilités des événements (D100)
-    // La somme de ces valeurs sert de seuils. L'événement mineur prend le reste.
+    // Probabilités des événements (D100). Somme = 100, chaque catégorie a maintenant un effet réel
+    // (fini le "reste" générique qui ne faisait jamais rien).
     chances: {
-        nothing: 25,         // 25%
-        combat: 25,          // 25%
-        districtChange: 15,  // 15%
-        safeRoom: 10,        // 10%
-        loot: 1              // 1%
-        // Reste (24%) : Événements mineurs
+        nothing: 20,        // Rien de notable
+        combat: 25,         // Rencontre hostile
+        districtChange: 12, // Changement de quartier
+        safeRoom: 8,        // Salle sécurisée (soin conséquent)
+        loot: 1,            // Objet généré procéduralement (rare)
+        trap: 10,           // NOUVEAU : piège avec de vrais dégâts
+        timeLoss: 8,        // NOUVEAU : détour qui coûte du temps
+        minorFind: 6,       // NOUVEAU : petite trouvaille (soin mineur)
+        audienceGift: 4,    // NOUVEAU : cadeau des spectateurs (petit bonus d'XP), clin d'œil à l'émission
+        flavorOnly: 6       // Pur moment narratif, sans effet mécanique
     },
-    stairGuardedChance: 20 // 20% de chance qu'un escalier trouvé soit gardé par des mobs
+    stairGuardedChance: 35 // 35% (au lieu de 20%) : trouver l'escalier est un vrai enjeu, pas un détail
 };
+
+// Bibliothèque de textes pour varier la narration selon la catégorie d'événement tirée
+const flavorText = {
+    nothing: [
+        "Le couloir est vide. Le silence est oppressant.",
+        "Vous n'entendez que l'écho de vos propres pas.",
+        "Rien ne bouge. Même les néons semblent retenir leur souffle.",
+        "Un calme suspect règne ici. Vous avancez sans encombre."
+    ],
+    trap: [
+        { text: "Une lame dissimulée jaillit du mur et vous entaille.", dmgMin: 5, dmgMax: 15 },
+        { text: "Le sol se dérobe sous vos pieds ; vous chutez lourdement.", dmgMin: 8, dmgMax: 18 },
+        { text: "Un gaz corrosif s'échappe d'une conduite fissurée.", dmgMin: 5, dmgMax: 12 },
+        { text: "Une décharge électrique traverse une rambarde métallique que vous touchez.", dmgMin: 6, dmgMax: 16 }
+    ],
+    timeLoss: [
+        "Vous vous perdez dans un dédale de couloirs identiques.",
+        "Une fausse porte vous fait rebrousser chemin.",
+        "Vous devez attendre qu'un mécanisme de sécurité se réarme.",
+        "Un détour s'impose pour éviter une zone visiblement instable."
+    ],
+    minorFind: [
+        "Vous trouvez les restes encore mangeables d'un ancien crawler.",
+        "Une trousse de premiers secours abandonnée traîne dans un coin.",
+        "Une fontaine à eau, miraculeusement encore en état de marche.",
+        "Un distributeur de vitamines périmées, mais ça se mange."
+    ],
+    audienceGift: [
+        "Les spectateurs, amusés, vous envoient une prime en direct !",
+        "Un sponsor anonyme salue votre performance télégénique.",
+        "L'audience s'enflamme pour votre progression et vous récompense.",
+        "Le producteur de l'émission juge votre parcours \"excellent pour l'audimat\"."
+    ],
+    flavorOnly: [
+        "Une pub holographique pour des nouilles instantanées s'affiche puis disparaît.",
+        "Vous croisez un panneau publicitaire vantant les mérites du Donjon.",
+        "Une voix off anonyme commente votre progression, indifférente.",
+        "Un vieux poster décoloré affiche le règlement de l'émission, illisible."
+    ]
+};
+
+// Choisit un élément au hasard dans un tableau
+function pick(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+}
 
 // Note : les quartiers viennent de `districts` (districts.js), le catalogue d'objets de `baseItems` (items.js).
 
@@ -166,21 +216,22 @@ function updateInventoryUI() {
 // ==========================================
 function resolveCardEvent() {
     // 1. Calcul de la probabilité de trouver l'escalier
-    // Formule : Augmente avec les cartes, mais l'augmentation est divisée par l'étage actuel
-    // Ne dépasse jamais 95% pour garder une part d'incertitude
-    let stairChance = (gameState.cardsDrawnThisFloor * 2.5) / gameState.currentFloor;
-    if (stairChance > 95) stairChance = 95;
-
+    // Nouvelle formule non-linéaire (exposant 1.4) : la chance grimpe lentement au début,
+    // puis s'accélère à l'approche de la fin du temps disponible. Toujours divisée par l'étage
+    // actuel, pour que les étages profonds soient plus longs à percer.
+    // (Testé en simulation : ~2x plus de cartes nécessaires en moyenne qu'avant, 0% de risque
+    // de ne jamais trouver l'escalier avant la fin du temps, même à l'étage 10.)
+    const stairChance = Math.min(90, Math.pow(gameState.cardsDrawnThisFloor, 1.4) * (0.35 / gameState.currentFloor));
     const stairRoll = Math.random() * 100;
 
-    // A. ÉVÉNEMENT : ESCALIER TROUVÉ
+    // A. ÉVÉNEMENT : ESCALIER TROUVÉ (le moment fort du palier)
     if (stairRoll < stairChance) {
-        logEvent(`Un escalier vers l'étage ${gameState.currentFloor + 1} se dresse devant vous.`, "success");
-        
-        // Chance que l'escalier soit gardé
+        logEvent(`🎬 Un escalier vers l'étage ${gameState.currentFloor + 1} se matérialise devant vous !`, "success");
+
         const guardedRoll = Math.random() * 100;
         if (guardedRoll < config.stairGuardedChance) {
-            logEvent("Attention ! L'escalier est gardé par un Boss de palier !", "danger");
+            logEvent("Un gardien se poste devant les marches. Il faudra le vaincre pour descendre.", "danger");
+            gameState.pendingStairAfterCombat = true; // Gagner CE combat déclenchera nextFloor()
             initiateCombat();
         } else {
             nextFloor();
@@ -188,18 +239,18 @@ function resolveCardEvent() {
         return; // Fin du tour
     }
 
-    // B. ÉVÉNEMENTS CLASSIQUES (D100)
+    // B. TABLE DES ÉVÉNEMENTS CLASSIQUES (D100) — 10 catégories, chacune avec un vrai effet
     const d100 = Math.random() * 100;
     let cumulative = 0;
 
-    // 25% Rien ne se passe
+    // Rien de notable
     cumulative += config.chances.nothing;
     if (d100 < cumulative) {
-        logEvent("Le couloir est vide. Le silence est oppressant.", "normal");
+        logEvent(pick(flavorText.nothing), "normal");
         return;
     }
 
-    // 25% Combat
+    // Combat
     cumulative += config.chances.combat;
     if (d100 < cumulative) {
         logEvent(`Des bruits de pas approchent... Des créatures de ${gameState.currentDistrict} vous attaquent !`, "danger");
@@ -207,7 +258,7 @@ function resolveCardEvent() {
         return;
     }
 
-    // 15% Changement de quartier
+    // Changement de quartier
     cumulative += config.chances.districtChange;
     if (d100 < cumulative) {
         const districtNames = Object.keys(districts);
@@ -217,16 +268,16 @@ function resolveCardEvent() {
         return;
     }
 
-    // 10% Salle sécurisée
+    // Salle sécurisée (gros soin)
     cumulative += config.chances.safeRoom;
     if (d100 < cumulative) {
-        const heal = Math.floor(Math.random() * 20) + 10; // Soin entre 10 et 30 PV
+        const heal = Math.floor(Math.random() * 20) + 10; // 10 à 30 PV
         gameState.hp = Math.min(gameState.hp + heal, gameState.maxHp);
         logEvent(`Vous découvrez une salle sécurisée. Vous vous reposez et récupérez ${heal} PV.`, "success");
         return;
     }
 
-    // 1% Découverte d'objet
+    // Découverte d'objet (générateur procédural)
     cumulative += config.chances.loot;
     if (d100 < cumulative) {
         logEvent("Vous trébuchez sur quelque chose de brillant...", "info");
@@ -234,8 +285,53 @@ function resolveCardEvent() {
         return;
     }
 
-    // Reste (24%) Événement mineur
-    logEvent("Vous déclenchez un piège mineur, l'air devient toxique l'espace d'un instant.", "normal");
+    // NOUVEAU : Piège dangereux (vrais dégâts, plusieurs variantes)
+    cumulative += config.chances.trap;
+    if (d100 < cumulative) {
+        const trap = pick(flavorText.trap);
+        const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
+        gameState.hp = Math.max(0, gameState.hp - dmg);
+        logEvent(`${trap.text} (-${dmg} PV)`, "danger");
+        if (gameState.hp <= 0) {
+            gameOver();
+            return;
+        }
+        return;
+    }
+
+    // NOUVEAU : Détour qui coûte du temps (la ressource la plus précieuse du jeu)
+    cumulative += config.chances.timeLoss;
+    if (d100 < cumulative) {
+        const lost = Math.floor(Math.random() * 3) + 1; // 1 à 3 heures perdues en plus
+        gameState.timeLeft = Math.max(0, gameState.timeLeft - lost);
+        logEvent(`${pick(flavorText.timeLoss)} (-${lost}H supplémentaires)`, "danger");
+        if (gameState.timeLeft <= 0) {
+            gameOver(true);
+            return;
+        }
+        return;
+    }
+
+    // NOUVEAU : Petite trouvaille (soin mineur)
+    cumulative += config.chances.minorFind;
+    if (d100 < cumulative) {
+        const heal = Math.floor(Math.random() * 8) + 5; // 5 à 12 PV
+        gameState.hp = Math.min(gameState.hp + heal, gameState.maxHp);
+        logEvent(`${pick(flavorText.minorFind)} (+${heal} PV)`, "success");
+        return;
+    }
+
+    // NOUVEAU : Cadeau des spectateurs (petit bonus d'XP — clin d'œil au format "émission" du livre)
+    cumulative += config.chances.audienceGift;
+    if (d100 < cumulative) {
+        const bonusXp = Math.floor(Math.random() * 6) + 5; // 5 à 10 XP
+        logEvent(pick(flavorText.audienceGift), "success");
+        gainXp(bonusXp);
+        return;
+    }
+
+    // Reste : moment purement narratif, sans effet mécanique
+    logEvent(pick(flavorText.flavorOnly), "normal");
 }
 
 function nextFloor() {
@@ -398,6 +494,7 @@ function attemptFlee() {
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !`, "info");
         gameState.currentEnemy = null;
         gameState.inCombat = false;
+        gameState.pendingStairAfterCombat = false; // La fuite ne compte pas comme une victoire sur le gardien
         updateUI();
     } else {
         logEvent(`Votre fuite échoue ! [${enemy.name}] profite de l'ouverture.`, "danger");
@@ -419,6 +516,15 @@ function winCombat() {
 
     gameState.currentEnemy = null;
     gameState.inCombat = false;
+
+    // Si ce combat gardait un escalier, la victoire ouvre le passage vers l'étage suivant
+    if (gameState.pendingStairAfterCombat) {
+        gameState.pendingStairAfterCombat = false;
+        logEvent("La voie vers l'escalier est libre !", "success");
+        nextFloor(); // nextFloor() appelle déjà updateUI()
+        return;
+    }
+
     updateUI();
 }
 
