@@ -42,7 +42,10 @@ const gameState = {
     cardsDrawnThisFloor: 0, // Compteur de cartes pour calculer la probabilité de l'escalier
     inCombat: false, // Verrouille l'avancée si un combat est en cours
     currentEnemy: null, // Ennemi généré procéduralement, actif pendant un combat
-    pendingStairAfterCombat: false // Si vrai, gagner le combat en cours ouvre l'étage suivant
+    pendingStairAfterCombat: false, // Si vrai, gagner le combat en cours ouvre l'étage suivant
+    stairsChoicePending: false, // Un escalier non gardé attend une décision (emprunter/retenir)
+    knownLocations: [], // Lieux repérés mais pas encore utilisés (ex: un escalier retenu pour plus tard)
+    pendingTravel: null // { destination, ambushesRemaining } pendant un trajet vers un lieu connu
 };
 
 // ==========================================
@@ -167,6 +170,10 @@ const ui = {
     gameOverDistrict: document.getElementById('game-over-district'),
     btnRestart: document.getElementById('btn-restart'),
     combatZone: document.getElementById('combat-zone'),
+    stairsChoiceZone: document.getElementById('stairs-choice-zone'),
+    btnTakeStairs: document.getElementById('btn-take-stairs'),
+    btnRememberStairs: document.getElementById('btn-remember-stairs'),
+    knownLocationsContainer: document.getElementById('known-locations'),
     enemyName: document.getElementById('enemy-name'),
     btnAttackWeapon: document.getElementById('btn-attack-weapon'),
     btnAttackUnarmed: document.getElementById('btn-attack-unarmed'),
@@ -266,7 +273,7 @@ function updateUI() {
             ui.combatEnemyStatus.innerText = enemyIcons || "—";
         }
     } else {
-        ui.advanceHint.classList.remove('hidden');
+        ui.advanceHint.classList.toggle('hidden', gameState.stairsChoicePending);
         ui.combatZone.classList.add('hidden');
         ui.compactVitals.classList.remove('hidden'); // On réaffiche les PV compacts hors combat
         ui.cardStackWrapper.style.maxWidth = '240px'; // Retour à la taille normale hors combat
@@ -481,36 +488,56 @@ function useConsumable(index) {
 // 3. MOTEUR DE PROBABILITÉS ET ÉVÉNEMENTS
 // ==========================================
 function resolveCardEvent() {
-    // 1. Calcul de la probabilité de trouver l'escalier
-    // Nouvelle formule non-linéaire (exposant 1.4) : la chance grimpe lentement au début,
-    // puis s'accélère à l'approche de la fin du temps disponible. Toujours divisée par l'étage
-    // actuel, pour que les étages profonds soient plus longs à percer.
-    // (Testé en simulation : ~2x plus de cartes nécessaires en moyenne qu'avant, 0% de risque
-    // de ne jamais trouver l'escalier avant la fin du temps, même à l'étage 10.)
-    const stairChance = Math.min(90, Math.pow(gameState.cardsDrawnThisFloor, 1.4) * (0.35 / gameState.currentFloor));
-    const stairRoll = Math.random() * 100;
+    // 1. Calcul de la probabilité de trouver l'escalier — mais seulement si aucun n'est déjà repéré
+    // sur cet étage (une fois trouvé, inutile de retomber dessus au hasard : il est mémorisable).
+    const stairAlreadyKnown = gameState.knownLocations.some(
+        loc => loc.type === 'stairs' && loc.floor === gameState.currentFloor
+    );
 
-    // A. ÉVÉNEMENT : ESCALIER TROUVÉ (le moment fort du palier)
-    if (stairRoll < stairChance) {
-        setCardHeader('🪜', 'Escalier', 'Progression');
-        logEvent(`🎬 Un escalier vers l'étage ${gameState.currentFloor + 1} se matérialise devant vous !`, "success");
+    if (!stairAlreadyKnown) {
+        // Formule à seuil : aucune chance avant 30 cartes tirées, puis croissance linéaire, divisée
+        // par l'étage actuel (les étages profonds sont plus longs à percer).
+        // (Testé en simulation : médiane ~40-50 cartes selon l'étage, 0% de risque de ne jamais
+        // trouver l'escalier avant la fin du temps, même à l'étage 10 — nettement plus rare
+        // qu'avant, où l'escalier apparaissait en général vers la 15-20ème carte.)
+        const STAIR_ONSET = 30;   // Aucune chance avant ce nombre de cartes
+        const STAIR_SLOPE = 1.6;  // Vitesse de croissance ensuite
+        const STAIR_CAP = 75;     // Plafond de probabilité
+        const stairChance = Math.min(
+            STAIR_CAP,
+            Math.max(0, (gameState.cardsDrawnThisFloor - STAIR_ONSET) * STAIR_SLOPE / gameState.currentFloor)
+        );
+        const stairRoll = Math.random() * 100;
 
-        const guardedRoll = Math.random() * 100;
-        if (guardedRoll < config.stairGuardedChance) {
-            const boss = generateBoss(gameState.currentDistrict);
-            setCardHeader('👑', boss ? boss.name : 'Gardien', 'Boss de Quartier');
-            logEvent(
-                boss
-                    ? `${boss.name}, gardien de ce quartier, vous barre la route vers l'étage suivant !`
-                    : "Un gardien se poste devant les marches. Il faudra le vaincre pour descendre.",
-                "danger"
-            );
-            gameState.pendingStairAfterCombat = true; // Gagner CE combat déclenchera nextFloor()
-            initiateCombat(boss); // Repli automatique sur un mob générique si boss === null
-        } else {
-            nextFloor();
+        // A. ÉVÉNEMENT : ESCALIER TROUVÉ (le moment fort du palier)
+        if (stairRoll < stairChance) {
+            const guardedRoll = Math.random() * 100;
+            if (guardedRoll < config.stairGuardedChance) {
+                // Gardé : combat de boss immédiat et obligatoire, comme avant
+                const boss = generateBoss(gameState.currentDistrict);
+                setCardHeader('👑', boss ? boss.name : 'Gardien', 'Boss de Quartier');
+                logEvent(`🎬 Un escalier vers l'étage ${gameState.currentFloor + 1} se matérialise devant vous !`, "success");
+                logEvent(
+                    boss
+                        ? `${boss.name}, gardien de ce quartier, vous barre la route vers l'étage suivant !`
+                        : "Un gardien se poste devant les marches. Il faudra le vaincre pour descendre.",
+                    "danger"
+                );
+                gameState.pendingStairAfterCombat = true; // Gagner CE combat déclenchera nextFloor()
+                initiateCombat(boss); // Repli automatique sur un mob générique si boss === null
+            } else {
+                // Non gardé : on laisse le choix — l'emprunter maintenant, ou le repérer pour plus tard.
+                // Utile car le bestiaire deviendra plus difficile : mieux vaut parfois continuer à
+                // explorer l'étage actuel (XP, objets) avant de descendre.
+                setCardHeader('🪜', 'Escalier Repéré', 'Découverte');
+                logEvent(`🎬 Un escalier vers l'étage ${gameState.currentFloor + 1} se matérialise devant vous !`, "success");
+                logEvent("Il n'est pas gardé. L'emprunter maintenant, ou repérer l'endroit pour y revenir plus tard ?", "info");
+                gameState.stairsChoicePending = true;
+                ui.stairsChoiceZone.classList.remove('hidden');
+                updateUI();
+            }
+            return; // Fin du tour
         }
-        return; // Fin du tour
     }
 
     // B. TABLE DES ÉVÉNEMENTS CLASSIQUES (D100) — 10 catégories, chacune avec un vrai effet
@@ -618,11 +645,132 @@ function resolveCardEvent() {
     logEvent(pick(flavorText.flavorOnly), "normal");
 }
 
+// ==========================================
+// LIEUX CONNUS (escalier retenu, plus tard : salles sécurisées, boss)
+// ==========================================
+
+// Vrai si une action de type "avancer" ou "voyager vers un lieu connu" doit être bloquée
+// (combat en cours, ou décision d'escalier en attente).
+function isActionBlocked() {
+    return gameState.inCombat || gameState.stairsChoicePending;
+}
+
+// Bouton "Emprunter" : prend l'escalier immédiatement
+function takeStairsNow() {
+    gameState.stairsChoicePending = false;
+    ui.stairsChoiceZone.classList.add('hidden');
+    removeKnownLocation(`stairs-${gameState.currentFloor}`); // Au cas où il avait déjà été retenu avant
+    logEvent("Vous empruntez l'escalier sans plus attendre.", "success");
+    nextFloor();
+}
+
+// Bouton "Retenir et partir" : mémorise l'emplacement sans y descendre, l'exploration continue
+function rememberStairsLocation() {
+    gameState.stairsChoicePending = false;
+    ui.stairsChoiceZone.classList.add('hidden');
+
+    const id = `stairs-${gameState.currentFloor}`;
+    if (!gameState.knownLocations.some(loc => loc.id === id)) {
+        gameState.knownLocations.push({
+            id,
+            type: 'stairs',
+            floor: gameState.currentFloor,
+            label: `Escalier (Étage ${gameState.currentFloor})`
+        });
+    }
+    logEvent("Vous mémorisez soigneusement l'emplacement et repartez explorer.", "info");
+    updateKnownLocationsUI();
+    updateUI();
+}
+
+// Retire un lieu connu de la liste (utilisé une fois qu'il est effectivement pris/atteint)
+function removeKnownLocation(id) {
+    gameState.knownLocations = gameState.knownLocations.filter(loc => loc.id !== id);
+    updateKnownLocationsUI();
+}
+
+// Reconstruit la liste visuelle des lieux connus
+function updateKnownLocationsUI() {
+    ui.knownLocationsContainer.innerHTML = "";
+
+    if (gameState.knownLocations.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = "text-[10px] text-gray-600 italic";
+        empty.innerText = "Aucun lieu repéré pour l'instant.";
+        ui.knownLocationsContainer.appendChild(empty);
+        return;
+    }
+
+    gameState.knownLocations.forEach(loc => {
+        const row = document.createElement('button');
+        row.className = "w-full flex justify-between items-center px-3 py-2 bg-gray-950 border border-gray-800 rounded text-xs text-gray-300 hover:border-blue-600 hover:bg-blue-950/30 transition-all cursor-pointer";
+        const icon = loc.type === 'stairs' ? '🪜' : '📍';
+        row.innerHTML = `<span>${icon} ${loc.label}</span><span class="text-blue-400 uppercase tracking-widest text-[10px]">Aller →</span>`;
+        row.addEventListener('click', () => travelToKnownLocation(loc.id));
+        ui.knownLocationsContainer.appendChild(row);
+    });
+}
+
+// Décide de repartir vers un lieu connu : trajet risqué (une ou plusieurs embuscades possibles)
+function travelToKnownLocation(id) {
+    if (isActionBlocked()) return;
+    const location = gameState.knownLocations.find(loc => loc.id === id);
+    if (!location) return;
+
+    // Chance d'embuscade(s) sur le chemin du retour : 35% pour une première, puis 25% de chance
+    // qu'une seconde survienne juste après (le "une ou plusieurs" demandé).
+    let ambushCount = 0;
+    if (Math.random() * 100 < 35) {
+        ambushCount = 1;
+        if (Math.random() * 100 < 25) ambushCount = 2;
+    }
+
+    gameState.pendingTravel = { destination: location, ambushesRemaining: ambushCount };
+    logEvent(`Vous repartez vers : ${location.label}...`, "info");
+
+    if (ambushCount > 0) {
+        logEvent("Le trajet ne s'annonce pas de tout repos...", "danger");
+    }
+    triggerNextAmbushOrArrive();
+}
+
+// Résout la prochaine embuscade du trajet en cours, ou l'arrivée si le trajet est terminé
+function triggerNextAmbushOrArrive() {
+    const travel = gameState.pendingTravel;
+    if (!travel) return;
+
+    if (travel.ambushesRemaining > 0) {
+        travel.ambushesRemaining -= 1;
+        logEvent("Une présence hostile vous barre la route !", "danger");
+        gameState.pendingStairAfterCombat = false; // Ce n'est pas encore l'arrivée
+        initiateCombat(); // Mob générique du quartier actuel (pas le boss : simple embuscade de trajet)
+        return;
+    }
+
+    arriveAtDestination();
+}
+
+// Arrivée effective au lieu connu : on l'utilise (pour l'instant, uniquement des escaliers)
+function arriveAtDestination() {
+    const travel = gameState.pendingTravel;
+    if (!travel) return;
+    const destination = travel.destination;
+    gameState.pendingTravel = null;
+
+    if (destination.type === 'stairs') {
+        logEvent("Vous atteignez enfin l'escalier repéré.", "success");
+        removeKnownLocation(destination.id);
+        nextFloor();
+    }
+}
+
 function nextFloor() {
     gameState.currentFloor += 1;
     gameState.cardsDrawnThisFloor = 0;
     gameState.timeLeft = gameState.maxTime; // Réinitialisation du temps
+    gameState.knownLocations = []; // Les lieux repérés à l'étage précédent ne sont plus accessibles
     logEvent(`--- DÉBUT DE L'ÉTAGE ${gameState.currentFloor} ---`, "info");
+    updateKnownLocationsUI();
     updateUI();
 }
 
@@ -1001,6 +1149,10 @@ function attemptFlee() {
         gameState.currentEnemy = null;
         gameState.inCombat = false;
         gameState.pendingStairAfterCombat = false; // La fuite ne compte pas comme une victoire sur le gardien
+        if (gameState.pendingTravel) {
+            logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
+            gameState.pendingTravel = null;
+        }
         gameState.status = { bleed: null, stunned: false, slowed: null }; // Les statuts ne survivent pas au combat
         updateUI();
     } else {
@@ -1036,6 +1188,13 @@ function winCombat() {
     gameState.inCombat = false;
     gameState.status = { bleed: null, stunned: false, slowed: null }; // Les statuts ne survivent pas au combat
 
+    // Si ce combat faisait partie d'un trajet de retour vers un lieu connu (embuscade),
+    // on enchaîne sur la suite du trajet (nouvelle embuscade ou arrivée à destination)
+    if (gameState.pendingTravel) {
+        triggerNextAmbushOrArrive();
+        return;
+    }
+
     // Si ce combat gardait un escalier, la victoire ouvre le passage vers l'étage suivant
     if (gameState.pendingStairAfterCombat) {
         gameState.pendingStairAfterCombat = false;
@@ -1051,7 +1210,7 @@ function winCombat() {
 // 2. BOUCLE DE GAMEPLAY
 // ==========================================
 function advance() {
-    if (gameState.inCombat) return; // Sécurité si le bouton est cliqué pendant un combat
+    if (isActionBlocked()) return; // Sécurité si combat en cours ou décision d'escalier en attente
     if (gameState.hp <= 0 || gameState.timeLeft <= 0) return; // Jeu terminé
 
     // Décrémente le temps et incrémente le compteur de cartes
@@ -1107,7 +1266,7 @@ function resetGame() {
 
 // Toucher la carte fait office de bouton "Avancer" (advance() ignore déjà les clics pendant un combat)
 ui.cardStackWrapper.addEventListener('click', () => {
-    if (gameState.inCombat || gameState.hp <= 0) return;
+    if (isActionBlocked() || gameState.hp <= 0) return;
     triggerHaptic('medium');
     advance();
 });
@@ -1121,6 +1280,10 @@ ui.btnAttackUnarmed.addEventListener('click', attackUnarmed);
 ui.btnAttackMagic.addEventListener('click', attackMagic);
 ui.btnFlee.addEventListener('click', attemptFlee);
 
+// Clics sur les boutons de choix d'escalier (Emprunter / Retenir et partir)
+ui.btnTakeStairs.addEventListener('click', takeStairsNow);
+ui.btnRememberStairs.addEventListener('click', rememberStairsLocation);
+
 // Clic sur l'export des logs Dev
 ui.btnDevLogs.addEventListener('click', () => {
     console.log("--- LOGS DE DÉVELOPPEMENT ---");
@@ -1131,4 +1294,5 @@ ui.btnDevLogs.addEventListener('click', () => {
 // Lancement du jeu
 updateUI();
 updateInventoryUI();
+updateKnownLocationsUI();
 
