@@ -120,8 +120,9 @@ const ui = {
     playerName: document.getElementById('player-name'),
     floorLevel: document.getElementById('floor-level'),
     districtName: document.getElementById('district-name'),
-    currentHp: document.getElementById('current-hp'),
-    maxHp: document.getElementById('max-hp'),
+    compactVitals: document.getElementById('player-vitals-compact'),
+    compactHpRing: document.getElementById('compact-hp-ring'),
+    compactHpValue: document.getElementById('compact-hp-value'),
     playerAtk: document.getElementById('player-atk'),
     playerDef: document.getElementById('player-def'),
     activeCard: document.getElementById('active-card'),
@@ -150,9 +151,11 @@ const ui = {
     combatSideEnemy: document.getElementById('combat-side-enemy'),
     combatSidePlayer: document.getElementById('combat-side-player'),
     combatEnemyHp: document.getElementById('combat-enemy-hp'),
+    combatEnemyHpRing: document.getElementById('combat-enemy-hp-ring'),
     combatEnemyStatus: document.getElementById('combat-enemy-status'),
     combatEnemyDie: document.getElementById('combat-enemy-die'),
     combatPlayerHp: document.getElementById('combat-player-hp'),
+    combatPlayerHpRing: document.getElementById('combat-player-hp-ring'),
     combatPlayerStatus: document.getElementById('combat-player-status'),
     combatPlayerDie: document.getElementById('combat-player-die'),
     cardStackWrapper: document.getElementById('card-stack-wrapper'),
@@ -180,9 +183,8 @@ function updateUI() {
     ui.floorLevel.innerText = gameState.currentFloor;
     ui.districtName.innerText = gameState.currentDistrict;
     
-    // Mise à jour des PV, ATK et DEF
-    ui.currentHp.innerText = gameState.hp;
-    ui.maxHp.innerText = gameState.maxHp;
+    // Mise à jour des PV (anneau circulaire), ATK et DEF
+    setHpRing(ui.compactHpRing, ui.compactHpValue, gameState.hp, gameState.maxHp);
     ui.playerAtk.innerText = gameState.atk;
     ui.playerDef.innerText = getEffectiveDef();
 
@@ -232,12 +234,13 @@ function updateUI() {
     if (gameState.inCombat) {
         ui.advanceHint.classList.add('hidden'); // On ne peut pas avancer pendant un combat
         ui.combatZone.classList.remove('hidden');
+        ui.compactVitals.classList.add('hidden'); // Les PV sont déjà affichés à droite de la carte
         ui.cardStackWrapper.style.maxWidth = '170px'; // La carte se réduit pour laisser place aux panneaux
 
         // Panneau joueur (toujours à jour dès qu'on est en combat)
         ui.combatSidePlayer.classList.remove('hidden');
         ui.combatSidePlayer.classList.add('flex', 'flex-col');
-        ui.combatPlayerHp.innerText = Math.max(0, Math.round(gameState.hp));
+        setHpRing(ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
         let playerIcons = "";
         if (gameState.status.bleed && gameState.status.bleed.rounds > 0) playerIcons += "🔥";
         if (gameState.status.stunned) playerIcons += "💫";
@@ -252,7 +255,7 @@ function updateUI() {
 
             ui.combatSideEnemy.classList.remove('hidden');
             ui.combatSideEnemy.classList.add('flex', 'flex-col');
-            ui.combatEnemyHp.innerText = Math.max(0, Math.round(gameState.currentEnemy.hp));
+            setHpRing(ui.combatEnemyHpRing, ui.combatEnemyHp, gameState.currentEnemy.hp, gameState.currentEnemy.maxHp);
 
             let enemyIcons = "";
             const enemyStatus = gameState.currentEnemy.status;
@@ -265,6 +268,7 @@ function updateUI() {
     } else {
         ui.advanceHint.classList.remove('hidden');
         ui.combatZone.classList.add('hidden');
+        ui.compactVitals.classList.remove('hidden'); // On réaffiche les PV compacts hors combat
         ui.cardStackWrapper.style.maxWidth = '240px'; // Retour à la taille normale hors combat
 
         ui.combatSideEnemy.classList.add('hidden');
@@ -276,6 +280,26 @@ function updateUI() {
 
 // Affiche un résultat de dégâts sous forme de "dé" avec une petite animation, sur le panneau
 // latéral correspondant (joueur ou ennemi). `value` peut être un nombre ou un court symbole (ex: "✗").
+// Circonférence du cercle de l'anneau de vie (rayon 18 : 2 * π * 18 ≈ 113.1), utilisée pour
+// convertir un pourcentage de PV en longueur de trait visible (stroke-dashoffset).
+const HP_RING_CIRCUMFERENCE = 113.1;
+
+// Calcule une couleur en dégradé vert -> jaune -> rouge selon le pourcentage de PV restant,
+// via la teinte HSL (120° = vert, 60° = jaune, 0° = rouge).
+function hpColor(pct) {
+    const hue = Math.max(0, Math.min(120, Math.round(pct * 120)));
+    return `hsl(${hue}, 85%, 45%)`;
+}
+
+// Met à jour un anneau de vie circulaire (remplissage + couleur) et le nombre affiché en son centre.
+function setHpRing(ringEl, valueEl, current, max) {
+    const safeMax = max > 0 ? max : 1; // évite une division par zéro si jamais max vaut 0
+    const pct = Math.max(0, Math.min(1, current / safeMax));
+    ringEl.style.strokeDashoffset = HP_RING_CIRCUMFERENCE * (1 - pct);
+    ringEl.style.stroke = hpColor(pct);
+    valueEl.innerText = Math.max(0, Math.round(current));
+}
+
 function showDie(el, value) {
     el.innerText = value;
     el.classList.remove('die-pop');
@@ -305,18 +329,18 @@ function triggerHaptic(pattern = 'light') {
 // `direction` : 'left' (le dé du joueur vole vers les PV ennemis, à gauche) ou 'right' (le dé de
 // l'ennemi vole vers les PV du joueur, à droite). `newHpValue` est la valeur déjà décrémentée
 // (le calcul des PV réels a lieu avant l'appel ; cette fonction ne fait que l'afficher au bon moment).
-function animateDieHit(dieEl, direction, value, hpEl, newHpValue) {
+function animateDieHit(dieEl, direction, value, ringEl, valueEl, newHpValue, maxHpValue) {
     dieEl.innerText = value;
     dieEl.classList.remove('die-pop', 'die-hit-left', 'die-hit-right');
     void dieEl.offsetWidth;
     dieEl.classList.add('die-pop', direction === 'left' ? 'die-hit-left' : 'die-hit-right');
 
-    // Au moment de l'impact (environ à mi-vol du dé), le compteur de PV touché se met à jour et vibre
+    // Au moment de l'impact (environ à mi-vol du dé), l'anneau de vie touché se met à jour et vibre
     setTimeout(() => {
-        hpEl.innerText = Math.max(0, Math.round(newHpValue));
-        hpEl.classList.remove('hp-hit');
-        void hpEl.offsetWidth;
-        hpEl.classList.add('hp-hit');
+        setHpRing(ringEl, valueEl, newHpValue, maxHpValue);
+        valueEl.classList.remove('hp-hit');
+        void valueEl.offsetWidth;
+        valueEl.classList.add('hp-hit');
         triggerHaptic('light');
     }, 180);
 }
@@ -679,6 +703,7 @@ function initiateCombat(forcedEnemy = null) {
     gameState.status = { bleed: null, stunned: false, slowed: null };
     if (enemy) {
         enemy.status = { bleed: null, stunned: false };
+        enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
     }
 
     // Les dés de dégâts repartent à zéro visuellement (aucune action encore jouée ce combat)
@@ -776,7 +801,7 @@ function performPlayerAttack(attackerAtk, options, label) {
 
     const playerDamage = rollDamage(attackerAtk, enemy.def, effectiveOptions);
     enemy.hp -= playerDamage;
-    animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHp, enemy.hp);
+    animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
     logEvent(`Vous attaquez ${label}${slowedNote} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
 
     if (enemy.hp <= 0) {
@@ -896,7 +921,7 @@ function resolveEnemyCounterAttack() {
 
     const enemyDamage = rollDamage(enemy.atk, getEffectiveDef());
     gameState.hp -= enemyDamage;
-    animateDieHit(ui.combatEnemyDie, 'right', enemyDamage, ui.combatPlayerHp, gameState.hp);
+    animateDieHit(ui.combatEnemyDie, 'right', enemyDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
     logEvent(`[${enemy.name}] vous inflige ${enemyDamage} dégâts.`, "danger");
 
     if (gameState.hp <= 0) {
