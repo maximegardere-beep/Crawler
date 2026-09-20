@@ -188,4 +188,50 @@ function generateItem() {
     return finalItem;
 }
 
+// ==========================================
+// 3. GÉNÉRATION DES COMPAGNONS (CRAWLERS RENCONTRÉS)
+// ==========================================
+// Petit jeu de données propre aux compagnons : trop réduit pour justifier un fichier dédié
+// (contrairement aux monstres/objets/quartiers), donc regroupé ici avec sa génération.
+
+const companionNamePool = [
+    "Steve-Trois-Doigts", "Barbara la Vive", "Mordicaï", "Chip Cachalot",
+    "Nadia Sans-Peur", "Gunther l'Endurci", "Lucky Numéro 9", "Prunelle",
+    "Doc Ferraille", "Kenji le Silencieux"
+];
+
+// Spécialité procédurale : détermine comment le compagnon aide en combat une fois recruté
+const companionSpecialties = [
+    { type: 'strike', label: "Frappe d'appoint", desc: "Porte un coup supplémentaire à chaque attaque du joueur." },
+    { type: 'guard', label: "Garde rapprochée", desc: "Réduit les dégâts subis par le joueur." },
+    { type: 'medic', label: "Premiers secours", desc: "Chance de soigner le joueur en cours de combat." },
+    { type: 'scout', label: "Éclaireur", desc: "Améliore les chances de fuite du joueur." }
+];
+
+/**
+ * Génère un candidat compagnon rencontré au hasard : nom, stats de base, spécialité procédurale,
+ * et disposition (ami/hostile) tirée 50/50, sans pondération par quartier.
+ * @returns {object}
+ */
+function generateCompanionCandidate() {
+    const name = companionNamePool[Math.floor(Math.random() * companionNamePool.length)];
+    const specialty = JSON.parse(JSON.stringify(
+        companionSpecialties[Math.floor(Math.random() * companionSpecialties.length)]
+    ));
+    const hp = 40 + Math.floor(Math.random() * 20);
+
+    return {
+        name,
+        hp, maxHp: hp,
+        atk: 8 + Math.floor(Math.random() * 6),
+        def: 4 + Math.floor(Math.random() * 4),
+        specialty,
+        disposition: Math.random() < 0.5 ? 'hostile' : 'friendly', // 50/50, pas de pondération par quartier
+        xp: 0,
+        level: 1,
+        xpToNext: 30,
+        aggressiveness: 0 // Grimpe avec l'expérience du compagnon ; à 100, il devient hostile
+    };
+}
+
 
