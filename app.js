@@ -156,7 +156,13 @@ const ui = {
     combatPlayerStatus: document.getElementById('combat-player-status'),
     combatPlayerDie: document.getElementById('combat-player-die'),
     cardStackWrapper: document.getElementById('card-stack-wrapper'),
-    btnAdvance: document.getElementById('btn-advance'),
+    advanceHint: document.getElementById('advance-hint'),
+    gameOverOverlay: document.getElementById('game-over-overlay'),
+    gameOverReason: document.getElementById('game-over-reason'),
+    gameOverFloor: document.getElementById('game-over-floor'),
+    gameOverLevel: document.getElementById('game-over-level'),
+    gameOverDistrict: document.getElementById('game-over-district'),
+    btnRestart: document.getElementById('btn-restart'),
     combatZone: document.getElementById('combat-zone'),
     enemyName: document.getElementById('enemy-name'),
     btnAttackWeapon: document.getElementById('btn-attack-weapon'),
@@ -224,7 +230,7 @@ function updateUI() {
 
     // Gestion de l'affichage du combat : rétrécissement de la carte, panneaux latéraux PV/statut
     if (gameState.inCombat) {
-        ui.btnAdvance.classList.add('opacity-50', 'pointer-events-none');
+        ui.advanceHint.classList.add('hidden'); // On ne peut pas avancer pendant un combat
         ui.combatZone.classList.remove('hidden');
         ui.cardStackWrapper.style.maxWidth = '170px'; // La carte se réduit pour laisser place aux panneaux
 
@@ -257,7 +263,7 @@ function updateUI() {
             ui.combatEnemyStatus.innerText = enemyIcons || "—";
         }
     } else {
-        ui.btnAdvance.classList.remove('opacity-50', 'pointer-events-none');
+        ui.advanceHint.classList.remove('hidden');
         ui.combatZone.classList.add('hidden');
         ui.cardStackWrapper.style.maxWidth = '240px'; // Retour à la taille normale hors combat
 
@@ -275,6 +281,44 @@ function showDie(el, value) {
     el.classList.remove('die-pop');
     void el.offsetWidth; // force le navigateur à relire le style pour pouvoir rejouer l'animation
     el.classList.add('die-pop');
+}
+
+// Retour haptique (vibration). Fonctionne sur Android/Chrome ; iOS Safari ne supporte pas du tout
+// l'API Vibration, quel que soit le navigateur — aucune vibration n'y sera donc perceptible. On
+// vérifie la disponibilité avant d'appeler pour ne jamais lever d'erreur sur les navigateurs sans
+// support (au lieu de planter silencieusement, on ignore proprement).
+function triggerHaptic(pattern = 'light') {
+    if (!('vibrate' in navigator)) return;
+    const patterns = {
+        light: 15,           // Un dé qui touche sa cible
+        medium: 30,          // Une carte qu'on tire
+        heavy: [30, 40, 60],  // Victoire, défaite, montée de niveau
+    };
+    try {
+        navigator.vibrate(patterns[pattern] || patterns.light);
+    } catch (e) {
+        // Certains navigateurs peuvent lever une exception si l'appel est bloqué (ex: onglet en arrière-plan)
+    }
+}
+
+// Anime un dé de dégâts qui "vole" vers le compteur de PV de sa cible, façon petit coup de poing.
+// `direction` : 'left' (le dé du joueur vole vers les PV ennemis, à gauche) ou 'right' (le dé de
+// l'ennemi vole vers les PV du joueur, à droite). `newHpValue` est la valeur déjà décrémentée
+// (le calcul des PV réels a lieu avant l'appel ; cette fonction ne fait que l'afficher au bon moment).
+function animateDieHit(dieEl, direction, value, hpEl, newHpValue) {
+    dieEl.innerText = value;
+    dieEl.classList.remove('die-pop', 'die-hit-left', 'die-hit-right');
+    void dieEl.offsetWidth;
+    dieEl.classList.add('die-pop', direction === 'left' ? 'die-hit-left' : 'die-hit-right');
+
+    // Au moment de l'impact (environ à mi-vol du dé), le compteur de PV touché se met à jour et vibre
+    setTimeout(() => {
+        hpEl.innerText = Math.max(0, Math.round(newHpValue));
+        hpEl.classList.remove('hp-hit');
+        void hpEl.offsetWidth;
+        hpEl.classList.add('hp-hit');
+        triggerHaptic('light');
+    }, 180);
 }
 
 // Fonction pour ajouter un message : sur la carte active (fond clair) ET dans le journal complet (fond sombre)
@@ -594,6 +638,7 @@ function gainXp(amount) {
         gameState.def += defGain;
 
         logEvent(`⭐ NIVEAU SUPÉRIEUR ! Vous êtes maintenant niveau ${gameState.level}. (+${hpGain} PV max, +${atkGain} ATQ, +${defGain} DEF — PV entièrement restaurés)`, "success");
+        triggerHaptic('heavy');
     }
 
     updateUI();
@@ -612,7 +657,10 @@ function gainSkillXp(skillKey, amount) {
         skill.xpToNext = Math.round(skill.xpToNext * 1.3);
         logEvent(`📈 Compétence "${skillLabel(skillKey)}" améliorée ! Niveau ${skill.level}.`, "success");
     }
-    updateUI();
+    // Pas de updateUI() ici : on est toujours appelé en plein combat, juste après un coup porté.
+    // Un rafraîchissement immédiat écraserait l'affichage des PV avant que l'animation du dé n'ait
+    // eu le temps d'arriver à destination. Le prochain updateUI() naturel (riposte différée ou fin
+    // de combat, au plus tard ~400ms plus tard) suffit à tout remettre à jour.
 }
 
 function skillLabel(key) {
@@ -728,12 +776,14 @@ function performPlayerAttack(attackerAtk, options, label) {
 
     const playerDamage = rollDamage(attackerAtk, enemy.def, effectiveOptions);
     enemy.hp -= playerDamage;
-    showDie(ui.combatPlayerDie, playerDamage);
+    animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHp, enemy.hp);
     logEvent(`Vous attaquez ${label}${slowedNote} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
 
     if (enemy.hp <= 0) {
-        logEvent(`[${enemy.name}] s'effondre, vaincu !`, "success");
-        winCombat();
+        setTimeout(() => {
+            logEvent(`[${enemy.name}] s'effondre, vaincu !`, "success");
+            winCombat();
+        }, COMBAT_BEAT_MS); // Laisse le temps au dé/impact de se jouer avant de conclure le combat
         return true;
     }
 
@@ -759,7 +809,8 @@ function applyWeaponMechanic() {
         logEvent(`💫 [${enemy.name}] est étourdi par le choc !`, "danger");
     }
     // "pleasure_or_pain" (Vibrant) reste un effet purement comique, sans mécanique de combat
-    updateUI();
+    // Pas de updateUI() ici, pour la même raison que dans gainSkillXp() : ne pas écraser
+    // l'affichage des PV avant que l'animation du dé n'ait eu le temps d'arriver à destination.
 }
 
 // Tente d'appliquer un effet de statut au joueur selon le trait élémentaire du monstre
@@ -845,12 +896,12 @@ function resolveEnemyCounterAttack() {
 
     const enemyDamage = rollDamage(enemy.atk, getEffectiveDef());
     gameState.hp -= enemyDamage;
-    showDie(ui.combatEnemyDie, enemyDamage);
+    animateDieHit(ui.combatEnemyDie, 'right', enemyDamage, ui.combatPlayerHp, gameState.hp);
     logEvent(`[${enemy.name}] vous inflige ${enemyDamage} dégâts.`, "danger");
 
     if (gameState.hp <= 0) {
         gameState.hp = 0;
-        gameOver();
+        setTimeout(() => gameOver(), COMBAT_BEAT_MS); // Laisse le temps au dé/impact de se jouer
         return;
     }
 
@@ -938,8 +989,10 @@ function winCombat() {
 
     if (wasBoss) {
         logEvent(`👑 Vous avez triomphé de ${gameState.currentEnemy.name} !`, "success");
+        triggerHaptic('heavy');
     } else {
         logEvent("Vous remportez le combat !", "success");
+        triggerHaptic('medium');
     }
 
     // Gain d'XP basé sur le monstre vaincu (valeur de repli si jamais xpReward est absent)
@@ -994,27 +1047,48 @@ function advance() {
 }
 
 function gameOver(timeout = false) {
-    gameState.inCombat = true; // Bloque le bouton Avancer
+    gameState.inCombat = true; // Bloque toute action supplémentaire
     ui.combatZone.classList.add('hidden'); // Cache la zone de combat
-    
-    if (timeout) {
-        logEvent("Le temps est écoulé. Le donjon s'effondre sur vous...", "danger");
-    } else {
-        logEvent("Vos signes vitaux sont à zéro. Fin de transmission.", "danger");
-    }
-    
+
+    const reason = timeout
+        ? "Le temps est écoulé. Le donjon s'effondre sur vous..."
+        : "Vos signes vitaux sont à zéro. Fin de transmission.";
+
+    logEvent(reason, "danger");
     logEvent("--- GAME OVER ---", "danger");
-    ui.btnAdvance.innerText = "SYSTÈME VERROUILLÉ";
-    ui.btnAdvance.classList.add('border-red-600', 'text-red-500', 'pointer-events-none');
+    triggerHaptic('heavy');
+
+    // Remplissage et affichage de l'écran Game Over (recouvre toute l'interface)
+    ui.gameOverReason.innerText = reason;
+    ui.gameOverFloor.innerText = gameState.currentFloor;
+    ui.gameOverLevel.innerText = gameState.level;
+    ui.gameOverDistrict.innerText = gameState.currentDistrict;
+    ui.gameOverOverlay.classList.remove('hidden');
+
     updateUI();
+}
+
+// Redémarre entièrement une nouvelle partie. On recharge la page plutôt que de réinitialiser
+// gameState champ par champ : c'est plus robuste (aucun risque d'oublier un champ imbriqué comme
+// les compétences, l'équipement ou les statuts de combat) et parfaitement adapté à un rogue-like
+// où une "run" terminée n'a de toute façon rien à conserver d'une partie à l'autre.
+function resetGame() {
+    location.reload();
 }
 
 // ==========================================
 // INITIALISATION ET ÉCOUTEURS D'ÉVÉNEMENTS
 // ==========================================
 
-// Clic sur le bouton Avancer
-ui.btnAdvance.addEventListener('click', advance);
+// Toucher la carte fait office de bouton "Avancer" (advance() ignore déjà les clics pendant un combat)
+ui.cardStackWrapper.addEventListener('click', () => {
+    if (gameState.inCombat || gameState.hp <= 0) return;
+    triggerHaptic('medium');
+    advance();
+});
+
+// Bouton de redémarrage sur l'écran Game Over
+ui.btnRestart.addEventListener('click', resetGame);
 
 // Clics sur les boutons de combat
 ui.btnAttackWeapon.addEventListener('click', attackWeapon);
