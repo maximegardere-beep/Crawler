@@ -45,7 +45,10 @@ const gameState = {
     pendingStairAfterCombat: false, // Si vrai, gagner le combat en cours ouvre l'étage suivant
     stairsChoicePending: false, // Un escalier non gardé attend une décision (emprunter/retenir)
     knownLocations: [], // Lieux repérés mais pas encore utilisés (ex: un escalier retenu pour plus tard)
-    pendingTravel: null // { destination, ambushesRemaining } pendant un trajet vers un lieu connu
+    pendingTravel: null, // { destination, ambushesRemaining } pendant un trajet vers un lieu connu
+    companion: null, // Compagnon actuellement recruté (ou null)
+    pendingCompanionCandidate: null, // Candidat en attente de décision (recruter/laisser/fuir/attaquer)
+    companionChoicePending: false // Une décision de compagnon est en attente
 };
 
 // ==========================================
@@ -64,7 +67,8 @@ const config = {
         timeLoss: 8,        // NOUVEAU : détour qui coûte du temps
         minorFind: 6,       // NOUVEAU : petite trouvaille (soin mineur)
         audienceGift: 4,    // NOUVEAU : cadeau des spectateurs (petit bonus d'XP), clin d'œil à l'émission
-        flavorOnly: 6       // Pur moment narratif, sans effet mécanique
+        companionEncounter: 3, // NOUVEAU : rencontre d'un autre crawler (ami ou hostile, 50/50)
+        flavorOnly: 3       // Pur moment narratif, sans effet mécanique (réduit de 6 à 3 pour compenser)
     },
     stairGuardedChance: 35 // 35% (au lieu de 20%) : trouver l'escalier est un vrai enjeu, pas un détail
 };
@@ -174,6 +178,21 @@ const ui = {
     btnTakeStairs: document.getElementById('btn-take-stairs'),
     btnRememberStairs: document.getElementById('btn-remember-stairs'),
     knownLocationsContainer: document.getElementById('known-locations'),
+    companionChoiceFriendly: document.getElementById('companion-choice-friendly'),
+    companionChoiceHostile: document.getElementById('companion-choice-hostile'),
+    btnRecruitFriendly: document.getElementById('btn-recruit-friendly'),
+    btnDeclineCompanion: document.getElementById('btn-decline-companion'),
+    btnFleeCompanion: document.getElementById('btn-flee-companion'),
+    btnRecruitHostile: document.getElementById('btn-recruit-hostile'),
+    btnAttackCompanion: document.getElementById('btn-attack-companion'),
+    companionStatusBar: document.getElementById('companion-status-bar'),
+    companionNameDisplay: document.getElementById('companion-name-display'),
+    companionSpecialtyDisplay: document.getElementById('companion-specialty-display'),
+    companionAggroBar: document.getElementById('companion-aggro-bar'),
+    companionCombatIndicator: document.getElementById('companion-combat-indicator'),
+    companionCombatName: document.getElementById('companion-combat-name'),
+    companionCombatHpRing: document.getElementById('companion-combat-hp-ring'),
+    companionCombatHp: document.getElementById('companion-combat-hp'),
     enemyName: document.getElementById('enemy-name'),
     btnAttackWeapon: document.getElementById('btn-attack-weapon'),
     btnAttackUnarmed: document.getElementById('btn-attack-unarmed'),
@@ -254,6 +273,15 @@ function updateUI() {
         if (gameState.status.slowed && gameState.status.slowed.rounds > 0) playerIcons += "🐌";
         ui.combatPlayerStatus.innerText = playerIcons || "—";
 
+        // Indicateur compagnon (à droite, sous le panneau joueur), si un compagnon est actif
+        if (gameState.companion) {
+            ui.companionCombatIndicator.classList.remove('hidden');
+            ui.companionCombatName.innerText = gameState.companion.name;
+            setHpRing(ui.companionCombatHpRing, ui.companionCombatHp, gameState.companion.hp, gameState.companion.maxHp);
+        } else {
+            ui.companionCombatIndicator.classList.add('hidden');
+        }
+
         if (gameState.currentEnemy) {
             ui.enemyName.innerText = gameState.currentEnemy.isBoss
                 ? `👑 ${gameState.currentEnemy.name}`
@@ -277,6 +305,7 @@ function updateUI() {
         ui.combatZone.classList.add('hidden');
         ui.compactVitals.classList.remove('hidden'); // On réaffiche les PV compacts hors combat
         ui.cardStackWrapper.style.maxWidth = '240px'; // Retour à la taille normale hors combat
+        updateCompanionUI(); // Réaffiche/actualise la barre compagnon compacte hors combat
 
         ui.combatSideEnemy.classList.add('hidden');
         ui.combatSideEnemy.classList.remove('flex', 'flex-col');
@@ -640,6 +669,33 @@ function resolveCardEvent() {
         return;
     }
 
+    // NOUVEAU : Rencontre d'un autre crawler (ami ou hostile, un seul compagnon actif à la fois)
+    cumulative += config.chances.companionEncounter;
+    if (d100 < cumulative) {
+        if (gameState.companion) {
+            // Déjà accompagné : ce tirage se résout comme un moment calme, pas de rencontre superposée
+            setCardHeader('🌑', 'Silence', 'Exploration');
+            logEvent(pick(flavorText.nothing), "normal");
+            return;
+        }
+
+        const candidate = generateCompanionCandidate();
+        gameState.pendingCompanionCandidate = candidate;
+        gameState.companionChoicePending = true;
+
+        if (candidate.disposition === 'friendly') {
+            setCardHeader('🧍', candidate.name, 'Crawler Rencontré');
+            logEvent(`Vous croisez ${candidate.name}, un autre crawler. Il semble pacifique et vous propose son aide.`, "info");
+            ui.companionChoiceFriendly.classList.remove('hidden');
+        } else {
+            setCardHeader('🗡️', candidate.name, 'Crawler Hostile');
+            logEvent(`Vous croisez ${candidate.name}, un autre crawler. Il vous toise avec hostilité...`, "danger");
+            ui.companionChoiceHostile.classList.remove('hidden');
+        }
+        updateUI();
+        return;
+    }
+
     // Reste : moment purement narratif, sans effet mécanique
     setCardHeader('🎬', 'Ambiance', 'Exploration');
     logEvent(pick(flavorText.flavorOnly), "normal");
@@ -652,7 +708,7 @@ function resolveCardEvent() {
 // Vrai si une action de type "avancer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision d'escalier en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.stairsChoicePending;
+    return gameState.inCombat || gameState.stairsChoicePending || gameState.companionChoicePending;
 }
 
 // Bouton "Emprunter" : prend l'escalier immédiatement
@@ -762,6 +818,153 @@ function arriveAtDestination() {
         removeKnownLocation(destination.id);
         nextFloor();
     }
+}
+
+// ==========================================
+// COMPAGNONS (CRAWLERS RENCONTRÉS)
+// ==========================================
+
+// Cache les deux zones de choix de compagnon (ami / hostile)
+function hideCompanionChoiceZones() {
+    ui.companionChoiceFriendly.classList.add('hidden');
+    ui.companionChoiceHostile.classList.add('hidden');
+}
+
+// Convertit un candidat compagnon en objet compatible avec le moteur de combat existant
+// (utilisé quand la rencontre tourne à l'affrontement, qu'il s'agisse du premier contact
+// ou d'une trahison d'un compagnon déjà recruté).
+function companionCandidateToMob(candidate) {
+    return {
+        name: candidate.name,
+        hp: candidate.hp,
+        atk: candidate.atk,
+        def: candidate.def,
+        xpReward: 20,
+        effect: null
+    };
+}
+
+// Bouton "Recruter" (présent dans les deux zones ami/hostile — la chance de succès et les
+// conséquences d'un échec diffèrent selon la disposition du candidat).
+function recruitCompanion() {
+    const candidate = gameState.pendingCompanionCandidate;
+    if (!candidate) return;
+    hideCompanionChoiceZones();
+    gameState.companionChoicePending = false;
+    gameState.pendingCompanionCandidate = null;
+
+    const successChance = candidate.disposition === 'friendly' ? 70 : 30;
+    if (Math.random() * 100 < successChance) {
+        gameState.companion = candidate;
+        logEvent(`${candidate.name} accepte de vous accompagner ! (Spécialité : ${candidate.specialty.label})`, "success");
+        triggerHaptic('medium');
+        updateCompanionUI();
+        updateUI();
+        return;
+    }
+
+    // Échec du recrutement
+    if (candidate.disposition === 'friendly') {
+        // Un crawler pacifique qui refuse ne devient hostile que dans de très rares cas (5%)
+        if (Math.random() * 100 < 5) {
+            logEvent(`${candidate.name} se braque brusquement et vous attaque !`, "danger");
+            initiateCombat(companionCandidateToMob(candidate));
+        } else {
+            logEvent(`${candidate.name} décline poliment et s'éloigne.`, "info");
+            updateUI();
+        }
+    } else {
+        // Un crawler déjà hostile qui refuse passe directement à l'attaque
+        logEvent(`${candidate.name} refuse et se jette sur vous !`, "danger");
+        initiateCombat(companionCandidateToMob(candidate));
+    }
+}
+
+// Bouton "Laisser partir" (zone ami uniquement) : aucun risque
+function declineCompanion() {
+    const candidate = gameState.pendingCompanionCandidate;
+    hideCompanionChoiceZones();
+    gameState.companionChoicePending = false;
+    gameState.pendingCompanionCandidate = null;
+    logEvent(`Vous laissez ${candidate ? candidate.name : "le crawler"} poursuivre son chemin.`, "info");
+    updateUI();
+}
+
+// Bouton "Fuir" (zone hostile uniquement) : évite l'affrontement avant qu'il ne commence,
+// donc toujours réussi (contrairement à une fuite en plein combat, plus risquée).
+function fleeCompanionEncounter() {
+    const candidate = gameState.pendingCompanionCandidate;
+    hideCompanionChoiceZones();
+    gameState.companionChoicePending = false;
+    gameState.pendingCompanionCandidate = null;
+    logEvent(`Vous évitez prudemment ${candidate ? candidate.name : "ce crawler hostile"}.`, "info");
+    updateUI();
+}
+
+// Bouton "Attaquer" (zone hostile uniquement)
+function attackCompanionEncounter() {
+    const candidate = gameState.pendingCompanionCandidate;
+    hideCompanionChoiceZones();
+    gameState.companionChoicePending = false;
+    gameState.pendingCompanionCandidate = null;
+    logEvent(`Vous attaquez ${candidate ? candidate.name : "le crawler hostile"} !`, "danger");
+    initiateCombat(companionCandidateToMob(candidate));
+}
+
+// Un compagnon déjà recruté qui devient trop instable (voir gainCompanionXp) se retourne contre
+// le joueur : on relance exactement le même choix que pour une première rencontre hostile.
+function triggerCompanionHostileTurn() {
+    const companion = gameState.companion;
+    if (!companion) return;
+
+    gameState.companion = null; // Il n'est plus votre allié pendant qu'on règle la situation
+    gameState.pendingCompanionCandidate = { ...companion, disposition: 'hostile' };
+    gameState.companionChoicePending = true;
+
+    setCardHeader('💢', companion.name, 'Compagnon Instable');
+    logEvent(`${companion.name} craque sous la pression et se retourne contre vous !`, "danger");
+    updateCompanionUI();
+    ui.companionChoiceHostile.classList.remove('hidden');
+    updateUI();
+}
+
+// Gain d'XP du compagnon (accordé après chaque victoire du joueur tant qu'il est actif).
+// Sa progression fait grimper son agressivité ; à 100%, il devient hostile (voir advance()).
+function gainCompanionXp(amount) {
+    const companion = gameState.companion;
+    if (!companion || !amount) return;
+
+    companion.xp += amount;
+    while (companion.xp >= companion.xpToNext) {
+        companion.xp -= companion.xpToNext;
+        companion.level += 1;
+        companion.xpToNext = Math.round(companion.xpToNext * 1.3);
+
+        const increment = 15 + Math.floor(Math.random() * 11); // +15 à +25 par niveau
+        companion.aggressiveness = Math.min(100, companion.aggressiveness + increment);
+
+        logEvent(`${companion.name} gagne en expérience (niveau ${companion.level}).`, "info");
+        if (companion.aggressiveness >= 70 && companion.aggressiveness < 100) {
+            logEvent(`${companion.name} semble de plus en plus instable...`, "danger");
+        }
+    }
+    updateCompanionUI();
+}
+
+// Reconstruit l'affichage compact du compagnon (hors combat) : nom, spécialité, barre d'agressivité
+function updateCompanionUI() {
+    const companion = gameState.companion;
+    if (!companion) {
+        ui.companionStatusBar.classList.add('hidden');
+        return;
+    }
+    ui.companionStatusBar.classList.remove('hidden');
+    ui.companionNameDisplay.innerText = companion.name;
+    ui.companionSpecialtyDisplay.innerText = `(${companion.specialty.label})`;
+
+    const aggroPct = companion.aggressiveness / 100;
+    ui.companionAggroBar.style.width = `${companion.aggressiveness}%`;
+    ui.companionAggroBar.style.background = hpColor(1 - aggroPct); // Vert = calme, rouge = instable
 }
 
 function nextFloor() {
@@ -897,7 +1100,10 @@ function rollDamage(attackerAtk, defenderDef, options = {}) {
 // DEF effective du joueur : sa DEF de base + le bonus de l'armure équipée, le cas échéant
 function getEffectiveDef() {
     const armorBonus = gameState.equipment.armor ? (gameState.equipment.armor.baseArmor || 0) : 0;
-    return gameState.def + armorBonus;
+    const companionBonus = (gameState.companion && gameState.companion.specialty.type === 'guard')
+        ? Math.round(gameState.companion.def * 0.5)
+        : 0;
+    return gameState.def + armorBonus + companionBonus;
 }
 
 // Vérifie que le joueur peut agir (combat en cours, pas étourdi), et applique le saignement
@@ -951,6 +1157,13 @@ function performPlayerAttack(attackerAtk, options, label) {
     enemy.hp -= playerDamage;
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
     logEvent(`Vous attaquez ${label}${slowedNote} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
+
+    // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
+    if (gameState.companion && gameState.companion.specialty.type === 'strike' && enemy.hp > 0) {
+        const bonusDamage = Math.max(1, Math.round(gameState.companion.atk * 0.4));
+        enemy.hp -= bonusDamage;
+        logEvent(`${gameState.companion.name} porte un coup supplémentaire ! (+${bonusDamage} dégâts)`, "info");
+    }
 
     if (enemy.hp <= 0) {
         setTimeout(() => {
@@ -1078,6 +1291,13 @@ function resolveEnemyCounterAttack() {
         return;
     }
 
+    // Compagnon "Premiers secours" : chance de soigner le joueur après la riposte ennemie
+    if (gameState.companion && gameState.companion.specialty.type === 'medic' && Math.random() * 100 < 25) {
+        const heal = 8 + Math.floor(Math.random() * 8); // 8 à 15 PV
+        gameState.hp = Math.min(gameState.maxHp, gameState.hp + heal);
+        logEvent(`${gameState.companion.name} vous soigne rapidement ! (+${heal} PV)`, "success");
+    }
+
     applyMobEffectOnPlayer(enemy);
     updateUI();
 }
@@ -1142,7 +1362,10 @@ function attackMagic() {
 function attemptFlee() {
     if (!gameState.inCombat || !gameState.currentEnemy) return;
     const enemy = gameState.currentEnemy;
-    const fleeChance = 60; // 60% de réussite (pourra dépendre de compétences/stats plus tard)
+    let fleeChance = 60; // 60% de réussite de base (pourra dépendre de compétences/stats plus tard)
+    if (gameState.companion && gameState.companion.specialty.type === 'scout') {
+        fleeChance += 15; // Compagnon "Éclaireur" : facilite la fuite
+    }
 
     if (Math.random() * 100 < fleeChance) {
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !`, "info");
@@ -1175,6 +1398,11 @@ function winCombat() {
     // Gain d'XP basé sur le monstre vaincu (valeur de repli si jamais xpReward est absent)
     const xpGained = (gameState.currentEnemy && gameState.currentEnemy.xpReward) || 10;
     gainXp(xpGained);
+
+    // Le compagnon actif progresse aussi (fait grimper son agressivité — voir gainCompanionXp)
+    if (gameState.companion) {
+        gainCompanionXp(15);
+    }
 
     // Butin : garanti pour un boss (avec une chance de second objet), sinon la chance standard
     if (wasBoss) {
@@ -1210,8 +1438,14 @@ function winCombat() {
 // 2. BOUCLE DE GAMEPLAY
 // ==========================================
 function advance() {
-    if (isActionBlocked()) return; // Sécurité si combat en cours ou décision d'escalier en attente
+    if (isActionBlocked()) return; // Sécurité si combat en cours ou décision en attente
     if (gameState.hp <= 0 || gameState.timeLeft <= 0) return; // Jeu terminé
+
+    // Le compagnon a atteint son seuil d'agressivité : il faut d'abord régler la situation
+    if (gameState.companion && gameState.companion.aggressiveness >= 100) {
+        triggerCompanionHostileTurn();
+        return; // Ce tour est consommé par la confrontation, pas par un tirage de carte
+    }
 
     // Décrémente le temps et incrémente le compteur de cartes
     gameState.timeLeft -= 1;
@@ -1284,6 +1518,13 @@ ui.btnFlee.addEventListener('click', attemptFlee);
 ui.btnTakeStairs.addEventListener('click', takeStairsNow);
 ui.btnRememberStairs.addEventListener('click', rememberStairsLocation);
 
+// Clics sur les boutons de rencontre de compagnon
+ui.btnRecruitFriendly.addEventListener('click', recruitCompanion);
+ui.btnDeclineCompanion.addEventListener('click', declineCompanion);
+ui.btnFleeCompanion.addEventListener('click', fleeCompanionEncounter);
+ui.btnRecruitHostile.addEventListener('click', recruitCompanion);
+ui.btnAttackCompanion.addEventListener('click', attackCompanionEncounter);
+
 // Clic sur l'export des logs Dev
 ui.btnDevLogs.addEventListener('click', () => {
     console.log("--- LOGS DE DÉVELOPPEMENT ---");
@@ -1295,4 +1536,5 @@ ui.btnDevLogs.addEventListener('click', () => {
 updateUI();
 updateInventoryUI();
 updateKnownLocationsUI();
+updateCompanionUI();
 
