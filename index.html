@@ -259,6 +259,19 @@
                     </div>
                     <span id="combat-player-status" class="text-xs leading-none block">—</span>
                     <div id="combat-player-die" class="die-badge border-blue-700 text-blue-300 mx-auto mt-1">–</div>
+
+                    <!-- Indicateur compagnon (visible seulement si un compagnon est actif) -->
+                    <div id="companion-combat-indicator" class="hidden mt-2 pt-2 border-t border-gray-800">
+                        <span id="companion-combat-name" class="text-[7px] uppercase tracking-widest text-emerald-400 block truncate">-</span>
+                        <div class="hp-ring-wrapper mx-auto" style="width: 26px; height: 26px;">
+                            <svg viewBox="0 0 44 44" width="26" height="26">
+                                <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="5" />
+                                <circle id="companion-combat-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="5"
+                                        stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
+                            </svg>
+                            <span id="companion-combat-hp" class="hp-ring-label text-[8px] text-emerald-300">0</span>
+                        </div>
+                    </div>
                 </div>
             </div>
             <p id="advance-hint" class="text-[10px] text-blue-400 uppercase tracking-widest text-center animate-pulse">
@@ -302,6 +315,43 @@
                 <button id="btn-remember-stairs" class="px-3 py-3 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-300 uppercase tracking-wider transition-all">
                     📍 Retenir et partir
                 </button>
+            </div>
+        </div>
+
+        <!-- Rencontre de compagnon ami : recruter ou laisser partir (sans risque) -->
+        <div id="companion-choice-friendly" class="hidden p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-emerald-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Crawler Rencontré</span>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-recruit-friendly" class="px-3 py-3 bg-gray-900 border border-emerald-700/80 hover:border-emerald-400 hover:bg-emerald-900/30 rounded text-xs text-emerald-300 uppercase tracking-wider transition-all">
+                    🤝 Recruter
+                </button>
+                <button id="btn-decline-companion" class="px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
+                    👋 Laisser partir
+                </button>
+            </div>
+        </div>
+
+        <!-- Rencontre de compagnon hostile (ou trahison d'un compagnon déjà recruté) : fuir, tenter de le recruter, ou attaquer -->
+        <div id="companion-choice-hostile" class="hidden p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Crawler Hostile</span>
+            <div class="grid grid-cols-3 gap-2">
+                <button id="btn-flee-companion" class="px-2 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-[11px] text-gray-400 uppercase tracking-wider transition-all">
+                    🏃 Fuir
+                </button>
+                <button id="btn-recruit-hostile" class="px-2 py-3 bg-gray-900 border border-emerald-700/80 hover:border-emerald-400 hover:bg-emerald-900/30 rounded text-[11px] text-emerald-300 uppercase tracking-wider transition-all">
+                    🤝 Recruter
+                </button>
+                <button id="btn-attack-companion" class="px-2 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-[11px] text-red-400 uppercase tracking-wider transition-all">
+                    ⚔️ Attaquer
+                </button>
+            </div>
+        </div>
+
+        <!-- Compagnon actif (hors combat) : nom, spécialité, barre d'agressivité -->
+        <div id="companion-status-bar" class="hidden flex items-center justify-between text-[10px] text-gray-500 bg-gray-950/50 border border-gray-800 rounded px-3 py-2">
+            <span>🐾 <span id="companion-name-display" class="text-emerald-400 font-bold">-</span> <span id="companion-specialty-display" class="text-gray-600">(-)</span></span>
+            <div class="w-16 bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden shrink-0">
+                <div id="companion-aggro-bar" class="h-full rounded-full transition-all duration-500" style="width:0%; background:#22c55e;"></div>
             </div>
         </div>
 
@@ -375,10 +425,10 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=12"></script>
-    <script src="items.js?v=12"></script>
-    <script src="districts.js?v=12"></script>
-    <script src="generator.js?v=12"></script>
-    <script src="app.js?v=12"></script>
+    <script src="bestiary.js?v=13"></script>
+    <script src="items.js?v=13"></script>
+    <script src="districts.js?v=13"></script>
+    <script src="generator.js?v=13"></script>
+    <script src="app.js?v=13"></script>
 </body>
 </html>
