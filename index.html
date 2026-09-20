@@ -2,11 +2,18 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>Crawler - Interface de Survie</title>
     <!-- Intégration de Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Empêche le zoom au double-tap / clics rapprochés sur les éléments interactifs.
+           (maximum-scale seul ne suffit pas : iOS l'ignore volontairement pour l'accessibilité.
+           touch-action: manipulation est la vraie solution, ciblée sur les zones cliquables,
+           qui laisse le pinch-to-zoom volontaire fonctionner ailleurs.) */
+        button, #card-stack-wrapper, #inventory > div {
+            touch-action: manipulation;
+        }
         /* Ajout d'une police pour renforcer le côté terminal/SF */
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
         body {
@@ -102,15 +109,44 @@
         .hp-hit {
             animation: hpHitFlash 0.3s ease-out;
         }
+
+        /* --- Anneau de vie circulaire --- */
+        .hp-ring-wrapper {
+            position: relative;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .hp-ring-wrapper svg {
+            display: block;
+            transform: rotate(-90deg); /* Le tracé commence en haut plutôt qu'à droite */
+        }
+        .hp-ring-track {
+            fill: none;
+            stroke: #1f2937;
+        }
+        .hp-ring-fill {
+            fill: none;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
+        }
+        .hp-ring-label {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            line-height: 1;
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-200 min-h-screen flex justify-center items-center py-6 px-4 selection:bg-blue-900 selection:text-white">
 
     <!-- Conteneur principal du jeu -->
-    <main class="w-full max-w-2xl bg-gray-900 border border-blue-900/60 shadow-[0_0_40px_rgba(30,58,138,0.2)] rounded-xl p-6 flex flex-col gap-6 relative">
+    <main class="w-full max-w-2xl bg-gray-900 border border-blue-900/60 shadow-[0_0_40px_rgba(30,58,138,0.2)] rounded-xl p-4 flex flex-col gap-3 relative">
         
         <!-- 1. Header : Infos du Joueur -->
-        <header class="flex flex-wrap justify-between items-end border-b border-gray-800 pb-4 gap-4">
+        <header class="flex flex-wrap justify-between items-end border-b border-gray-800 pb-2 gap-3">
             <div>
                 <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-200 drop-shadow-[0_0_10px_rgba(96,165,250,0.6)] uppercase tracking-wider" id="player-name">
                     CRAWLER_01
@@ -124,16 +160,6 @@
                     <div id="xp-bar" class="bg-green-600 h-full rounded-full shadow-[0_0_8px_rgba(34,197,94,0.8)] transition-all duration-500" style="width: 0%"></div>
                 </div>
                 <p class="text-[10px] text-gray-600 mt-0.5 uppercase tracking-widest">XP : <span id="xp-text">0/50</span></p>
-            </div>
-            <div class="text-right bg-gray-950 px-4 py-2 rounded border border-red-900/50 shadow-[inset_0_0_10px_rgba(153,27,27,0.3)]">
-                <span class="text-gray-500 text-xs uppercase tracking-widest block mb-1">Intégrité Physique</span>
-                <div class="text-2xl font-bold text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]">
-                    PV: <span id="current-hp">100</span>/<span id="max-hp">100</span> <span id="player-status-icons" class="text-sm"></span>
-                </div>
-                <div class="flex gap-3 text-[10px] text-gray-500 mt-1 justify-end uppercase tracking-widest">
-                    <span>⚔️ ATK <span id="player-atk" class="text-gray-300 font-bold">10</span></span>
-                    <span>🛡️ DEF <span id="player-def" class="text-gray-300 font-bold">5</span></span>
-                </div>
             </div>
         </header>
 
@@ -185,7 +211,14 @@
                 <!-- Colonne Ennemi (visible uniquement en combat) : PV, statut, dé de dégâts subis -->
                 <div id="combat-side-enemy" class="hidden w-14 shrink-0 text-center gap-1">
                     <span class="text-[8px] uppercase tracking-widest text-red-400 block">Ennemi</span>
-                    <span id="combat-enemy-hp" class="text-base font-bold text-red-400 leading-none block">0</span>
+                    <div class="hp-ring-wrapper mx-auto" style="width: 36px; height: 36px;">
+                        <svg viewBox="0 0 44 44" width="36" height="36">
+                            <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="4" />
+                            <circle id="combat-enemy-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="4"
+                                    stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
+                        </svg>
+                        <span id="combat-enemy-hp" class="hp-ring-label text-[10px] text-red-300">0</span>
+                    </div>
                     <span id="combat-enemy-status" class="text-xs leading-none block">—</span>
                     <div id="combat-enemy-die" class="die-badge border-red-700 text-red-300 mx-auto mt-1">–</div>
                 </div>
@@ -216,7 +249,14 @@
                 <!-- Colonne Joueur (visible uniquement en combat) : PV, statut, dé de dégâts infligés -->
                 <div id="combat-side-player" class="hidden w-14 shrink-0 text-center gap-1">
                     <span class="text-[8px] uppercase tracking-widest text-blue-400 block">Vous</span>
-                    <span id="combat-player-hp" class="text-base font-bold text-blue-400 leading-none block">0</span>
+                    <div class="hp-ring-wrapper mx-auto" style="width: 36px; height: 36px;">
+                        <svg viewBox="0 0 44 44" width="36" height="36">
+                            <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="4" />
+                            <circle id="combat-player-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="4"
+                                    stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
+                        </svg>
+                        <span id="combat-player-hp" class="hp-ring-label text-[10px] text-blue-300">0</span>
+                    </div>
                     <span id="combat-player-status" class="text-xs leading-none block">—</span>
                     <div id="combat-player-die" class="die-badge border-blue-700 text-blue-300 mx-auto mt-1">–</div>
                 </div>
@@ -249,6 +289,22 @@
                 <button id="btn-flee" class="px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
                     🏃 Fuir
                 </button>
+            </div>
+        </div>
+
+        <!-- Vitals compacts (PV + ATK/DEF) : masqués en combat, où PV apparaît déjà à droite de la carte -->
+        <div id="player-vitals-compact" class="flex items-center justify-center gap-4 py-1">
+            <div class="hp-ring-wrapper" style="width: 40px; height: 40px;">
+                <svg viewBox="0 0 44 44" width="40" height="40">
+                    <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="4" />
+                    <circle id="compact-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="4"
+                            stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
+                </svg>
+                <span id="compact-hp-value" class="hp-ring-label text-[11px] text-gray-100">100</span>
+            </div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-widest leading-relaxed">
+                <div>⚔️ ATK <span id="player-atk" class="text-gray-300 font-bold">10</span> &nbsp; 🛡️ DEF <span id="player-def" class="text-gray-300 font-bold">5</span></div>
+                <div id="player-status-icons" class="text-sm"></div>
             </div>
         </div>
 
@@ -298,10 +354,10 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=10"></script>
-    <script src="items.js?v=10"></script>
-    <script src="districts.js?v=10"></script>
-    <script src="generator.js?v=10"></script>
-    <script src="app.js?v=10"></script>
+    <script src="bestiary.js?v=11"></script>
+    <script src="items.js?v=11"></script>
+    <script src="districts.js?v=11"></script>
+    <script src="generator.js?v=11"></script>
+    <script src="app.js?v=11"></script>
 </body>
 </html>
