@@ -292,6 +292,19 @@
             </div>
         </div>
 
+        <!-- Zone de choix d'escalier (visible uniquement quand un escalier non gardé vient d'être trouvé) -->
+        <div id="stairs-choice-zone" class="hidden p-4 bg-blue-950/20 border border-blue-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-blue-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Escalier Repéré</span>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-take-stairs" class="px-3 py-3 bg-gray-900 border border-blue-700/80 hover:border-blue-400 hover:bg-blue-900/30 rounded text-xs text-blue-300 uppercase tracking-wider transition-all">
+                    🪜 Emprunter
+                </button>
+                <button id="btn-remember-stairs" class="px-3 py-3 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-300 uppercase tracking-wider transition-all">
+                    📍 Retenir et partir
+                </button>
+            </div>
+        </div>
+
         <!-- Vitals compacts (PV + ATK/DEF) : masqués en combat, où PV apparaît déjà à droite de la carte -->
         <div id="player-vitals-compact" class="flex items-center justify-center gap-4 py-1">
             <div class="hp-ring-wrapper" style="width: 40px; height: 40px;">
@@ -329,6 +342,14 @@
             </div>
         </section>
 
+        <!-- Lieux connus : escalier retenu, plus tard salles sécurisées et boss -->
+        <section class="flex flex-col gap-2">
+            <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Lieux connus</h2>
+            <div id="known-locations" class="flex flex-col gap-1.5">
+                <p class="text-[10px] text-gray-600 italic">Aucun lieu repéré pour l'instant.</p>
+            </div>
+        </section>
+
         <!-- 6. Logs de Dev (Bouton discret) -->
         <button id="btn-dev-logs" class="absolute bottom-2 right-4 text-[10px] text-gray-700 hover:text-gray-400 transition-colors uppercase tracking-widest cursor-pointer">
             >_ Exporter Logs Dev
@@ -354,10 +375,10 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=11"></script>
-    <script src="items.js?v=11"></script>
-    <script src="districts.js?v=11"></script>
-    <script src="generator.js?v=11"></script>
-    <script src="app.js?v=11"></script>
+    <script src="bestiary.js?v=12"></script>
+    <script src="items.js?v=12"></script>
+    <script src="districts.js?v=12"></script>
+    <script src="generator.js?v=12"></script>
+    <script src="app.js?v=12"></script>
 </body>
 </html>
