@@ -104,12 +104,14 @@ function generateMob(districtName) {
             // Transmission de l'effet élémentaire éventuel (burn/poison/slow/stun) au monstre final
             if (modifier.effect) finalMob.effect = modifier.effect;
 
-            // Application des statistiques (Addition)
-            // On s'assure que la stat existe avant de l'additionner
+            // Application des statistiques (Multiplication)
+            // Les valeurs de mobModifiers.*.stats sont des multiplicateurs (ex: 1.5 = +50%,
+            // 0.8 = -20%), pas des deltas : on les applique donc en multipliant la stat déjà mise
+            // à l'échelle par l'étage (voir applyFloorScaling plus haut), puis on arrondit.
             if (modifier.stats) {
                 for (let stat in modifier.stats) {
                     if (finalMob[stat] !== undefined) {
-                        finalMob[stat] += modifier.stats[stat];
+                        finalMob[stat] = Math.round(finalMob[stat] * modifier.stats[stat]);
                         // Sécurité : on empêche une stat de descendre en dessous de 1
                         if (finalMob[stat] < 1) finalMob[stat] = 1; 
                     }
