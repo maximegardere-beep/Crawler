@@ -729,7 +729,7 @@ function updateKnownLocationsUI() {
     ui.knownLocationsContainer.innerHTML = "";
 
     const icons = { stairs: '🪜', boss: '👑', safeRoom: '🏥', frontier: '🧭' };
-    const entries = [...gameState.knownLocations];
+    let entries = [...gameState.knownLocations];
 
     // Entrée virtuelle "bifurcation inexplorée la plus proche" (non stockée : recalculée à chaque
     // fois, car la frontière la plus proche change au fil de l'exploration).
@@ -740,6 +740,22 @@ function updateKnownLocationsUI() {
         }
     }
 
+    // Pré-calcule la distance de chaque entrée une seule fois (réutilisée pour le filtrage ET l'affichage)
+    entries = entries.map(loc => ({
+        loc,
+        distance: gameState.floorMap ? computeDistance(gameState.floorMap.currentRoomId, loc.roomId) : null
+    }));
+
+    // Ne garder que la salle sécurisée la plus proche : plusieurs salles connues encombreraient le
+    // panneau sans vraie valeur ajoutée (boss/escalier/bifurcation restent tous affichés, eux).
+    let nearestSafe = null;
+    entries = entries.filter(({ loc, distance }) => {
+        if (loc.type !== 'safeRoom') return true;
+        if (nearestSafe === null || (distance ?? Infinity) < nearestSafe.distance) nearestSafe = { loc, distance };
+        return false;
+    });
+    if (nearestSafe) entries.push(nearestSafe);
+
     if (entries.length === 0) {
         const empty = document.createElement('p');
         empty.className = "text-[10px] text-gray-600 italic";
@@ -748,11 +764,10 @@ function updateKnownLocationsUI() {
         return;
     }
 
-    entries.forEach(loc => {
+    entries.forEach(({ loc, distance }) => {
         const row = document.createElement('button');
         row.className = "w-full flex justify-between items-center px-3 py-2 bg-gray-950 border border-gray-800 rounded text-xs text-gray-300 hover:border-blue-600 hover:bg-blue-950/30 transition-all cursor-pointer";
-        const icon = icons[loc.type] || '📍';
-        const distance = gameState.floorMap ? computeDistance(gameState.floorMap.currentRoomId, loc.roomId) : null;
+        const icon = loc.icon || icons[loc.type] || '📍';
         const distLabel = (distance !== null && distance !== undefined) ? ` (${distance})` : "";
         row.innerHTML = `<span>${icon} ${loc.label}${distLabel}</span><span class="text-blue-400 uppercase tracking-widest text-[10px]">Aller →</span>`;
         row.addEventListener('click', () => travelToKnownLocation(loc.id, loc.type === 'frontier' ? loc : null));
@@ -959,7 +974,7 @@ function gainCompanionXp(amount) {
 
         logEvent(`${companion.name} gagne en expérience (niveau ${companion.level}).`, "info");
         if (companion.aggressiveness >= 70 && companion.aggressiveness < 100) {
-            logEvent(`${companion.name} semble de plus en plus instable...`, "danger");
+            logEvent(`${companion.name} semble de plus en plus instable... (agressivité ${companion.aggressiveness}%)`, "danger");
         }
     }
     updateCompanionUI();
@@ -1127,6 +1142,7 @@ function generateQuadrant(quadrantIndex, districtName, roomsById) {
     const safeCount = Math.min(safeCandidates.length, 1 + Math.floor(Math.random() * 2));
     for (let i = 0; i < safeCount; i++) {
         roomsById[safeCandidates[i]].type = 'safe';
+        roomsById[safeCandidates[i]].safehouse = pickSafehouseType();
     }
 
     // Quelques ruelles annexes pour texturer le graphe (raccourcis, pas forcément utiles)
@@ -1234,16 +1250,17 @@ function enterRoom(room) {
     }
 
     if (room.type === 'safe') {
+        const safehouse = room.safehouse || { name: "Salle Sécurisée", icon: "🏥", desc: "" };
         const heal = Math.floor(Math.random() * 20) + 15; // 15 à 34 PV
         gameState.hp = Math.min(gameState.maxHp, gameState.hp + heal);
-        setCardHeader('🏥', 'Salle Sécurisée', 'Repos');
+        setCardHeader(safehouse.icon, safehouse.name, 'Repos');
         logEvent(
             firstVisit
-                ? `Vous découvrez une salle sécurisée. Vous vous reposez et récupérez ${heal} PV.`
-                : `Vous retrouvez la salle sécurisée et vous reposez encore un peu (+${heal} PV).`,
+                ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc} Vous vous reposez et récupérez ${heal} PV.`
+                : `Vous retrouvez ${safehouse.name} et vous reposez encore un peu (+${heal} PV).`,
             "success"
         );
-        registerKnownLocation({ id: `safe-${room.id}`, type: 'safeRoom', roomId: room.id, label: 'Salle sécurisée' });
+        registerKnownLocation({ id: `safe-${room.id}`, type: 'safeRoom', roomId: room.id, label: safehouse.name, icon: safehouse.icon });
         return;
     }
 
@@ -1667,7 +1684,10 @@ function resolveEnemyCounterAttack() {
     const enemyDamage = rollDamage(enemyAtk, getEffectiveDef());
     gameState.hp -= enemyDamage;
     animateDieHit(ui.combatEnemyDie, 'right', enemyDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
-    logEvent(`[${enemy.name}]${enemySlowedNote} vous inflige ${enemyDamage} dégâts${wasBlinded ? " (vous étiez ébloui)" : ""}.`, "danger");
+    const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
+        ? ` (réduits grâce à la garde de ${gameState.companion.name})`
+        : "";
+    logEvent(`[${enemy.name}]${enemySlowedNote} vous inflige ${enemyDamage} dégâts${wasBlinded ? " (vous étiez ébloui)" : ""}${guardNote}.`, "danger");
 
     // L'éblouissement se dissipe d'un round à chaque riposte encaissée
     if (wasBlinded) {
@@ -1768,7 +1788,10 @@ function attemptFlee() {
     }
 
     if (Math.random() * 100 < fleeChance) {
-        logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !`, "info");
+        const scoutNote = (gameState.companion && gameState.companion.specialty.type === 'scout')
+            ? ` (${gameState.companion.name} vous a montré une ouverture)`
+            : "";
+        logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
         gameState.currentEnemy = null;
         gameState.inCombat = false;
         gameState.pendingStairAfterCombat = false; // La fuite ne compte pas comme une victoire sur le gardien
