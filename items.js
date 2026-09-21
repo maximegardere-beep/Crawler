@@ -36,7 +36,7 @@ const itemModifiers = {
 const baseItems = {
     weapons: [
         { name: "Pied-de-biche", baseDmg: 8, baseValue: 10, allowedTags: ["quality", "effect"] },
-        { name: "Batte en Mousse", baseDmg: 1, baseValue: 2, allowedTags: ["quality"] },
+        { name: "Extincteur Cabossé", baseDmg: 1, baseValue: 2, allowedTags: ["quality"] },
         { name: "Agrafeuse Tactique", baseDmg: 5, baseValue: 15, allowedTags: ["quality", "effect"] },
         { name: "Épée en Pain de Mie", baseDmg: 12, baseValue: 20, allowedTags: ["quality", "effect"] },
         { name: "Hache à Viande", baseDmg: 15, baseValue: 25, allowedTags: ["quality", "effect"] },
@@ -44,31 +44,31 @@ const baseItems = {
         { name: "Couteau en Beurre", baseDmg: 3, baseValue: 5, allowedTags: ["quality"] },
         { name: "Lance à Feu", baseDmg: 18, baseValue: 35, allowedTags: ["quality", "effect"] },
         { name: "Gantelet Électrique", baseDmg: 14, baseValue: 28, allowedTags: ["quality", "effect"] },
-        { name: "Arc en Caoutchouc", baseDmg: 10, baseValue: 18, allowedTags: ["quality", "effect"] }
+        { name: "Lance-Pierre de Chantier", baseDmg: 10, baseValue: 18, allowedTags: ["quality", "effect"] }
     ],
     armors: [
         { name: "Couvercle de Poubelle", baseArmor: 5, baseValue: 8, allowedTags: ["quality", "effect"] },
         { name: "Costume Trois-Pièces Déchiré", baseArmor: 2, baseValue: 20, allowedTags: ["quality"] },
-        { name: "Gilet Jaune", baseArmor: 3, baseValue: 5, allowedTags: ["quality"] },
+        { name: "Gilet Haute Visibilité", baseArmor: 3, baseValue: 5, allowedTags: ["quality"] },
         { name: "Armure de Carton", baseArmor: 8, baseValue: 12, allowedTags: ["quality", "effect"] },
         { name: "Plastron de Coquillage", baseArmor: 6, baseValue: 15, allowedTags: ["quality", "effect"] },
-        { name: "Cape d'Invisibilité", baseArmor: 0, baseValue: 50, allowedTags: ["quality", "effect"] },
+        { name: "Rideau de Douche Camouflage", baseArmor: 0, baseValue: 50, allowedTags: ["quality", "effect"] },
         { name: "Combinaison de Plongée", baseArmor: 10, baseValue: 22, allowedTags: ["quality", "effect"] },
-        { name: "Armure de Chevalier en Mousse", baseArmor: 4, baseValue: 10, allowedTags: ["quality"] },
+        { name: "Gilet Pare-Balles Périmé", baseArmor: 4, baseValue: 10, allowedTags: ["quality"] },
         { name: "Bouclier en Polystyrène", baseArmor: 7, baseValue: 18, allowedTags: ["quality", "effect"] },
-        { name: "Veste en Peau de Dragon", baseArmor: 12, baseValue: 40, allowedTags: ["quality", "effect"] }
+        { name: "Manteau en Cuir de Skaï Renforcé", baseArmor: 12, baseValue: 40, allowedTags: ["quality", "effect"] }
     ],
     consumables: [
         { name: "Café Froid", heal: 15, baseValue: 5, allowedTags: ["quality"] },
         { name: "Barre Céréalière Douteuse", heal: 25, baseValue: 10, allowedTags: ["quality", "effect"] },
         { name: "Boisson Énergisante Radioactive", heal: 50, baseValue: 25, allowedTags: ["quality"] },
-        { name: "Potion de Soin Maisonne", heal: 30, baseValue: 12, allowedTags: ["quality", "effect"] },
+        { name: "Kit de Premiers Secours Périmé", heal: 30, baseValue: 12, allowedTags: ["quality", "effect"] },
         { name: "Sandwich Moisissure", heal: 20, baseValue: 8, allowedTags: ["quality"] },
         { name: "Pilule de Force", heal: 0, baseValue: 15, allowedTags: ["quality", "effect"] },
-        { name: "Champignon Magique", heal: 40, baseValue: 20, allowedTags: ["quality", "effect"] },
-        { name: "Bouteille d'Eau Bénite", heal: 35, baseValue: 18, allowedTags: ["quality"] },
+        { name: "Barre Protéinée Suspecte du Distributeur", heal: 40, baseValue: 20, allowedTags: ["quality", "effect"] },
+        { name: "Flasque de Sirop Contre la Toux Premier Prix", heal: 35, baseValue: 18, allowedTags: ["quality"] },
         { name: "Bonbon Explosif", heal: 5, baseValue: 3, allowedTags: ["effect"] },
-        { name: "Potion de Régénération", heal: 60, baseValue: 30, allowedTags: ["quality", "effect"] }
+        { name: "Perfusion de Sponsor", heal: 60, baseValue: 30, allowedTags: ["quality", "effect"] }
     ]
 };
 
