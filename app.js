@@ -45,6 +45,7 @@ const gameState = {
     pendingStairAfterCombat: false, // Si vrai, gagner le combat en cours ouvre l'étage suivant
     pendingBossRoomId: null, // Room id de la salle de boss en cours de combat, pour la marquer vaincue à la victoire
     bossChoicePending: false, // Une salle de boss vient d'être trouvée, décision combattre/repérer en attente
+    corridorChoicePending: false, // Une vraie bifurcation (inconnu/connu) attend une décision
     pendingBossEncounter: null, // { roomId, guardsStairs } pendant que bossChoicePending est vrai
     knownLocations: [], // Lieux repérés : { id, type: 'stairs'|'boss'|'safeRoom', roomId, label }
     pendingTravel: null, // { destination, ambushesRemaining } pendant un trajet vers un lieu connu
@@ -163,7 +164,9 @@ const ui = {
     timeText: document.getElementById('time-text'),
     timeBar: document.getElementById('time-bar'),
     inventoryCount: document.getElementById('inventory-count'),
-    inventoryContainer: document.getElementById('inventory'),
+    consumableQuickbar: document.getElementById('consumable-quickbar'),
+    inventoryEquipmentCards: document.getElementById('inventory-equipment-cards'),
+    inventoryConsumablesIcons: document.getElementById('inventory-consumables-icons'),
     equippedWeapon: document.getElementById('equipped-weapon'),
     equippedArmor: document.getElementById('equipped-armor'),
     playerStatusIcons: document.getElementById('player-status-icons'),
@@ -182,6 +185,9 @@ const ui = {
     bossChoiceZone: document.getElementById('boss-choice-zone'),
     btnFightBoss: document.getElementById('btn-fight-boss'),
     btnRetreatBoss: document.getElementById('btn-retreat-boss'),
+    corridorChoiceZone: document.getElementById('corridor-choice-zone'),
+    btnExploreUnknown: document.getElementById('btn-explore-unknown'),
+    btnKnownPath: document.getElementById('btn-known-path'),
     gameOverOverlay: document.getElementById('game-over-overlay'),
     gameOverReason: document.getElementById('game-over-reason'),
     gameOverFloor: document.getElementById('game-over-floor'),
@@ -321,7 +327,7 @@ function updateUI() {
             ui.combatEnemyStatus.innerText = enemyIcons || "—";
         }
     } else {
-        ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending);
+        ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending || gameState.corridorChoicePending);
         ui.combatZone.classList.add('hidden');
         ui.compactVitals.classList.remove('hidden'); // On réaffiche les PV compacts hors combat
         ui.cardStackWrapper.style.maxWidth = '240px'; // Retour à la taille normale hors combat
@@ -454,36 +460,76 @@ function playCardDrawAnimation() {
 // Fonction pour mettre à jour l'inventaire visuel
 function updateInventoryUI() {
     ui.inventoryCount.innerText = gameState.inventory.length;
-    ui.inventoryContainer.innerHTML = ""; // On vide l'inventaire
-
-    // Affichage de l'équipement actuel
     ui.equippedWeapon.innerText = gameState.equipment.weapon ? gameState.equipment.weapon.name : "Aucune";
     ui.equippedArmor.innerText = gameState.equipment.armor ? gameState.equipment.armor.name : "Aucune";
 
-    // Couleur distincte par catégorie d'objet, pour repérer les types d'un coup d'œil
-    const categoryStyles = {
-        weapons: ['text-red-400', 'border-red-900/50'],
-        armors: ['text-blue-400', 'border-blue-900/50'],
-        consumables: ['text-green-400', 'border-green-900/50']
-    };
+    // --- Armes / armures : cartes façon carte à jouer (style .mini-card), dans le déroulant ---
+    ui.inventoryEquipmentCards.innerHTML = "";
+    const equipmentIndices = [];
+    gameState.inventory.forEach((item, i) => { if (item.category === 'weapons' || item.category === 'armors') equipmentIndices.push(i); });
 
-    // On recrée les 5 cases
-    for (let i = 0; i < gameState.maxInventory; i++) {
-        const slot = document.createElement('div');
-        slot.className = "aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-xs text-center p-1 shadow-[inset_0_0_10px_rgba(0,0,0,0.5)] overflow-hidden text-ellipsis";
-
-        if (i < gameState.inventory.length) {
+    if (equipmentIndices.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = "col-span-2 text-[10px] text-gray-600 italic";
+        empty.innerText = "Aucune arme ni armure en réserve.";
+        ui.inventoryEquipmentCards.appendChild(empty);
+    } else {
+        equipmentIndices.forEach(i => {
             const item = gameState.inventory[i];
-            slot.innerText = item.name;
-            slot.title = `${item.name} — touchez pour ${item.category === 'consumables' ? 'utiliser' : 'équiper'}`;
-            const [textClass, borderClass] = categoryStyles[item.category] || ['text-yellow-500', 'border-yellow-900/50'];
-            slot.classList.add(textClass, borderClass, 'cursor-pointer', 'hover:brightness-125');
-            slot.addEventListener('click', () => useOrEquipItem(i));
-        } else {
-            slot.innerText = "+";
-            slot.classList.add('text-gray-800');
+            const isWeapon = item.category === 'weapons';
+            const card = document.createElement('div');
+            card.className = "mini-card rounded-lg p-2 flex flex-col gap-1 text-center relative";
+            const statLine = isWeapon ? `⚔️ ATK +${item.baseDmg}` : `🛡️ DEF +${item.baseArmor}`;
+            card.innerHTML = `
+                <div class="text-xl leading-none">${isWeapon ? '⚔️' : '🛡️'}</div>
+                <div class="text-[10px] font-bold leading-tight">${item.name}</div>
+                <div class="text-[9px] text-stone-600">${statLine}</div>
+                <button data-action="equip" class="mt-1 text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>
+                <button data-action="discard" class="absolute top-1 right-1 text-[10px] text-red-700 hover:text-red-500" title="Jeter">🗑️</button>
+            `;
+            card.querySelector('[data-action="equip"]').addEventListener('click', () => equipItem(i));
+            card.querySelector('[data-action="discard"]').addEventListener('click', () => discardItem(i));
+            ui.inventoryEquipmentCards.appendChild(card);
+        });
+    }
+
+    // --- Consommables : icône seule, à la fois dans la barre de raccourci ET dans le déroulant ---
+    const consumableIndices = [];
+    gameState.inventory.forEach((item, i) => { if (item.category === 'consumables') consumableIndices.push(i); });
+
+    function buildConsumableIcon(i, withDiscard) {
+        const item = gameState.inventory[i];
+        const wrap = document.createElement('div');
+        wrap.className = "relative";
+        const btn = document.createElement('button');
+        btn.className = "w-9 h-9 flex items-center justify-center bg-gray-950 border border-green-900/50 rounded text-green-400 hover:brightness-125 text-lg";
+        btn.innerText = "🧪";
+        btn.title = `${item.name} — toucher pour utiliser`;
+        btn.addEventListener('click', () => useConsumable(i));
+        wrap.appendChild(btn);
+        if (withDiscard) {
+            const trash = document.createElement('button');
+            trash.className = "absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center bg-gray-900 border border-red-800 rounded-full text-[8px] text-red-500 hover:text-red-300";
+            trash.innerText = "×";
+            trash.title = "Jeter";
+            trash.addEventListener('click', (e) => { e.stopPropagation(); discardItem(i); });
+            wrap.appendChild(trash);
         }
-        ui.inventoryContainer.appendChild(slot);
+        return wrap;
+    }
+
+    ui.consumableQuickbar.innerHTML = "";
+    ui.inventoryConsumablesIcons.innerHTML = "";
+    if (consumableIndices.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = "text-[10px] text-gray-600 italic";
+        empty.innerText = "Aucun consommable.";
+        ui.inventoryConsumablesIcons.appendChild(empty);
+    } else {
+        consumableIndices.forEach(i => {
+            ui.consumableQuickbar.appendChild(buildConsumableIcon(i, false));
+            ui.inventoryConsumablesIcons.appendChild(buildConsumableIcon(i, true));
+        });
     }
 }
 
@@ -491,16 +537,13 @@ function updateInventoryUI() {
 // SYSTÈME D'ÉQUIPEMENT ET DE CONSOMMABLES
 // ==========================================
 
-// Point d'entrée unique quand on touche un objet de l'inventaire : équipe ou consomme selon la catégorie
-function useOrEquipItem(index) {
+// Retire un objet de l'inventaire sans l'utiliser ni l'équiper (bouton 🗑️)
+function discardItem(index) {
     const item = gameState.inventory[index];
     if (!item) return;
-
-    if (item.category === 'consumables') {
-        useConsumable(index);
-    } else if (item.category === 'weapons' || item.category === 'armors') {
-        equipItem(index);
-    }
+    gameState.inventory.splice(index, 1);
+    logEvent(`Vous jetez [${item.name}].`, "info");
+    updateInventoryUI();
 }
 
 // Équipe une arme ou une armure. L'éventuel équipement précédent retourne dans l'inventaire
@@ -664,7 +707,7 @@ function resolveCardEvent() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.corridorChoicePending;
 }
 
 // Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
@@ -685,7 +728,19 @@ function removeKnownLocation(id) {
 function updateKnownLocationsUI() {
     ui.knownLocationsContainer.innerHTML = "";
 
-    if (gameState.knownLocations.length === 0) {
+    const icons = { stairs: '🪜', boss: '👑', safeRoom: '🏥', frontier: '🧭' };
+    const entries = [...gameState.knownLocations];
+
+    // Entrée virtuelle "bifurcation inexplorée la plus proche" (non stockée : recalculée à chaque
+    // fois, car la frontière la plus proche change au fil de l'exploration).
+    if (gameState.floorMap) {
+        const frontierRoomId = findNearestFrontierRoom(gameState.floorMap.currentRoomId);
+        if (frontierRoomId) {
+            entries.unshift({ id: 'frontier', type: 'frontier', roomId: frontierRoomId, label: 'Bifurcation inexplorée' });
+        }
+    }
+
+    if (entries.length === 0) {
         const empty = document.createElement('p');
         empty.className = "text-[10px] text-gray-600 italic";
         empty.innerText = "Aucun lieu repéré pour l'instant.";
@@ -693,25 +748,24 @@ function updateKnownLocationsUI() {
         return;
     }
 
-    const icons = { stairs: '🪜', boss: '👑', safeRoom: '🏥' };
-
-    gameState.knownLocations.forEach(loc => {
+    entries.forEach(loc => {
         const row = document.createElement('button');
         row.className = "w-full flex justify-between items-center px-3 py-2 bg-gray-950 border border-gray-800 rounded text-xs text-gray-300 hover:border-blue-600 hover:bg-blue-950/30 transition-all cursor-pointer";
         const icon = icons[loc.type] || '📍';
         const distance = gameState.floorMap ? computeDistance(gameState.floorMap.currentRoomId, loc.roomId) : null;
         const distLabel = (distance !== null && distance !== undefined) ? ` (${distance})` : "";
         row.innerHTML = `<span>${icon} ${loc.label}${distLabel}</span><span class="text-blue-400 uppercase tracking-widest text-[10px]">Aller →</span>`;
-        row.addEventListener('click', () => travelToKnownLocation(loc.id));
+        row.addEventListener('click', () => travelToKnownLocation(loc.id, loc.type === 'frontier' ? loc : null));
         ui.knownLocationsContainer.appendChild(row);
     });
 }
 
-// Décide de repartir vers un lieu connu : le coût en temps et le risque d'embuscade grandissent
-// avec la distance réelle sur le graphe (pondérée par artère/ruelle), au lieu d'un taux fixe.
-function travelToKnownLocation(id) {
+// Décide de repartir vers un lieu connu (ou la bifurcation inexplorée la plus proche, via
+// virtualLocation) : le coût en temps et le risque d'embuscade grandissent avec la distance
+// réelle sur le graphe (pondérée par artère/ruelle), au lieu d'un taux fixe.
+function travelToKnownLocation(id, virtualLocation = null) {
     if (isActionBlocked()) return;
-    const location = gameState.knownLocations.find(loc => loc.id === id);
+    const location = virtualLocation || gameState.knownLocations.find(loc => loc.id === id);
     if (!location || !gameState.floorMap) return;
 
     const distance = computeDistance(gameState.floorMap.currentRoomId, location.roomId);
@@ -1793,32 +1847,96 @@ function winCombat() {
 // ==========================================
 // 2. BOUCLE DE GAMEPLAY
 // ==========================================
-// Depuis une pièce sans voisin non visité (cul-de-sac exploré), trouve le premier pas d'un chemin
-// vers la frontière inexplorée la plus proche (BFS), pour que le retour en arrière progresse
-// toujours vers du neuf au lieu de risquer un aller-retour sans fin entre deux pièces voisines.
-// Renvoie null si la carte entière de l'étage a déjà été explorée.
-function findStepTowardFrontier(startRoomId) {
+// Depuis une pièce donnée, trouve la pièce-frontière (avec au moins un voisin non visité) la plus
+// proche par BFS (hors la pièce de départ elle-même). Utilisé pour la nouvelle option "Chemin
+// connu -> Bifurcation la plus proche", qui voyage jusqu'à cette pièce comme un lieu connu
+// (coût en temps + risque d'embuscade proportionnels à la distance réelle).
+function findNearestFrontierRoom(startRoomId) {
     const roomsById = gameState.floorMap.roomsById;
-    const cameFrom = { [startRoomId]: null };
+    const seen = new Set([startRoomId]);
     const queue = [startRoomId];
 
     while (queue.length > 0) {
         const id = queue.shift();
         const room = roomsById[id];
         const isFrontier = room.neighbors.some(edge => !roomsById[edge.to].visited);
-        if (id !== startRoomId && isFrontier) {
-            let step = id;
-            while (cameFrom[step] !== startRoomId) step = cameFrom[step];
-            return step;
-        }
+        if (id !== startRoomId && isFrontier) return id;
         room.neighbors.forEach(edge => {
-            if (!(edge.to in cameFrom)) {
-                cameFrom[edge.to] = id;
+            if (!seen.has(edge.to)) {
+                seen.add(edge.to);
                 queue.push(edge.to);
             }
         });
     }
     return null;
+}
+
+// Étape d'exploration proprement dite : consomme le temps et avance vers un voisin non visité au
+// hasard. Appelée directement s'il n'y a pas de vraie bifurcation (aucun couloir connu à proximité
+// immédiate), ou via le bouton "Explorer l'inconnu" sinon (voir presentCorridorChoice).
+function performExploreStep() {
+    const roomsById = gameState.floorMap.roomsById;
+    const current = roomsById[gameState.floorMap.currentRoomId];
+
+    gameState.timeLeft -= 1;
+    gameState.cardsDrawnThisFloor += 1;
+
+    ui.cardBody.innerHTML = "";
+    playCardDrawAnimation();
+
+    if (gameState.timeLeft <= 0) {
+        gameOver(true);
+        return;
+    }
+
+    const unvisitedNeighbors = current.neighbors.filter(edge => !roomsById[edge.to].visited);
+    if (unvisitedNeighbors.length === 0) {
+        // Ne devrait plus arriver (explore() ne l'appelle plus dans ce cas), sécurité
+        updateUI();
+        return;
+    }
+    const nextRoomId = unvisitedNeighbors[Math.floor(Math.random() * unvisitedNeighbors.length)].to;
+    const nextRoom = roomsById[nextRoomId];
+    const changedQuadrant = nextRoom.quadrant !== gameState.floorMap.currentQuadrant;
+
+    gameState.floorMap.currentRoomId = nextRoomId;
+    gameState.floorMap.currentQuadrant = nextRoom.quadrant;
+
+    if (changedQuadrant) {
+        gameState.currentDistrict = gameState.floorMap.quadrants[nextRoom.quadrant].district;
+        logEvent(`Le couloir débouche sur un nouveau secteur. Vous entrez dans : ${gameState.currentDistrict}.`, "info");
+    }
+
+    enterRoom(nextRoom);
+    updateUI();
+}
+
+// Présente le choix "Explorer l'inconnu" / "Chemin connu" à une vraie bifurcation (ou, à un
+// cul-de-sac, seulement l'option "Chemin connu"). Ne consomme aucun temps : c'est un choix, pas
+// une action.
+function presentCorridorChoice(hasUnvisited) {
+    gameState.corridorChoicePending = true;
+    ui.btnExploreUnknown.classList.toggle('hidden', !hasUnvisited);
+    ui.corridorChoiceZone.classList.remove('hidden');
+    updateUI();
+}
+
+// Bouton "Explorer l'inconnu"
+function chooseExploreUnknown() {
+    gameState.corridorChoicePending = false;
+    ui.corridorChoiceZone.classList.add('hidden');
+    performExploreStep();
+}
+
+// Bouton "Chemin connu" : ne fait que révéler/rafraîchir le panneau des lieux connus (qui inclut
+// désormais aussi la bifurcation inexplorée la plus proche) ; le trajet lui-même se lance en
+// cliquant une entrée du panneau, exactement comme pour un lieu connu classique.
+function chooseKnownPath() {
+    gameState.corridorChoicePending = false;
+    ui.corridorChoiceZone.classList.add('hidden');
+    logEvent("Vous consultez votre mémoire des lieux déjà explorés...", "info");
+    updateKnownLocationsUI();
+    updateUI();
 }
 
 function explore() {
@@ -1834,52 +1952,28 @@ function explore() {
 
     const roomsById = gameState.floorMap.roomsById;
     const current = roomsById[gameState.floorMap.currentRoomId];
+    const hasUnvisited = current.neighbors.some(edge => !roomsById[edge.to].visited);
+    const hasVisited = current.neighbors.some(edge => roomsById[edge.to].visited);
 
-    // Décrémente le temps et incrémente le compteur de pièces explorées
-    gameState.timeLeft -= 1;
-    gameState.cardsDrawnThisFloor += 1;
-
-    // Nouvelle carte : on repart d'un corps vide et on joue l'animation de tirage
-    ui.cardBody.innerHTML = "";
-    playCardDrawAnimation();
-
-    if (gameState.timeLeft <= 0) {
-        gameOver(true); // Game over par temps écoulé
+    if (hasUnvisited && hasVisited) {
+        // Vraie bifurcation entre inconnu et connu : on laisse le joueur choisir
+        presentCorridorChoice(true);
         return;
     }
-
-    const unvisitedNeighbors = current.neighbors.filter(edge => !roomsById[edge.to].visited);
-    let nextRoomId;
-    if (unvisitedNeighbors.length > 0) {
-        // On avance dans l'inconnu : un voisin non visité au hasard
-        nextRoomId = unvisitedNeighbors[Math.floor(Math.random() * unvisitedNeighbors.length)].to;
-    } else {
-        // Cul-de-sac déjà entièrement exploré : un seul pas vers la frontière inexplorée la plus
-        // proche (jamais un voisin totalement au hasard, pour ne pas boucler indéfiniment entre
-        // deux pièces sans jamais progresser).
-        nextRoomId = findStepTowardFrontier(current.id);
-        if (!nextRoomId) {
-            // Étage entièrement exploré : plus rien de neuf à trouver en marchant
+    if (!hasUnvisited) {
+        // Cul-de-sac entièrement exploré : uniquement l'option "chemin connu"
+        if (findNearestFrontierRoom(current.id) === null && gameState.knownLocations.length === 0) {
             setCardHeader('🗺️', 'Étage Entièrement Exploré', 'Exploration');
             logEvent("Vous avez arpenté chaque recoin accessible de cet étage. Direction l'escalier ?", "info");
             updateUI();
             return;
         }
+        presentCorridorChoice(false);
+        return;
     }
 
-    const nextRoom = roomsById[nextRoomId];
-    const changedQuadrant = nextRoom.quadrant !== gameState.floorMap.currentQuadrant;
-
-    gameState.floorMap.currentRoomId = nextRoomId;
-    gameState.floorMap.currentQuadrant = nextRoom.quadrant;
-
-    if (changedQuadrant) {
-        gameState.currentDistrict = gameState.floorMap.quadrants[nextRoom.quadrant].district;
-        logEvent(`Le couloir débouche sur un nouveau secteur. Vous entrez dans : ${gameState.currentDistrict}.`, "info");
-    }
-
-    enterRoom(nextRoom);
-    updateUI();
+    // Seulement de l'inconnu à proximité (pas de couloir connu adjacent) : on avance normalement
+    performExploreStep();
 }
 
 function gameOver(timeout = false) {
@@ -1935,6 +2029,10 @@ ui.btnFlee.addEventListener('click', attemptFlee);
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)
 ui.btnFightBoss.addEventListener('click', fightBossNow);
 ui.btnRetreatBoss.addEventListener('click', retreatFromBoss);
+
+// Clics sur les boutons de choix de bifurcation (Explorer l'inconnu / Chemin connu)
+ui.btnExploreUnknown.addEventListener('click', chooseExploreUnknown);
+ui.btnKnownPath.addEventListener('click', chooseKnownPath);
 
 // Clics sur les boutons de rencontre de compagnon
 ui.btnRecruitFriendly.addEventListener('click', recruitCompanion);
