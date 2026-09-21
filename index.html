@@ -47,6 +47,15 @@
             border: 1px solid rgba(0,0,0,0.12);
             box-shadow: 0 10px 25px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.4);
         }
+        /* Version compacte du même style, pour les cartes arme/armure de l'inventaire */
+        .mini-card {
+            background-color: #f6f1e4;
+            background-image: radial-gradient(rgba(0,0,0,0.035) 1px, transparent 1px);
+            background-size: 8px 8px;
+            border: 1px solid rgba(0,0,0,0.12);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+            color: #44403c;
+        }
         /* Scrollbar du corps de carte adaptée au fond clair (le style sombre global jurerait ici) */
         #card-body::-webkit-scrollbar { width: 4px; }
         #card-body::-webkit-scrollbar-track { background: transparent; }
@@ -279,6 +288,21 @@
             </p>
         </section>
 
+        <!-- Choix de bifurcation : n'apparaît que lorsqu'un couloir connu est à proximité immédiate
+             (sinon on explore directement sans ce détour). Le bouton "Explorer l'inconnu" est masqué
+             à un cul-de-sac total. -->
+        <div id="corridor-choice-zone" class="hidden p-4 bg-indigo-950/20 border border-indigo-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-indigo-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Bifurcation</span>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-explore-unknown" class="px-3 py-3 bg-gray-900 border border-indigo-700/80 hover:border-indigo-400 hover:bg-indigo-900/30 rounded text-xs text-indigo-300 uppercase tracking-wider transition-all">
+                    🧭 Explorer l'inconnu
+                </button>
+                <button id="btn-known-path" class="px-3 py-3 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-300 uppercase tracking-wider transition-all">
+                    🔙 Chemin connu
+                </button>
+            </div>
+        </div>
+
         <!-- Journal complet (repli discret, pour qui veut relire tout l'historique) -->
         <details class="text-[10px] text-gray-600">
             <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-400">Journal complet</summary>
@@ -382,15 +406,24 @@
                 <span>⚔️ Arme : <span id="equipped-weapon" class="text-gray-300">Aucune</span></span>
                 <span>🛡️ Armure : <span id="equipped-armor" class="text-gray-300">Aucune</span></span>
             </div>
-            <p class="text-[10px] text-gray-600 italic">Touchez un objet pour l'équiper (arme/armure) ou l'utiliser (consommable).</p>
-            <div id="inventory" class="grid grid-cols-5 gap-3">
-                <!-- 5 emplacements vides par défaut -->
-                <div class="aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-gray-800 text-2xl shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">+</div>
-                <div class="aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-gray-800 text-2xl shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">+</div>
-                <div class="aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-gray-800 text-2xl shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">+</div>
-                <div class="aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-gray-800 text-2xl shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">+</div>
-                <div class="aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-gray-800 text-2xl shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">+</div>
-            </div>
+
+            <!-- Barre de raccourci consommables : toujours visible, icône seule, touche = utiliser -->
+            <div id="consumable-quickbar" class="flex gap-2 flex-wrap min-h-[2.25rem]"></div>
+
+            <!-- Déroulant : armes/armures sous forme de cartes (même style que les cartes
+                 d'exploration) + les mêmes consommables, en icônes, avec un bouton pour les jeter -->
+            <details id="inventory-details">
+                <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-300 text-[10px] py-1 text-gray-500">🎒 Voir l'inventaire complet (arme/armure/consommables)</summary>
+                <div class="mt-2 flex flex-col gap-3">
+                    <div id="inventory-equipment-cards" class="grid grid-cols-2 gap-3">
+                        <p class="col-span-2 text-[10px] text-gray-600 italic">Aucune arme ni armure en réserve.</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] uppercase tracking-widest text-gray-600 mb-1">Consommables</p>
+                        <div id="inventory-consumables-icons" class="flex gap-2 flex-wrap"></div>
+                    </div>
+                </div>
+            </details>
         </section>
 
         <!-- Lieux connus : escalier retenu, plus tard salles sécurisées et boss -->
@@ -426,10 +459,10 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=18"></script>
-    <script src="items.js?v=18"></script>
-    <script src="districts.js?v=18"></script>
-    <script src="generator.js?v=18"></script>
-    <script src="app.js?v=18"></script>
+    <script src="bestiary.js?v=19"></script>
+    <script src="items.js?v=19"></script>
+    <script src="districts.js?v=19"></script>
+    <script src="generator.js?v=19"></script>
+    <script src="app.js?v=19"></script>
 </body>
 </html>
