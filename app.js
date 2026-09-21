@@ -306,6 +306,8 @@ function updateUI() {
             if (enemyStatus) {
                 if (enemyStatus.bleed && enemyStatus.bleed.rounds > 0) enemyIcons += "🔥";
                 if (enemyStatus.stunned) enemyIcons += "💫";
+                if (enemyStatus.slowed && enemyStatus.slowed.rounds > 0) enemyIcons += "🐌";
+                if (enemyStatus.blinded && enemyStatus.blinded.rounds > 0) enemyIcons += "✨";
             }
             ui.combatEnemyStatus.innerText = enemyIcons || "—";
         }
@@ -1062,7 +1064,7 @@ function initiateCombat(forcedEnemy = null) {
     // Statuts remis à zéro à chaque nouveau combat (des deux côtés)
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null };
     if (enemy) {
-        enemy.status = { bleed: null, stunned: false };
+        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null };
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
     }
 
@@ -1179,10 +1181,20 @@ function performPlayerAttack(attackerAtk, options, label) {
         if (gameState.status.slowed.rounds <= 0) gameState.status.slowed = null;
     }
 
-    const playerDamage = rollDamage(attackerAtk, enemy.def, effectiveOptions);
+    // Un ennemi ébloui (arme "Lumineux") pare moins bien : sa DEF effective est réduite
+    let effectiveEnemyDef = enemy.def;
+    const enemyWasBlinded = enemy.status && enemy.status.blinded && enemy.status.blinded.rounds > 0;
+    if (enemyWasBlinded) {
+        effectiveEnemyDef = Math.round(enemy.def * 0.5);
+        enemy.status.blinded.rounds -= 1;
+        if (enemy.status.blinded.rounds <= 0) enemy.status.blinded = null;
+    }
+
+    const playerDamage = rollDamage(attackerAtk, effectiveEnemyDef, effectiveOptions);
     enemy.hp -= playerDamage;
+    gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
-    logEvent(`Vous attaquez ${label}${slowedNote} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
+    logEvent(`Vous attaquez ${label}${slowedNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
 
     // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
     if (gameState.companion && gameState.companion.specialty.type === 'strike' && enemy.hp > 0) {
@@ -1203,7 +1215,57 @@ function performPlayerAttack(attackerAtk, options, label) {
     return true;
 }
 
-// Applique la mécanique spéciale de l'arme équipée (Tranchant->saignement, Lourd->étourdissement),
+// Mécaniques d'arme qui ont un vrai effet de combat (utilisées aussi par "random"/Chaotique,
+// qui en tire une au hasard à chaque déclenchement).
+const IMPLEMENTED_WEAPON_MECHANICS = ['bleed', 'stun', 'poison', 'slow', 'light', 'heal', 'lifesteal', 'drain'];
+
+// Résout l'effet concret d'une mécanique nommée sur l'ennemi/le joueur.
+// Séparé de applyWeaponMechanic() pour que "random" (Chaotique) puisse réutiliser cette logique
+// après avoir tiré une mécanique au hasard, sans dupliquer le switch.
+function resolveWeaponMechanicEffect(mechanicName, weapon, enemy) {
+    switch (mechanicName) {
+        case 'bleed':
+            enemy.status.bleed = { rounds: 3, dmgPerRound: Math.max(2, Math.round((weapon.baseDmg || 5) * 0.3)) };
+            logEvent(`🩸 [${enemy.name}] se met à saigner !`, "danger");
+            break;
+        case 'stun':
+            enemy.status.stunned = true;
+            logEvent(`💫 [${enemy.name}] est étourdi par le choc !`, "danger");
+            break;
+        case 'poison':
+            // Même compteur générique que "bleed" (dégâts sur la durée) : plus de rounds, moins de dégâts/round
+            enemy.status.bleed = { rounds: 5, dmgPerRound: Math.max(1, Math.round((weapon.baseDmg || 5) * 0.15)) };
+            logEvent(`☢️ [${enemy.name}] est empoisonné !`, "danger");
+            break;
+        case 'slow':
+            enemy.status.slowed = { rounds: 2 };
+            logEvent(`🐌 [${enemy.name}] est ralenti, gelé sur place !`, "danger");
+            break;
+        case 'light':
+            enemy.status.blinded = { rounds: 2 };
+            logEvent(`✨ [${enemy.name}] est ébloui par un éclat de lumière !`, "danger");
+            break;
+        case 'heal': {
+            const healAmount = Math.max(3, Math.round((weapon.baseDmg || 5) * 0.4));
+            gameState.hp = Math.min(gameState.maxHp, gameState.hp + healAmount);
+            logEvent(`💚 Votre arme régénère vos blessures (+${healAmount} PV).`, "success");
+            break;
+        }
+        case 'lifesteal': {
+            const baseAmount = gameState._lastPlayerDamage || weapon.baseDmg || 5;
+            const stolen = Math.max(2, Math.round(baseAmount * 0.3));
+            gameState.hp = Math.min(gameState.maxHp, gameState.hp + stolen);
+            logEvent(`🧛 Vous volez ${stolen} PV à [${enemy.name}].`, "success");
+            break;
+        }
+        case 'drain':
+            enemy.atk = Math.max(1, Math.round(enemy.atk * 0.85));
+            logEvent(`🌀 Vous drainez son énergie, [${enemy.name}] semble affaibli.`, "info");
+            break;
+    }
+}
+
+// Applique la mécanique spéciale de l'arme équipée (Tranchant->saignement, Lourd->étourdissement, etc.),
 // avec une chance de déclenchement. Appelée uniquement après une attaque à l'arme réussie.
 function applyWeaponMechanic() {
     const weapon = gameState.equipment.weapon;
@@ -1213,14 +1275,15 @@ function applyWeaponMechanic() {
     const triggerChance = 30; // 30% de chance que la mécanique de l'arme se déclenche
     if (Math.random() * 100 >= triggerChance) return;
 
-    if (weapon.mechanic === 'bleed') {
-        enemy.status.bleed = { rounds: 3, dmgPerRound: Math.max(2, Math.round((weapon.baseDmg || 5) * 0.3)) };
-        logEvent(`🩸 [${enemy.name}] se met à saigner !`, "danger");
-    } else if (weapon.mechanic === 'stun') {
-        enemy.status.stunned = true;
-        logEvent(`💫 [${enemy.name}] est étourdi par le choc !`, "danger");
+    if (weapon.mechanic === 'random') {
+        // Chaotique : tire une mécanique au hasard parmi celles qui ont un vrai effet
+        const picked = IMPLEMENTED_WEAPON_MECHANICS[Math.floor(Math.random() * IMPLEMENTED_WEAPON_MECHANICS.length)];
+        resolveWeaponMechanicEffect(picked, weapon, enemy);
+    } else if (IMPLEMENTED_WEAPON_MECHANICS.includes(weapon.mechanic)) {
+        resolveWeaponMechanicEffect(weapon.mechanic, weapon, enemy);
     }
-    // "pleasure_or_pain" (Vibrant) reste un effet purement comique, sans mécanique de combat
+    // "pleasure_or_pain" (Vibrant), "aoe" (Explosif), "stealth" (Silencieux) et "darkness" (Ténébreux)
+    // restent des effets purement comiques/cosmétiques, sans mécanique de combat pour l'instant.
     // Pas de updateUI() ici, pour la même raison que dans gainSkillXp() : ne pas écraser
     // l'affichage des PV avant que l'animation du dé n'ait eu le temps d'arriver à destination.
 }
@@ -1326,10 +1389,22 @@ function resolveEnemyCounterAttack() {
     }
 
     const wasBlinded = gameState.status.blinded && gameState.status.blinded.rounds > 0;
-    const enemyDamage = rollDamage(enemy.atk, getEffectiveDef());
+
+    // Ennemi ralenti (arme "Gelé") : sa riposte inflige moitié moins de dégâts
+    let enemyAtk = enemy.atk;
+    let enemySlowedNote = "";
+    const enemyWasSlowed = enemy.status && enemy.status.slowed && enemy.status.slowed.rounds > 0;
+    if (enemyWasSlowed) {
+        enemyAtk = Math.round(enemyAtk * 0.5);
+        enemySlowedNote = " (ralenti)";
+        enemy.status.slowed.rounds -= 1;
+        if (enemy.status.slowed.rounds <= 0) enemy.status.slowed = null;
+    }
+
+    const enemyDamage = rollDamage(enemyAtk, getEffectiveDef());
     gameState.hp -= enemyDamage;
     animateDieHit(ui.combatEnemyDie, 'right', enemyDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
-    logEvent(`[${enemy.name}] vous inflige ${enemyDamage} dégâts${wasBlinded ? " (vous étiez ébloui)" : ""}.`, "danger");
+    logEvent(`[${enemy.name}]${enemySlowedNote} vous inflige ${enemyDamage} dégâts${wasBlinded ? " (vous étiez ébloui)" : ""}.`, "danger");
 
     // L'éblouissement se dissipe d'un round à chaque riposte encaissée
     if (wasBlinded) {
