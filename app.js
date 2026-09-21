@@ -45,7 +45,6 @@ const gameState = {
     pendingStairAfterCombat: false, // Si vrai, gagner le combat en cours ouvre l'étage suivant
     pendingBossRoomId: null, // Room id de la salle de boss en cours de combat, pour la marquer vaincue à la victoire
     bossChoicePending: false, // Une salle de boss vient d'être trouvée, décision combattre/repérer en attente
-    corridorChoicePending: false, // Une vraie bifurcation (inconnu/connu) attend une décision
     pendingBossEncounter: null, // { roomId, guardsStairs } pendant que bossChoicePending est vrai
     knownLocations: [], // Lieux repérés : { id, type: 'stairs'|'boss'|'safeRoom', roomId, label }
     pendingTravel: null, // { destination, ambushesRemaining } pendant un trajet vers un lieu connu
@@ -185,9 +184,6 @@ const ui = {
     bossChoiceZone: document.getElementById('boss-choice-zone'),
     btnFightBoss: document.getElementById('btn-fight-boss'),
     btnRetreatBoss: document.getElementById('btn-retreat-boss'),
-    corridorChoiceZone: document.getElementById('corridor-choice-zone'),
-    btnExploreUnknown: document.getElementById('btn-explore-unknown'),
-    btnKnownPath: document.getElementById('btn-known-path'),
     gameOverOverlay: document.getElementById('game-over-overlay'),
     gameOverReason: document.getElementById('game-over-reason'),
     gameOverFloor: document.getElementById('game-over-floor'),
@@ -327,7 +323,7 @@ function updateUI() {
             ui.combatEnemyStatus.innerText = enemyIcons || "—";
         }
     } else {
-        ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending || gameState.corridorChoicePending);
+        ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending);
         ui.combatZone.classList.add('hidden');
         ui.compactVitals.classList.remove('hidden'); // On réaffiche les PV compacts hors combat
         ui.cardStackWrapper.style.maxWidth = '240px'; // Retour à la taille normale hors combat
@@ -707,7 +703,7 @@ function resolveCardEvent() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.corridorChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending;
 }
 
 // Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
@@ -728,17 +724,8 @@ function removeKnownLocation(id) {
 function updateKnownLocationsUI() {
     ui.knownLocationsContainer.innerHTML = "";
 
-    const icons = { stairs: '🪜', boss: '👑', safeRoom: '🏥', frontier: '🧭' };
+    const icons = { stairs: '🪜', boss: '👑', safeRoom: '🏥' };
     let entries = [...gameState.knownLocations];
-
-    // Entrée virtuelle "bifurcation inexplorée la plus proche" (non stockée : recalculée à chaque
-    // fois, car la frontière la plus proche change au fil de l'exploration).
-    if (gameState.floorMap) {
-        const frontierRoomId = findNearestFrontierRoom(gameState.floorMap.currentRoomId);
-        if (frontierRoomId) {
-            entries.unshift({ id: 'frontier', type: 'frontier', roomId: frontierRoomId, label: 'Bifurcation inexplorée' });
-        }
-    }
 
     // Pré-calcule la distance de chaque entrée une seule fois (réutilisée pour le filtrage ET l'affichage)
     entries = entries.map(loc => ({
@@ -770,7 +757,7 @@ function updateKnownLocationsUI() {
         const icon = loc.icon || icons[loc.type] || '📍';
         const distLabel = (distance !== null && distance !== undefined) ? ` (${distance})` : "";
         row.innerHTML = `<span>${icon} ${loc.label}${distLabel}</span><span class="text-blue-400 uppercase tracking-widest text-[10px]">Aller →</span>`;
-        row.addEventListener('click', () => travelToKnownLocation(loc.id, loc.type === 'frontier' ? loc : null));
+        row.addEventListener('click', () => travelToKnownLocation(loc.id));
         ui.knownLocationsContainer.appendChild(row);
     });
 }
@@ -1895,8 +1882,8 @@ function findNearestFrontierRoom(startRoomId) {
 }
 
 // Étape d'exploration proprement dite : consomme le temps et avance vers un voisin non visité au
-// hasard. Appelée directement s'il n'y a pas de vraie bifurcation (aucun couloir connu à proximité
-// immédiate), ou via le bouton "Explorer l'inconnu" sinon (voir presentCorridorChoice).
+// hasard. Appelée directement dès qu'un voisin non visité existe (bifurcation ou non) ; sinon,
+// c'est autoTravelToNearestFrontier() qui prend le relais.
 function performExploreStep() {
     const roomsById = gameState.floorMap.roomsById;
     const current = roomsById[gameState.floorMap.currentRoomId];
@@ -1934,32 +1921,41 @@ function performExploreStep() {
     updateUI();
 }
 
-// Présente le choix "Explorer l'inconnu" / "Chemin connu" à une vraie bifurcation (ou, à un
-// cul-de-sac, seulement l'option "Chemin connu"). Ne consomme aucun temps : c'est un choix, pas
-// une action.
-function presentCorridorChoice(hasUnvisited) {
-    gameState.corridorChoicePending = true;
-    ui.btnExploreUnknown.classList.toggle('hidden', !hasUnvisited);
-    ui.corridorChoiceZone.classList.remove('hidden');
-    updateUI();
-}
+// Si la pièce courante n'a plus aucun voisin non visité, part automatiquement vers la bifurcation
+// inexplorée la plus proche (même système de coût/risque que pour un lieu connu), sans demander
+// confirmation : à égalité de distance, le choix se fait au hasard (via findNearestFrontierRoom,
+// qui explore le graphe dans un ordre non biaisé).
+function autoTravelToNearestFrontier() {
+    const frontierRoomId = findNearestFrontierRoom(gameState.floorMap.currentRoomId);
+    if (!frontierRoomId) {
+        setCardHeader('🗺️', 'Étage Entièrement Exploré', 'Exploration');
+        logEvent("Vous avez arpenté chaque recoin accessible de cet étage. Direction l'escalier ?", "info");
+        updateUI();
+        return;
+    }
 
-// Bouton "Explorer l'inconnu"
-function chooseExploreUnknown() {
-    gameState.corridorChoicePending = false;
-    ui.corridorChoiceZone.classList.add('hidden');
-    performExploreStep();
-}
+    const location = { id: 'frontier', type: 'frontier', roomId: frontierRoomId, label: 'Zone inexplorée la plus proche' };
+    const distance = computeDistance(gameState.floorMap.currentRoomId, frontierRoomId);
+    const timeCost = Math.max(1, Math.round(distance / 2));
+    const ambushBaseChance = Math.min(80, distance * 9);
+    let ambushCount = 0;
+    if (Math.random() * 100 < ambushBaseChance) {
+        ambushCount = 1;
+        if (Math.random() * 100 < ambushBaseChance * 0.6) ambushCount = 2;
+    }
 
-// Bouton "Chemin connu" : ne fait que révéler/rafraîchir le panneau des lieux connus (qui inclut
-// désormais aussi la bifurcation inexplorée la plus proche) ; le trajet lui-même se lance en
-// cliquant une entrée du panneau, exactement comme pour un lieu connu classique.
-function chooseKnownPath() {
-    gameState.corridorChoicePending = false;
-    ui.corridorChoiceZone.classList.add('hidden');
-    logEvent("Vous consultez votre mémoire des lieux déjà explorés...", "info");
-    updateKnownLocationsUI();
-    updateUI();
+    gameState.timeLeft = Math.max(0, gameState.timeLeft - timeCost);
+    gameState.pendingTravel = { destination: location, ambushesRemaining: ambushCount };
+    logEvent(`Ce secteur est entièrement connu : vous filez vers une zone inexplorée (${distance}, -${timeCost}H)...`, "info");
+    if (ambushCount > 0) {
+        logEvent("Le trajet ne s'annonce pas de tout repos...", "danger");
+    }
+
+    if (gameState.timeLeft <= 0) {
+        gameOver(true);
+        return;
+    }
+    triggerNextAmbushOrArrive();
 }
 
 function explore() {
@@ -1976,27 +1972,15 @@ function explore() {
     const roomsById = gameState.floorMap.roomsById;
     const current = roomsById[gameState.floorMap.currentRoomId];
     const hasUnvisited = current.neighbors.some(edge => !roomsById[edge.to].visited);
-    const hasVisited = current.neighbors.some(edge => roomsById[edge.to].visited);
 
-    if (hasUnvisited && hasVisited) {
-        // Vraie bifurcation entre inconnu et connu : on laisse le joueur choisir
-        presentCorridorChoice(true);
-        return;
-    }
-    if (!hasUnvisited) {
-        // Cul-de-sac entièrement exploré : uniquement l'option "chemin connu"
-        if (findNearestFrontierRoom(current.id) === null && gameState.knownLocations.length === 0) {
-            setCardHeader('🗺️', 'Étage Entièrement Exploré', 'Exploration');
-            logEvent("Vous avez arpenté chaque recoin accessible de cet étage. Direction l'escalier ?", "info");
-            updateUI();
-            return;
-        }
-        presentCorridorChoice(false);
+    if (hasUnvisited) {
+        // De l'inconnu à proximité (bifurcation ou non) : on explore, sans jamais demander confirmation
+        performExploreStep();
         return;
     }
 
-    // Seulement de l'inconnu à proximité (pas de couloir connu adjacent) : on avance normalement
-    performExploreStep();
+    // Plus rien d'inconnu ici : on file automatiquement vers la zone inexplorée la plus proche
+    autoTravelToNearestFrontier();
 }
 
 function gameOver(timeout = false) {
@@ -2052,10 +2036,6 @@ ui.btnFlee.addEventListener('click', attemptFlee);
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)
 ui.btnFightBoss.addEventListener('click', fightBossNow);
 ui.btnRetreatBoss.addEventListener('click', retreatFromBoss);
-
-// Clics sur les boutons de choix de bifurcation (Explorer l'inconnu / Chemin connu)
-ui.btnExploreUnknown.addEventListener('click', chooseExploreUnknown);
-ui.btnKnownPath.addEventListener('click', chooseKnownPath);
 
 // Clics sur les boutons de rencontre de compagnon
 ui.btnRecruitFriendly.addEventListener('click', recruitCompanion);
