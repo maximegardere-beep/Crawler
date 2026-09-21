@@ -173,7 +173,7 @@
         </header>
 
         <!-- 1bis. Carte Joueur : Compétences -->
-        <section class="grid grid-cols-3 gap-2 bg-gray-950/60 border border-gray-800 rounded-lg p-3">
+        <section class="grid grid-cols-4 gap-2 bg-gray-950/60 border border-gray-800 rounded-lg p-3">
             <div class="flex flex-col gap-1">
                 <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
                     <span>⚔️ Arme</span>
@@ -199,6 +199,15 @@
                 </div>
                 <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
                     <div id="skill-magic-bar" class="bg-purple-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
+                    <span>🥷 Furtivité</span>
+                    <span id="skill-stealth-level" class="text-slate-400 font-bold">Nv.1</span>
+                </div>
+                <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                    <div id="skill-stealth-bar" class="bg-slate-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
                 </div>
             </div>
         </section>
@@ -329,6 +338,19 @@
             </div>
         </div>
 
+        <!-- Zone de choix de furtivité (visible uniquement quand un ennemi ne vous a pas repéré) -->
+        <div id="stealth-choice-zone" class="hidden p-4 bg-slate-800/30 border border-slate-600/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-slate-500 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Non Repéré</span>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-stealth-evade" class="px-3 py-3 bg-gray-900 border border-slate-600/80 hover:border-slate-300 hover:bg-slate-700/30 rounded text-xs text-slate-300 uppercase tracking-wider transition-all">
+                    🥷 Esquiver
+                </button>
+                <button id="btn-stealth-attack" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
+                    🗡️ Attaque Furtive
+                </button>
+            </div>
+        </div>
+
         <!-- Rencontre de compagnon ami : recruter ou laisser partir (sans risque) -->
         <div id="companion-choice-friendly" class="hidden p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-lg relative">
             <span class="absolute text-[10px] text-emerald-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Crawler Rencontré</span>
@@ -445,11 +467,11 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=21"></script>
-    <script src="items.js?v=21"></script>
-    <script src="districts.js?v=21"></script>
-    <script src="safehouses.js?v=21"></script>
-    <script src="generator.js?v=21"></script>
-    <script src="app.js?v=21"></script>
+    <script src="bestiary.js?v=22"></script>
+    <script src="items.js?v=22"></script>
+    <script src="districts.js?v=22"></script>
+    <script src="safehouses.js?v=22"></script>
+    <script src="generator.js?v=22"></script>
+    <script src="app.js?v=22"></script>
 </body>
 </html>
