@@ -224,7 +224,7 @@
                 </div>
 
                 <!-- Carte active : révèle l'événement du tirage en cours (rétrécit pendant un combat).
-                     Toucher la carte fait maintenant office de bouton "Avancer". -->
+                     Toucher la carte fait maintenant office de bouton "Explorer". -->
                 <div id="card-stack-wrapper" class="relative w-full max-w-[240px] mx-auto cursor-pointer transition-transform active:scale-95" style="aspect-ratio: 5 / 7; transition: max-width 0.3s ease, transform 0.1s ease;">
                     <!-- Pile décorative (dos de cartes empilés, purement visuel) -->
                     <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(-7deg) translate(-8px, 5px);"></div>
@@ -275,9 +275,18 @@
                 </div>
             </div>
             <p id="advance-hint" class="text-[10px] text-blue-400 uppercase tracking-widest text-center animate-pulse">
-                👆 Touchez la carte pour avancer (-1H)
+                👆 Touchez la carte pour explorer (-1H)
             </p>
         </section>
+
+        <!-- Option de retour vers une zone déjà explorée à proximité : n'apparaît que lorsque le
+             couloir emprunté reboucle sur une pièce déjà visitée de ce quartier (état interne,
+             jamais affiché sous forme de plan). -->
+        <div id="return-room-zone" class="hidden p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg relative text-center">
+            <button id="btn-return-room" class="w-full px-3 py-2 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-300 uppercase tracking-wider transition-all">
+                🔙 Retourner vers une zone connue
+            </button>
+        </div>
 
         <!-- Journal complet (repli discret, pour qui veut relire tout l'historique) -->
         <details class="text-[10px] text-gray-600">
@@ -425,10 +434,10 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=16"></script>
-    <script src="items.js?v=16"></script>
-    <script src="districts.js?v=16"></script>
-    <script src="generator.js?v=16"></script>
-    <script src="app.js?v=16"></script>
+    <script src="bestiary.js?v=17"></script>
+    <script src="items.js?v=17"></script>
+    <script src="districts.js?v=17"></script>
+    <script src="generator.js?v=17"></script>
+    <script src="app.js?v=17"></script>
 </body>
 </html>
