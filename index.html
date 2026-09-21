@@ -288,20 +288,6 @@
             </p>
         </section>
 
-        <!-- Choix de bifurcation : n'apparaît que lorsqu'un couloir connu est à proximité immédiate
-             (sinon on explore directement sans ce détour). Le bouton "Explorer l'inconnu" est masqué
-             à un cul-de-sac total. -->
-        <div id="corridor-choice-zone" class="hidden p-4 bg-indigo-950/20 border border-indigo-900/30 rounded-lg relative">
-            <span class="absolute text-[10px] text-indigo-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Bifurcation</span>
-            <div class="grid grid-cols-2 gap-2">
-                <button id="btn-explore-unknown" class="px-3 py-3 bg-gray-900 border border-indigo-700/80 hover:border-indigo-400 hover:bg-indigo-900/30 rounded text-xs text-indigo-300 uppercase tracking-wider transition-all">
-                    🧭 Explorer l'inconnu
-                </button>
-                <button id="btn-known-path" class="px-3 py-3 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-300 uppercase tracking-wider transition-all">
-                    🔙 Chemin connu
-                </button>
-            </div>
-        </div>
 
         <!-- Journal complet (repli discret, pour qui veut relire tout l'historique) -->
         <details class="text-[10px] text-gray-600">
@@ -459,11 +445,11 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=20"></script>
-    <script src="items.js?v=20"></script>
-    <script src="districts.js?v=20"></script>
-    <script src="safehouses.js?v=20"></script>
-    <script src="generator.js?v=20"></script>
-    <script src="app.js?v=20"></script>
+    <script src="bestiary.js?v=21"></script>
+    <script src="items.js?v=21"></script>
+    <script src="districts.js?v=21"></script>
+    <script src="safehouses.js?v=21"></script>
+    <script src="generator.js?v=21"></script>
+    <script src="app.js?v=21"></script>
 </body>
 </html>
