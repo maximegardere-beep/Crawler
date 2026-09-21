@@ -49,6 +49,13 @@ const gameState = {
     stairsChoicePending: false, // Un escalier non gardé attend une décision (emprunter/retenir)
     knownLocations: [], // Lieux repérés mais pas encore utilisés (ex: un escalier retenu pour plus tard)
     pendingTravel: null, // { destination, ambushesRemaining } pendant un trajet vers un lieu connu
+    // Graphe de pièces/couloirs du quartier courant (système d'exploration semi-ouvert).
+    // Régénéré à chaque nouveau quartier (voir initExploration()) : rooms est une table plate
+    // { id -> { id, cameFrom, neighbors: [id...] } }, où seule la pièce d'origine d'un quartier
+    // a cameFrom === null. Rien de tout ceci n'est affiché : c'est une mémoire interne qui sert
+    // uniquement à proposer "Retourner vers une zone connue" quand un couloir y reboucle.
+    exploration: null,
+    pendingReturnRoomId: null, // Voisin déjà visité de la pièce courante, si un couloir annexe y mène
     companion: null, // Compagnon actuellement recruté (ou null)
     pendingCompanionCandidate: null, // Candidat en attente de décision (recruter/laisser/fuir/attaquer)
     companionChoicePending: false // Une décision de compagnon est en attente
@@ -61,9 +68,12 @@ const config = {
     // Probabilités des événements (D100). Somme = 100, chaque catégorie a maintenant un effet réel
     // (fini le "reste" générique qui ne faisait jamais rien).
     chances: {
-        nothing: 20,        // Rien de notable
+        // NOTE : "districtChange" a été retiré de cette table — le changement de quartier est
+        // désormais géré par checkDistrictThreshold() (seuil basé sur les pièces explorées dans
+        // le graphe), pas par un tirage plat ici. Ses 12 points ont été repliés sur "nothing" en
+        // attendant le rééquilibrage complet de cette table (proposition faite, pas encore validée).
+        nothing: 32,        // Rien de notable
         combat: 25,         // Rencontre hostile
-        districtChange: 12, // Changement de quartier
         safeRoom: 8,        // Salle sécurisée (soin conséquent)
         loot: 1,            // Objet généré procéduralement (rare)
         trap: 10,           // NOUVEAU : piège avec de vrais dégâts
@@ -170,6 +180,8 @@ const ui = {
     combatPlayerDie: document.getElementById('combat-player-die'),
     cardStackWrapper: document.getElementById('card-stack-wrapper'),
     advanceHint: document.getElementById('advance-hint'),
+    returnRoomZone: document.getElementById('return-room-zone'),
+    btnReturnRoom: document.getElementById('btn-return-room'),
     gameOverOverlay: document.getElementById('game-over-overlay'),
     gameOverReason: document.getElementById('game-over-reason'),
     gameOverFloor: document.getElementById('game-over-floor'),
@@ -322,6 +334,17 @@ function updateUI() {
         ui.combatSideEnemy.classList.remove('flex', 'flex-col');
         ui.combatSidePlayer.classList.add('hidden');
         ui.combatSidePlayer.classList.remove('flex', 'flex-col');
+    }
+
+    // Option "Retourner vers une zone connue" : seulement hors combat/décision en attente, et
+    // seulement si la pièce courante a un couloir annexe vers une pièce déjà visitée.
+    if (gameState.exploration && !isActionBlocked()) {
+        const current = gameState.exploration.rooms[gameState.exploration.currentRoomId];
+        const knownNeighborId = current ? current.neighbors.find(id => id !== current.cameFrom) : null;
+        gameState.pendingReturnRoomId = knownNeighborId || null;
+        ui.returnRoomZone.classList.toggle('hidden', !knownNeighborId);
+    } else {
+        ui.returnRoomZone.classList.add('hidden');
     }
 }
 
@@ -601,16 +624,8 @@ function resolveCardEvent() {
         return;
     }
 
-    // Changement de quartier
-    cumulative += config.chances.districtChange;
-    if (d100 < cumulative) {
-        const districtNames = Object.keys(districts);
-        const newDistrict = districtNames[Math.floor(Math.random() * districtNames.length)];
-        gameState.currentDistrict = newDistrict;
-        setCardHeader('🧭', 'Nouveau Quartier', 'Exploration');
-        logEvent(`Le décor change brusquement. Vous entrez dans : ${newDistrict}.`, "info");
-        return;
-    }
+    // Changement de quartier : voir checkDistrictThreshold(), appelé depuis explore() avant
+    // même d'atteindre cette table (ce n'est plus un tirage D100 parmi les autres).
 
     // Salle sécurisée (gros soin)
     cumulative += config.chances.safeRoom;
@@ -940,7 +955,7 @@ function triggerCompanionHostileTurn() {
 }
 
 // Gain d'XP du compagnon (accordé après chaque victoire du joueur tant qu'il est actif).
-// Sa progression fait grimper son agressivité ; à 100%, il devient hostile (voir advance()).
+// Sa progression fait grimper son agressivité ; à 100%, il devient hostile (voir explore()).
 function gainCompanionXp(amount) {
     const companion = gameState.companion;
     if (!companion || !amount) return;
@@ -983,6 +998,8 @@ function nextFloor() {
     gameState.cardsDrawnThisFloor = 0;
     gameState.timeLeft = gameState.maxTime; // Réinitialisation du temps
     gameState.knownLocations = []; // Les lieux repérés à l'étage précédent ne sont plus accessibles
+    initExploration(); // Nouveau graphe de pièces pour ce nouvel étage
+    ui.returnRoomZone.classList.add('hidden');
     logEvent(`--- DÉBUT DE L'ÉTAGE ${gameState.currentFloor} ---`, "info");
     updateKnownLocationsUI();
     updateUI();
@@ -1054,7 +1071,110 @@ function skillLabel(key) {
 }
 
 // ==========================================
-// 4. SYSTÈME DE COMBAT
+// 4. EXPLORATION SEMI-OUVERTE (GRAPHE DE PIÈCES/COULOIRS)
+// ==========================================
+// Chaque quartier est représenté par un petit graphe généré au fil de l'exploration (pas
+// précalculé d'un coup) : une pièce n'existe que lorsqu'on y entre. Ce graphe n'est jamais
+// affiché — il sert uniquement à proposer, de façon crédible, un retour vers une zone déjà
+// visitée quand un couloir y reboucle.
+
+// (Ré)initialise le graphe pour un quartier tout neuf : une unique pièce d'entrée, sans lien.
+// Appelé au lancement de la partie, à chaque étage (nextFloor) et à chaque changement de
+// quartier (checkDistrictThreshold).
+function initExploration() {
+    gameState.exploration = {
+        rooms: {},              // id -> { id, cameFrom, neighbors: [id...] }
+        currentRoomId: null,
+        nextRoomSeq: 0,
+        roomsVisitedInDistrict: 0
+    };
+    gameState.pendingReturnRoomId = null;
+
+    const entryId = `r${gameState.exploration.nextRoomSeq++}`;
+    gameState.exploration.rooms[entryId] = { id: entryId, cameFrom: null, neighbors: [] };
+    gameState.exploration.currentRoomId = entryId;
+}
+
+// Crée et rejoint une nouvelle pièce, reliée à la pièce courante. Avec une chance de 30%, un
+// couloir annexe la relie en plus à une autre pièce déjà visitée de ce même quartier (autre que
+// celle d'où l'on vient) : c'est cette liaison qui rendra "Retourner vers une zone connue"
+// disponible depuis la nouvelle pièce.
+function enterNewRoom() {
+    const exploration = gameState.exploration;
+    const previousRoomId = exploration.currentRoomId;
+    const newId = `r${exploration.nextRoomSeq++}`;
+    const newRoom = { id: newId, cameFrom: previousRoomId, neighbors: previousRoomId ? [previousRoomId] : [] };
+    exploration.rooms[newId] = newRoom;
+
+    if (previousRoomId && exploration.rooms[previousRoomId]) {
+        exploration.rooms[previousRoomId].neighbors.push(newId);
+    }
+
+    const loopCandidates = Object.keys(exploration.rooms).filter(id => id !== newId && id !== previousRoomId);
+    if (loopCandidates.length > 0 && Math.random() * 100 < 30) {
+        const loopId = loopCandidates[Math.floor(Math.random() * loopCandidates.length)];
+        newRoom.neighbors.push(loopId);
+        exploration.rooms[loopId].neighbors.push(newId);
+    }
+
+    exploration.currentRoomId = newId;
+    exploration.roomsVisitedInDistrict += 1;
+    return newRoom;
+}
+
+// Vérifie si le prochain pas d'exploration débouche sur un nouveau quartier, avec une formule à
+// seuil (même esprit que la probabilité de l'escalier) : aucune chance avant ROOMS_ONSET pièces
+// explorées dans ce quartier, puis croissance linéaire jusqu'à un plafond. Si ça se déclenche,
+// consomme ce pas d'exploration (le couloir emprunté EST la porte du nouveau quartier) et
+// régénère un graphe frais dessus. Retourne true si un changement a eu lieu.
+function checkDistrictThreshold() {
+    const ROOMS_ONSET = 6;
+    const ROOMS_SLOPE = 6;
+    const ROOMS_CAP = 45;
+    const n = gameState.exploration.roomsVisitedInDistrict;
+    const chance = Math.min(ROOMS_CAP, Math.max(0, (n - ROOMS_ONSET) * ROOMS_SLOPE));
+
+    if (Math.random() * 100 >= chance) return false;
+
+    const districtNames = Object.keys(districts).filter(d => d !== gameState.currentDistrict);
+    const newDistrict = districtNames[Math.floor(Math.random() * districtNames.length)] || gameState.currentDistrict;
+    gameState.currentDistrict = newDistrict;
+    initExploration();
+
+    setCardHeader('🧭', 'Nouveau Quartier', 'Exploration');
+    logEvent(`Le couloir débouche soudainement sur un nouveau secteur. Vous entrez dans : ${newDistrict}.`, "info");
+    return true;
+}
+
+// Bouton "Retourner vers une zone connue" : ne coûte qu'un tour de temps, sans tirage
+// d'événement (zone déjà "sécurisée" par la première visite). Peut elle-même déboucher sur une
+// nouvelle proposition de retour si la pièce d'arrivée a, elle aussi, un raccourci connu.
+function returnToKnownRoom() {
+    if (isActionBlocked()) return;
+    if (gameState.hp <= 0 || gameState.timeLeft <= 0) return;
+
+    const targetId = gameState.pendingReturnRoomId;
+    if (!targetId || !gameState.exploration.rooms[targetId]) return;
+
+    gameState.timeLeft -= 1;
+    gameState.exploration.currentRoomId = targetId;
+    gameState.pendingReturnRoomId = null;
+    ui.returnRoomZone.classList.add('hidden');
+
+    ui.cardBody.innerHTML = "";
+    playCardDrawAnimation();
+    setCardHeader('🔙', 'Retour Connu', 'Exploration');
+    logEvent("Vous reconnaissez ces lieux : vous rebroussez chemin sans encombre.", "info");
+
+    if (gameState.timeLeft <= 0) {
+        gameOver(true);
+        return;
+    }
+    updateUI();
+}
+
+// ==========================================
+// 5. SYSTÈME DE COMBAT
 // ==========================================
 function initiateCombat(forcedEnemy = null) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
@@ -1574,7 +1694,7 @@ function winCombat() {
 // ==========================================
 // 2. BOUCLE DE GAMEPLAY
 // ==========================================
-function advance() {
+function explore() {
     if (isActionBlocked()) return; // Sécurité si combat en cours ou décision en attente
     if (gameState.hp <= 0 || gameState.timeLeft <= 0) return; // Jeu terminé
 
@@ -1584,9 +1704,11 @@ function advance() {
         return; // Ce tour est consommé par la confrontation, pas par un tirage de carte
     }
 
-    // Décrémente le temps et incrémente le compteur de cartes
+    // Décrémente le temps et incrémente le compteur de pièces explorées
     gameState.timeLeft -= 1;
     gameState.cardsDrawnThisFloor += 1;
+    gameState.pendingReturnRoomId = null;
+    ui.returnRoomZone.classList.add('hidden');
 
     // Nouvelle carte : on repart d'un corps vide et on joue l'animation de tirage
     ui.cardBody.innerHTML = "";
@@ -1594,10 +1716,16 @@ function advance() {
 
     if (gameState.timeLeft <= 0) {
         gameOver(true); // Game over par temps écoulé
-    } else {
+        return;
+    }
+
+    // Le couloir emprunté peut déboucher directement sur un nouveau quartier (voir la fonction) ;
+    // sinon, on entre dans une pièce neuve de ce même quartier et on résout l'événement classique.
+    if (!checkDistrictThreshold()) {
+        enterNewRoom();
         resolveCardEvent();
     }
-    
+
     updateUI();
 }
 
@@ -1635,11 +1763,18 @@ function resetGame() {
 // INITIALISATION ET ÉCOUTEURS D'ÉVÉNEMENTS
 // ==========================================
 
-// Toucher la carte fait office de bouton "Avancer" (advance() ignore déjà les clics pendant un combat)
+// Toucher la carte fait office de bouton "Explorer" (explore() ignore déjà les clics pendant un combat)
 ui.cardStackWrapper.addEventListener('click', () => {
     if (isActionBlocked() || gameState.hp <= 0) return;
     triggerHaptic('medium');
-    advance();
+    explore();
+});
+
+// Bouton "Retourner vers une zone connue" (n'apparaît que si un couloir annexe y mène)
+ui.btnReturnRoom.addEventListener('click', () => {
+    if (isActionBlocked() || gameState.hp <= 0) return;
+    triggerHaptic('light');
+    returnToKnownRoom();
 });
 
 // Bouton de redémarrage sur l'écran Game Over
@@ -1670,6 +1805,7 @@ ui.btnDevLogs.addEventListener('click', () => {
 });
 
 // Lancement du jeu
+initExploration();
 updateUI();
 updateInventoryUI();
 updateKnownLocationsUI();
