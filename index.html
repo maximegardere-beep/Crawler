@@ -279,15 +279,6 @@
             </p>
         </section>
 
-        <!-- Option de retour vers une zone déjà explorée à proximité : n'apparaît que lorsque le
-             couloir emprunté reboucle sur une pièce déjà visitée de ce quartier (état interne,
-             jamais affiché sous forme de plan). -->
-        <div id="return-room-zone" class="hidden p-3 bg-amber-950/20 border border-amber-900/30 rounded-lg relative text-center">
-            <button id="btn-return-room" class="w-full px-3 py-2 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-300 uppercase tracking-wider transition-all">
-                🔙 Retourner vers une zone connue
-            </button>
-        </div>
-
         <!-- Journal complet (repli discret, pour qui veut relire tout l'historique) -->
         <details class="text-[10px] text-gray-600">
             <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-400">Journal complet</summary>
@@ -314,15 +305,16 @@
             </div>
         </div>
 
-        <!-- Zone de choix d'escalier (visible uniquement quand un escalier non gardé vient d'être trouvé) -->
-        <div id="stairs-choice-zone" class="hidden p-4 bg-blue-950/20 border border-blue-900/30 rounded-lg relative">
-            <span class="absolute text-[10px] text-blue-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Escalier Repéré</span>
+        <!-- Zone de choix de boss (visible uniquement quand une salle de boss vient d'être trouvée,
+             qu'il s'agisse du boss d'un quartier ou de celui qui garde l'escalier) -->
+        <div id="boss-choice-zone" class="hidden p-4 bg-blue-950/20 border border-blue-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-blue-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Salle de Boss</span>
             <div class="grid grid-cols-2 gap-2">
-                <button id="btn-take-stairs" class="px-3 py-3 bg-gray-900 border border-blue-700/80 hover:border-blue-400 hover:bg-blue-900/30 rounded text-xs text-blue-300 uppercase tracking-wider transition-all">
-                    🪜 Emprunter
+                <button id="btn-fight-boss" class="px-3 py-3 bg-gray-900 border border-blue-700/80 hover:border-blue-400 hover:bg-blue-900/30 rounded text-xs text-blue-300 uppercase tracking-wider transition-all">
+                    ⚔️ Combattre
                 </button>
-                <button id="btn-remember-stairs" class="px-3 py-3 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-300 uppercase tracking-wider transition-all">
-                    📍 Retenir et partir
+                <button id="btn-retreat-boss" class="px-3 py-3 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-300 uppercase tracking-wider transition-all">
+                    📍 Repérer et partir
                 </button>
             </div>
         </div>
@@ -434,10 +426,10 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=17"></script>
-    <script src="items.js?v=17"></script>
-    <script src="districts.js?v=17"></script>
-    <script src="generator.js?v=17"></script>
-    <script src="app.js?v=17"></script>
+    <script src="bestiary.js?v=18"></script>
+    <script src="items.js?v=18"></script>
+    <script src="districts.js?v=18"></script>
+    <script src="generator.js?v=18"></script>
+    <script src="app.js?v=18"></script>
 </body>
 </html>
