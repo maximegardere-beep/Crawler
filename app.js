@@ -17,7 +17,8 @@ const gameState = {
     skills: {
         weapon: { level: 1, xp: 0, xpToNext: 30 },
         unarmed: { level: 1, xp: 0, xpToNext: 30 },
-        magic: { level: 1, xp: 0, xpToNext: 30 }
+        magic: { level: 1, xp: 0, xpToNext: 30 },
+        stealth: { level: 1, xp: 0, xpToNext: 30 }
     },
     timeLeft: 100,
     maxTime: 100, // Temps alloué pour un niveau
@@ -45,6 +46,9 @@ const gameState = {
     pendingStairAfterCombat: false, // Si vrai, gagner le combat en cours ouvre l'étage suivant
     pendingBossRoomId: null, // Room id de la salle de boss en cours de combat, pour la marquer vaincue à la victoire
     bossChoicePending: false, // Une salle de boss vient d'être trouvée, décision combattre/repérer en attente
+    stealthChoicePending: false, // Un ennemi non repéré attend une décision (esquiver/attaque furtive)
+    pendingStealthEncounter: null, // L'ennemi généré, en attente de cette décision
+    pendingSneakAttack: false, // Consommé par le tout premier coup porté (bonus x2)
     pendingBossEncounter: null, // { roomId, guardsStairs } pendant que bossChoicePending est vrai
     knownLocations: [], // Lieux repérés : { id, type: 'stairs'|'boss'|'safeRoom', roomId, label }
     pendingTravel: null, // { destination, ambushesRemaining } pendant un trajet vers un lieu connu
@@ -160,6 +164,8 @@ const ui = {
     skillUnarmedBar: document.getElementById('skill-unarmed-bar'),
     skillMagicLevel: document.getElementById('skill-magic-level'),
     skillMagicBar: document.getElementById('skill-magic-bar'),
+    skillStealthLevel: document.getElementById('skill-stealth-level'),
+    skillStealthBar: document.getElementById('skill-stealth-bar'),
     timeText: document.getElementById('time-text'),
     timeBar: document.getElementById('time-bar'),
     inventoryCount: document.getElementById('inventory-count'),
@@ -184,6 +190,9 @@ const ui = {
     bossChoiceZone: document.getElementById('boss-choice-zone'),
     btnFightBoss: document.getElementById('btn-fight-boss'),
     btnRetreatBoss: document.getElementById('btn-retreat-boss'),
+    stealthChoiceZone: document.getElementById('stealth-choice-zone'),
+    btnStealthEvade: document.getElementById('btn-stealth-evade'),
+    btnStealthAttack: document.getElementById('btn-stealth-attack'),
     gameOverOverlay: document.getElementById('game-over-overlay'),
     gameOverReason: document.getElementById('game-over-reason'),
     gameOverFloor: document.getElementById('game-over-floor'),
@@ -250,7 +259,8 @@ function updateUI() {
     const skillBarMap = {
         weapon: [ui.skillWeaponLevel, ui.skillWeaponBar],
         unarmed: [ui.skillUnarmedLevel, ui.skillUnarmedBar],
-        magic: [ui.skillMagicLevel, ui.skillMagicBar]
+        magic: [ui.skillMagicLevel, ui.skillMagicBar],
+        stealth: [ui.skillStealthLevel, ui.skillStealthBar]
     };
     for (const key in skillBarMap) {
         const skill = gameState.skills[key];
@@ -323,7 +333,7 @@ function updateUI() {
             ui.combatEnemyStatus.innerText = enemyIcons || "—";
         }
     } else {
-        ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending);
+        ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending || gameState.stealthChoicePending);
         ui.combatZone.classList.add('hidden');
         ui.compactVitals.classList.remove('hidden'); // On réaffiche les PV compacts hors combat
         ui.cardStackWrapper.style.maxWidth = '240px'; // Retour à la taille normale hors combat
@@ -594,12 +604,10 @@ function resolveCardEvent() {
         return;
     }
 
-    // Combat
+    // Combat : passe d'abord par une tentative de furtivité (voir handleStealthEncounter)
     cumulative += config.chances.combat;
     if (d100 < cumulative) {
-        setCardHeader('⚔️', 'Combat', 'Danger');
-        logEvent(`Des bruits de pas approchent... Des créatures de ${gameState.currentDistrict} vous attaquent !`, "danger");
-        initiateCombat();
+        handleStealthEncounter();
         return;
     }
 
@@ -697,13 +705,86 @@ function resolveCardEvent() {
 }
 
 // ==========================================
+// FURTIVITÉ (rencontres aléatoires uniquement — pas les boss ni les embuscades de trajet)
+// ==========================================
+
+// Chance de ne pas se faire repérer : base + niveau de la compétence Furtivité, avec un bonus
+// du compagnon "Éclaireur" (logique : il repère le danger avant qu'il ne vous repère) et un bonus
+// d'équipement si l'arme ou l'armure porte le modificateur "Silencieux" (mechanic 'stealth',
+// jusqu'ici purement cosmétique — première vraie utilité).
+function getStealthChance() {
+    let chance = 15 + (gameState.skills.stealth.level - 1) * 6;
+    if (gameState.companion && gameState.companion.specialty.type === 'scout') chance += 10;
+    if (gameState.equipment.weapon && gameState.equipment.weapon.mechanic === 'stealth') chance += 15;
+    if (gameState.equipment.armor && gameState.equipment.armor.mechanic === 'stealth') chance += 15;
+    return Math.min(75, chance);
+}
+
+// Point d'entrée d'une rencontre aléatoire : tente d'abord la furtivité avant de basculer sur un
+// combat classique si le monstre repère le joueur.
+function handleStealthEncounter() {
+    const enemy = generateMob(gameState.currentDistrict);
+    const undetected = Math.random() * 100 < getStealthChance();
+
+    if (!undetected) {
+        setCardHeader('⚔️', 'Combat', 'Danger');
+        logEvent(`Des bruits de pas approchent... Des créatures de ${gameState.currentDistrict} vous attaquent !`, "danger");
+        initiateCombat(enemy);
+        return;
+    }
+
+    gameState.pendingStealthEncounter = enemy;
+    gameState.stealthChoicePending = true;
+    setCardHeader('🥷', enemy ? enemy.name : 'Ombre', 'Non Repéré');
+    logEvent(`Vous repérez ${enemy ? `[${enemy.name}]` : "une présence"} avant qu'il ne vous voie.`, "info");
+    logEvent("Tenter de l'esquiver en silence, ou frapper en traître ?", "info");
+    ui.stealthChoiceZone.classList.remove('hidden');
+    updateUI();
+}
+
+// Bouton "Esquiver" : succès -> aucun combat + XP de Furtivité ; échec -> repéré, combat classique
+function attemptStealthEvasion() {
+    const enemy = gameState.pendingStealthEncounter;
+    gameState.stealthChoicePending = false;
+    ui.stealthChoiceZone.classList.add('hidden');
+    gameState.pendingStealthEncounter = null;
+    if (!enemy) { updateUI(); return; }
+
+    const evadeChance = Math.min(85, 40 + (gameState.skills.stealth.level - 1) * 8);
+    if (Math.random() * 100 < evadeChance) {
+        setCardHeader('🥷', 'Évitement Réussi', 'Furtivité');
+        logEvent(`Vous évitez [${enemy.name}] sans un bruit.`, "success");
+        gainSkillXp('stealth', 8);
+        updateUI();
+    } else {
+        setCardHeader('⚔️', 'Repéré !', 'Danger');
+        logEvent(`[${enemy.name}] vous repère au dernier moment !`, "danger");
+        initiateCombat(enemy);
+    }
+}
+
+// Bouton "Attaque Furtive" : le combat démarre avec un bonus x2 garanti sur le tout premier coup
+function attemptStealthAttack() {
+    const enemy = gameState.pendingStealthEncounter;
+    gameState.stealthChoicePending = false;
+    ui.stealthChoiceZone.classList.add('hidden');
+    gameState.pendingStealthEncounter = null;
+    if (!enemy) { updateUI(); return; }
+
+    setCardHeader('🗡️', 'Attaque Furtive', 'Combat');
+    logEvent(`Vous surgissez de l'ombre et frappez [${enemy.name}] par surprise !`, "success");
+    gameState.pendingSneakAttack = true;
+    initiateCombat(enemy);
+}
+
+// ==========================================
 // LIEUX CONNUS (escalier gardé, boss de quartier, salles sécurisées)
 // ==========================================
 
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending;
 }
 
 // Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
@@ -1056,7 +1137,7 @@ function gainSkillXp(skillKey, amount) {
 }
 
 function skillLabel(key) {
-    return { weapon: "Arme", unarmed: "Mains nues", magic: "Magie" }[key] || key;
+    return { weapon: "Arme", unarmed: "Mains nues", magic: "Magie", stealth: "Furtivité" }[key] || key;
 }
 
 // ==========================================
@@ -1448,6 +1529,14 @@ function performPlayerAttack(attackerAtk, options, label) {
         if (gameState.status.slowed.rounds <= 0) gameState.status.slowed = null;
     }
 
+    // Attaque furtive réussie : le tout premier coup de ce combat porte un bonus x2 garanti
+    let sneakNote = "";
+    if (gameState.pendingSneakAttack) {
+        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * 2 };
+        sneakNote = " (attaque furtive x2)";
+        gameState.pendingSneakAttack = false;
+    }
+
     // Un ennemi ébloui (arme "Lumineux") pare moins bien : sa DEF effective est réduite
     let effectiveEnemyDef = enemy.def;
     const enemyWasBlinded = enemy.status && enemy.status.blinded && enemy.status.blinded.rounds > 0;
@@ -1461,7 +1550,7 @@ function performPlayerAttack(attackerAtk, options, label) {
     enemy.hp -= playerDamage;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
-    logEvent(`Vous attaquez ${label}${slowedNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
+    logEvent(`Vous attaquez ${label}${slowedNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
 
     // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
     if (gameState.companion && gameState.companion.specialty.type === 'strike' && enemy.hp > 0) {
@@ -1549,8 +1638,10 @@ function applyWeaponMechanic() {
     } else if (IMPLEMENTED_WEAPON_MECHANICS.includes(weapon.mechanic)) {
         resolveWeaponMechanicEffect(weapon.mechanic, weapon, enemy);
     }
-    // "pleasure_or_pain" (Vibrant), "aoe" (Explosif), "stealth" (Silencieux) et "darkness" (Ténébreux)
-    // restent des effets purement comiques/cosmétiques, sans mécanique de combat pour l'instant.
+    // "pleasure_or_pain" (Vibrant), "aoe" (Explosif) et "darkness" (Ténébreux) restent des effets
+    // purement comiques/cosmétiques, sans mécanique de combat pour l'instant. "stealth" (Silencieux)
+    // n'a rien à faire ICI (pas de déclenchement pendant un échange) : il compte avant le combat,
+    // dans getStealthChance(), pour éviter de se faire repérer en explorant.
     // Pas de updateUI() ici, pour la même raison que dans gainSkillXp() : ne pas écraser
     // l'affichage des PV avant que l'animation du dé n'ait eu le temps d'arriver à destination.
 }
@@ -1783,6 +1874,7 @@ function attemptFlee() {
         gameState.inCombat = false;
         gameState.pendingStairAfterCombat = false; // La fuite ne compte pas comme une victoire sur le gardien
         gameState.pendingBossRoomId = null; // Le boss reste vivant, la salle n'est pas marquée vaincue
+        gameState.pendingSneakAttack = false; // Ne doit pas se reporter sur un combat futur
         if (gameState.pendingTravel) {
             logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
             gameState.pendingTravel = null;
@@ -1825,6 +1917,7 @@ function winCombat() {
 
     gameState.currentEnemy = null;
     gameState.inCombat = false;
+    gameState.pendingSneakAttack = false;
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null }; // Les statuts ne survivent pas au combat
 
     // Si ce combat était une salle de boss du quartier (escalier ou non), la salle est désormais
@@ -2036,6 +2129,10 @@ ui.btnFlee.addEventListener('click', attemptFlee);
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)
 ui.btnFightBoss.addEventListener('click', fightBossNow);
 ui.btnRetreatBoss.addEventListener('click', retreatFromBoss);
+
+// Clics sur les boutons de choix de furtivité (Esquiver / Attaque Furtive)
+ui.btnStealthEvade.addEventListener('click', attemptStealthEvasion);
+ui.btnStealthAttack.addEventListener('click', attemptStealthAttack);
 
 // Clics sur les boutons de rencontre de compagnon
 ui.btnRecruitFriendly.addEventListener('click', recruitCompanion);
