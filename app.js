@@ -84,9 +84,20 @@ const config = {
         audienceGift: 4,    // NOUVEAU : cadeau des spectateurs (petit bonus d'XP), clin d'œil à l'émission
         companionEncounter: 3, // NOUVEAU : rencontre d'un autre crawler (ami ou hostile, 50/50)
         flavorOnly: 3       // Pur moment narratif, sans effet mécanique (réduit de 6 à 3 pour compenser)
-    }
+    },
     // "stairGuardedChance" a été retiré : l'escalier est désormais TOUJOURS gardé par le boss de
     // son quartier (placement déterministe, voir generateFloorMap()), plus un tirage au hasard.
+
+    // Taux de croissance des stats des monstres (mobs normaux et boss) par étage de profondeur,
+    // utilisés par getFloorScaling()/applyFloorScaling() dans generator.js. À l'étage 1, aucun
+    // bonus (multiplicateur = 1) ; chaque étage suivant ajoute ce taux au multiplicateur.
+    // Valeurs de départ, à ajuster par playtest réel (pas de combat de référence à ce stade).
+    floorScaling: {
+        hp: 0.22,  // +22% de PV par étage de profondeur
+        atk: 0.12, // +12% d'ATQ par étage de profondeur
+        def: 0.10, // +10% de DEF par étage de profondeur
+        xp: 0.18   // +18% d'XP donnée par étage de profondeur (suit la difficulté accrue)
+    }
 };
 
 // Bibliothèque de textes pour varier la narration selon la catégorie d'événement tirée
