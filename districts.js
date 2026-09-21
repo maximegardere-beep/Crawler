@@ -1,24 +1,40 @@
 /**
  * DISTRICTS.JS - Quartiers explorables du donjon
- * Chaque quartier référence des monstres par leur NOM (voir le catalogue dans bestiary.js),
- * pour éviter de dupliquer les stats d'un même monstre dans plusieurs quartiers.
+ * Chaque quartier référence des monstres par leur NOM (voir bestiary.js).
  */
-
 const districts = {
     "Tunnels de Métro Abandonnés": {
         mobNames: ["Rat Goulot", "Distributeur de Snacks Hanté", "Contrôleur de Billets Zombifié"]
     },
-
     "Jardins Carnivores": {
         mobNames: ["Tulipe Géante", "Ronce Étrangleuse", "Gobelin Paysagiste"]
     },
-
     "Bureaux de l'Administration Pénitentiaire": {
         mobNames: ["Photocopieuse Carnivore", "Stagiaire Démoniaque", "Garde-Chiourme Bureaucrate"]
+    },
+    "Usine de Transformation Alimentaire": {
+        mobNames: ["Saucisse Vivante", "Fromage qui Pue", "Ouvrier à la Chaîne"]
+    },
+    "Bibliothèque des Oubliés": {
+        mobNames: ["Livre Maudit", "Bibliothécaire Fantôme", "Encre Vivante"]
+    },
+    "Laboratoire de Fous": {
+        mobNames: ["Savant Dingue", "Créature en Bocaux", "Robot Défectueux"]
+    },
+    "Rue des Illusions": {
+        mobNames: ["Mime Aggressif", "Ombre Suspicieuse", "Miroir Brisé"]
+    },
+    "Catacombes des Chaussettes Perdues": {
+        mobNames: ["Chaussette Solitaire", "Lave-Linge Possédé", "Monstre de Poussière"]
+    },
+    "Marché Noir du Donjon": {
+        mobNames: ["Marchand Malhonnête", "Sac de Pièces Vivant", "Garde du Marché"]
+    },
+    "Salle des Machines Infernales": {
+        mobNames: ["Imprimante à Rêves", "Ordinateur en Colère", "Câble Électrique Vivant"]
     }
 };
 
-// Export (utile si tu passes sur un environnement modulaire avec Node ou des modules ES6)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = { districts };
 }
