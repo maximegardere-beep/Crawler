@@ -35,9 +35,12 @@ const gameState = {
         armor: null   // Objet de catégorie 'armors' équipé, ou null
     },
     status: {
-        bleed: null,    // { rounds, dmgPerRound } ou null
-        stunned: false, // Rate son prochain tour si vrai
-        slowed: null    // { rounds } : dégâts infligés par le joueur divisés par 2 pendant ces rounds
+        bleed: null,     // { rounds, dmgPerRound } ou null
+        stunned: false,  // Rate son prochain tour si vrai
+        slowed: null,    // { rounds } : dégâts infligés par le joueur divisés par 2 pendant ces rounds
+        confused: null,  // { rounds } : chance de rater complètement son attaque pendant ces rounds
+        disarmed: null,  // { rounds } : l'attaque à l'arme est indisponible pendant ces rounds (arrachée)
+        blinded: null    // { rounds } : DEF effective réduite (moins de dégâts adverses parés) pendant ces rounds
     },
     cardsDrawnThisFloor: 0, // Compteur de cartes pour calculer la probabilité de l'escalier
     inCombat: false, // Verrouille l'avancée si un combat est en cours
@@ -222,6 +225,9 @@ function updateUI() {
     if (gameState.status.bleed && gameState.status.bleed.rounds > 0) playerIcons += "🩸";
     if (gameState.status.stunned) playerIcons += "💫";
     if (gameState.status.slowed && gameState.status.slowed.rounds > 0) playerIcons += "🐌";
+    if (gameState.status.confused && gameState.status.confused.rounds > 0) playerIcons += "🌀";
+    if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) playerIcons += "🧲";
+    if (gameState.status.blinded && gameState.status.blinded.rounds > 0) playerIcons += "✨";
     ui.playerStatusIcons.innerText = playerIcons;
 
     // Mise à jour du niveau et de l'XP
@@ -271,6 +277,9 @@ function updateUI() {
         if (gameState.status.bleed && gameState.status.bleed.rounds > 0) playerIcons += "🔥";
         if (gameState.status.stunned) playerIcons += "💫";
         if (gameState.status.slowed && gameState.status.slowed.rounds > 0) playerIcons += "🐌";
+        if (gameState.status.confused && gameState.status.confused.rounds > 0) playerIcons += "🌀";
+        if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) playerIcons += "🧲";
+        if (gameState.status.blinded && gameState.status.blinded.rounds > 0) playerIcons += "✨";
         ui.combatPlayerStatus.innerText = playerIcons || "—";
 
         // Indicateur compagnon (à droite, sous le panneau joueur), si un compagnon est actif
@@ -1051,7 +1060,7 @@ function initiateCombat(forcedEnemy = null) {
     gameState.inCombat = true;
 
     // Statuts remis à zéro à chaque nouveau combat (des deux côtés)
-    gameState.status = { bleed: null, stunned: false, slowed: null };
+    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null };
     if (enemy) {
         enemy.status = { bleed: null, stunned: false };
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
@@ -1097,13 +1106,18 @@ function rollDamage(attackerAtk, defenderDef, options = {}) {
     return Math.max(1, Math.round(damage));
 }
 
-// DEF effective du joueur : sa DEF de base + le bonus de l'armure équipée, le cas échéant
+// DEF effective du joueur : sa DEF de base + le bonus de l'armure équipée, le cas échéant.
+// Réduite de moitié tant que le joueur est ébloui (effet "light"), le temps de retrouver la vue.
 function getEffectiveDef() {
     const armorBonus = gameState.equipment.armor ? (gameState.equipment.armor.baseArmor || 0) : 0;
     const companionBonus = (gameState.companion && gameState.companion.specialty.type === 'guard')
         ? Math.round(gameState.companion.def * 0.5)
         : 0;
-    return gameState.def + armorBonus + companionBonus;
+    let effectiveDef = gameState.def + armorBonus + companionBonus;
+    if (gameState.status.blinded && gameState.status.blinded.rounds > 0) {
+        effectiveDef = Math.round(effectiveDef * 0.5);
+    }
+    return effectiveDef;
 }
 
 // Vérifie que le joueur peut agir (combat en cours, pas étourdi), et applique le saignement
@@ -1142,6 +1156,18 @@ function tryPlayerAction() {
 function performPlayerAttack(attackerAtk, options, label) {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
     const enemy = gameState.currentEnemy;
+
+    // Un joueur confus a une chance de rater complètement son attaque (aucun dégât, tour perdu)
+    if (gameState.status.confused && gameState.status.confused.rounds > 0) {
+        gameState.status.confused.rounds -= 1;
+        if (gameState.status.confused.rounds <= 0) gameState.status.confused = null;
+        if (Math.random() * 100 < 45) {
+            showDie(ui.combatPlayerDie, "❓");
+            logEvent(`Désorienté, vous frappez complètement à côté de [${enemy.name}] !`, "danger");
+            enemyCounterAttack();
+            return true;
+        }
+    }
 
     // Un joueur ralenti inflige moitié moins de dégâts, le temps que l'effet se dissipe
     let effectiveOptions = options;
@@ -1200,7 +1226,8 @@ function applyWeaponMechanic() {
 }
 
 // Tente d'appliquer un effet de statut au joueur selon le trait élémentaire du monstre
-// (burn/poison/slow/stun, définis dans mobModifiers). Appelée après une riposte ennemie réussie.
+// (burn/poison/slow/stun/bleed/confusion/pull/light, définis dans mobModifiers). Appelée après
+// une riposte ennemie réussie.
 function applyMobEffectOnPlayer(enemy) {
     if (!enemy.effect) return;
     const triggerChance = 25; // 25% de chance que le trait élémentaire du monstre fasse effet
@@ -1222,6 +1249,24 @@ function applyMobEffectOnPlayer(enemy) {
         case 'stun':
             gameState.status.stunned = true;
             logEvent("⚡ Le choc vous étourdit !", "danger");
+            break;
+        case 'bleed':
+            // Réutilise le même compteur générique que burn/poison (dégâts sur la durée),
+            // avec un profil de dégâts plus lourd sur une durée plus courte.
+            gameState.status.bleed = { rounds: 2, dmgPerRound: 7 };
+            logEvent("🩸 Une profonde entaille vous fait perdre du sang !", "danger");
+            break;
+        case 'confusion':
+            gameState.status.confused = { rounds: 2 };
+            logEvent("🌀 Votre esprit s'embrouille, vous ne savez plus où frapper.", "danger");
+            break;
+        case 'pull':
+            gameState.status.disarmed = { rounds: 2 };
+            logEvent("🧲 Une force invisible arrache votre arme des mains !", "danger");
+            break;
+        case 'light':
+            gameState.status.blinded = { rounds: 2 };
+            logEvent("✨ Ébloui, vous peinez à parer les coups qui suivent.", "danger");
             break;
     }
 }
@@ -1280,10 +1325,17 @@ function resolveEnemyCounterAttack() {
         return;
     }
 
+    const wasBlinded = gameState.status.blinded && gameState.status.blinded.rounds > 0;
     const enemyDamage = rollDamage(enemy.atk, getEffectiveDef());
     gameState.hp -= enemyDamage;
     animateDieHit(ui.combatEnemyDie, 'right', enemyDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
-    logEvent(`[${enemy.name}] vous inflige ${enemyDamage} dégâts.`, "danger");
+    logEvent(`[${enemy.name}] vous inflige ${enemyDamage} dégâts${wasBlinded ? " (vous étiez ébloui)" : ""}.`, "danger");
+
+    // L'éblouissement se dissipe d'un round à chaque riposte encaissée
+    if (wasBlinded) {
+        gameState.status.blinded.rounds -= 1;
+        if (gameState.status.blinded.rounds <= 0) gameState.status.blinded = null;
+    }
 
     if (gameState.hp <= 0) {
         gameState.hp = 0;
@@ -1311,6 +1363,16 @@ const SKILL_XP_PER_USE = 3;
 // (saignement/étourdissement) de l'arme équipée, le cas échéant.
 function attackWeapon() {
     if (!tryPlayerAction()) return;
+
+    // Arme arrachée par un effet magnétique en cours : l'attaque à l'arme est indisponible
+    if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) {
+        gameState.status.disarmed.rounds -= 1;
+        if (gameState.status.disarmed.rounds <= 0) gameState.status.disarmed = null;
+        showDie(ui.combatPlayerDie, "🧲");
+        logEvent("Votre arme reste hors de portée, toujours attirée au loin !", "danger");
+        enemyCounterAttack();
+        return;
+    }
 
     const skill = gameState.skills.weapon;
     const atkMultiplier = 1.0 + 0.04 * (skill.level - 1); // +4% par niveau
@@ -1376,7 +1438,7 @@ function attemptFlee() {
             logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
             gameState.pendingTravel = null;
         }
-        gameState.status = { bleed: null, stunned: false, slowed: null }; // Les statuts ne survivent pas au combat
+        gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null }; // Les statuts ne survivent pas au combat
         updateUI();
     } else {
         logEvent(`Votre fuite échoue ! [${enemy.name}] profite de l'ouverture.`, "danger");
@@ -1414,7 +1476,7 @@ function winCombat() {
 
     gameState.currentEnemy = null;
     gameState.inCombat = false;
-    gameState.status = { bleed: null, stunned: false, slowed: null }; // Les statuts ne survivent pas au combat
+    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null }; // Les statuts ne survivent pas au combat
 
     // Si ce combat faisait partie d'un trajet de retour vers un lieu connu (embuscade),
     // on enchaîne sur la suite du trajet (nouvelle embuscade ou arrivée à destination)
