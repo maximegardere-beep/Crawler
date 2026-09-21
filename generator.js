@@ -4,6 +4,40 @@
  */
 
 // ==========================================
+// 0. SCALING PAR ÉTAGE
+// ==========================================
+// Calcule les multiplicateurs de statistiques appliqués aux monstres (mobs normaux et boss) selon
+// la profondeur actuelle du donjon. À l'étage 1, tous les multiplicateurs valent 1 (aucun bonus).
+// Les taux de croissance sont centralisés dans config.floorScaling (voir app.js) pour rester
+// ajustables par playtest sans toucher à cette fonction.
+function getFloorScaling(floor) {
+    const f = Math.max(1, floor || 1);
+    const depth = f - 1; // 0 au rez-de-chaussée (étage 1), croît ensuite avec la profondeur
+    // Valeurs de repli si config.floorScaling n'existe pas encore (ex: ancien cache navigateur)
+    const rates = (typeof config !== 'undefined' && config.floorScaling)
+        ? config.floorScaling
+        : { hp: 0.22, atk: 0.12, def: 0.10, xp: 0.18 };
+    return {
+        hpMult: 1 + depth * rates.hp,
+        atkMult: 1 + depth * rates.atk,
+        defMult: 1 + depth * rates.def,
+        xpMult: 1 + depth * rates.xp
+    };
+}
+
+// Applique les multiplicateurs de scaling à un monstre fraîchement cloné (mob normal OU boss),
+// AVANT tout autre traitement (modificateurs aléatoires, etc.) afin que les adjectifs restent
+// proportionnels aux stats déjà mises à l'échelle. Modifie l'objet reçu en place.
+function applyFloorScaling(mob, floor) {
+    const scale = getFloorScaling(floor);
+    if (mob.hp !== undefined) mob.hp = Math.round(mob.hp * scale.hpMult);
+    if (mob.atk !== undefined) mob.atk = Math.round(mob.atk * scale.atkMult);
+    if (mob.def !== undefined) mob.def = Math.round(mob.def * scale.defMult);
+    if (mob.xpReward !== undefined) mob.xpReward = Math.round(mob.xpReward * scale.xpMult);
+    return mob;
+}
+
+// ==========================================
 // 1. GÉNÉRATION DES MOBS
 // ==========================================
 
@@ -32,7 +66,10 @@ function generateMob(districtName) {
     }
     // On fait une copie profonde pour ne pas altérer la base de données
     const finalMob = JSON.parse(JSON.stringify(baseMob));
-    
+
+    // 1bis. Mise à l'échelle selon l'étage courant (voir section 0), avant tout modificateur
+    applyFloorScaling(finalMob, typeof gameState !== 'undefined' ? gameState.currentFloor : 1);
+
     // 2. Jet de dés pour le nombre de modificateurs (Ex: 15% pour 2, 35% pour 1 (total 50%), 50% pour 0)
     const roll = Math.random() * 100;
     let modifierCount = 0;
@@ -114,6 +151,12 @@ function generateBoss(districtName) {
         return null;
     }
     const boss = JSON.parse(JSON.stringify(bossTemplate));
+
+    // Mise à l'échelle selon l'étage courant (voir section 0) : un boss de quartier n'a plus des
+    // stats strictement identiques d'un étage à l'autre, sa base "intentionnelle" est juste
+    // multipliée par la profondeur actuelle.
+    applyFloorScaling(boss, typeof gameState !== 'undefined' ? gameState.currentFloor : 1);
+
     boss.isGenerated = true;
     return boss;
 }
