@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Crawler - Interface de Survie</title>
+    <!-- Intégration de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Empêche le zoom au double-tap / clics rapprochés sur les éléments interactifs.
+           (maximum-scale seul ne suffit pas : iOS l'ignore volontairement pour l'accessibilité.
+           touch-action: manipulation est la vraie solution, ciblée sur les zones cliquables,
+           qui laisse le pinch-to-zoom volontaire fonctionner ailleurs.) */
+        button, #card-stack-wrapper, #inventory > div {
+            touch-action: manipulation;
+        }
+        /* Ajout d'une police pour renforcer le côté terminal/SF */
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        body {
+            font-family: 'Share Tech Mono', monospace;
+        }
+        /* Personnalisation de la scrollbar pour le log */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111827; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e3a8a; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3b82f6; 
+        }
+
+        /* --- Deck de cartes --- */
+        .card-back {
+            background: repeating-linear-gradient(135deg, #eee6d3 0px, #eee6d3 6px, #e3d9c0 6px, #e3d9c0 12px);
+            border: 1px solid rgba(0,0,0,0.15);
+            box-shadow: 0 6px 14px rgba(0,0,0,0.35);
+        }
+        .game-card {
+            background-color: #f6f1e4; /* papier crème */
+            background-image: radial-gradient(rgba(0,0,0,0.035) 1px, transparent 1px);
+            background-size: 10px 10px; /* texture papier subtile */
+            border: 1px solid rgba(0,0,0,0.12);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.4);
+        }
+        /* Scrollbar du corps de carte adaptée au fond clair (le style sombre global jurerait ici) */
+        #card-body::-webkit-scrollbar { width: 4px; }
+        #card-body::-webkit-scrollbar-track { background: transparent; }
+        #card-body::-webkit-scrollbar-thumb { background: #b8ac8e; border-radius: 4px; }
+
+        /* Animation de tirage : la carte "pop" légèrement à chaque nouvelle carte révélée.
+           (Un vrai retournement 3D face/dos demanderait deux éléments superposés ; ce pop, plus
+           simple et robuste, évite tout risque de désynchronisation avec le contenu qui s'affiche
+           en direct pendant les combats à plusieurs échanges.) */
+        @keyframes cardDraw {
+            0%   { transform: scale(0.92) rotate(-2deg); opacity: 0.5; }
+            60%  { transform: scale(1.04) rotate(1deg);  opacity: 1; }
+            100% { transform: scale(1) rotate(0deg);     opacity: 1; }
+        }
+        .card-draw-anim {
+            animation: cardDraw 0.35s ease-out;
+        }
+
+        /* --- Dés de dégâts (combat) --- */
+        .die-badge {
+            width: 26px; height: 26px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: bold;
+            background: #030712; border: 1px solid #374151; border-radius: 6px;
+            opacity: 0.3;
+            transition: opacity 0.15s;
+        }
+        @keyframes diePop {
+            0%   { transform: scale(0.4) rotate(-15deg); opacity: 0.3; }
+            60%  { transform: scale(1.2) rotate(8deg);   opacity: 1; }
+            100% { transform: scale(1) rotate(0deg);     opacity: 1; }
+        }
+        .die-pop {
+            animation: diePop 0.25s ease-out;
+            opacity: 1;
+        }
+
+        /* --- Le dé "vole" vers les PV qu'il touche --- */
+        @keyframes dieHitLeft {
+            0%   { transform: translateX(0) scale(1); }
+            35%  { transform: translateX(-90px) scale(1.35); }
+            55%  { transform: translateX(-90px) scale(1.35); }
+            100% { transform: translateX(0) scale(1); }
+        }
+        @keyframes dieHitRight {
+            0%   { transform: translateX(0) scale(1); }
+            35%  { transform: translateX(90px) scale(1.35); }
+            55%  { transform: translateX(90px) scale(1.35); }
+            100% { transform: translateX(0) scale(1); }
+        }
+        .die-hit-left  { animation: dieHitLeft 0.5s ease-out; }
+        .die-hit-right { animation: dieHitRight 0.5s ease-out; }
+
+        /* Flash + petit "boum" sur le compteur de PV au moment de l'impact */
+        @keyframes hpHitFlash {
+            0%   { transform: scale(1); }
+            30%  { transform: scale(1.35); filter: brightness(1.8); }
+            100% { transform: scale(1); }
+        }
+        .hp-hit {
+            animation: hpHitFlash 0.3s ease-out;
+        }
+
+        /* --- Anneau de vie circulaire --- */
+        .hp-ring-wrapper {
+            position: relative;
+            display: inline-block;
+            flex-shrink: 0;
+        }
+        .hp-ring-wrapper svg {
+            display: block;
+            transform: rotate(-90deg); /* Le tracé commence en haut plutôt qu'à droite */
+        }
+        .hp-ring-track {
+            fill: none;
+            stroke: #1f2937;
+        }
+        .hp-ring-fill {
+            fill: none;
+            stroke-linecap: round;
+            transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
+        }
+        .hp-ring-label {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-200 min-h-screen flex justify-center items-center py-6 px-4 selection:bg-blue-900 selection:text-white">
+
+    <!-- Conteneur principal du jeu -->
+    <main class="w-full max-w-2xl bg-gray-900 border border-blue-900/60 shadow-[0_0_40px_rgba(30,58,138,0.2)] rounded-xl p-4 flex flex-col gap-3 relative">
+        
+        <!-- 1. Header : Infos du Joueur -->
+        <header class="flex flex-wrap justify-between items-end border-b border-gray-800 pb-2 gap-3">
+            <div>
+                <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-200 drop-shadow-[0_0_10px_rgba(96,165,250,0.6)] uppercase tracking-wider" id="player-name">
+                    CRAWLER_01
+                </h1>
+                <p class="text-sm text-gray-500 mt-1">
+                    Étage : <span id="floor-level" class="text-blue-400 font-bold">1</span> | 
+                    Quartier : <span id="district-name" class="text-blue-400 font-bold">Chargement...</span> |
+                    Niveau : <span id="player-level" class="text-green-400 font-bold">1</span>
+                </p>
+                <div class="w-48 max-w-full bg-gray-950 rounded-full h-2 border border-gray-800 overflow-hidden mt-2">
+                    <div id="xp-bar" class="bg-green-600 h-full rounded-full shadow-[0_0_8px_rgba(34,197,94,0.8)] transition-all duration-500" style="width: 0%"></div>
+                </div>
+                <p class="text-[10px] text-gray-600 mt-0.5 uppercase tracking-widest">XP : <span id="xp-text">0/50</span></p>
+            </div>
+        </header>
+
+        <!-- 1bis. Carte Joueur : Compétences -->
+        <section class="grid grid-cols-3 gap-2 bg-gray-950/60 border border-gray-800 rounded-lg p-3">
+            <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
+                    <span>⚔️ Arme</span>
+                    <span id="skill-weapon-level" class="text-red-400 font-bold">Nv.1</span>
+                </div>
+                <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                    <div id="skill-weapon-bar" class="bg-red-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
+                    <span>👊 Mains nues</span>
+                    <span id="skill-unarmed-level" class="text-orange-400 font-bold">Nv.1</span>
+                </div>
+                <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                    <div id="skill-unarmed-bar" class="bg-orange-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="flex flex-col gap-1">
+                <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
+                    <span>✨ Magie</span>
+                    <span id="skill-magic-level" class="text-purple-400 font-bold">Nv.1</span>
+                </div>
+                <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                    <div id="skill-magic-bar" class="bg-purple-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. Temps Restant (Barre de progression) -->
+        <section class="flex flex-col gap-1">
+            <div class="flex justify-between items-center text-sm">
+                <span class="text-blue-500 uppercase tracking-widest text-xs font-bold drop-shadow-[0_0_2px_rgba(59,130,246,0.8)]">Temps restant avant effondrement</span>
+                <span id="time-text" class="text-blue-300 font-bold text-lg drop-shadow-[0_0_5px_rgba(147,197,253,0.8)]">100 H</span>
+            </div>
+            <div class="w-full bg-gray-950 rounded-full h-4 border border-gray-800 overflow-hidden relative">
+                <div id="time-bar" class="bg-blue-600 h-full rounded-full shadow-[0_0_15px_rgba(37,99,235,1)] transition-all duration-500" style="width: 100%"></div>
+            </div>
+        </section>
+
+        <!-- 3. Deck de Cartes -->
+        <section class="flex flex-col items-center gap-2 py-1">
+            <div class="w-full flex items-center justify-center gap-2">
+                <!-- Colonne Ennemi (visible uniquement en combat) : PV, statut, dé de dégâts subis -->
+                <div id="combat-side-enemy" class="hidden w-14 shrink-0 text-center gap-1">
+                    <span class="text-[8px] uppercase tracking-widest text-red-400 block">Ennemi</span>
+                    <div class="hp-ring-wrapper mx-auto" style="width: 36px; height: 36px;">
+                        <svg viewBox="0 0 44 44" width="36" height="36">
+                            <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="4" />
+                            <circle id="combat-enemy-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="4"
+                                    stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
+                        </svg>
+                        <span id="combat-enemy-hp" class="hp-ring-label text-[10px] text-red-300">0</span>
+                    </div>
+                    <span id="combat-enemy-status" class="text-xs leading-none block">—</span>
+                    <div id="combat-enemy-die" class="die-badge border-red-700 text-red-300 mx-auto mt-1">–</div>
+                </div>
+
+                <!-- Carte active : révèle l'événement du tirage en cours (rétrécit pendant un combat).
+                     Toucher la carte fait maintenant office de bouton "Avancer". -->
+                <div id="card-stack-wrapper" class="relative w-full max-w-[240px] mx-auto cursor-pointer transition-transform active:scale-95" style="aspect-ratio: 5 / 7; transition: max-width 0.3s ease, transform 0.1s ease;">
+                    <!-- Pile décorative (dos de cartes empilés, purement visuel) -->
+                    <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(-7deg) translate(-8px, 5px);"></div>
+                    <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(5deg) translate(6px, 3px);"></div>
+                    <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(-3deg) translate(-3px, -2px);"></div>
+
+                    <div id="active-card" class="game-card absolute inset-0 rounded-2xl flex flex-col p-4">
+                        <div class="flex justify-between items-center text-[9px] uppercase tracking-widest text-stone-500 font-bold">
+                            <span id="card-type-label">Donjon</span>
+                            <span id="card-floor-label">Étage 1</span>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center justify-center text-center gap-2 min-h-0">
+                            <div id="card-icon" class="text-5xl leading-none">🚪</div>
+                            <div id="card-title" class="text-base font-black uppercase tracking-wide text-stone-800">En Exploration</div>
+                        </div>
+                        <div id="card-body" class="text-[11px] leading-snug text-stone-700 max-h-24 overflow-y-auto border-t border-stone-300 pt-2 space-y-1 shrink-0">
+                            <p class="italic text-stone-500">Touchez la carte pour tirer votre première carte...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Colonne Joueur (visible uniquement en combat) : PV, statut, dé de dégâts infligés -->
+                <div id="combat-side-player" class="hidden w-14 shrink-0 text-center gap-1">
+                    <span class="text-[8px] uppercase tracking-widest text-blue-400 block">Vous</span>
+                    <div class="hp-ring-wrapper mx-auto" style="width: 36px; height: 36px;">
+                        <svg viewBox="0 0 44 44" width="36" height="36">
+                            <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="4" />
+                            <circle id="combat-player-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="4"
+                                    stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
+                        </svg>
+                        <span id="combat-player-hp" class="hp-ring-label text-[10px] text-blue-300">0</span>
+                    </div>
+                    <span id="combat-player-status" class="text-xs leading-none block">—</span>
+                    <div id="combat-player-die" class="die-badge border-blue-700 text-blue-300 mx-auto mt-1">–</div>
+
+                    <!-- Indicateur compagnon (visible seulement si un compagnon est actif) -->
+                    <div id="companion-combat-indicator" class="hidden mt-2 pt-2 border-t border-gray-800">
+                        <span id="companion-combat-name" class="text-[7px] uppercase tracking-widest text-emerald-400 block truncate">-</span>
+                        <div class="hp-ring-wrapper mx-auto" style="width: 26px; height: 26px;">
+                            <svg viewBox="0 0 44 44" width="26" height="26">
+                                <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="5" />
+                                <circle id="companion-combat-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="5"
+                                        stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
+                            </svg>
+                            <span id="companion-combat-hp" class="hp-ring-label text-[8px] text-emerald-300">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p id="advance-hint" class="text-[10px] text-blue-400 uppercase tracking-widest text-center animate-pulse">
+                👆 Touchez la carte pour avancer (-1H)
+            </p>
+        </section>
+
+        <!-- Journal complet (repli discret, pour qui veut relire tout l'historique) -->
+        <details class="text-[10px] text-gray-600">
+            <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-400">Journal complet</summary>
+            <div id="full-log" class="mt-2 h-28 overflow-y-auto bg-gray-950 border border-gray-800 rounded p-2 flex flex-col gap-1"></div>
+        </details>
+
+        <!-- 4. Zone de Combat (visible uniquement pendant un affrontement, juste sous la carte) -->
+        <div id="combat-zone" class="hidden p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Zone de Combat</span>
+            <div class="text-center text-sm text-red-300 mb-3 font-bold" id="enemy-name">-</div>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-attack-weapon" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
+                    ⚔️ Arme
+                </button>
+                <button id="btn-attack-unarmed" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
+                    👊 Mains nues
+                </button>
+                <button id="btn-attack-magic" class="px-3 py-3 bg-gray-900 border border-purple-800/80 hover:border-purple-500 hover:bg-purple-900/30 rounded text-xs text-purple-400 uppercase tracking-wider transition-all">
+                    ✨ Magie
+                </button>
+                <button id="btn-flee" class="px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
+                    🏃 Fuir
+                </button>
+            </div>
+        </div>
+
+        <!-- Zone de choix d'escalier (visible uniquement quand un escalier non gardé vient d'être trouvé) -->
+        <div id="stairs-choice-zone" class="hidden p-4 bg-blue-950/20 border border-blue-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-blue-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Escalier Repéré</span>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-take-stairs" class="px-3 py-3 bg-gray-900 border border-blue-700/80 hover:border-blue-400 hover:bg-blue-900/30 rounded text-xs text-blue-300 uppercase tracking-wider transition-all">
+                    🪜 Emprunter
+                </button>
+                <button id="btn-remember-stairs" class="px-3 py-3 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-300 uppercase tracking-wider transition-all">
+                    📍 Retenir et partir
+                </button>
+            </div>
+        </div>
+
+        <!-- Rencontre de compagnon ami : recruter ou laisser partir (sans risque) -->
+        <div id="companion-choice-friendly" class="hidden p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-emerald-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Crawler Rencontré</span>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-recruit-friendly" class="px-3 py-3 bg-gray-900 border border-emerald-700/80 hover:border-emerald-400 hover:bg-emerald-900/30 rounded text-xs text-emerald-300 uppercase tracking-wider transition-all">
+                    🤝 Recruter
+                </button>
+                <button id="btn-decline-companion" class="px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
+                    👋 Laisser partir
+                </button>
+            </div>
+        </div>
+
+        <!-- Rencontre de compagnon hostile (ou trahison d'un compagnon déjà recruté) : fuir, tenter de le recruter, ou attaquer -->
+        <div id="companion-choice-hostile" class="hidden p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Crawler Hostile</span>
+            <div class="grid grid-cols-3 gap-2">
+                <button id="btn-flee-companion" class="px-2 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-[11px] text-gray-400 uppercase tracking-wider transition-all">
+                    🏃 Fuir
+                </button>
+                <button id="btn-recruit-hostile" class="px-2 py-3 bg-gray-900 border border-emerald-700/80 hover:border-emerald-400 hover:bg-emerald-900/30 rounded text-[11px] text-emerald-300 uppercase tracking-wider transition-all">
+                    🤝 Recruter
+                </button>
+                <button id="btn-attack-companion" class="px-2 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-[11px] text-red-400 uppercase tracking-wider transition-all">
+                    ⚔️ Attaquer
+                </button>
+            </div>
+        </div>
+
+        <!-- Compagnon actif (hors combat) : nom, spécialité, barre d'agressivité -->
+        <div id="companion-status-bar" class="hidden flex items-center justify-between text-[10px] text-gray-500 bg-gray-950/50 border border-gray-800 rounded px-3 py-2">
+            <span>🐾 <span id="companion-name-display" class="text-emerald-400 font-bold">-</span> <span id="companion-specialty-display" class="text-gray-600">(-)</span></span>
+            <div class="w-16 bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden shrink-0">
+                <div id="companion-aggro-bar" class="h-full rounded-full transition-all duration-500" style="width:0%; background:#22c55e;"></div>
+            </div>
+        </div>
+
+        <!-- Vitals compacts (PV + ATK/DEF) : masqués en combat, où PV apparaît déjà à droite de la carte -->
+        <div id="player-vitals-compact" class="flex items-center justify-center gap-4 py-1">
+            <div class="hp-ring-wrapper" style="width: 40px; height: 40px;">
+                <svg viewBox="0 0 44 44" width="40" height="40">
+                    <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="4" />
+                    <circle id="compact-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="4"
+                            stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
+                </svg>
+                <span id="compact-hp-value" class="hp-ring-label text-[11px] text-gray-100">100</span>
+            </div>
+            <div class="text-[10px] text-gray-500 uppercase tracking-widest leading-relaxed">
+                <div>⚔️ ATK <span id="player-atk" class="text-gray-300 font-bold">10</span> &nbsp; 🛡️ DEF <span id="player-def" class="text-gray-300 font-bold">5</span></div>
+                <div id="player-status-icons" class="text-sm"></div>
+            </div>
+        </div>
+
+        <!-- 5. Inventaire -->
+        <section class="flex flex-col gap-2">
+            <div class="flex justify-between items-end">
+                <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Inventaire</h2>
+                <span class="text-[10px] text-gray-500">Capacité: <span id="inventory-count">0</span>/5</span>
+            </div>
+            <div class="flex gap-4 text-[11px] text-gray-500 bg-gray-950/50 border border-gray-800 rounded px-3 py-2">
+                <span>⚔️ Arme : <span id="equipped-weapon" class="text-gray-300">Aucune</span></span>
+                <span>🛡️ Armure : <span id="equipped-armor" class="text-gray-300">Aucune</span></span>
+            </div>
+            <p class="text-[10px] text-gray-600 italic">Touchez un objet pour l'équiper (arme/armure) ou l'utiliser (consommable).</p>
+            <div id="inventory" class="grid grid-cols-5 gap-3">
+                <!-- 5 emplacements vides par défaut -->
+                <div class="aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-gray-800 text-2xl shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">+</div>
+                <div class="aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-gray-800 text-2xl shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">+</div>
+                <div class="aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-gray-800 text-2xl shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">+</div>
+                <div class="aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-gray-800 text-2xl shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">+</div>
+                <div class="aspect-square bg-gray-950 border border-gray-800 rounded flex items-center justify-center text-gray-800 text-2xl shadow-[inset_0_0_10px_rgba(0,0,0,0.5)]">+</div>
+            </div>
+        </section>
+
+        <!-- Lieux connus : escalier retenu, plus tard salles sécurisées et boss -->
+        <section class="flex flex-col gap-2">
+            <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Lieux connus</h2>
+            <div id="known-locations" class="flex flex-col gap-1.5">
+                <p class="text-[10px] text-gray-600 italic">Aucun lieu repéré pour l'instant.</p>
+            </div>
+        </section>
+
+        <!-- 6. Logs de Dev (Bouton discret) -->
+        <button id="btn-dev-logs" class="absolute bottom-2 right-4 text-[10px] text-gray-700 hover:text-gray-400 transition-colors uppercase tracking-widest cursor-pointer">
+            >_ Exporter Logs Dev
+        </button>
+
+    </main>
+
+    <!-- Écran Game Over : recouvre toute l'interface, quel que soit le scroll -->
+    <div id="game-over-overlay" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-gray-900 border-2 border-red-800 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(153,27,27,0.5)]">
+            <div class="text-5xl mb-2">💀</div>
+            <h2 class="text-2xl font-black text-red-500 uppercase tracking-widest mb-1 drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]">Game Over</h2>
+            <p id="game-over-reason" class="text-sm text-gray-400 mb-4">Le donjon vous a eu.</p>
+            <div class="text-xs text-gray-400 space-y-1.5 mb-6 text-left bg-gray-950 rounded p-3 border border-gray-800">
+                <div class="flex justify-between"><span>Étage atteint</span><span id="game-over-floor" class="text-gray-100 font-bold">1</span></div>
+                <div class="flex justify-between"><span>Niveau final</span><span id="game-over-level" class="text-gray-100 font-bold">1</span></div>
+                <div class="flex justify-between"><span>Quartier</span><span id="game-over-district" class="text-gray-100 font-bold">-</span></div>
+            </div>
+            <button id="btn-restart" class="w-full py-3 bg-red-900/40 border-2 border-red-600 rounded-lg text-red-300 font-bold uppercase tracking-widest hover:bg-red-800/50 active:scale-95 transition-all">
+                Nouvelle Partie
+            </button>
+        </div>
+    </div>
+
+    <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
+    <script src="bestiary.js?v=16"></script>
+    <script src="items.js?v=16"></script>
+    <script src="districts.js?v=16"></script>
+    <script src="generator.js?v=16"></script>
+    <script src="app.js?v=16"></script>
+</body>
+</html>
