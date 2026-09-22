@@ -4,13 +4,14 @@ Rogue-like textuel minimaliste inspiré de Dungeon Crawler Carl. GitHub Pages, H
 Tailwind CDN, **aucun build step**.
 
 ## Fichiers
-- `index.html` — UI (deck de cartes, combat, inventaire, "Lieux connus", Game Over)
-- `app.js` — moteur : état, exploration, combat, niveau/XP, compétences, équipement, compagnons, carte d'étage
+- `index.html` — UI (deck de cartes, combat, inventaire, grimoire, "Lieux connus", Game Over)
+- `app.js` — moteur : état, exploration, combat, niveau/XP, compétences, équipement, magie/mana, compagnons, carte d'étage
 - `bestiary.js` — monstres de base + boss de quartier (`districtBosses`)
 - `items.js` — objets, raretés, enchantements (`itemModifiers.effect`)
+- `spells.js` — grimoire de sorts (`spellCatalog`), catégories corps à corps/à distance
 - `districts.js` — quartiers (référencent les monstres par nom)
 - `safehouses.js` — types de salles sécurisées (narratif seul pour l'instant)
-- `generator.js` — génération procédurale (mobs, objets, boss, compagnons)
+- `generator.js` — génération procédurale (mobs, objets, parchemins de sorts, boss, compagnons)
 - `tests/` — voir plus bas
 
 ## Architecture (résumé)
@@ -44,6 +45,18 @@ Tailwind CDN, **aucun build step**.
 - **Mobs élite** : `generateMob()` pose `threatMultiplier` (puissance apportée par les seuls
   modificateurs, hors scaling d'étage). Au-delà de `config.eliteThreatMultiplier`, icône 💀
   (jamais sur un boss, qui garde 👑 — voir `isEliteMob()`).
+- **Magie** : un seul sort équipé à la fois (`gameState.equipment.spell`), plus de simple attaque
+  magique inconditionnelle. Répertoire de base dans `spellCatalog` (`spells.js`), deux catégories —
+  corps à corps ou à distance (`spellCategory`) — qui font se comporter le bouton Magie exactement
+  comme Arme/Tir : grisé au mauvais écart (`attackMagic()`/`updateUI()`). Un parchemin (catégorie
+  `'scrolls'`) est généré par `generateSpellScroll()` au même titre que le reste du loot
+  (`generateItem()`/`addLoot()`), avec une rareté qui fait grimper puissance ET coût en mana
+  ensemble (pas de slots d'enchantement, contrairement aux armes/armures). Trouvé, il rejoint
+  `gameState.spellbook` (inventaire magique séparé, jamais limité) plutôt que `gameState.inventory` ;
+  `equipSpell()` l'équipe et renvoie l'éventuel sort précédent dans le grimoire, sans jamais le
+  perdre. Le mana (`gameState.mana`, 0-100) n'existe visuellement pour le joueur qu'une fois un sort
+  équipé, et se régénère comme les PV : passif via `registerCalmCard()` (vitesse influencée par le
+  niveau de compétence Magie), potions (`item.mana` dans `items.js`), aide du compagnon Médecin.
 
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).
@@ -56,7 +69,7 @@ Tailwind CDN, **aucun build step**.
 
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
-  charge les 6 fichiers sources dans l'ordre.
+  charge les 7 fichiers sources dans l'ordre.
 - **Rapide** (`node tests/regression.test.js`, quelques secondes) : à lancer avant CHAQUE push.
   Couvre Sprint, mécaniques d'armure, icône élite, abandon de compagnon, badges. Ajouter une
   section ici pour toute nouvelle feature testable unitairement.
@@ -75,7 +88,6 @@ Tailwind CDN, **aucun build step**.
   l'hypothèse testée — non corrigé, à confirmer par playtest réel avant tout changement.
 
 ## Gros chantiers à venir (non commencés — demander lequel prioriser avant de s'y lancer)
-- Magie : mana + livre de sorts
 - Niveaux multiples de 3 ("urbain", façon Dungeon Crawler Carl)
 - Sons
 - Succès (achievements)

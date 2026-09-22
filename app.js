@@ -10,6 +10,12 @@ const gameState = {
     maxHp: 100,
     atk: 10, // Dégâts de base infligés par round de combat
     def: 5,  // Réduction des dégâts subis par round de combat
+    // Mana (0-100, fixe) : n'existe concrètement pour le joueur qu'une fois un sort équipé (voir
+    // equipSpell()) — la barre correspondante reste masquée tant que gameState.equipment.spell est
+    // null. Se régénère comme les PV (passif via registerCalmCard(), potions, aide compagnon), à une
+    // vitesse influencée par le niveau de compétence Magie. Voir attackMagic().
+    mana: 100,
+    maxMana: 100,
     level: 1,
     xp: 0,
     xpToNextLevel: 50,
@@ -31,8 +37,13 @@ const gameState = {
     equipment: {
         weapon: null, // Objet de catégorie 'weapons' équipé, ou null
         armor: null,  // Objet de catégorie 'armors' équipé, ou null
-        ranged: null  // Objet de catégorie 'ranged' équipé, ou null
+        ranged: null, // Objet de catégorie 'ranged' équipé, ou null
+        spell: null   // Parchemin (catégorie 'scrolls') équipé, ou null — voir equipSpell()
     },
+    // Inventaire magique : parchemins de sorts appris (trouvés en loot) mais pas équipés. Séparé de
+    // `inventory` (voir spells.js/generateSpellScroll()) : un sort ne compte pas dans maxInventory,
+    // pas plus qu'un consommable. Le sort actuellement équipé n'y figure jamais (voir equipSpell()).
+    spellbook: [],
     // Écart de distance courant (0 = corps à corps). Aucune notion de posture : la distance de
     // départ dépend uniquement de la nature du mob (mob.ranged), et n'évolue ensuite que via les
     // actions dédiées S'approcher/S'éloigner (attemptSprint/attemptRetreat) — voir config.rangedCombat.
@@ -273,7 +284,15 @@ const ui = {
     combatDistancePlayerIcon: document.getElementById('combat-distance-player-icon'),
     combatDistanceEnemyIcon: document.getElementById('combat-distance-enemy-icon'),
     equippedRanged: document.getElementById('equipped-ranged'),
-    btnDevLogs: document.getElementById('btn-dev-logs')
+    btnDevLogs: document.getElementById('btn-dev-logs'),
+    equippedSpell: document.getElementById('equipped-spell'),
+    spellbookCards: document.getElementById('spellbook-cards'),
+    manaBarWrapper: document.getElementById('mana-bar-wrapper'),
+    manaText: document.getElementById('mana-text'),
+    manaBar: document.getElementById('mana-bar'),
+    combatManaWrapper: document.getElementById('combat-mana-wrapper'),
+    combatManaText: document.getElementById('combat-mana-text'),
+    combatManaBar: document.getElementById('combat-mana-bar')
 };
 
 // ==========================================
@@ -352,7 +371,26 @@ function updateUI() {
         levelEl.innerText = `Nv.${skill.level}`;
         barEl.style.width = `${Math.min(100, (skill.xp / skill.xpToNext) * 100)}%`;
     }
-    
+
+    // Barre de Mana : n'existe côté joueur (visuellement) qu'une fois un sort équipé, voir
+    // equipSpell(). Mise à jour ici (hors combat) ET dans la zone de combat plus bas, toutes deux
+    // pilotées par le même gameState.mana.
+    const hasSpellEquipped = !!gameState.equipment.spell;
+    if (ui.manaBarWrapper) {
+        ui.manaBarWrapper.classList.toggle('hidden', !hasSpellEquipped);
+        if (hasSpellEquipped) {
+            ui.manaText.innerText = `${Math.round(gameState.mana)}/${gameState.maxMana}`;
+            ui.manaBar.style.width = `${Math.min(100, (gameState.mana / gameState.maxMana) * 100)}%`;
+        }
+    }
+    if (ui.combatManaWrapper) {
+        ui.combatManaWrapper.classList.toggle('hidden', !hasSpellEquipped);
+        if (hasSpellEquipped) {
+            ui.combatManaText.innerText = `${Math.round(gameState.mana)}/${gameState.maxMana}`;
+            ui.combatManaBar.style.width = `${Math.min(100, (gameState.mana / gameState.maxMana) * 100)}%`;
+        }
+    }
+
     // Mise à jour du temps
     ui.timeText.innerText = formatTimeRemaining(gameState.timeLeft);    const timePercentage = (gameState.timeLeft / gameState.maxTime) * 100;
     ui.timeBar.style.width = `${timePercentage}%`;
@@ -446,6 +484,24 @@ function updateUI() {
             ui.btnAttackRanged.disabled = !rangedUsable;
             ui.btnAttackRanged.classList.toggle('opacity-40', !rangedUsable);
             ui.btnAttackRanged.classList.toggle('pointer-events-none', !rangedUsable);
+        }
+        // Magie : un seul sort équipé à la fois (gameState.equipment.spell), mais sa catégorie
+        // (melee/ranged) le fait se comporter exactement comme Arme/Tir — grisé au mauvais écart, ou
+        // sans mana suffisant, ou sans aucun sort équipé. Le libellé du bouton reflète le sort
+        // équipé (nom, icône, coût), sinon une invitation neutre à passer par le Grimoire.
+        if (ui.btnAttackMagic) {
+            const spell = gameState.equipment.spell;
+            let magicUsable = false;
+            if (spell) {
+                const spellDistanceOk = spell.spellCategory === 'melee' ? atMelee : !atMelee;
+                magicUsable = spellDistanceOk && gameState.mana >= spell.manaCost;
+            }
+            ui.btnAttackMagic.disabled = !magicUsable;
+            ui.btnAttackMagic.classList.toggle('opacity-40', !magicUsable);
+            ui.btnAttackMagic.classList.toggle('pointer-events-none', !magicUsable);
+            ui.btnAttackMagic.innerHTML = spell
+                ? `${spell.icon || '✨'} ${spell.spellName}<span class="block text-[8px] normal-case opacity-70">🔷 ${spell.manaCost}</span>`
+                : `✨ Magie<span class="block text-[8px] normal-case opacity-70">(aucun sort)</span>`;
         }
         // S'approcher (attemptSprint) / S'éloigner (attemptRetreat) : TOUJOURS affichés pendant un
         // combat, jamais masqués — seulement grisés à l'extrémité correspondante (rien à combler à
@@ -724,6 +780,43 @@ function updateInventoryUI() {
     }
 }
 
+// Grimoire : sort équipé + liste des parchemins en réserve (gameState.spellbook), chacun avec un
+// bouton "Équiper" (voir equipSpell()). Même esprit que la partie équipement de updateInventoryUI(),
+// mais sur un inventaire séparé, jamais limité (voir addLoot()).
+function updateSpellbookUI() {
+    if (ui.equippedSpell) {
+        ui.equippedSpell.innerText = gameState.equipment.spell ? formatItemDisplayName(gameState.equipment.spell) : "Aucun";
+    }
+    if (!ui.spellbookCards) return;
+
+    ui.spellbookCards.innerHTML = "";
+    if (gameState.spellbook.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = "col-span-2 text-[10px] text-gray-600 italic";
+        empty.innerText = "Aucun parchemin appris pour l'instant.";
+        ui.spellbookCards.appendChild(empty);
+        return;
+    }
+
+    gameState.spellbook.forEach((spell, i) => {
+        const rarityColor = spell.rarityColor || "#57534e";
+        const categoryLabel = spell.spellCategory === 'melee' ? "Corps à corps" : "À distance";
+        const card = document.createElement('div');
+        card.className = "mini-card rounded-lg p-2 flex flex-col gap-1 text-center relative";
+        card.style.borderColor = rarityColor;
+        card.style.borderWidth = "2px";
+        card.innerHTML = `
+            <div class="text-xl leading-none">${spell.icon || '✨'}</div>
+            <div class="text-[10px] font-bold leading-tight">${spell.spellName}</div>
+            ${spell.rarity ? `<div class="text-[8px] font-bold uppercase tracking-wider" style="color:${rarityColor}">${spell.rarity}</div>` : ""}
+            <div class="text-[9px] text-stone-600">${categoryLabel} · ⚔️ +${spell.baseDmg} · 🔷 ${spell.manaCost}</div>
+            <button data-action="equip" class="mt-1 text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>
+        `;
+        card.querySelector('[data-action="equip"]').addEventListener('click', () => equipSpell(i));
+        ui.spellbookCards.appendChild(card);
+    });
+}
+
 // ==========================================
 // SYSTÈME D'ÉQUIPEMENT ET DE CONSOMMABLES
 // ==========================================
@@ -799,14 +892,43 @@ function equipItem(index) {
     updateInventoryUI();
 }
 
-// Consomme un objet de type consommable : soigne puis disparaît de l'inventaire
+// Équipe un sort depuis le grimoire (gameState.spellbook). Même principe que equipItem() : l'éventuel
+// sort déjà équipé retourne dans le grimoire (jamais de perte). La toute première fois qu'un sort est
+// équipé, la barre de mana apparaît pleine (comme les PV au niveau 1) — les équipements suivants ne
+// la réinitialisent pas.
+function equipSpell(index) {
+    const spell = gameState.spellbook[index];
+    if (!spell) return;
+
+    const previouslyEquipped = gameState.equipment.spell;
+    gameState.equipment.spell = spell;
+    gameState.spellbook.splice(index, 1);
+    if (previouslyEquipped) {
+        gameState.spellbook.push(previouslyEquipped);
+    } else {
+        gameState.mana = gameState.maxMana;
+    }
+
+    logEvent(`Vous équipez le sort [${formatItemDisplayName(spell)}].`, "info");
+    updateUI();
+    updateSpellbookUI();
+}
+
+// Consomme un objet de type consommable : soigne et/ou restaure du mana, puis disparaît de
+// l'inventaire. `mana` (voir items.js) n'a d'effet visible que si un sort est équipé, exactement
+// comme la barre de mana elle-même — mais reste consommé normalement dans le cas contraire.
 function useConsumable(index) {
     const item = gameState.inventory[index];
     if (!item) return;
 
     const healAmount = item.heal || 0;
+    const manaAmount = item.mana || 0;
     gameState.hp = Math.min(gameState.maxHp, gameState.hp + healAmount);
-    logEvent(`Vous consommez [${item.name}] et récupérez ${healAmount} PV.`, "success");
+    gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaAmount);
+    const parts = [];
+    if (healAmount > 0) parts.push(`${healAmount} PV`);
+    if (manaAmount > 0) parts.push(`${manaAmount} Mana`);
+    logEvent(`Vous consommez [${item.name}]${parts.length ? ` et récupérez ${parts.join(" et ")}` : ""}.`, "success");
 
     gameState.inventory.splice(index, 1);
     updateUI();
@@ -817,20 +939,32 @@ function useConsumable(index) {
 // 3. MOTEUR DE PROBABILITÉS ET ÉVÉNEMENTS
 // ==========================================
 
-// Compte une "carte calme" (événement 🌑 Silence) et déclenche une petite régénération de PV hors
-// combat tous les 2 à 3 tirages de ce type (seuil re-tiré à chaque déclenchement). Volontairement
-// plus modeste qu'une salle sécurisée (qui reste la vraie source de soin fiable) : un filet de
-// sécurité léger, pas un substitut.
+// Compte une "carte calme" (événement 🌑 Silence) et déclenche une petite régénération de PV ET de
+// mana hors combat tous les 2 à 3 tirages de ce type (seuil re-tiré à chaque déclenchement).
+// Volontairement plus modeste qu'une salle sécurisée (qui reste la vraie source de soin fiable) : un
+// filet de sécurité léger, pas un substitut. Le mana ne régénère que si un sort est équipé (sinon la
+// barre n'existe pas côté joueur) ; sa vitesse de réplétion (montant régénéré par tirage) grimpe avec
+// le niveau de compétence Magie.
 function registerCalmCard() {
-    if (gameState.hp >= gameState.maxHp) return; // Rien à régénérer, on ne consomme pas le compteur
+    const hpNeeded = gameState.hp < gameState.maxHp;
+    const manaNeeded = !!gameState.equipment.spell && gameState.mana < gameState.maxMana;
+    if (!hpNeeded && !manaNeeded) return; // Rien à régénérer, on ne consomme pas le compteur
     gameState.calmCardsSinceRegen += 1;
     if (gameState.calmCardsSinceRegen < gameState.calmCardsRegenThreshold) return;
 
     gameState.calmCardsSinceRegen = 0;
     gameState.calmCardsRegenThreshold = 2 + Math.floor(Math.random() * 2); // Nouveau seuil : 2 ou 3
-    const heal = 4 + Math.floor(Math.random() * 5); // 4 à 8 PV
-    gameState.hp = Math.min(gameState.maxHp, gameState.hp + heal);
-    logEvent(`Une pause bienvenue vous permet de reprendre votre souffle (+${heal} PV).`, "success");
+    if (hpNeeded) {
+        const heal = 4 + Math.floor(Math.random() * 5); // 4 à 8 PV
+        gameState.hp = Math.min(gameState.maxHp, gameState.hp + heal);
+        logEvent(`Une pause bienvenue vous permet de reprendre votre souffle (+${heal} PV).`, "success");
+    }
+    if (manaNeeded) {
+        const magicLevel = gameState.skills.magic.level;
+        const manaGain = 6 + Math.floor(Math.random() * 5) + Math.floor(magicLevel * 1.5); // 6-10 + bonus de niveau
+        gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaGain);
+        logEvent(`Vous recanalisez votre énergie magique (+${manaGain} Mana).`, "success");
+    }
 }
 
 function resolveCardEvent() {
@@ -1361,9 +1495,17 @@ function getLootPowerScore(enemy) {
 
 // Ajoute un objet généré à l'inventaire. Les consommables ne sont jamais limités (slots dédiés
 // infinis) ; seuls les objets d'équipement (armes/armures/armes à distance) comptent dans la
-// capacité limitée (gameState.maxInventory).
+// capacité limitée (gameState.maxInventory). Un parchemin de sort (catégorie 'scrolls') rejoint
+// gameState.spellbook (inventaire magique dédié) plutôt que gameState.inventory : lui non plus
+// n'est jamais limité, au même titre que les consommables (voir equipSpell()).
 function addLoot(powerScore = 0) {
     const item = generateItem(powerScore);
+    if (item.category === 'scrolls') {
+        gameState.spellbook.push(item);
+        logEvent(`Sort appris : [${formatItemDisplayName(item)}] !`, "loot");
+        updateSpellbookUI();
+        return;
+    }
     const isConsumable = item.category === 'consumables';
     const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
     if (isConsumable || equipmentCount < gameState.maxInventory) {
@@ -2455,11 +2597,17 @@ function resolveEnemyCounterAttack() {
         return;
     }
 
-    // Compagnon "Premiers secours" : chance de soigner le joueur après la riposte ennemie
+    // Compagnon "Premiers secours" : chance de soigner le joueur après la riposte ennemie, et de lui
+    // restaurer un peu de mana au passage si un sort est équipé.
     if (gameState.companion && gameState.companion.specialty.type === 'medic' && Math.random() * 100 < 25) {
         const heal = 8 + Math.floor(Math.random() * 8); // 8 à 15 PV
         gameState.hp = Math.min(gameState.maxHp, gameState.hp + heal);
         logEvent(`${gameState.companion.name} vous soigne rapidement ! (+${heal} PV)`, "success");
+        if (gameState.equipment.spell && gameState.mana < gameState.maxMana) {
+            const manaGain = 6 + Math.floor(Math.random() * 6); // 6 à 11 Mana
+            gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaGain);
+            logEvent(`${gameState.companion.name} restaure aussi un peu de votre mana ! (+${manaGain} Mana)`, "success");
+        }
     }
 
     applyMobEffectOnPlayer(enemy);
@@ -2635,14 +2783,35 @@ function attemptRetreat() {
     safeEnemyCounterAttack();
 }
 
-// Magie : la plus puissante en moyenne, mais imprévisible, et peut totalement rater (thème absurde/chaotique).
-// Chaque niveau de compétence Magie réduit le risque de rater son sort ET augmente légèrement sa puissance.
-// Pour l'instant, la Magie est considérée à la fois comme une arme de mêlée ET à distance : elle
-// ignore totalement la mécanique de distance (toujours disponible, jamais bloquée ni protégée) —
-// un vrai carnet de sorts/mana viendra plus tard réviser tout ça en profondeur.
-// (Plus tard : nécessitera un sort appris et du mana.)
+// Magie : la plus puissante en moyenne, mais imprévisible, et peut totalement rater (thème
+// absurde/chaotique). Chaque niveau de compétence Magie réduit le risque de rater son sort ET
+// augmente légèrement sa puissance. Un seul sort équipé à la fois (gameState.equipment.spell, voir
+// equipSpell()) : sa catégorie (melee/ranged) le fait se comporter exactement comme Arme/Tir —
+// utilisable uniquement à l'écart correspondant, grisé sinon (voir updateUI()). Consomme du mana à
+// chaque tentative, réussie ou non (le sort "part" quand même) ; insuffisant, il ne peut pas être
+// lancé du tout.
 function attackMagic() {
+    const spell = gameState.equipment.spell;
+    if (!spell) {
+        logEvent("Vous n'avez aucun sort équipé — direction le Grimoire !", "danger");
+        return;
+    }
+    const needsMelee = spell.spellCategory === 'melee';
+    if (needsMelee && gameState.combatDistance > 0) {
+        logEvent(`Trop loin pour lancer [${spell.spellName}] — approchez-vous !`, "danger");
+        return;
+    }
+    if (!needsMelee && gameState.combatDistance <= 0) {
+        logEvent(`Trop près pour lancer [${spell.spellName}] — éloignez-vous !`, "danger");
+        return;
+    }
+    if (gameState.mana < spell.manaCost) {
+        logEvent(`Mana insuffisant pour lancer [${spell.spellName}] (${spell.manaCost} requis).`, "danger");
+        return;
+    }
     if (!tryPlayerAction()) return;
+
+    gameState.mana -= spell.manaCost;
 
     const skill = gameState.skills.magic;
     const backfireChance = Math.max(3, 15 - 1.5 * (skill.level - 1)); // 15% de base, jusqu'à 3% minimum
@@ -2650,16 +2819,17 @@ function attackMagic() {
 
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
-        logEvent("Votre sort part de travers et fait un flop retentissant. Aucun dégât.", "danger");
+        logEvent(`[${spell.spellName}] part de travers et fait un flop retentissant. Aucun dégât (mana quand même dépensé).`, "danger");
         resolveEnemyReaction(); // Un mob de mêlée hors de portée ne peut pas punir ce tour perdu, mais tente de se rapprocher
         gainSkillXp('magic', SKILL_XP_PER_USE); // On apprend même de ses échecs
         return;
     }
 
+    const effectiveAtk = gameState.atk + (spell.baseDmg || 0);
     const used = performPlayerAttack(
-        gameState.atk,
+        effectiveAtk,
         { atkMultiplier, varianceRange: 0.35, defReduction: 0 },
-        "magiquement"
+        `avec [${spell.spellName}]`
     );
     if (used) gainSkillXp('magic', SKILL_XP_PER_USE);
 }
@@ -2967,6 +3137,7 @@ ui.btnDevLogs.addEventListener('click', () => {
 generateFloorMap();
 updateUI();
 updateInventoryUI();
+updateSpellbookUI();
 updateKnownLocationsUI();
 updateCompanionUI();
 

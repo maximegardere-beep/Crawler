@@ -65,6 +65,7 @@ try {
         assert(!Number.isNaN(gameState.hp), `hp devient NaN à l'étape ${steps}`);
         assert(gameState.hp <= gameState.maxHp, `hp dépasse maxHp à l'étape ${steps}`);
         assert(gameState.combatDistance >= 0 && gameState.combatDistance <= config.rangedCombat.maxDistance, `combatDistance hors bornes à l'étape ${steps}`);
+        assert(!Number.isNaN(gameState.mana) && gameState.mana >= 0 && gameState.mana <= gameState.maxMana, `mana hors bornes à l'étape ${steps}`);
         if (gameState.companion) {
             assert(gameState.companion.leaveChance >= 0 && gameState.companion.leaveChance <= 100, `leaveChance hors bornes à l'étape ${steps}`);
         }

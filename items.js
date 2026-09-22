@@ -82,8 +82,10 @@ const baseItems = {
         { name: "Gilet de Sécurité Chantier", baseArmor: 9, baseValue: 20 }
     ],
     // Note : les enchantements sur les consommables restent purement cosmétiques pour l'instant
-    // (aucune mécanique n'est câblée sur useConsumable()) — seul `heal` est mis à l'échelle par la
-    // rareté. canEnchant:false ici sert juste à garder certains objets volontairement "nuls".
+    // (aucune mécanique n'est câblée sur useConsumable()) — seuls `heal` et `mana` sont mis à
+    // l'échelle par la rareté. canEnchant:false ici sert juste à garder certains objets volontairement
+    // "nuls". `mana` restaure du mana (voir useConsumable() dans app.js) : n'a d'effet que si un sort
+    // est équipé (gameState.equipment.spell), comme la barre de mana elle-même.
     consumables: [
         { name: "Café Froid", heal: 15, baseValue: 5, canEnchant: false },
         { name: "Barre Céréalière Douteuse", heal: 25, baseValue: 10 },
@@ -96,7 +98,10 @@ const baseItems = {
         { name: "Bonbon Explosif", heal: 5, baseValue: 3 },
         { name: "Perfusion de Sponsor", heal: 60, baseValue: 30 },
         { name: "Barbe à Papa Périmée", heal: 22, baseValue: 9 },
-        { name: "Boisson Isotonique Suspecte", heal: 35, baseValue: 16 }
+        { name: "Boisson Isotonique Suspecte", heal: 35, baseValue: 16 },
+        { name: "Flasque d'Essence Arcanique", heal: 0, mana: 45, baseValue: 22, canEnchant: false },
+        { name: "Chewing-gum Ectoplasmique", heal: 10, mana: 25, baseValue: 18 },
+        { name: "Encre de Calamar Luminescent", heal: 0, mana: 35, baseValue: 20 }
     ]
 };
 
