@@ -204,6 +204,88 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
 }
 
 // ===================================================================
+// resolveEnemyReaction() : un mob de mêlée hors de portée ne reste plus figé — il tente de
+// combler l'écart au lieu de rester totalement bloqué (Magie, étourdissement, fuite ratée, ...).
+// Reproduit le scénario du rapport : Magie répétée face à un mob CAC en posture "à distance".
+// ===================================================================
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.level = 1;
+    gameState.stance = 'ranged';
+    gameState.hp = gameState.maxHp = 100;
+    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {} };
+    gameState.combatDistance = config.rangedCombat.maxDistance;
+
+    const originalRandom = Math.random;
+    // Séquence par cast de Magie : [pas de backfire, variance de dégâts, dé joueur bas, dé mob haut]
+    // -> le mob gagne systématiquement la manche de rapprochement déclenchée par resolveEnemyReaction().
+    const seq = [0.5, 0.5, 0, 0.999];
+    let idx = 0;
+    Math.random = () => seq[(idx++) % seq.length];
+
+    // enemyCounterAttack() verrouille les boutons de combat de façon SYNCHRONE avant de différer
+    // les dégâts eux-mêmes (setTimeout) : ce verrouillage sert de témoin fiable "une vraie riposte
+    // a bien été déclenchée ce tour-ci", sans dépendre du délai (voir setCombatInputLocked()).
+    // btnFlee (et non btnAttackWeapon) : updateUI() grise/dégrise lui-même btnAttackWeapon selon
+    // l'écart courant, indépendamment de toute riposte — un témoin pollué par ce même effet de bord
+    // que resolveEnemyReaction() déclenche volontairement (rafraîchir la barre après un rapprochement).
+    ui.btnFlee.disabled = false;
+    attackMagic();
+    assert(gameState.combatDistance < config.rangedCombat.maxDistance, "resolveEnemyReaction() : un mob de mêlée hors de portée avance quand même vers le joueur (S2 corrigé)");
+    assert(ui.btnFlee.disabled === false, "resolveEnemyReaction() : tant que l'écart tient, le mob de mêlée ne peut pas riposter (S1 corrigé)");
+
+    attackMagic(); // Doit combler l'écart restant (8 - 5 - 5 < 0) et enfin riposter pour de vrai
+    Math.random = originalRandom;
+    assert(gameState.combatDistance === 0, "resolveEnemyReaction() : le mob finit par combler l'écart");
+    assert(ui.btnFlee.disabled === true, "resolveEnemyReaction() : une fois l'écart comblé, la riposte se déclenche normalement");
+}
+{
+    // attemptRetreat() : si le jet réussit (écart rouvert), la riposte ne doit plus porter —
+    // avant correctif, enemyCounterAttack() était inconditionnelle même après un recul réussi.
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.level = 1;
+    gameState.stance = 'ranged';
+    gameState.hp = gameState.maxHp = 100;
+    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {} };
+    gameState.combatDistance = 0; // rattrapé au corps à corps, tente de reculer
+
+    const originalRandom = Math.random;
+    let idx = 0;
+    const seq = [0.999, 0.999, 0]; // dés du joueur au plus haut, dé du mob au plus bas -> le recul réussit
+    Math.random = () => seq[(idx++) % seq.length];
+    ui.btnFlee.disabled = false;
+    attemptRetreat();
+    Math.random = originalRandom;
+
+    assert(gameState.combatDistance > 0, "attemptRetreat() : le jet gagnant rouvre bien l'écart");
+    assert(ui.btnFlee.disabled === false, "attemptRetreat() : aucune riposte ne se déclenche une fois l'écart rouvert (bug du rapport corrigé)");
+}
+{
+    // Fuite ratée sans action gated : l'écart doit quand même évoluer grâce à resolveEnemyReaction().
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.level = 1;
+    gameState.stance = 'ranged';
+    gameState.hp = gameState.maxHp = 100;
+    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {} };
+    gameState.combatDistance = config.rangedCombat.maxDistance;
+
+    const originalRandom = Math.random;
+    let idx = 0;
+    // fleeChance=60 : premier appel >= 0.6 force l'échec de la fuite ; puis dé joueur bas, dé mob haut.
+    const seq = [0.99, 0, 0.999];
+    Math.random = () => seq[(idx++) % seq.length];
+    ui.btnFlee.disabled = false;
+    attemptFlee();
+    Math.random = originalRandom;
+
+    assert(gameState.combatDistance < config.rangedCombat.maxDistance, "Fuite ratée : le mob de mêlée avance même sur un tour sans action gated");
+    assert(ui.btnFlee.disabled === false, "Fuite ratée : le mob n'a pas pu riposter tant que l'écart n'est pas comblé");
+}
+
+// ===================================================================
 // Barre de distance : le mob est toujours à gauche, le joueur toujours à droite
 // ===================================================================
 {
