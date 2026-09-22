@@ -2042,14 +2042,14 @@ function attackUnarmed() {
 // Magie : la plus puissante en moyenne, mais imprévisible, et peut totalement rater (thème absurde/chaotique).
 // Chaque niveau de compétence Magie réduit le risque de rater son sort ET augmente légèrement sa puissance.
 // (Plus tard : nécessitera un sort appris et du mana.)
+// Magie : la plus puissante en moyenne, mais imprévisible, et peut totalement rater (thème absurde/chaotique).
+// Chaque niveau de compétence Magie réduit le risque de rater son sort ET augmente légèrement sa puissance.
+// Pour l'instant, la Magie est considérée à la fois comme une arme de mêlée ET à distance : elle
+// ignore totalement la mécanique de distance (jamais bloquée, jamais "avantagée" non plus) — un
+// vrai carnet de sorts/mana viendra plus tard réviser tout ça en profondeur.
+// (Plus tard : nécessitera un sort appris et du mana.)
 function attackMagic() {
     if (!tryPlayerAction()) return;
-
-    const ctx = getCombatRangeContext();
-    if (ctx.playerDisadvantaged) {
-        performChaseAction("canaliser votre magie en avançant");
-        return;
-    }
 
     const skill = gameState.skills.magic;
     const backfireChance = Math.max(3, 15 - 1.5 * (skill.level - 1)); // 15% de base, jusqu'à 3% minimum
@@ -2058,7 +2058,7 @@ function attackMagic() {
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
         logEvent("Votre sort part de travers et fait un flop retentissant. Aucun dégât.", "danger");
-        if (ctx.playerAdvantaged) resolveDistanceTickAdvantaged(); else enemyCounterAttack();
+        enemyCounterAttack();
         gainSkillXp('magic', SKILL_XP_PER_USE); // On apprend même de ses échecs
         return;
     }
@@ -2066,8 +2066,7 @@ function attackMagic() {
     const used = performPlayerAttack(
         gameState.atk,
         { atkMultiplier, varianceRange: 0.35, defReduction: 0 },
-        "magiquement",
-        ctx.playerAdvantaged ? resolveDistanceTickAdvantaged : null
+        "magiquement"
     );
     if (used) gainSkillXp('magic', SKILL_XP_PER_USE);
 }
