@@ -68,29 +68,29 @@ const baseMobs = [
     { name: "Tulipe Géante", hp: 40, atk: 10, def: 3, xpReward: 12, allowedTags: ["elemental", "physical"] },
     { name: "Ronce Étrangleuse", hp: 60, atk: 15, def: 5, xpReward: 18, allowedTags: ["elemental", "physical"] },
     { name: "Gobelin Paysagiste", hp: 35, atk: 7, def: 2, xpReward: 12, allowedTags: ["mental", "physical", "elemental"] },
-    { name: "Photocopieuse Carnivore", hp: 100, atk: 10, def: 6, xpReward: 55, allowedTags: ["elemental", "physical"] },
+    { name: "Photocopieuse Carnivore", hp: 100, atk: 10, def: 6, xpReward: 55, allowedTags: ["elemental", "physical"], ranged: true },
     { name: "Stagiaire Démoniaque", hp: 25, atk: 4, def: 1, xpReward: 8, allowedTags: ["mental", "physical", "elemental"] },
-    { name: "Garde-Chiourme Bureaucrate", hp: 70, atk: 11, def: 8, xpReward: 25, allowedTags: ["mental", "physical"] },
+    { name: "Garde-Chiourme Bureaucrate", hp: 70, atk: 11, def: 8, xpReward: 25, allowedTags: ["mental", "physical"], ranged: true },
     { name: "Saucisse Vivante", hp: 50, atk: 12, def: 3, xpReward: 15, allowedTags: ["elemental", "physical"] },
     { name: "Fromage qui Pue", hp: 80, atk: 5, def: 12, xpReward: 20, allowedTags: ["elemental", "physical"] },
     { name: "Ouvrier à la Chaîne", hp: 60, atk: 14, def: 4, xpReward: 25, allowedTags: ["mental", "physical", "elemental"] },
     { name: "Livre Maudit", hp: 40, atk: 8, def: 5, xpReward: 18, allowedTags: ["elemental", "physical"] },
-    { name: "Bibliothécaire Fantôme", hp: 55, atk: 9, def: 6, xpReward: 22, allowedTags: ["mental", "physical", "elemental"] },
+    { name: "Bibliothécaire Fantôme", hp: 55, atk: 9, def: 6, xpReward: 22, allowedTags: ["mental", "physical", "elemental"], ranged: true },
     { name: "Encre Vivante", hp: 30, atk: 10, def: 2, xpReward: 10, allowedTags: ["elemental", "physical"] },
-    { name: "Savant Dingue", hp: 50, atk: 15, def: 3, xpReward: 30, allowedTags: ["mental", "physical", "elemental"] },
+    { name: "Savant Dingue", hp: 50, atk: 15, def: 3, xpReward: 30, allowedTags: ["mental", "physical", "elemental"], ranged: true },
     { name: "Créature en Bocaux", hp: 65, atk: 12, def: 4, xpReward: 25, allowedTags: ["elemental", "physical"] },
-    { name: "Robot Défectueux", hp: 90, atk: 10, def: 8, xpReward: 40, allowedTags: ["elemental", "physical"] },
+    { name: "Robot Défectueux", hp: 90, atk: 10, def: 8, xpReward: 40, allowedTags: ["elemental", "physical"], ranged: true },
     { name: "Mime Aggressif", hp: 45, atk: 10, def: 5, xpReward: 20, allowedTags: ["mental", "physical", "elemental"] },
     { name: "Ombre Suspicieuse", hp: 50, atk: 12, def: 3, xpReward: 25, allowedTags: ["elemental", "physical"] },
-    { name: "Miroir Brisé", hp: 60, atk: 8, def: 7, xpReward: 30, allowedTags: ["elemental", "physical"] },
+    { name: "Miroir Brisé", hp: 60, atk: 8, def: 7, xpReward: 30, allowedTags: ["elemental", "physical"], ranged: true },
     { name: "Chaussette Solitaire", hp: 20, atk: 2, def: 1, xpReward: 5, allowedTags: ["elemental", "physical"] },
-    { name: "Lave-Linge Possédé", hp: 110, atk: 14, def: 8, xpReward: 50, allowedTags: ["elemental", "physical"] },
+    { name: "Lave-Linge Possédé", hp: 110, atk: 14, def: 8, xpReward: 50, allowedTags: ["elemental", "physical"], ranged: true },
     { name: "Monstre de Poussière", hp: 40, atk: 6, def: 3, xpReward: 10, allowedTags: ["elemental", "physical"] },
-    { name: "Marchand Malhonnête", hp: 70, atk: 8, def: 6, xpReward: 35, allowedTags: ["mental", "physical", "elemental"] },
+    { name: "Marchand Malhonnête", hp: 70, atk: 8, def: 6, xpReward: 35, allowedTags: ["mental", "physical", "elemental"], ranged: true },
     { name: "Sac de Pièces Vivant", hp: 50, atk: 10, def: 5, xpReward: 20, allowedTags: ["elemental", "physical"] },
-    { name: "Garde du Marché", hp: 90, atk: 12, def: 7, xpReward: 45, allowedTags: ["mental", "physical", "elemental"] },
+    { name: "Garde du Marché", hp: 90, atk: 12, def: 7, xpReward: 45, allowedTags: ["mental", "physical", "elemental"], ranged: true },
     { name: "Imprimante à Rêves", hp: 80, atk: 10, def: 5, xpReward: 40, allowedTags: ["elemental", "physical"] },
-    { name: "Ordinateur en Colère", hp: 100, atk: 15, def: 8, xpReward: 50, allowedTags: ["elemental", "physical"] },
+    { name: "Ordinateur en Colère", hp: 100, atk: 15, def: 8, xpReward: 50, allowedTags: ["elemental", "physical"], ranged: true },
     { name: "Câble Électrique Vivant", hp: 30, atk: 12, def: 2, xpReward: 15, allowedTags: ["elemental", "physical"] }
 ];
 
@@ -101,14 +101,14 @@ function findMobByName(name) {
 const districtBosses = {
     "Tunnels de Métro Abandonnés": { name: "Le Chef de Gare Nécrosé", hp: 220, atk: 15, def: 10, xpReward: 90, effect: "stun", isBoss: true },
     "Jardins Carnivores": { name: "La Mère-Liane", hp: 210, atk: 14, def: 9, xpReward: 90, effect: "poison", isBoss: true },
-    "Bureaux de l'Administration Pénitentiaire": { name: "Le Directeur Général (Édition Cauchemar)", hp: 230, atk: 16, def: 11, xpReward: 100, effect: "slow", isBoss: true },
+    "Bureaux de l'Administration Pénitentiaire": { name: "Le Directeur Général (Édition Cauchemar)", hp: 230, atk: 16, def: 11, xpReward: 100, effect: "slow", isBoss: true, ranged: true },
     "Usine de Transformation Alimentaire": { name: "Le Boucher Sans Visage", hp: 250, atk: 18, def: 12, xpReward: 110, effect: "bleed", isBoss: true },
     "Bibliothèque des Oubliés": { name: "Le Gardien des Mots Perdus", hp: 240, atk: 17, def: 10, xpReward: 120, effect: "confusion", isBoss: true },
     "Laboratoire de Fous": { name: "Le Professeur Démentiel", hp: 260, atk: 20, def: 8, xpReward: 130, effect: "poison", isBoss: true },
     "Rue des Illusions": { name: "Le Maître des Illusions", hp: 220, atk: 16, def: 9, xpReward: 100, effect: "confusion", isBoss: true },
     "Catacombes des Chaussettes Perdues": { name: "Le Roi des Chaussettes Solitaires", hp: 200, atk: 14, def: 13, xpReward: 90, effect: "slow", isBoss: true },
     "Marché Noir du Donjon": { name: "Le Baron des Ombres", hp: 270, atk: 19, def: 14, xpReward: 140, effect: "stun", isBoss: true },
-    "Salle des Machines Infernales": { name: "L'IA Malveillante", hp: 300, atk: 22, def: 15, xpReward: 150, effect: "stun", isBoss: true }
+    "Salle des Machines Infernales": { name: "L'IA Malveillante", hp: 300, atk: 22, def: 15, xpReward: 150, effect: "stun", isBoss: true, ranged: true }
 };
 
 function findBossForDistrict(districtName) {
