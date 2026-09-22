@@ -195,6 +195,12 @@
         .fx-feared {
             animation: fxTremorFear 0.9s ease-in-out infinite;
         }
+
+        /* Profil joueur compact : masque le triangle natif du <summary> (Tailwind list-none suffit
+           sur Chrome/Firefox, mais Safari utilise son propre pseudo-élément dédié). */
+        #player-profile > summary::-webkit-details-marker {
+            display: none;
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-200 min-h-screen flex justify-center items-center py-6 px-4 selection:bg-blue-900 selection:text-white">
@@ -208,63 +214,70 @@
              updateUI() -> applyScreenStateEffects() dans app.js. -->
         <div id="screen-fx-overlay" class="absolute inset-0 rounded-xl pointer-events-none z-40"></div>
         
-        <!-- 1. Header : Infos du Joueur -->
-        <header class="flex flex-wrap justify-between items-end border-b border-gray-800 pb-2 gap-3">
-            <div>
-                <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-200 drop-shadow-[0_0_10px_rgba(96,165,250,0.6)] uppercase tracking-wider" id="player-name">
-                    CRAWLER_01
-                </h1>
-                <p class="text-sm text-gray-500 mt-1">
-                    Étage : <span id="floor-level" class="text-blue-400 font-bold">1</span> | 
-                    Quartier : <span id="district-name" class="text-blue-400 font-bold">Chargement...</span> |
-                    Niveau : <span id="player-level" class="text-green-400 font-bold">1</span>
-                </p>
-                <div class="w-48 max-w-full bg-gray-950 rounded-full h-2 border border-gray-800 overflow-hidden mt-2">
-                    <div id="xp-bar" class="bg-green-600 h-full rounded-full shadow-[0_0_8px_rgba(34,197,94,0.8)] transition-all duration-500" style="width: 0%"></div>
+        <!-- 1. Header : profil compact du joueur. Nom + niveau toujours visibles sur une seule ligne
+             cliquable ; la barre de niveau (XP) et les 4 barres de compétences ne sont révélées qu'au
+             clic, dans le <details> natif (même mécanisme que "Journal complet" plus bas), pour ne
+             pas encombrer le haut de l'UI en permanence. -->
+        <header class="border-b border-gray-800 pb-2">
+            <details id="player-profile" class="group">
+                <summary class="flex items-center gap-2 cursor-pointer select-none py-1 list-none">
+                    <span class="text-2xl leading-none shrink-0">👤</span>
+                    <span id="player-name" class="flex-1 min-w-0 truncate text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-200 uppercase tracking-wider">CRAWLER_01</span>
+                    <span class="text-xs text-green-400 font-bold uppercase tracking-widest shrink-0">Nv. <span id="player-level">1</span></span>
+                    <span class="text-gray-600 text-[10px] shrink-0 transition-transform group-open:rotate-180">▾</span>
+                </summary>
+                <div class="pl-6 pt-2 flex flex-col gap-3">
+                    <div>
+                        <div class="w-48 max-w-full bg-gray-950 rounded-full h-2 border border-gray-800 overflow-hidden">
+                            <div id="xp-bar" class="bg-green-600 h-full rounded-full shadow-[0_0_8px_rgba(34,197,94,0.8)] transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <p class="text-[10px] text-gray-600 mt-0.5 uppercase tracking-widest">XP : <span id="xp-text">0/50</span></p>
+                    </div>
+                    <div class="grid grid-cols-4 gap-1.5 bg-gray-950/60 border border-gray-800 rounded-lg p-2.5">
+                        <div class="flex flex-col gap-1 min-w-0">
+                            <div class="flex flex-col gap-0.5 text-[9px] uppercase tracking-widest text-gray-500 leading-tight">
+                                <span class="truncate">⚔️ Arme</span>
+                                <span id="skill-weapon-level" class="text-red-400 font-bold text-[10px]">Nv.1</span>
+                            </div>
+                            <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                                <div id="skill-weapon-bar" class="bg-red-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-1 min-w-0">
+                            <div class="flex flex-col gap-0.5 text-[9px] uppercase tracking-widest text-gray-500 leading-tight">
+                                <span class="truncate">👊 Mains nues</span>
+                                <span id="skill-unarmed-level" class="text-orange-400 font-bold text-[10px]">Nv.1</span>
+                            </div>
+                            <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                                <div id="skill-unarmed-bar" class="bg-orange-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-1 min-w-0">
+                            <div class="flex flex-col gap-0.5 text-[9px] uppercase tracking-widest text-gray-500 leading-tight">
+                                <span class="truncate">✨ Magie</span>
+                                <span id="skill-magic-level" class="text-purple-400 font-bold text-[10px]">Nv.1</span>
+                            </div>
+                            <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                                <div id="skill-magic-bar" class="bg-purple-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-1 min-w-0">
+                            <div class="flex flex-col gap-0.5 text-[9px] uppercase tracking-widest text-gray-500 leading-tight">
+                                <span class="truncate">🥷 Furtivité</span>
+                                <span id="skill-stealth-level" class="text-slate-400 font-bold text-[10px]">Nv.1</span>
+                            </div>
+                            <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                                <div id="skill-stealth-bar" class="bg-slate-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <p class="text-[10px] text-gray-600 mt-0.5 uppercase tracking-widest">XP : <span id="xp-text">0/50</span></p>
-            </div>
+            </details>
+            <p class="text-[10px] text-gray-600 pl-6 uppercase tracking-widest">
+                Étage <span id="floor-level" class="text-blue-400 font-bold">1</span> ·
+                <span id="district-name" class="text-blue-400 font-bold">Chargement...</span>
+            </p>
         </header>
-
-        <!-- 1bis. Carte Joueur : Compétences -->
-        <section class="grid grid-cols-4 gap-2 bg-gray-950/60 border border-gray-800 rounded-lg p-3">
-            <div class="flex flex-col gap-1">
-                <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
-                    <span>⚔️ Arme</span>
-                    <span id="skill-weapon-level" class="text-red-400 font-bold">Nv.1</span>
-                </div>
-                <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
-                    <div id="skill-weapon-bar" class="bg-red-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
-                </div>
-            </div>
-            <div class="flex flex-col gap-1">
-                <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
-                    <span>👊 Mains nues</span>
-                    <span id="skill-unarmed-level" class="text-orange-400 font-bold">Nv.1</span>
-                </div>
-                <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
-                    <div id="skill-unarmed-bar" class="bg-orange-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
-                </div>
-            </div>
-            <div class="flex flex-col gap-1">
-                <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
-                    <span>✨ Magie</span>
-                    <span id="skill-magic-level" class="text-purple-400 font-bold">Nv.1</span>
-                </div>
-                <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
-                    <div id="skill-magic-bar" class="bg-purple-600 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
-                </div>
-            </div>
-            <div class="flex flex-col gap-1">
-                <div class="flex justify-between text-[10px] uppercase tracking-widest text-gray-500">
-                    <span>🥷 Furtivité</span>
-                    <span id="skill-stealth-level" class="text-slate-400 font-bold">Nv.1</span>
-                </div>
-                <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
-                    <div id="skill-stealth-bar" class="bg-slate-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
-                </div>
-            </div>
-        </section>
 
         <!-- 2. Temps Restant (Barre de progression) -->
         <section class="flex flex-col gap-1">
