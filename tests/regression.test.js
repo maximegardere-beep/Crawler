@@ -320,6 +320,59 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
 }
 
 // ===================================================================
+// setCombatDistance() : la barre de distance (icônes + fill) se rafraîchit DANS LA MÊME TICK que
+// tout changement de gameState.combatDistance, sans dépendre d'une riposte différée (bug rapporté :
+// après un recul réussi contre un mob de mêlée, ou un tir qui maintient l'écart sans provoquer de
+// riposte, le schéma restait figé sur l'ancien écart — surtout visible en duel long face à un boss).
+// ===================================================================
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.level = 1;
+    gameState.stance = 'ranged';
+    gameState.currentEnemy = { name: "Boucher Sans Visage", hp: 300, maxHp: 300, atk: 20, def: 10, status: {} };
+    gameState.combatDistance = 0; // rattrapé au corps à corps
+    updateUI();
+    const beforeEnemyPos = ui.combatDistanceEnemyIcon.style.left;
+
+    const originalRandom = Math.random;
+    let idx = 0;
+    const seq = [0.999, 0.999, 0]; // dés du joueur au plus haut, dé du mob au plus bas -> le recul réussit
+    Math.random = () => seq[(idx++) % seq.length];
+    attemptRetreat();
+    Math.random = originalRandom;
+
+    assert(gameState.combatDistance > 0, "attemptRetreat() : le jet gagnant rouvre bien l'écart");
+    // Le joueur (qui veut la distance) reste ancré sur son bord tant que le mob est de mêlée : seule
+    // l'icône du mob, qui comblait l'écart, doit bouger quand celui-ci se rouvre.
+    assert(ui.combatDistanceEnemyIcon.style.left !== beforeEnemyPos, "attemptRetreat() : l'icône du mob bouge dans la même tick, sans attendre une riposte (bug rapporté corrigé)");
+}
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.level = 1;
+    gameState.stance = 'ranged';
+    gameState.equipment.ranged = { name: "Fronde d'Essai", baseDmg: 4 };
+    gameState.currentEnemy = { name: "Boucher Sans Visage", hp: 300, maxHp: 300, atk: 20, def: 10, status: {} };
+    gameState.combatDistance = 4;
+    updateUI();
+
+    const originalRandom = Math.random;
+    let idx = 0;
+    // Dé joueur haut, dé mob bas : le joueur gagne largement la manche, l'écart reste > 0 (tir qui
+    // "maintient l'écart", la branche sans riposte donc sans rafraîchissement naturel avant ce fix).
+    const seq = [0.999, 0.5, 0];
+    Math.random = () => seq[(idx++) % seq.length];
+    attackRanged();
+    Math.random = originalRandom;
+
+    assert(gameState.combatDistance > 4, "Le tir en maintien de distance élargit bien l'écart");
+    const leftAfterAction = ui.combatDistanceEnemyIcon.style.left;
+    updateUI(); // rendu de référence explicite, pour comparaison
+    assert(ui.combatDistanceEnemyIcon.style.left === leftAfterAction, "attackRanged() (maintien de l'écart, sans riposte) rafraîchit déjà la barre : pas besoin d'un updateUI() séparé");
+}
+
+// ===================================================================
 // Armure : enchantements branchés (applyArmorMechanic)
 // ===================================================================
 function freshAttacker(overrides = {}) {

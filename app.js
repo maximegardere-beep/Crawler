@@ -1932,14 +1932,28 @@ function resolveEnemyReaction() {
         enemyCounterAttack();
         return;
     }
-    resolveDistanceRound(enemy, true);
+    resolveDistanceRound(enemy, true); // rafraîchit déjà l'UI via setCombatDistance()
     if (gameState.combatDistance > 0) {
         logEvent(`[${enemy.name}] tente de combler l'écart, mais reste hors de portée pour l'instant.`, "info");
-        updateUI();
     } else {
         logEvent(`[${enemy.name}] parvient à combler l'écart !`, "danger");
         enemyCounterAttack();
     }
+}
+
+// Point de passage UNIQUE pour toute modification de l'écart de combat en cours de round (clampe
+// et rafraîchit systématiquement la barre de distance). Avant ce correctif, plusieurs chemins
+// modifiaient gameState.combatDistance directement sans jamais appeler updateUI() dans la foulée
+// (recul réussi dont la riposte se retrouve bloquée par safeEnemyCounterAttack(), tir qui maintient
+// l'écart sans provoquer de riposte...) : la barre restait figée sur l'ancien écart jusqu'à ce
+// qu'une AUTRE action déclenche enfin un rendu. Particulièrement visible en duel long face à un
+// boss de mêlée (seul cas où le cycle recul/tir dure assez longtemps pour que le décalage saute
+// aux yeux). Les 3 assignations directes dans initiateCombat() restent volontairement en dehors :
+// un updateUI() à ce stade rendrait un état transitoire (avant que renderCombatMobPanel() etc.
+// n'aient fini d'installer la carte de combat) ; l'updateUI() déjà garanti en fin de fonction suffit.
+function setCombatDistance(value) {
+    gameState.combatDistance = Math.max(0, Math.min(config.rangedCombat.maxDistance, value));
+    updateUI();
 }
 
 // Une "manche" de distance : le joueur et le monstre jettent chacun un dé (le joueur bénéficie
@@ -1952,7 +1966,7 @@ function resolveDistanceRound(enemy, playerWantsToWiden) {
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
     const diff = playerRoll - mobRoll; // positif = le joueur l'emporte ce round
     const delta = playerWantsToWiden ? diff : -diff;
-    gameState.combatDistance = Math.max(0, Math.min(cfg.maxDistance, gameState.combatDistance + delta));
+    setCombatDistance(gameState.combatDistance + delta);
     return { playerRoll, mobRoll, diff };
 }
 
@@ -2709,8 +2723,7 @@ function attemptSprint() {
     // Progression garantie : au moins 1 point d'écart comblé, même si le mob gagne le jet.
     const closingDiff = Math.max(diff, 1);
 
-    const before = gameState.combatDistance;
-    gameState.combatDistance = Math.max(0, Math.min(cfg.maxDistance, gameState.combatDistance - closingDiff));
+    setCombatDistance(gameState.combatDistance - closingDiff);
     showDie(ui.combatPlayerDie, "🏃");
 
     if (gameState.combatDistance <= 0) {
@@ -2748,7 +2761,7 @@ function attemptRetreat() {
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
     const diff = playerRoll - mobRoll;
 
-    gameState.combatDistance = Math.max(0, Math.min(cfg.maxDistance, gameState.combatDistance + diff));
+    setCombatDistance(gameState.combatDistance + diff);
     showDie(ui.combatPlayerDie, "🏃");
 
     if (gameState.combatDistance > 0) {
