@@ -297,6 +297,12 @@
             </p>
         </section>
 
+        <!-- Posture de combat : togglable à tout moment, y compris hors combat, pour se préparer
+             avant un affrontement. Le bouton reste visible partout ; seule la barre de distance
+             (dans la zone de combat plus bas) n'apparaît que pendant un affrontement. -->
+        <button id="btn-stance-toggle" class="w-full px-3 py-2 bg-gray-900 border border-cyan-800/70 hover:border-cyan-400 rounded text-[11px] text-cyan-300 uppercase tracking-wider transition-all">
+            🎯 Posture : <span id="stance-label">Corps à corps</span>
+        </button>
 
         <!-- Journal complet (repli discret, pour qui veut relire tout l'historique) -->
         <details class="text-[10px] text-gray-600">
@@ -309,16 +315,14 @@
             <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Zone de Combat</span>
             <div class="text-center text-sm text-red-300 mb-3 font-bold" id="enemy-name">-</div>
 
-            <!-- Bascule de posture + barre de distance (combat à distance) -->
-            <button id="btn-stance-toggle" class="w-full mb-2 px-3 py-2 bg-gray-900 border border-cyan-800/70 hover:border-cyan-400 rounded text-[11px] text-cyan-300 uppercase tracking-wider transition-all">
-                🎯 Posture : <span id="stance-label">Corps à corps</span>
-            </button>
-            <div id="combat-distance-wrapper" class="hidden mb-3">
+            <!-- Barre de distance : toujours affichée pendant un combat (0 = corps à corps collé,
+                 pleine = distance maximale tenue). Voir getCombatRangeContext() dans app.js. -->
+            <div id="combat-distance-wrapper" class="mb-3">
                 <div class="flex justify-between text-[9px] text-cyan-500 uppercase tracking-wider mb-1">
                     <span>Vous</span><span>Distance</span><span>Ennemi</span>
                 </div>
                 <div class="w-full h-2 bg-gray-900 border border-cyan-900/50 rounded-full overflow-hidden">
-                    <div id="combat-distance-fill" class="h-full bg-cyan-600 transition-all duration-300" style="width:0%"></div>
+                    <div id="combat-distance-fill" class="h-full bg-gray-600 transition-all duration-300" style="width:0%"></div>
                 </div>
             </div>
 
@@ -326,13 +330,16 @@
                 <button id="btn-attack-weapon" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
                     ⚔️ Arme
                 </button>
+                <button id="btn-attack-ranged" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
+                    🏹 Tir
+                </button>
                 <button id="btn-attack-unarmed" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
                     👊 Mains nues
                 </button>
                 <button id="btn-attack-magic" class="px-3 py-3 bg-gray-900 border border-purple-800/80 hover:border-purple-500 hover:bg-purple-900/30 rounded text-xs text-purple-400 uppercase tracking-wider transition-all">
                     ✨ Magie
                 </button>
-                <button id="btn-flee" class="px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
+                <button id="btn-flee" class="col-span-2 px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
                     🏃 Fuir
                 </button>
             </div>
@@ -482,11 +489,11 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=28"></script>
-    <script src="items.js?v=28"></script>
-    <script src="districts.js?v=28"></script>
-    <script src="safehouses.js?v=28"></script>
-    <script src="generator.js?v=28"></script>
-    <script src="app.js?v=28"></script>
+    <script src="bestiary.js?v=29"></script>
+    <script src="items.js?v=29"></script>
+    <script src="districts.js?v=29"></script>
+    <script src="safehouses.js?v=29"></script>
+    <script src="generator.js?v=29"></script>
+    <script src="app.js?v=29"></script>
 </body>
 </html>
