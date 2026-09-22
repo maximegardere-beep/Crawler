@@ -82,6 +82,10 @@ function generateMob(districtName) {
 
     // 3. Application des modificateurs
     let appliedModifiers = [];
+    // Copie complète (nom + description + effet) de chaque modificateur appliqué, conservée sur le
+    // mob final pour l'UI de combat (panneau "Examiner" : détails textuels sans avoir à deviner
+    // depuis le nom composé ou l'unique champ `effect`).
+    let modifiersApplied = [];
     // On clone les tags autorisés pour pouvoir en retirer à chaque tirage
     let availableTags = [...finalMob.allowedTags];
 
@@ -100,6 +104,7 @@ function generateMob(districtName) {
             const modifier = modifiersList[modIndex];
             
             appliedModifiers.push(modifier.name);
+            modifiersApplied.push({ name: modifier.name, desc: modifier.desc || "", effect: modifier.effect || null });
 
             // Transmission de l'effet élémentaire éventuel (burn/poison/slow/stun) au monstre final
             if (modifier.effect) finalMob.effect = modifier.effect;
@@ -130,6 +135,7 @@ function generateMob(districtName) {
 
     // Tag supplémentaire pour dire à notre boucle de jeu qu'il est prêt
     finalMob.isGenerated = true;
+    finalMob.modifiersApplied = modifiersApplied;
 
     return finalMob;
 }
@@ -160,6 +166,7 @@ function generateBoss(districtName) {
     applyFloorScaling(boss, typeof gameState !== 'undefined' ? gameState.currentFloor : 1);
 
     boss.isGenerated = true;
+    boss.modifiersApplied = []; // Pas de modificateurs aléatoires sur un boss : liste vide pour l'UI
     return boss;
 }
 
