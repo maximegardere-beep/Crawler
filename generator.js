@@ -167,13 +167,46 @@ function generateBoss(districtName) {
 // 2. GÉNÉRATION DES OBJETS (LOOT)
 // ==========================================
 
+// Poids de tirage de chaque palier de rareté selon un score de puissance `t` (0 = très faible,
+// 1 = très puissant : boss profond ou mob très modifié). Interpolation linéaire entre deux jeux de
+// poids : à faible puissance, presque toujours du Commun/Rare ; à haute puissance, l'Épique et le
+// Légendaire deviennent des tirages courants. Valeurs de départ, à ajuster par playtest réel.
+function getRarityWeights(powerScore) {
+    const t = Math.max(0, Math.min(1, powerScore));
+    const lerp = (low, high) => low + (high - low) * t;
+    return {
+        commun: lerp(70, 15),
+        rare: lerp(25, 35),
+        epique: lerp(4.5, 35),
+        legendaire: lerp(0.5, 15)
+    };
+}
+
+// Tire un palier de rareté au hasard, pondéré par le score de puissance (voir getRarityWeights()).
+function rollRarity(powerScore) {
+    const weights = getRarityWeights(powerScore);
+    const entries = itemRarities.map(r => ({ rarity: r, weight: weights[r.key] || 0 }));
+    const total = entries.reduce((sum, e) => sum + e.weight, 0);
+    let roll = Math.random() * total;
+    for (const e of entries) {
+        if (roll < e.weight) return e.rarity;
+        roll -= e.weight;
+    }
+    return entries[entries.length - 1].rarity;
+}
+
 /**
- * Génère un objet aléatoire en combinant un objet de base avec des adjectifs.
- * 
+ * Génère un objet aléatoire, avec un palier de rareté (Commun/Rare/Épique/Légendaire) pondéré par
+ * `powerScore` (0 à 1 : puissance du monstre vaincu, ou de l'étage courant à défaut de monstre —
+ * voir getLootPowerScore() dans app.js). La rareté détermine à la fois le multiplicateur de stats
+ * ET le nombre/la puissance des enchantements (voir itemRarities et itemModifiers.effect).
+ *
+ * @param {number} powerScore - Score de puissance entre 0 et 1 (voir getLootPowerScore()).
  * @returns {object} - L'objet final généré
  */
-function generateItem() {
-    // 1. Choix d'une catégorie d'objet (weapons, armors, consumables), puis d'un objet de base dedans
+function generateItem(powerScore = 0) {
+    // 1. Choix d'une catégorie d'objet (weapons, ranged, armors, consumables), puis d'un objet de
+    // base dedans
     const categories = Object.keys(baseItems);
     const categoryName = categories[Math.floor(Math.random() * categories.length)];
     const categoryItems = baseItems[categoryName];
@@ -181,53 +214,41 @@ function generateItem() {
     const finalItem = JSON.parse(JSON.stringify(categoryItems[baseItemIndex]));
     finalItem.category = categoryName; // conserve la catégorie (utile pour l'UI/logique future)
 
-    // 2. Jet de dés pour les modificateurs (Qualité et/ou Effet)
-    // On force un peu plus le loot à avoir au moins un adjectif pour le côté RPG
-    const roll = Math.random() * 100;
-    let modifierCount = 0;
-    
-    if (roll <= 20) {
-        modifierCount = 2; // 20% de chance d'objet épique
-    } else if (roll <= 70) {
-        modifierCount = 1; // 50% de chance d'objet normal/modifié
-    }
+    // 2. Tirage du palier de rareté, puis mise à l'échelle des stats de base (avec un peu
+    // d'aléatoire ±10% pour éviter que deux objets de même rareté soient rigoureusement identiques)
+    const rarity = rollRarity(powerScore);
+    finalItem.rarity = rarity.name;
+    finalItem.rarityColor = rarity.color;
 
-    let appliedModifiers = [];
-    let availableTags = [...finalItem.allowedTags];
+    const statMult = rarity.statMult * (0.9 + Math.random() * 0.2);
+    if (finalItem.baseDmg !== undefined) finalItem.baseDmg = Math.max(1, Math.round(finalItem.baseDmg * statMult));
+    if (finalItem.baseArmor !== undefined) finalItem.baseArmor = Math.round(finalItem.baseArmor * statMult);
+    if (finalItem.heal !== undefined && finalItem.heal > 0) finalItem.heal = Math.round(finalItem.heal * statMult);
 
-    for (let i = 0; i < modifierCount; i++) {
-        if (availableTags.length === 0) break;
-
-        const tagIndex = Math.floor(Math.random() * availableTags.length);
-        const selectedCategory = availableTags.splice(tagIndex, 1)[0]; 
-
-        const modifiersList = itemModifiers[selectedCategory];
-        if (modifiersList && modifiersList.length > 0) {
-            const modIndex = Math.floor(Math.random() * modifiersList.length);
-            const modifier = modifiersList[modIndex];
-            
-            appliedModifiers.push(modifier.name);
-            
-            // On transmet la mécanique spéciale de l'objet (bleed/stun/...), en plus des stats
-            if (modifier.mechanic) finalItem.mechanic = modifier.mechanic;
-            
-            if (modifier.stats) {
-                for (let stat in modifier.stats) {
-                    if (finalItem[stat] !== undefined) {
-                        finalItem[stat] += modifier.stats[stat];
-                    }
-                }
-            }
+    // 3. Enchantements : un par slot de la rareté tirée (voir itemRarities.slots). Le Ne slot
+    // pioche dans le pool des effets de tier <= N, donc plus l'objet est rare, plus ses derniers
+    // slots ont accès aux effets les plus puissants (tier 3, réservé au Légendaire).
+    const appliedNames = [];
+    const appliedMechanics = [];
+    if (finalItem.canEnchant !== false && rarity.slots > 0) {
+        for (let slotIndex = 0; slotIndex < rarity.slots; slotIndex++) {
+            const maxTier = slotIndex + 1;
+            const pool = itemModifiers.effect.filter(e => e.tier <= maxTier && !appliedNames.includes(e.name));
+            if (pool.length === 0) continue;
+            const picked = pool[Math.floor(Math.random() * pool.length)];
+            appliedNames.push(picked.name);
+            if (picked.mechanic) appliedMechanics.push(picked.mechanic);
         }
     }
+    if (appliedMechanics.length > 0) finalItem.mechanics = appliedMechanics;
 
-    // 3. Assemblage du nom
-    // Si c'est un effet de qualité (ex: Rouillé), on le met souvent avant ou juste après selon la grammaire, 
-    // mais pour simplifier on concatène. Ex: "Épée Longue Rouillée et Vibrante"
-    if (appliedModifiers.length === 1) {
-        finalItem.name = `${finalItem.name} ${appliedModifiers[0]}`;
-    } else if (appliedModifiers.length === 2) {
-        finalItem.name = `${finalItem.name} ${appliedModifiers[0]} et ${appliedModifiers[1]}`;
+    // 4. Assemblage du nom : "Nom de base Adjectif1, Adjectif2 et Adjectif3"
+    if (appliedNames.length === 1) {
+        finalItem.name = `${finalItem.name} ${appliedNames[0]}`;
+    } else if (appliedNames.length === 2) {
+        finalItem.name = `${finalItem.name} ${appliedNames[0]} et ${appliedNames[1]}`;
+    } else if (appliedNames.length >= 3) {
+        finalItem.name = `${finalItem.name} ${appliedNames.slice(0, -1).join(", ")} et ${appliedNames[appliedNames.length - 1]}`;
     }
 
     return finalItem;
