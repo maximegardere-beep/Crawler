@@ -206,6 +206,83 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
 }
 
 // ===================================================================
+// Portée (symétrique) : un mob à distance collé au corps à corps ne peut PAS tirer directement non
+// plus — il doit d'abord reculer, comme le joueur doit s'éloigner pour utiliser Tir. Bug rapporté :
+// un mob "à distance" ripostait sans condition, même au contact.
+// ===================================================================
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Photocopieuse Carnivore", hp: 50, maxHp: 50, atk: 999, def: 0, ranged: true, status: {} };
+    gameState.combatDistance = 0; // collé au corps à corps
+    const ctx = getCombatRangeContext();
+    assert(ctx.mobNeedsDistance === true, "getCombatRangeContext() : un mob à distance collé au contact doit reculer pour tirer");
+
+    ui.btnAttackWeapon.disabled = false;
+    safeEnemyCounterAttack();
+    assert(ui.btnAttackWeapon.disabled === false, "safeEnemyCounterAttack() : aucune riposte déclenchée quand le mob à distance est au corps à corps");
+}
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Photocopieuse Carnivore", hp: 50, maxHp: 50, atk: 999, def: 0, ranged: true, status: {} };
+    gameState.combatDistance = config.rangedCombat.initialDistance; // a repris ses distances
+    assert(getCombatRangeContext().mobNeedsDistance === false, "getCombatRangeContext() : plus besoin de reculer une fois la distance reprise");
+
+    ui.btnAttackWeapon.disabled = false;
+    safeEnemyCounterAttack();
+    assert(ui.btnAttackWeapon.disabled === true, "safeEnemyCounterAttack() : la riposte à distance se déclenche normalement une fois l'écart repris");
+}
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 50, maxHp: 50, atk: 999, def: 0, status: {} }; // mêlée
+    gameState.combatDistance = 0;
+    assert(getCombatRangeContext().mobNeedsDistance === false, "getCombatRangeContext() : un mob de mêlée au contact n'a jamais besoin de reculer pour frapper");
+}
+{
+    // Reproduit le scénario rapporté : un mob à distance rattrapé au corps à corps (ex: après un
+    // S'approcher du joueur) tente de reculer avant de pouvoir tirer, via resolveEnemyReaction().
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.level = 1;
+    gameState.hp = gameState.maxHp = 100;
+    gameState.currentEnemy = { name: "Photocopieuse Carnivore", hp: 9999, maxHp: 9999, atk: 999, def: 0, ranged: true, status: {} };
+    gameState.combatDistance = 0;
+
+    const originalRandom = Math.random;
+    let idx = 0;
+    const seq = [0, 0.999]; // dé du joueur au plus bas, dé du mob au plus haut -> le mob l'emporte et recule
+    Math.random = () => seq[(idx++) % seq.length];
+    ui.btnFlee.disabled = false;
+    resolveEnemyReaction();
+    Math.random = originalRandom;
+
+    assert(gameState.combatDistance > 0, "resolveEnemyReaction() : le mob à distance parvient à reculer");
+    assert(ui.btnFlee.disabled === true, "resolveEnemyReaction() : une fois reculé, le mob à distance tire immédiatement");
+}
+{
+    // Même scénario, mais le joueur colle le mob et l'empêche de reculer : aucune riposte ce tour.
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.level = 1;
+    gameState.hp = gameState.maxHp = 100;
+    gameState.currentEnemy = { name: "Photocopieuse Carnivore", hp: 9999, maxHp: 9999, atk: 999, def: 0, ranged: true, status: {} };
+    gameState.combatDistance = 0;
+
+    const originalRandom = Math.random;
+    let idx = 0;
+    const seq = [0.999, 0]; // dé du joueur au plus haut, dé du mob au plus bas -> le joueur l'emporte et le colle
+    Math.random = () => seq[(idx++) % seq.length];
+    ui.btnFlee.disabled = false;
+    resolveEnemyReaction();
+    Math.random = originalRandom;
+
+    assert(gameState.combatDistance === 0, "resolveEnemyReaction() : le joueur colle le mob, qui ne parvient pas à reculer");
+    assert(ui.btnFlee.disabled === false, "resolveEnemyReaction() : un mob à distance collé au corps à corps ne peut pas tirer ce tour-ci");
+}
+
+// ===================================================================
 // resolveEnemyReaction() : un mob de mêlée hors de portée ne reste plus figé — il tente de
 // combler l'écart au lieu de rester totalement bloqué (Magie, étourdissement, fuite ratée, ...).
 // ===================================================================
