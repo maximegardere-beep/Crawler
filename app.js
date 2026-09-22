@@ -30,8 +30,16 @@ const gameState = {
     maxInventory: 5,
     equipment: {
         weapon: null, // Objet de catégorie 'weapons' équipé, ou null
-        armor: null   // Objet de catégorie 'armors' équipé, ou null
+        armor: null,  // Objet de catégorie 'armors' équipé, ou null
+        ranged: null  // Objet de catégorie 'ranged' équipé, ou null (utilisé en posture "à distance")
     },
+    // Posture de combat : 'melee' (défaut, comportement historique) ou 'ranged'. Togglable en
+    // combat via le bouton de posture. N'a d'effet sur les échanges que si elle diverge de la
+    // nature du monstre affronté (mob.ranged) — voir getCombatRangeContext().
+    stance: 'melee',
+    // Écart de distance courant, actif uniquement quand stance et mob.ranged divergent (sinon 0 =
+    // aucun effet, comportement identique à avant cette fonctionnalité). Voir config.rangedCombat.
+    combatDistance: 0,
     status: {
         bleed: null,     // { rounds, dmgPerRound } ou null
         stunned: false,  // Rate son prochain tour si vrai
@@ -97,6 +105,15 @@ const config = {
         atk: 0.12, // +12% d'ATQ par étage de profondeur
         def: 0.10, // +10% de DEF par étage de profondeur
         xp: 0.18   // +18% d'XP donnée par étage de profondeur (suit la difficulté accrue)
+    },
+
+    // Paramètres du combat à distance (posture "ranged" vs mobs marqués `ranged: true` dans
+    // bestiary.js). Voir getCombatRangeContext()/resolveDistanceRound() dans app.js.
+    rangedCombat: {
+        initialDistance: 4,     // Écart de départ quand les postures divergent (en "unités")
+        maxDistance: 8,         // Plafond de l'écart (ne peut pas s'éloigner indéfiniment)
+        dieSides: 6,            // Taille du dé opposé lancé chaque manche par le joueur ET le mob
+        levelAdvantageDivisor: 4 // Bonus au dé du joueur = floor(niveau / ce diviseur)
     }
 };
 
@@ -232,6 +249,11 @@ const ui = {
     btnAttackUnarmed: document.getElementById('btn-attack-unarmed'),
     btnAttackMagic: document.getElementById('btn-attack-magic'),
     btnFlee: document.getElementById('btn-flee'),
+    btnStanceToggle: document.getElementById('btn-stance-toggle'),
+    stanceLabel: document.getElementById('stance-label'),
+    combatDistanceWrapper: document.getElementById('combat-distance-wrapper'),
+    combatDistanceFill: document.getElementById('combat-distance-fill'),
+    equippedRanged: document.getElementById('equipped-ranged'),
     btnDevLogs: document.getElementById('btn-dev-logs')
 };
 
@@ -342,6 +364,23 @@ function updateUI() {
                 if (enemyStatus.blinded && enemyStatus.blinded.rounds > 0) enemyIcons += "✨";
             }
             ui.combatEnemyStatus.innerText = enemyIcons || "—";
+        }
+
+        // --- Posture / distance de combat ---
+        if (ui.stanceLabel) ui.stanceLabel.innerText = gameState.stance === 'ranged' ? "À distance" : "Corps à corps";
+        if (ui.btnAttackUnarmed) ui.btnAttackUnarmed.classList.toggle('hidden', gameState.stance === 'ranged');
+        if (ui.btnAttackWeapon) {
+            ui.btnAttackWeapon.innerText = gameState.stance === 'ranged' ? "🏹 Tir" : "⚔️ Arme";
+        }
+        const rangeCtx = getCombatRangeContext();
+        if (ui.combatDistanceWrapper) {
+            ui.combatDistanceWrapper.classList.toggle('hidden', !rangeCtx.active);
+        }
+        if (ui.combatDistanceFill && rangeCtx.active) {
+            const pct = Math.round((gameState.combatDistance / config.rangedCombat.maxDistance) * 100);
+            ui.combatDistanceFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+            ui.combatDistanceFill.classList.toggle('bg-cyan-600', rangeCtx.playerAdvantaged);
+            ui.combatDistanceFill.classList.toggle('bg-red-600', rangeCtx.playerDisadvantaged);
         }
     } else {
         ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending || gameState.stealthChoicePending);
@@ -479,11 +518,12 @@ function updateInventoryUI() {
     ui.inventoryCount.innerText = gameState.inventory.length;
     ui.equippedWeapon.innerText = gameState.equipment.weapon ? gameState.equipment.weapon.name : "Aucune";
     ui.equippedArmor.innerText = gameState.equipment.armor ? gameState.equipment.armor.name : "Aucune";
+    if (ui.equippedRanged) ui.equippedRanged.innerText = gameState.equipment.ranged ? gameState.equipment.ranged.name : "Aucune";
 
-    // --- Armes / armures : cartes façon carte à jouer (style .mini-card), dans le déroulant ---
+    // --- Armes / armures / armes à distance : cartes façon carte à jouer, dans le déroulant ---
     ui.inventoryEquipmentCards.innerHTML = "";
     const equipmentIndices = [];
-    gameState.inventory.forEach((item, i) => { if (item.category === 'weapons' || item.category === 'armors') equipmentIndices.push(i); });
+    gameState.inventory.forEach((item, i) => { if (item.category === 'weapons' || item.category === 'armors' || item.category === 'ranged') equipmentIndices.push(i); });
 
     if (equipmentIndices.length === 0) {
         const empty = document.createElement('p');
@@ -494,11 +534,13 @@ function updateInventoryUI() {
         equipmentIndices.forEach(i => {
             const item = gameState.inventory[i];
             const isWeapon = item.category === 'weapons';
+            const isRanged = item.category === 'ranged';
+            const icon = isWeapon ? '⚔️' : (isRanged ? '🏹' : '🛡️');
             const card = document.createElement('div');
             card.className = "mini-card rounded-lg p-2 flex flex-col gap-1 text-center relative";
-            const statLine = isWeapon ? `⚔️ ATK +${item.baseDmg}` : `🛡️ DEF +${item.baseArmor}`;
+            const statLine = (isWeapon || isRanged) ? `⚔️ ATK +${item.baseDmg}` : `🛡️ DEF +${item.baseArmor}`;
             card.innerHTML = `
-                <div class="text-xl leading-none">${isWeapon ? '⚔️' : '🛡️'}</div>
+                <div class="text-xl leading-none">${icon}</div>
                 <div class="text-[10px] font-bold leading-tight">${item.name}</div>
                 <div class="text-[9px] text-stone-600">${statLine}</div>
                 <button data-action="equip" class="mt-1 text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>
@@ -569,7 +611,8 @@ function equipItem(index) {
     const item = gameState.inventory[index];
     if (!item) return;
 
-    const slot = item.category === 'weapons' ? 'weapon' : 'armor';
+    const slot = item.category === 'weapons' ? 'weapon' : (item.category === 'ranged' ? 'ranged' : 'armor');
+    const slotLabel = slot === 'weapon' ? 'Arme' : (slot === 'ranged' ? 'Arme à distance' : 'Armure');
     const previouslyEquipped = gameState.equipment[slot];
 
     gameState.equipment[slot] = item;
@@ -578,7 +621,7 @@ function equipItem(index) {
         gameState.inventory.push(previouslyEquipped);
     }
 
-    logEvent(`Vous équipez [${item.name}] (${slot === 'weapon' ? 'Arme' : 'Armure'}).`, "info");
+    logEvent(`Vous équipez [${item.name}] (${slotLabel}).`, "info");
     updateUI();
     updateInventoryUI();
 }
@@ -727,6 +770,7 @@ function getStealthChance() {
     let chance = 15 + (gameState.skills.stealth.level - 1) * 6;
     if (gameState.companion && gameState.companion.specialty.type === 'scout') chance += 10;
     if (gameState.equipment.weapon && gameState.equipment.weapon.mechanic === 'stealth') chance += 15;
+    if (gameState.equipment.ranged && gameState.equipment.ranged.mechanic === 'stealth') chance += 15;
     if (gameState.equipment.armor && gameState.equipment.armor.mechanic === 'stealth') chance += 15;
     return Math.min(75, chance);
 }
@@ -1427,6 +1471,12 @@ function initiateCombat(forcedEnemy = null) {
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
     }
 
+    // Distance de combat : n'entre en jeu que si la posture du joueur diverge de la nature du
+    // monstre (l'un à distance, l'autre en mêlée) — voir getCombatRangeContext(). Dans tous les
+    // autres cas (les deux en mêlée, comme avant cette fonctionnalité, OU les deux à distance),
+    // la distance reste à 0 et rien ne change au système d'échange classique.
+    gameState.combatDistance = (enemy && isDivergentStance(enemy)) ? config.rangedCombat.initialDistance : 0;
+
     // Les dés de dégâts repartent à zéro visuellement (aucune action encore jouée ce combat)
     ui.combatPlayerDie.innerText = "–";
     ui.combatPlayerDie.classList.remove('die-pop');
@@ -1443,6 +1493,114 @@ function initiateCombat(forcedEnemy = null) {
         logEvent("--- COMBAT INITIÉ ---", "danger");
         // Sécurité : si la génération échoue pour une raison imprévue, on ne bloque pas le jeu
         logEvent("Une présence hostile rôde, mais reste indistincte...", "danger");
+    }
+    if (enemy && enemy.ranged) {
+        logEvent("🎯 Cet ennemi est armé à distance !", "danger");
+    }
+    updateUI();
+}
+
+// ==========================================
+// COMBAT À DISTANCE : POSTURE, DISTANCE, CONTEXTE
+// ==========================================
+
+// Vrai si la posture du joueur diverge de la nature du monstre (l'un à distance, l'autre en
+// mêlée). C'est la seule condition qui active la mécanique de distance — si les deux sont du
+// même "camp" (mêlée/mêlée ou distance/distance), rien ne change au système classique.
+function isDivergentStance(enemy) {
+    if (!enemy) return false;
+    return (!!enemy.ranged) !== (gameState.stance === 'ranged');
+}
+
+// Calcule le contexte de distance pour le combat en cours : la mécanique n'est réellement active
+// que si les postures divergent ET qu'il reste de la distance à parcourir (combatDistance > 0).
+//   - playerAdvantaged    : le joueur est le "tireur" (posture distance, mob en mêlée) : il agit
+//                           librement, le mob ne peut pas riposter tant que la distance tient.
+//   - playerDisadvantaged : le joueur est en mêlée face à un mob à distance : il ne peut pas
+//                           porter de dégâts tant qu'il n'a pas comblé l'écart, et le mob tire
+//                           librement pendant ce temps.
+function getCombatRangeContext() {
+    const enemy = gameState.currentEnemy;
+    if (!enemy) return { active: false, playerAdvantaged: false, playerDisadvantaged: false };
+    const active = isDivergentStance(enemy) && gameState.combatDistance > 0;
+    const playerRanged = gameState.stance === 'ranged';
+    return {
+        active,
+        playerAdvantaged: active && playerRanged,
+        playerDisadvantaged: active && !playerRanged
+    };
+}
+
+// Une "manche" de distance : le joueur et le monstre jettent chacun un dé (le joueur bénéficie
+// d'un bonus lié à son niveau), et l'écart évolue selon qui l'emporte. `playerWantsToWiden`
+// indique le sens favorable au joueur : true quand il fuit un mob de mêlée (il veut AUGMENTER
+// l'écart), false quand il rattrape un mob à distance (il veut le RÉDUIRE).
+function resolveDistanceRound(enemy, playerWantsToWiden) {
+    const cfg = config.rangedCombat;
+    const playerRoll = 1 + Math.floor(Math.random() * cfg.dieSides) + Math.floor(gameState.level / cfg.levelAdvantageDivisor);
+    const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
+    const diff = playerRoll - mobRoll; // positif = le joueur l'emporte ce round
+    const delta = playerWantsToWiden ? diff : -diff;
+    gameState.combatDistance = Math.max(0, Math.min(cfg.maxDistance, gameState.combatDistance + delta));
+    return { playerRoll, mobRoll, diff };
+}
+
+// Cas "joueur avantagé" (posture distance, mob en mêlée) : après un tir qui touche, au lieu
+// d'une riposte classique, on résout une manche de distance (le mob tente de combler l'écart).
+function resolveDistanceTickAdvantaged() {
+    setCombatInputLocked(true);
+    setTimeout(() => {
+        const enemy = gameState.currentEnemy;
+        if (!enemy) { setCombatInputLocked(false); return; }
+        const { playerRoll, mobRoll } = resolveDistanceRound(enemy, true);
+        if (gameState.combatDistance <= 0) {
+            logEvent(`🏃 [${enemy.name}] comble l'écart et vous rattrape au corps à corps !`, "danger");
+        } else {
+            logEvent(`↔️ Vous maintenez la distance face à [${enemy.name}] (${playerRoll} vs ${mobRoll}).`, "info");
+        }
+        setCombatInputLocked(false);
+        updateUI();
+    }, COMBAT_BEAT_MS);
+}
+
+// Cas "joueur désavantagé" (posture mêlée, mob à distance) : au lieu d'une attaque, le joueur
+// tente de combler l'écart. S'il n'y parvient pas ce tour-ci, le mob tire librement (même pipeline
+// que enemyCounterAttack, pour garder l'animation et le rythme cohérents).
+function performChaseAction(actionLabel) {
+    if (!tryPlayerAction()) return;
+    const enemy = gameState.currentEnemy;
+    if (!enemy) return;
+    logEvent(`Vous tentez de ${actionLabel} pour combler la distance face à [${enemy.name}]...`, "normal");
+    setCombatInputLocked(true);
+    setTimeout(() => {
+        const { playerRoll, mobRoll } = resolveDistanceRound(enemy, false);
+        if (gameState.combatDistance <= 0) {
+            logEvent(`🎯 Vous atteignez [${enemy.name}] au corps à corps !`, "success");
+            setCombatInputLocked(false);
+            updateUI();
+        } else {
+            logEvent(`[${enemy.name}] vous canarde pendant votre approche (${playerRoll} vs ${mobRoll}).`, "danger");
+            setCombatInputLocked(false);
+            enemyCounterAttack();
+        }
+    }, COMBAT_BEAT_MS);
+}
+
+// Bascule la posture de combat du joueur (bouton dédié, visible uniquement en combat). Toggle
+// libre (ne consomme pas de tour) : si la posture choisie fait diverger les deux camps, une
+// chasse démarre (ou redémarre) avec l'écart de départ ; sinon, plus aucun effet de distance.
+function togglePlayerStance() {
+    if (!gameState.inCombat || !gameState.currentEnemy) return;
+    if (ui.btnStanceToggle && ui.btnStanceToggle.disabled) return; // Verrouillé pendant une animation de combat
+
+    gameState.stance = gameState.stance === 'melee' ? 'ranged' : 'melee';
+    const enemy = gameState.currentEnemy;
+    if (isDivergentStance(enemy)) {
+        gameState.combatDistance = config.rangedCombat.initialDistance;
+        logEvent(`Vous passez en posture ${gameState.stance === 'ranged' ? '🎯 à distance' : '⚔️ corps à corps'} : l'écart se creuse !`, "info");
+    } else {
+        gameState.combatDistance = 0;
+        logEvent(`Vous passez en posture ${gameState.stance === 'ranged' ? '🎯 à distance' : '⚔️ corps à corps'}.`, "info");
     }
     updateUI();
 }
@@ -1505,7 +1663,13 @@ function tryPlayerAction() {
         logEvent("Vous êtes étourdi et ne parvenez pas à agir ce tour-ci !", "danger");
         gameState.status.stunned = false; // L'étourdissement se consomme après ce tour manqué
         showDie(ui.combatPlayerDie, "😵");
-        enemyCounterAttack();
+        // Si le joueur est à l'abri grâce à la distance (mob en mêlée, écart > 0), l'étourdissement
+        // ne coûte rien de plus : le mob ne peut de toute façon pas le toucher ce tour-ci.
+        if (getCombatRangeContext().playerAdvantaged) {
+            logEvent("Trop loin pour en profiter, l'ennemi ne peut pas riposter.", "info");
+        } else {
+            enemyCounterAttack();
+        }
         return false;
     }
 
@@ -1514,9 +1678,14 @@ function tryPlayerAction() {
 
 // Portion commune à toute attaque du joueur : applique les dégâts, vérifie la victoire,
 // et laisse l'ennemi riposter s'il survit.
-function performPlayerAttack(attackerAtk, options, label) {
+// `onSurviveInsteadOfCounter` (optionnel) : si fourni et que l'ennemi survit, remplace la riposte
+// classique par ce callback — utilisé quand le joueur est "avantagé" par la distance (posture à
+// distance face à un mob de mêlée) : l'ennemi ne peut pas encore riposter, on résout une manche
+// de distance à la place (voir resolveDistanceTickAdvantaged()).
+function performPlayerAttack(attackerAtk, options, label, onSurviveInsteadOfCounter = null) {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
     const enemy = gameState.currentEnemy;
+    const resolveNoDamageOutcome = onSurviveInsteadOfCounter || enemyCounterAttack;
 
     // Un joueur confus a une chance de rater complètement son attaque (aucun dégât, tour perdu)
     if (gameState.status.confused && gameState.status.confused.rounds > 0) {
@@ -1525,7 +1694,7 @@ function performPlayerAttack(attackerAtk, options, label) {
         if (Math.random() * 100 < 45) {
             showDie(ui.combatPlayerDie, "❓");
             logEvent(`Désorienté, vous frappez complètement à côté de [${enemy.name}] !`, "danger");
-            enemyCounterAttack();
+            resolveNoDamageOutcome();
             return true;
         }
     }
@@ -1578,7 +1747,7 @@ function performPlayerAttack(attackerAtk, options, label) {
         return true;
     }
 
-    enemyCounterAttack();
+    resolveNoDamageOutcome();
     return true;
 }
 
@@ -1634,8 +1803,8 @@ function resolveWeaponMechanicEffect(mechanicName, weapon, enemy) {
 
 // Applique la mécanique spéciale de l'arme équipée (Tranchant->saignement, Lourd->étourdissement, etc.),
 // avec une chance de déclenchement. Appelée uniquement après une attaque à l'arme réussie.
-function applyWeaponMechanic() {
-    const weapon = gameState.equipment.weapon;
+function applyWeaponMechanic(weaponOverride = null) {
+    const weapon = weaponOverride || gameState.equipment.weapon;
     const enemy = gameState.currentEnemy;
     if (!weapon || !weapon.mechanic || !enemy) return;
 
@@ -1709,7 +1878,7 @@ const COMBAT_BEAT_MS = 400;
 
 // Empêche de spammer les boutons de combat pendant la petite pause entre deux actions
 function setCombatInputLocked(locked) {
-    [ui.btnAttackWeapon, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnFlee].forEach(btn => {
+    [ui.btnAttackWeapon, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnFlee, ui.btnStanceToggle].forEach(btn => {
         if (!btn) return;
         btn.disabled = locked;
         btn.classList.toggle('opacity-40', locked);
@@ -1817,26 +1986,52 @@ function attackWeapon() {
         if (gameState.status.disarmed.rounds <= 0) gameState.status.disarmed = null;
         showDie(ui.combatPlayerDie, "🧲");
         logEvent("Votre arme reste hors de portée, toujours attirée au loin !", "danger");
-        enemyCounterAttack();
+        if (getCombatRangeContext().playerAdvantaged) resolveDistanceTickAdvantaged(); else enemyCounterAttack();
+        return;
+    }
+
+    const ctx = getCombatRangeContext();
+    if (ctx.playerDisadvantaged) {
+        performChaseAction("vous rapprocher");
         return;
     }
 
     const skill = gameState.skills.weapon;
     const atkMultiplier = 1.0 + 0.04 * (skill.level - 1); // +4% par niveau
-    const weaponBonus = gameState.equipment.weapon ? (gameState.equipment.weapon.baseDmg || 0) : 0;
+    // En posture à distance, c'est l'arme à distance équipée qui compte (et non l'arme de mêlée)
+    const equippedGear = gameState.stance === 'ranged' ? gameState.equipment.ranged : gameState.equipment.weapon;
+    const weaponBonus = equippedGear ? (equippedGear.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
+    const label = gameState.stance === 'ranged' ? "à distance" : "à l'arme";
 
-    const used = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0 }, "à l'arme");
+    const used = performPlayerAttack(
+        effectiveAtk,
+        { atkMultiplier, varianceRange: 0.15, defReduction: 0 },
+        label,
+        ctx.playerAdvantaged ? resolveDistanceTickAdvantaged : null
+    );
     if (used) {
         gainSkillXp('weapon', SKILL_XP_PER_USE);
-        applyWeaponMechanic(); // Ne fait rien si le combat vient de se terminer ou si l'arme n'a pas de mécanique
+        applyWeaponMechanic(equippedGear); // Ne fait rien si le combat vient de se terminer ou si l'arme n'a pas de mécanique
     }
 }
 
-// Mains nues : moins puissant, mais ignore une bonne partie de la DEF adverse.
+// Mains nues : moins puissant, mais ignore une bonne partie de la DEF adverse. Impossible en
+// posture à distance (le bouton est masqué dans ce cas, ce garde-fou couvre les cas limites).
 // Chaque niveau de compétence Mains nues améliore la capacité à contourner la DEF adverse.
 function attackUnarmed() {
     if (!tryPlayerAction()) return;
+
+    if (gameState.stance === 'ranged') {
+        logEvent("Difficile de frapper à mains nues à cette distance !", "danger");
+        return;
+    }
+
+    const ctx = getCombatRangeContext();
+    if (ctx.playerDisadvantaged) {
+        performChaseAction("vous rapprocher");
+        return;
+    }
 
     const skill = gameState.skills.unarmed;
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
@@ -1850,6 +2045,12 @@ function attackUnarmed() {
 function attackMagic() {
     if (!tryPlayerAction()) return;
 
+    const ctx = getCombatRangeContext();
+    if (ctx.playerDisadvantaged) {
+        performChaseAction("canaliser votre magie en avançant");
+        return;
+    }
+
     const skill = gameState.skills.magic;
     const backfireChance = Math.max(3, 15 - 1.5 * (skill.level - 1)); // 15% de base, jusqu'à 3% minimum
     const atkMultiplier = 1.4 + 0.02 * (skill.level - 1);
@@ -1857,12 +2058,17 @@ function attackMagic() {
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
         logEvent("Votre sort part de travers et fait un flop retentissant. Aucun dégât.", "danger");
-        enemyCounterAttack();
+        if (ctx.playerAdvantaged) resolveDistanceTickAdvantaged(); else enemyCounterAttack();
         gainSkillXp('magic', SKILL_XP_PER_USE); // On apprend même de ses échecs
         return;
     }
 
-    const used = performPlayerAttack(gameState.atk, { atkMultiplier, varianceRange: 0.35, defReduction: 0 }, "magiquement");
+    const used = performPlayerAttack(
+        gameState.atk,
+        { atkMultiplier, varianceRange: 0.35, defReduction: 0 },
+        "magiquement",
+        ctx.playerAdvantaged ? resolveDistanceTickAdvantaged : null
+    );
     if (used) gainSkillXp('magic', SKILL_XP_PER_USE);
 }
 
@@ -2136,6 +2342,7 @@ ui.btnAttackWeapon.addEventListener('click', attackWeapon);
 ui.btnAttackUnarmed.addEventListener('click', attackUnarmed);
 ui.btnAttackMagic.addEventListener('click', attackMagic);
 ui.btnFlee.addEventListener('click', attemptFlee);
+if (ui.btnStanceToggle) ui.btnStanceToggle.addEventListener('click', togglePlayerStance);
 
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)
 ui.btnFightBoss.addEventListener('click', fightBossNow);
