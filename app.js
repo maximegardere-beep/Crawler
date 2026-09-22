@@ -281,6 +281,9 @@ function updateUI() {
     if (gameState.status.confused && gameState.status.confused.rounds > 0) playerIcons += "🌀";
     if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) playerIcons += "🧲";
     if (gameState.status.blinded && gameState.status.blinded.rounds > 0) playerIcons += "✨";
+    if (gameState.status.corroded && gameState.status.corroded.rounds > 0) playerIcons += "🧪";
+    if (gameState.status.feared && gameState.status.feared.rounds > 0) playerIcons += "😱";
+    if (gameState.status.adrenaline && gameState.status.adrenaline.rounds > 0) playerIcons += "💉";
     ui.playerStatusIcons.innerText = playerIcons;
 
     // Mise à jour du niveau et de l'XP
@@ -334,6 +337,9 @@ function updateUI() {
         if (gameState.status.confused && gameState.status.confused.rounds > 0) playerIcons += "🌀";
         if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) playerIcons += "🧲";
         if (gameState.status.blinded && gameState.status.blinded.rounds > 0) playerIcons += "✨";
+        if (gameState.status.corroded && gameState.status.corroded.rounds > 0) playerIcons += "🧪";
+        if (gameState.status.feared && gameState.status.feared.rounds > 0) playerIcons += "😱";
+        if (gameState.status.adrenaline && gameState.status.adrenaline.rounds > 0) playerIcons += "💉";
         ui.combatPlayerStatus.innerText = playerIcons || "—";
 
         // Indicateur compagnon (à droite, sous le panneau joueur), si un compagnon est actif
@@ -362,6 +368,8 @@ function updateUI() {
                 if (enemyStatus.stunned) enemyIcons += "💫";
                 if (enemyStatus.slowed && enemyStatus.slowed.rounds > 0) enemyIcons += "🐌";
                 if (enemyStatus.blinded && enemyStatus.blinded.rounds > 0) enemyIcons += "✨";
+                if (enemyStatus.corroded && enemyStatus.corroded.rounds > 0) enemyIcons += "🧪";
+                if (enemyStatus.feared && enemyStatus.feared.rounds > 0) enemyIcons += "😱";
             }
             ui.combatEnemyStatus.innerText = enemyIcons || "—";
         }
@@ -1488,9 +1496,9 @@ function initiateCombat(forcedEnemy = null) {
     gameState.inCombat = true;
 
     // Statuts remis à zéro à chaque nouveau combat (des deux côtés)
-    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null };
+    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null };
     if (enemy) {
-        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null };
+        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null };
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
     }
 
@@ -1649,7 +1657,8 @@ function rollDamage(attackerAtk, defenderDef, options = {}) {
 }
 
 // DEF effective du joueur : sa DEF de base + le bonus de l'armure équipée, le cas échéant.
-// Réduite de moitié tant que le joueur est ébloui (effet "light"), le temps de retrouver la vue.
+// Réduite de moitié tant que le joueur est ébloui (effet "light"), et encore réduite de 40% tant
+// qu'il est corrodé (effet "corrode") — les deux se cumulent si les deux sont actifs à la fois.
 function getEffectiveDef() {
     const armorBonus = gameState.equipment.armor ? (gameState.equipment.armor.baseArmor || 0) : 0;
     const companionBonus = (gameState.companion && gameState.companion.specialty.type === 'guard')
@@ -1658,6 +1667,9 @@ function getEffectiveDef() {
     let effectiveDef = gameState.def + armorBonus + companionBonus;
     if (gameState.status.blinded && gameState.status.blinded.rounds > 0) {
         effectiveDef = Math.round(effectiveDef * 0.5);
+    }
+    if (gameState.status.corroded && gameState.status.corroded.rounds > 0) {
+        effectiveDef = Math.round(effectiveDef * 0.6);
     }
     return effectiveDef;
 }
@@ -1732,6 +1744,24 @@ function performPlayerAttack(attackerAtk, options, label, onSurviveInsteadOfCoun
         if (gameState.status.slowed.rounds <= 0) gameState.status.slowed = null;
     }
 
+    // Un joueur apeuré (effet mob "Terrifiant") inflige lui aussi moins de dégâts, le temps de
+    // reprendre ses esprits. Se cumule avec le ralentissement si les deux sont actifs.
+    if (gameState.status.feared && gameState.status.feared.rounds > 0) {
+        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * 0.65 };
+        slowedNote += " (apeuré)";
+        gameState.status.feared.rounds -= 1;
+        if (gameState.status.feared.rounds <= 0) gameState.status.feared = null;
+    }
+
+    // À l'inverse, une décharge d'adrénaline (arme "Galvanisant") booste temporairement les dégâts
+    let adrenalineNote = "";
+    if (gameState.status.adrenaline && gameState.status.adrenaline.rounds > 0) {
+        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * gameState.status.adrenaline.mult };
+        adrenalineNote = " (galvanisé)";
+        gameState.status.adrenaline.rounds -= 1;
+        if (gameState.status.adrenaline.rounds <= 0) gameState.status.adrenaline = null;
+    }
+
     // Attaque furtive réussie : le tout premier coup de ce combat porte un bonus x2 garanti
     let sneakNote = "";
     if (gameState.pendingSneakAttack) {
@@ -1740,20 +1770,27 @@ function performPlayerAttack(attackerAtk, options, label, onSurviveInsteadOfCoun
         gameState.pendingSneakAttack = false;
     }
 
-    // Un ennemi ébloui (arme "Lumineux") pare moins bien : sa DEF effective est réduite
+    // Un ennemi ébloui (arme "Lumineux") pare moins bien, un ennemi corrodé (arme "Corrosif")
+    // aussi : sa DEF effective est réduite dans les deux cas (cumulables).
     let effectiveEnemyDef = enemy.def;
     const enemyWasBlinded = enemy.status && enemy.status.blinded && enemy.status.blinded.rounds > 0;
     if (enemyWasBlinded) {
-        effectiveEnemyDef = Math.round(enemy.def * 0.5);
+        effectiveEnemyDef = Math.round(effectiveEnemyDef * 0.5);
         enemy.status.blinded.rounds -= 1;
         if (enemy.status.blinded.rounds <= 0) enemy.status.blinded = null;
+    }
+    const enemyWasCorroded = enemy.status && enemy.status.corroded && enemy.status.corroded.rounds > 0;
+    if (enemyWasCorroded) {
+        effectiveEnemyDef = Math.round(effectiveEnemyDef * 0.6);
+        enemy.status.corroded.rounds -= 1;
+        if (enemy.status.corroded.rounds <= 0) enemy.status.corroded = null;
     }
 
     const playerDamage = rollDamage(attackerAtk, effectiveEnemyDef, effectiveOptions);
     enemy.hp -= playerDamage;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
-    logEvent(`Vous attaquez ${label}${slowedNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
+    logEvent(`Vous attaquez ${label}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
 
     // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
     if (gameState.companion && gameState.companion.specialty.type === 'strike' && enemy.hp > 0) {
@@ -1776,7 +1813,7 @@ function performPlayerAttack(attackerAtk, options, label, onSurviveInsteadOfCoun
 
 // Mécaniques d'arme qui ont un vrai effet de combat (utilisées aussi par "random"/Chaotique,
 // qui en tire une au hasard à chaque déclenchement).
-const IMPLEMENTED_WEAPON_MECHANICS = ['bleed', 'stun', 'poison', 'slow', 'light', 'heal', 'lifesteal', 'drain'];
+const IMPLEMENTED_WEAPON_MECHANICS = ['bleed', 'stun', 'poison', 'slow', 'light', 'heal', 'lifesteal', 'drain', 'corrode', 'fear', 'adrenaline'];
 
 // Résout l'effet concret d'une mécanique nommée sur l'ennemi/le joueur.
 // Séparé de applyWeaponMechanic() pour que "random" (Chaotique) puisse réutiliser cette logique
@@ -1821,6 +1858,19 @@ function resolveWeaponMechanicEffect(mechanicName, weapon, enemy) {
             enemy.atk = Math.max(1, Math.round(enemy.atk * 0.85));
             logEvent(`🌀 Vous drainez son énergie, [${enemy.name}] semble affaibli.`, "info");
             break;
+        case 'corrode':
+            enemy.status.corroded = { rounds: 3 };
+            logEvent(`🧪 [${enemy.name}] voit son armure se corroder ! (DEF réduite)`, "danger");
+            break;
+        case 'fear':
+            enemy.status.feared = { rounds: 3 };
+            logEvent(`😱 [${enemy.name}] est pris de terreur ! (ATQ réduite)`, "danger");
+            break;
+        case 'adrenaline': {
+            gameState.status.adrenaline = { rounds: 2, mult: 1.35 };
+            logEvent("💉 Une décharge d'adrénaline vous parcourt ! (dégâts boostés)", "success");
+            break;
+        }
     }
 }
 
@@ -1898,6 +1948,14 @@ function applyMobEffectOnPlayer(enemy) {
             gameState.status.blinded = { rounds: 2 };
             logEvent("✨ Ébloui, vous peinez à parer les coups qui suivent.", "danger");
             break;
+        case 'corrode':
+            gameState.status.corroded = { rounds: 3 };
+            logEvent("🧪 Une substance corrosive ronge votre armure ! (DEF réduite)", "danger");
+            break;
+        case 'fear':
+            gameState.status.feared = { rounds: 3 };
+            logEvent("😱 Un frisson de terreur vous paralyse ! (ATQ réduite)", "danger");
+            break;
     }
 }
 
@@ -1956,8 +2014,10 @@ function resolveEnemyCounterAttack() {
     }
 
     const wasBlinded = gameState.status.blinded && gameState.status.blinded.rounds > 0;
+    const wasCorroded = gameState.status.corroded && gameState.status.corroded.rounds > 0;
 
-    // Ennemi ralenti (arme "Gelé") : sa riposte inflige moitié moins de dégâts
+    // Ennemi ralenti (arme "Gelé") ou apeuré (arme "Intimidant") : sa riposte inflige moins de dégâts.
+    // Les deux réductions se cumulent si l'ennemi subit les deux effets à la fois.
     let enemyAtk = enemy.atk;
     let enemySlowedNote = "";
     const enemyWasSlowed = enemy.status && enemy.status.slowed && enemy.status.slowed.rounds > 0;
@@ -1967,6 +2027,13 @@ function resolveEnemyCounterAttack() {
         enemy.status.slowed.rounds -= 1;
         if (enemy.status.slowed.rounds <= 0) enemy.status.slowed = null;
     }
+    const enemyWasFeared = enemy.status && enemy.status.feared && enemy.status.feared.rounds > 0;
+    if (enemyWasFeared) {
+        enemyAtk = Math.round(enemyAtk * 0.65);
+        enemySlowedNote += " (apeuré)";
+        enemy.status.feared.rounds -= 1;
+        if (enemy.status.feared.rounds <= 0) enemy.status.feared = null;
+    }
 
     const enemyDamage = rollDamage(enemyAtk, getEffectiveDef());
     gameState.hp -= enemyDamage;
@@ -1974,12 +2041,16 @@ function resolveEnemyCounterAttack() {
     const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
         : "";
-    logEvent(`[${enemy.name}]${enemySlowedNote} vous inflige ${enemyDamage} dégâts${wasBlinded ? " (vous étiez ébloui)" : ""}${guardNote}.`, "danger");
+    logEvent(`[${enemy.name}]${enemySlowedNote} vous inflige ${enemyDamage} dégâts${wasBlinded ? " (vous étiez ébloui)" : ""}${wasCorroded ? " (armure corrodée)" : ""}${guardNote}.`, "danger");
 
-    // L'éblouissement se dissipe d'un round à chaque riposte encaissée
+    // L'éblouissement et la corrosion se dissipent d'un round à chaque riposte encaissée
     if (wasBlinded) {
         gameState.status.blinded.rounds -= 1;
         if (gameState.status.blinded.rounds <= 0) gameState.status.blinded = null;
+    }
+    if (wasCorroded) {
+        gameState.status.corroded.rounds -= 1;
+        if (gameState.status.corroded.rounds <= 0) gameState.status.corroded = null;
     }
 
     if (gameState.hp <= 0) {
@@ -2124,7 +2195,7 @@ function attemptFlee() {
             logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
             gameState.pendingTravel = null;
         }
-        gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null }; // Les statuts ne survivent pas au combat
+        gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
         updateUI();
     } else {
         logEvent(`Votre fuite échoue ! [${enemy.name}] profite de l'ouverture.`, "danger");
@@ -2165,7 +2236,7 @@ function winCombat() {
     gameState.currentEnemy = null;
     gameState.inCombat = false;
     gameState.pendingSneakAttack = false;
-    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null }; // Les statuts ne survivent pas au combat
+    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
 
     // Si ce combat était une salle de boss du quartier (escalier ou non), la salle est désormais
     // calme : on la marque vaincue et on retire le lieu connu correspondant, s'il existait.
