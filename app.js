@@ -269,6 +269,7 @@ const ui = {
     btnAttackUnarmed: document.getElementById('btn-attack-unarmed'),
     btnAttackMagic: document.getElementById('btn-attack-magic'),
     btnSprint: document.getElementById('btn-sprint'),
+    btnRetreat: document.getElementById('btn-retreat'),
     btnFlee: document.getElementById('btn-flee'),
     btnStanceToggle: document.getElementById('btn-stance-toggle'),
     stanceLabel: document.getElementById('stance-label'),
@@ -455,17 +456,58 @@ function updateUI() {
         // Sprint : uniquement pertinent quand le joueur (corps à corps) doit rattraper un mob à
         // distance qui garde l'écart — masqué dans tous les autres cas (échange classique, ou
         // joueur en posture à distance qui cherche au contraire à s'éloigner).
+        const contested = gameState.currentEnemy ? isDistanceContested(gameState.currentEnemy) : false;
         if (ui.btnSprint) {
-            const sprintUsable = !!gameState.currentEnemy
-                && isDistanceContested(gameState.currentEnemy)
-                && !playerWantsFar()
-                && distance > 0;
+            const sprintUsable = !!gameState.currentEnemy && contested && !playerWantsFar() && distance > 0;
             ui.btnSprint.classList.toggle('hidden', !sprintUsable);
         }
-        if (ui.combatDistanceFill) {
-            const contested = gameState.currentEnemy ? isDistanceContested(gameState.currentEnemy) : false;
-            const pct = Math.round((distance / config.rangedCombat.maxDistance) * 100);
-            ui.combatDistanceFill.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+        // Reculer : symétrique, quand le joueur (posture à distance) s'est fait rattraper au corps
+        // à corps par un mob de mêlée et veut rouvrir l'écart — voir attemptRetreat().
+        if (ui.btnRetreat) {
+            const retreatUsable = !!gameState.currentEnemy && contested && playerWantsFar() && distance <= 0;
+            ui.btnRetreat.classList.toggle('hidden', !retreatUsable);
+        }
+
+        // Icônes joueur/ennemi sur la barre : le mob est TOUJOURS à gauche, le joueur TOUJOURS à
+        // droite. HOME_EDGE est la position (écart maximal tenu) de chaque camp sur son propre bord ;
+        // ADJACENT_GAP est l'écart minimal entre les deux icônes, même à distance nulle (corps à
+        // corps), pour qu'elles restent visuellement distinctes sans se superposer.
+        //   - Non contesté (CAC vs CAC à écart 0, ou DIST vs DIST à écart fixe) : les deux camps
+        //     reflètent symétriquement le même écart de part et d'autre du centre.
+        //   - Contesté : le camp qui VEUT de la distance reste ancré sur son bord ; l'autre (qui
+        //     veut le corps à corps) se rapproche le long de l'axe selon l'écart restant, jusqu'à
+        //     arriver juste à côté de lui quand l'écart tombe à 0 (contact au corps à corps).
+        if (ui.combatDistancePlayerIcon && ui.combatDistanceEnemyIcon && ui.combatDistanceFill) {
+            const maxDist = config.rangedCombat.maxDistance || 1;
+            const ratio = Math.max(0, Math.min(1, distance / maxDist));
+            const enemyWantsFar = gameState.currentEnemy ? mobWantsFar(gameState.currentEnemy) : false;
+            const HOME_EDGE = 8;
+            const ADJACENT_GAP = 5;
+
+            let enemyPos, playerPos;
+            if (contested) {
+                if (enemyWantsFar) {
+                    enemyPos = HOME_EDGE;
+                    playerPos = (HOME_EDGE + ADJACENT_GAP) + ratio * (100 - HOME_EDGE - (HOME_EDGE + ADJACENT_GAP));
+                } else {
+                    playerPos = 100 - HOME_EDGE;
+                    enemyPos = (100 - HOME_EDGE - ADJACENT_GAP) - ratio * (100 - HOME_EDGE - ADJACENT_GAP - HOME_EDGE);
+                }
+            } else {
+                const half = 50 - ADJACENT_GAP / 2;
+                enemyPos = half - ratio * (half - HOME_EDGE);
+                playerPos = 100 - enemyPos;
+            }
+            ui.combatDistancePlayerIcon.style.left = `${playerPos}%`;
+            ui.combatDistanceEnemyIcon.style.left = `${enemyPos}%`;
+
+            // La barre remplie relie directement les deux icônes : elle EST l'écart entre elles,
+            // et non plus une simple jauge indépendante — leur mouvement et son étendue restent
+            // ainsi toujours corrélés.
+            const leftPos = Math.min(enemyPos, playerPos);
+            const rightPos = Math.max(enemyPos, playerPos);
+            ui.combatDistanceFill.style.left = `${leftPos}%`;
+            ui.combatDistanceFill.style.width = `${rightPos - leftPos}%`;
             // Bleu si le joueur profite de l'écart (il le veut et l'a), rouge s'il le subit
             // (le mob le veut et le joueur non), gris dans les cas non contestés (échange classique).
             const playerBenefits = contested && playerWantsFar() && distance > 0;
@@ -473,23 +515,6 @@ function updateUI() {
             ui.combatDistanceFill.classList.toggle('bg-cyan-600', playerBenefits);
             ui.combatDistanceFill.classList.toggle('bg-red-600', playerSuffers);
             ui.combatDistanceFill.classList.toggle('bg-gray-600', !playerBenefits && !playerSuffers);
-        }
-        // Icônes joueur/ennemi sur la barre : chaque camp qui VEUT du corps à corps reste fixe au
-        // centre (50%) ; chaque camp qui veut de la distance glisse depuis le centre vers SA propre
-        // extrémité (0% côté "Vous", 100% côté "Ennemi") en proportion de l'écart courant. Ce simple
-        // calcul couvre les trois cas sans branche dédiée :
-        //   - CAC vs CAC : les deux formules donnent 50 -> icônes collées au milieu de la barre.
-        //   - DIST vs DIST : la distance reste au maximum -> icônes aux deux extrémités.
-        //   - Contesté : le camp en CAC reste fixe au centre (ancré), le camp en DIST est le seul
-        //     "mobile", sa position variant à chaque manche de distance (resolveDistanceRound()).
-        if (ui.combatDistancePlayerIcon && ui.combatDistanceEnemyIcon) {
-            const maxDist = config.rangedCombat.maxDistance || 1;
-            const ratio = Math.max(0, Math.min(1, distance / maxDist));
-            const enemyWantsFar = gameState.currentEnemy ? mobWantsFar(gameState.currentEnemy) : false;
-            const playerPos = playerWantsFar() ? (50 - ratio * 50) : 50;
-            const enemyPos = enemyWantsFar ? (50 + ratio * 50) : 50;
-            ui.combatDistancePlayerIcon.style.left = `${playerPos}%`;
-            ui.combatDistanceEnemyIcon.style.left = `${enemyPos}%`;
         }
     } else {
         ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending || gameState.stealthChoicePending);
@@ -1834,6 +1859,33 @@ function isDistanceContested(enemy) {
     return playerWantsFar() !== mobWantsFar(enemy);
 }
 
+// Contexte de portée courant : qui, du joueur ou du mob, est actuellement hors d'atteinte de
+// l'autre. `playerAdvantaged` = le joueur tient la distance face à un mob de mêlée qui ne peut
+// donc pas le toucher ce tour-ci ; `mobAdvantaged` = l'inverse (mob à distance hors de portée
+// d'un joueur qui cherche le corps à corps — mais un mob à distance peut tirer, donc ça ne le
+// protège jamais lui, seulement le joueur en face d'un mob de mêlée).
+function getCombatRangeContext() {
+    const enemy = gameState.currentEnemy;
+    const contested = isDistanceContested(enemy);
+    const distance = gameState.combatDistance || 0;
+    const playerAdvantaged = contested && playerWantsFar() && distance > 0;
+    const mobAdvantaged = contested && !playerWantsFar() && distance > 0;
+    return { contested, distance, playerAdvantaged, mobAdvantaged };
+}
+
+// Riposte "sécurisée" : un mob de mêlée ne peut pas toucher un joueur qui tient encore la distance
+// face à lui (playerAdvantaged). À utiliser partout où une riposte gratuite serait normalement
+// déclenchée sans qu'une vraie tentative d'attaque n'ait d'abord validé la portée (désarmement,
+// sort qui part de travers, fuite ratée...).
+function safeEnemyCounterAttack() {
+    const enemy = gameState.currentEnemy;
+    if (enemy && getCombatRangeContext().playerAdvantaged) {
+        logEvent(`Trop loin : [${enemy.name}] ne peut pas riposter.`, "info");
+        return;
+    }
+    enemyCounterAttack();
+}
+
 // Une "manche" de distance : le joueur et le monstre jettent chacun un dé (le joueur bénéficie
 // d'un bonus lié à son niveau), et l'écart évolue selon qui l'emporte. `playerWantsToWiden`
 // indique le sens favorable au joueur ce tour-ci (true = il veut AUGMENTER l'écart, false = il
@@ -2520,7 +2572,7 @@ function attackRanged() {
         if (gameState.status.disarmed.rounds <= 0) gameState.status.disarmed = null;
         showDie(ui.combatPlayerDie, "🧲");
         logEvent("Votre arme reste hors de portée, toujours attirée au loin !", "danger");
-        enemyCounterAttack();
+        safeEnemyCounterAttack(); // Un mob de mêlée ne peut pas punir un joueur qui tient encore la distance
         return;
     }
 
@@ -2562,9 +2614,11 @@ function attackUnarmed() {
 // dégâts et ne déclenche aucune mécanique d'arme ni XP de compétence : en échange d'y renoncer
 // complètement ce tour-ci, le jet de rapprochement bénéficie d'un avantage (deux dés lancés, le
 // meilleur est gardé) là où une attaque classique ne tente qu'un jet simple en incident de son
-// propre jet d'attaque (voir resolveDistanceRound). Le joueur reste exposé pendant sa course :
-// contrairement à une attaque qui réussit à la fois à rattraper ET à frapper le même tour,
-// l'ennemi riposte toujours après un sprint, qu'il soit rattrapé ou non.
+// propre jet d'attaque (voir resolveDistanceRound). Progression garantie (validé) : même un jet
+// perdant réduit l'écart d'au moins 1 — le mob peut ralentir un sprint, jamais le bloquer
+// totalement. Le joueur reste exposé pendant sa course : contrairement à une attaque qui réussit à
+// la fois à rattraper ET à frapper le même tour, l'ennemi riposte toujours après un sprint, qu'il
+// soit rattrapé ou non.
 function attemptSprint() {
     if (!tryPlayerAction()) return;
     const enemy = gameState.currentEnemy;
@@ -2579,20 +2633,55 @@ function attemptSprint() {
     const playerRoll = Math.max(rollOnce(), rollOnce()); // Avantage : deux dés, le meilleur gardé
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
     const diff = playerRoll - mobRoll;
+    // Progression garantie : au moins 1 point d'écart comblé, même si le mob gagne le jet.
+    const closingDiff = Math.max(diff, 1);
 
     const before = gameState.combatDistance;
-    gameState.combatDistance = Math.max(0, Math.min(cfg.maxDistance, gameState.combatDistance - diff));
+    gameState.combatDistance = Math.max(0, Math.min(cfg.maxDistance, gameState.combatDistance - closingDiff));
     showDie(ui.combatPlayerDie, "🏃");
 
     if (gameState.combatDistance <= 0) {
         logEvent(`🏃 Vous foncez et comblez l'écart face à [${enemy.name}] !`, "success");
-    } else if (gameState.combatDistance < before) {
+    } else if (closingDiff === diff) {
         logEvent(`🏃 Vous gagnez du terrain sur [${enemy.name}], mais l'écart n'est pas encore comblé.`, "info");
     } else {
-        logEvent(`🏃 [${enemy.name}] esquive votre approche et garde ses distances.`, "danger");
+        logEvent(`🏃 [${enemy.name}] esquive votre charge, mais vous grignotez tout de même du terrain.`, "info");
     }
     // Toujours exposé pendant la course : un sprint ne porte jamais de coup, rien ne dissuade donc
     // l'ennemi de riposter immédiatement (contrairement à une attaque qui vient de porter).
+    enemyCounterAttack();
+}
+
+// Reculer : symétrique du Sprint. Utilisable uniquement quand le joueur (posture à distance) s'est
+// fait rattraper au corps à corps par un mob de mêlée et cherche à rouvrir l'écart (duel contesté,
+// écart tombé à 0 — voir le toggle d'affichage du bouton dans updateUI()). Même mécanique exacte
+// que le Sprint (avantage : deux dés, le meilleur gardé), juste appliquée dans l'autre sens sur
+// l'écart. Ne porte jamais de coup, ne déclenche aucune XP, et le mob (déjà collé au joueur) riposte
+// systématiquement, qu'il soit repoussé ou non.
+function attemptRetreat() {
+    if (!tryPlayerAction()) return;
+    const enemy = gameState.currentEnemy;
+    if (!enemy || !isDistanceContested(enemy) || !playerWantsFar() || gameState.combatDistance > 0) {
+        logEvent("Rien à fuir pour l'instant.", "info");
+        return;
+    }
+
+    const cfg = config.rangedCombat;
+    const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor);
+    const rollOnce = () => 1 + Math.floor(Math.random() * cfg.dieSides) + levelBonus;
+    const playerRoll = Math.max(rollOnce(), rollOnce()); // Avantage : deux dés, le meilleur gardé
+    const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
+    const diff = playerRoll - mobRoll;
+
+    gameState.combatDistance = Math.max(0, Math.min(cfg.maxDistance, gameState.combatDistance + diff));
+    showDie(ui.combatPlayerDie, "🏃");
+
+    if (gameState.combatDistance > 0) {
+        logEvent(`↔️ Vous rouvrez l'écart face à [${enemy.name}] !`, "success");
+    } else {
+        logEvent(`[${enemy.name}] vous colle et vous empêche de reculer.`, "danger");
+    }
+    // Toujours exposé en reculant : le mob est déjà au contact, rien ne l'empêche de frapper.
     enemyCounterAttack();
 }
 
@@ -2612,7 +2701,7 @@ function attackMagic() {
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
         logEvent("Votre sort part de travers et fait un flop retentissant. Aucun dégât.", "danger");
-        enemyCounterAttack();
+        safeEnemyCounterAttack(); // Un mob de mêlée ne peut pas punir un joueur qui tient encore la distance
         gainSkillXp('magic', SKILL_XP_PER_USE); // On apprend même de ses échecs
         return;
     }
@@ -2654,7 +2743,7 @@ function attemptFlee() {
         updateUI();
     } else {
         logEvent(`Votre fuite échoue ! [${enemy.name}] profite de l'ouverture.`, "danger");
-        enemyCounterAttack();
+        safeEnemyCounterAttack(); // Un mob de mêlée ne peut pas punir un joueur qui tient encore la distance
     }
 }
 
@@ -2899,6 +2988,7 @@ ui.btnAttackRanged.addEventListener('click', attackRanged);
 ui.btnAttackUnarmed.addEventListener('click', attackUnarmed);
 ui.btnAttackMagic.addEventListener('click', attackMagic);
 if (ui.btnSprint) ui.btnSprint.addEventListener('click', attemptSprint);
+if (ui.btnRetreat) ui.btnRetreat.addEventListener('click', attemptRetreat);
 ui.btnFlee.addEventListener('click', attemptFlee);
 if (ui.btnStanceToggle) ui.btnStanceToggle.addEventListener('click', togglePlayerStance);
 
