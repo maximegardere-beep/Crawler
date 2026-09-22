@@ -49,6 +49,10 @@ const gameState = {
         blinded: null    // { rounds } : DEF effective réduite (moins de dégâts adverses parés) pendant ces rounds
     },
     cardsDrawnThisFloor: 0, // Compteur informatif (pièces neuves explorées cet étage), plus utilisé pour l'escalier
+    // Régénération de PV hors combat : incrémenté à chaque "carte calme" (événement 🌑 Silence),
+    // remis à zéro (et un nouveau seuil 2 ou 3 tiré) dès que le seuil est atteint et le soin appliqué.
+    calmCardsSinceRegen: 0,
+    calmCardsRegenThreshold: 2 + Math.floor(Math.random() * 2), // 2 ou 3
     inCombat: false, // Verrouille l'avancée si un combat est en cours
     currentEnemy: null, // Ennemi généré procéduralement, actif pendant un combat
     pendingStairAfterCombat: false, // Si vrai, gagner le combat en cours ouvre l'étage suivant
@@ -182,6 +186,7 @@ const ui = {
     cardIcon: document.getElementById('card-icon'),
     cardTitle: document.getElementById('card-title'),
     cardBody: document.getElementById('card-body'),
+    screenFxOverlay: document.getElementById('screen-fx-overlay'),
     fullLog: document.getElementById('full-log'),
     playerLevel: document.getElementById('player-level'),
     xpBar: document.getElementById('xp-bar'),
@@ -261,7 +266,36 @@ const ui = {
 // ==========================================
 // 5. AFFICHAGE ET MISE À JOUR DE L'UI
 // ==========================================
+// Formate un nombre d'heures restantes en "Xj Yh" (ou juste "Yh" si moins d'un jour plein),
+// pour rester lisible sur le badge compact une fois le temps alloué augmenté au-delà de 24H.
+function formatTimeRemaining(hours) {
+    const total = Math.max(0, Math.round(hours));
+    const days = Math.floor(total / 24);
+    const rem = total % 24;
+    return days > 0 ? `${days}j ${rem}h` : `${rem}h`;
+}
+
+// Empile sur l'overlay d'ambiance les classes correspondant aux états critiques actuellement actifs
+// (PV bas, saignement/brûlure, confusion, aveuglement, corrosion, peur) : plusieurs peuvent être
+// visibles à la fois. Appelé à chaque updateUI(), aussi bien en combat que hors combat (un
+// saignement ou une confusion peuvent survivre un instant après un combat interrompu par une fuite).
+function applyScreenStateEffects() {
+    if (!ui.screenFxOverlay) return;
+    const classes = {
+        'fx-low-hp': gameState.maxHp > 0 && (gameState.hp / gameState.maxHp) <= 0.25 && gameState.hp > 0,
+        'fx-burn': !!(gameState.status.bleed && gameState.status.bleed.rounds > 0),
+        'fx-confused': !!(gameState.status.confused && gameState.status.confused.rounds > 0),
+        'fx-blinded': !!(gameState.status.blinded && gameState.status.blinded.rounds > 0),
+        'fx-corroded': !!(gameState.status.corroded && gameState.status.corroded.rounds > 0),
+        'fx-feared': !!(gameState.status.feared && gameState.status.feared.rounds > 0)
+    };
+    for (const cls in classes) {
+        ui.screenFxOverlay.classList.toggle(cls, classes[cls]);
+    }
+}
+
 function updateUI() {
+    applyScreenStateEffects();
     ui.playerName.innerText = gameState.playerName;
     ui.floorLevel.innerText = gameState.currentFloor;
     ui.districtName.innerText = gameState.currentDistrict;
@@ -311,8 +345,7 @@ function updateUI() {
     }
     
     // Mise à jour du temps
-    ui.timeText.innerText = `${gameState.timeLeft} H`;
-    const timePercentage = (gameState.timeLeft / gameState.maxTime) * 100;
+    ui.timeText.innerText = formatTimeRemaining(gameState.timeLeft);    const timePercentage = (gameState.timeLeft / gameState.maxTime) * 100;
     ui.timeBar.style.width = `${timePercentage}%`;
     
     // Changer la couleur de la barre si le temps est critique
@@ -497,21 +530,26 @@ function animateDieHit(dieEl, direction, value, ringEl, valueEl, newHpValue, max
     }, 180);
 }
 
-// Fonction pour ajouter un message : sur la carte active (fond clair) ET dans le journal complet (fond sombre)
+// Fonction pour ajouter un message : sur la carte active (fond clair) ET dans le journal complet (fond sombre).
+// Pendant un combat, la carte n'affiche plus le flot de logs (trop de bruit visuel) : elle montre à
+// la place un résumé fixe de l'ennemi (voir renderCombatMobPanel) et un bouton "Examiner". Le
+// journal complet, lui, continue toujours de tout recevoir, combat ou non.
 function logEvent(message, type = "normal") {
-    // Couleurs adaptées au fond clair de la carte (papier crème)
-    const cardColors = {
-        danger: "text-red-700 font-bold",
-        success: "text-green-700 font-bold",
-        info: "text-blue-700 italic",
-        loot: "text-amber-700 font-bold",
-        normal: "text-stone-700"
-    };
-    const cardLine = document.createElement('p');
-    cardLine.className = cardColors[type] || cardColors.normal;
-    cardLine.innerText = message;
-    ui.cardBody.appendChild(cardLine);
-    ui.cardBody.scrollTop = ui.cardBody.scrollHeight;
+    if (!gameState.inCombat) {
+        // Couleurs adaptées au fond clair de la carte (papier crème)
+        const cardColors = {
+            danger: "text-red-700 font-bold",
+            success: "text-green-700 font-bold",
+            info: "text-blue-700 italic",
+            loot: "text-amber-700 font-bold",
+            normal: "text-stone-700"
+        };
+        const cardLine = document.createElement('p');
+        cardLine.className = cardColors[type] || cardColors.normal;
+        cardLine.innerText = message;
+        ui.cardBody.appendChild(cardLine);
+        ui.cardBody.scrollTop = ui.cardBody.scrollHeight;
+    }
 
     // Couleurs adaptées au fond sombre du journal complet (reprend l'ancien style)
     const logColors = {
@@ -545,7 +583,8 @@ function playCardDrawAnimation() {
 
 // Fonction pour mettre à jour l'inventaire visuel
 function updateInventoryUI() {
-    ui.inventoryCount.innerText = gameState.inventory.length;
+    const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
+    ui.inventoryCount.innerText = equipmentCount;
     ui.equippedWeapon.innerText = gameState.equipment.weapon ? formatItemDisplayName(gameState.equipment.weapon) : "Aucune";
     ui.equippedArmor.innerText = gameState.equipment.armor ? formatItemDisplayName(gameState.equipment.armor) : "Aucune";
     if (ui.equippedRanged) ui.equippedRanged.innerText = gameState.equipment.ranged ? formatItemDisplayName(gameState.equipment.ranged) : "Aucune";
@@ -684,6 +723,23 @@ function useConsumable(index) {
 // ==========================================
 // 3. MOTEUR DE PROBABILITÉS ET ÉVÉNEMENTS
 // ==========================================
+
+// Compte une "carte calme" (événement 🌑 Silence) et déclenche une petite régénération de PV hors
+// combat tous les 2 à 3 tirages de ce type (seuil re-tiré à chaque déclenchement). Volontairement
+// plus modeste qu'une salle sécurisée (qui reste la vraie source de soin fiable) : un filet de
+// sécurité léger, pas un substitut.
+function registerCalmCard() {
+    if (gameState.hp >= gameState.maxHp) return; // Rien à régénérer, on ne consomme pas le compteur
+    gameState.calmCardsSinceRegen += 1;
+    if (gameState.calmCardsSinceRegen < gameState.calmCardsRegenThreshold) return;
+
+    gameState.calmCardsSinceRegen = 0;
+    gameState.calmCardsRegenThreshold = 2 + Math.floor(Math.random() * 2); // Nouveau seuil : 2 ou 3
+    const heal = 4 + Math.floor(Math.random() * 5); // 4 à 8 PV
+    gameState.hp = Math.min(gameState.maxHp, gameState.hp + heal);
+    logEvent(`Une pause bienvenue vous permet de reprendre votre souffle (+${heal} PV).`, "success");
+}
+
 function resolveCardEvent() {
     // L'escalier et les salles sécurisées ne sont plus tirés ici : ce sont des pièces fixes du
     // graphe de l'étage (voir generateFloorMap() et enterRoom()). Cette fonction ne résout plus
@@ -696,6 +752,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         setCardHeader('🌑', 'Silence', 'Exploration');
         logEvent(pick(flavorText.nothing), "normal");
+        registerCalmCard();
         return;
     }
 
@@ -774,6 +831,7 @@ function resolveCardEvent() {
             // Déjà accompagné : ce tirage se résout comme un moment calme, pas de rencontre superposée
             setCardHeader('🌑', 'Silence', 'Exploration');
             logEvent(pick(flavorText.nothing), "normal");
+            registerCalmCard();
             return;
         }
 
@@ -1183,14 +1241,19 @@ function getLootPowerScore(enemy) {
     return Math.max(0, Math.min(1, gameState.currentFloor / 20));
 }
 
+// Ajoute un objet généré à l'inventaire. Les consommables ne sont jamais limités (slots dédiés
+// infinis) ; seuls les objets d'équipement (armes/armures/armes à distance) comptent dans la
+// capacité limitée (gameState.maxInventory).
 function addLoot(powerScore = 0) {
-    if (gameState.inventory.length < gameState.maxInventory) {
-        const item = generateItem(powerScore);
+    const item = generateItem(powerScore);
+    const isConsumable = item.category === 'consumables';
+    const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
+    if (isConsumable || equipmentCount < gameState.maxInventory) {
         gameState.inventory.push(item);
         logEvent(`Objet obtenu : [${formatItemDisplayName(item)}] !`, "loot");
         updateInventoryUI();
     } else {
-        logEvent("Vous trouvez un objet, mais votre inventaire est plein !", "danger");
+        logEvent("Vous trouvez un objet, mais votre réserve d'équipement est pleine !", "danger");
     }
 }
 
@@ -1309,13 +1372,15 @@ function generateQuadrant(quadrantIndex, districtName, roomsById) {
     const bossId = pickDeepRoom(roomsById, roomIds, entryId);
     roomsById[bossId].type = 'boss';
 
-    // 1 à 2 salles sécurisées parmi les pièces restantes
+    // Salle(s) sécurisée(s) parmi les pièces restantes : volontairement rares (0 ou 1 par quartier,
+    // jamais 2) depuis l'ajout de la régénération passive sur les cartes calmes — la salle
+    // sécurisée doit rester une vraie trouvaille, pas une ressource banale.
     const safeCandidates = roomIds.filter(id => id !== entryId && id !== bossId);
     for (let i = safeCandidates.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [safeCandidates[i], safeCandidates[j]] = [safeCandidates[j], safeCandidates[i]];
     }
-    const safeCount = Math.min(safeCandidates.length, 1 + Math.floor(Math.random() * 2));
+    const safeCount = safeCandidates.length > 0 && Math.random() < 0.4 ? 1 : 0;
     for (let i = 0; i < safeCount; i++) {
         roomsById[safeCandidates[i]].type = 'safe';
         roomsById[safeCandidates[i]].safehouse = pickSafehouseType();
@@ -1512,6 +1577,68 @@ function retreatFromBoss() {
 // ==========================================
 // 5. SYSTÈME DE COMBAT
 // ==========================================
+
+// Icônes associées à chaque effet élémentaire/mental de mobModifiers (voir bestiary.js), pour le
+// panneau compact affiché sur la carte pendant un combat.
+const EFFECT_ICONS = {
+    burn: '🔥', poison: '☠️', slow: '🐌', stun: '⚡', fear: '😱',
+    confusion: '🌀', pull: '🧲', light: '✨', corrode: '🧪'
+};
+const EFFECT_LABELS = {
+    burn: 'Brûlure', poison: 'Poison', slow: 'Ralentissement', stun: 'Étourdissement', fear: 'Peur',
+    confusion: 'Confusion', pull: 'Attraction', light: 'Aveuglement', corrode: 'Corrosion'
+};
+
+let mobExamineOpen = false; // État transitoire du bouton "Examiner" (pas de sauvegarde nécessaire)
+
+// Construit le panneau compact affiché sur la carte pendant un combat : plus aucun texte de log
+// n'y défile (voir logEvent) — seulement des icônes/chiffres résumant l'ennemi, plus un bouton
+// "Examiner" qui déplie les détails textuels (description des modificateurs, effet) à la demande.
+function renderCombatMobPanel() {
+    const enemy = gameState.currentEnemy;
+    if (!enemy) return;
+    mobExamineOpen = false;
+
+    const rangeIcon = enemy.ranged ? '🏹' : '🗡️';
+    const rangeLabel = enemy.ranged ? 'DIST' : 'CAC';
+    const modifiers = enemy.modifiersApplied || [];
+    const effectChip = enemy.effect
+        ? `<span class="px-1.5 py-0.5 rounded bg-purple-100 border border-purple-400 text-purple-800">${EFFECT_ICONS[enemy.effect] || '❔'} ${EFFECT_LABELS[enemy.effect] || enemy.effect}</span>`
+        : '';
+    const modifierChips = modifiers.map(m => `<span class="px-1.5 py-0.5 rounded bg-stone-200 border border-stone-400 text-stone-700">🏷️ ${m.name}</span>`).join('');
+
+    ui.cardBody.innerHTML = `
+        <div class="flex flex-wrap justify-center gap-1 text-[10px] font-bold">
+            <span class="px-1.5 py-0.5 rounded bg-stone-200 border border-stone-400 text-stone-700">${rangeIcon} ${rangeLabel}</span>
+            <span class="px-1.5 py-0.5 rounded bg-red-100 border border-red-400 text-red-700">⚔️ +${enemy.atk}</span>
+            <span class="px-1.5 py-0.5 rounded bg-blue-100 border border-blue-400 text-blue-700">🛡️ +${enemy.def}</span>
+            ${effectChip}
+            ${modifierChips}
+        </div>
+        <button id="btn-examine-mob" class="mt-2 w-full text-[10px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">🔍 Examiner</button>
+        <div id="mob-examine-details" class="hidden mt-2 text-[10px] leading-snug text-stone-600 italic space-y-1"></div>
+    `;
+
+    const btn = document.getElementById('btn-examine-mob');
+    const details = document.getElementById('mob-examine-details');
+    if (btn && details) {
+        btn.addEventListener('click', () => {
+            mobExamineOpen = !mobExamineOpen;
+            if (mobExamineOpen) {
+                const lines = [`${enemy.name} — PV ${Math.round(enemy.hp)}/${enemy.maxHp || enemy.hp}, ATQ ${enemy.atk}, DEF ${enemy.def}, ${enemy.ranged ? 'combat à distance' : 'combat au corps à corps'}.`];
+                modifiers.forEach(m => { if (m.desc) lines.push(`${m.name} : ${m.desc}`); });
+                if (enemy.effect) lines.push(`Pouvoir : ${EFFECT_LABELS[enemy.effect] || enemy.effect}.`);
+                details.innerHTML = lines.map(l => `<p>${l}</p>`).join('');
+                details.classList.remove('hidden');
+                btn.innerText = '🔼 Masquer';
+            } else {
+                details.classList.add('hidden');
+                btn.innerText = '🔍 Examiner';
+            }
+        });
+    }
+}
+
 function initiateCombat(forcedEnemy = null) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
     gameState.currentEnemy = enemy;
@@ -1560,6 +1687,7 @@ function initiateCombat(forcedEnemy = null) {
     if (enemy && enemy.ranged) {
         logEvent("🎯 Cet ennemi est armé à distance !", "danger");
     }
+    renderCombatMobPanel();
     updateUI();
 }
 
@@ -2066,12 +2194,35 @@ function resolveEnemyCounterAttack() {
     }
 
     const enemyDamage = rollDamage(enemyAtk, getEffectiveDef());
-    gameState.hp -= enemyDamage;
-    animateDieHit(ui.combatEnemyDie, 'right', enemyDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
+
+    // Compagnon "Garde rapprochée" : jet de dé pour déterminer s'il s'interpose et encaisse une
+    // partie du coup à la place du joueur (en plus de son bonus passif de DEF, voir getEffectiveDef).
+    // S'il tombe à 0 PV ce faisant, il est mis hors combat et quitte le groupe.
+    let playerDamage = enemyDamage;
+    let companionAbsorbNote = "";
+    if (gameState.companion && gameState.companion.specialty.type === 'guard' && gameState.companion.hp > 0) {
+        const interceptChance = 40; // 40% de chance de s'interposer sur ce coup
+        if (Math.random() * 100 < interceptChance) {
+            const absorbPct = 0.3 + Math.random() * 0.3; // 30% à 60% des dégâts du coup
+            const absorbed = Math.min(gameState.companion.hp, Math.round(enemyDamage * absorbPct));
+            playerDamage = enemyDamage - absorbed;
+            gameState.companion.hp -= absorbed;
+            companionAbsorbNote = ` (${gameState.companion.name} encaisse ${absorbed} dégâts à votre place)`;
+        }
+    }
+
+    gameState.hp -= playerDamage;
+    animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
     const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
         : "";
-    logEvent(`[${enemy.name}]${enemySlowedNote} vous inflige ${enemyDamage} dégâts${wasBlinded ? " (vous étiez ébloui)" : ""}${wasCorroded ? " (armure corrodée)" : ""}${guardNote}.`, "danger");
+    logEvent(`[${enemy.name}]${enemySlowedNote} vous inflige ${playerDamage} dégâts${wasBlinded ? " (vous étiez ébloui)" : ""}${wasCorroded ? " (armure corrodée)" : ""}${guardNote}${companionAbsorbNote}.`, "danger");
+
+    // Le compagnon tombe s'il vient d'encaisser le coup de trop : il quitte le groupe.
+    if (gameState.companion && gameState.companion.hp <= 0) {
+        logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
+        gameState.companion = null;
+    }
 
     // L'éblouissement et la corrosion se dissipent d'un round à chaque riposte encaissée
     if (wasBlinded) {
@@ -2239,17 +2390,18 @@ function attemptFlee() {
         const scoutNote = (gameState.companion && gameState.companion.specialty.type === 'scout')
             ? ` (${gameState.companion.name} vous a montré une ouverture)`
             : "";
-        logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
         gameState.currentEnemy = null;
-        gameState.inCombat = false;
+        gameState.inCombat = false; // Avant le log : le message de fuite doit s'afficher normalement sur la carte
         gameState.pendingStairAfterCombat = false; // La fuite ne compte pas comme une victoire sur le gardien
         gameState.pendingBossRoomId = null; // Le boss reste vivant, la salle n'est pas marquée vaincue
         gameState.pendingSneakAttack = false; // Ne doit pas se reporter sur un combat futur
+        gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
+        setCardHeader('🏃', 'Fuite Réussie', 'Exploration');
+        logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
         if (gameState.pendingTravel) {
             logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
             gameState.pendingTravel = null;
         }
-        gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
         updateUI();
     } else {
         logEvent(`Votre fuite échoue ! [${enemy.name}] profite de l'ouverture.`, "danger");
@@ -2258,18 +2410,29 @@ function attemptFlee() {
 }
 
 function winCombat() {
-    const wasBoss = gameState.currentEnemy && gameState.currentEnemy.isBoss;
+    const defeatedEnemy = gameState.currentEnemy;
+    const wasBoss = defeatedEnemy && defeatedEnemy.isBoss;
+
+    // Combat terminé : on sort de l'état "inCombat" avant les logs de résultat (XP/loot/victoire)
+    // pour qu'ils s'affichent normalement sur la carte, comme n'importe quel autre événement (voir
+    // logEvent) — seuls les échanges de coups pendant le combat lui-même restent hors de la carte.
+    gameState.currentEnemy = null;
+    gameState.inCombat = false;
+    gameState.pendingSneakAttack = false;
+    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
 
     if (wasBoss) {
-        logEvent(`👑 Vous avez triomphé de ${gameState.currentEnemy.name} !`, "success");
+        setCardHeader('👑', 'Victoire !', 'Boss Vaincu');
+        logEvent(`👑 Vous avez triomphé de ${defeatedEnemy.name} !`, "success");
         triggerHaptic('heavy');
     } else {
+        setCardHeader('🏆', 'Victoire !', 'Combat');
         logEvent("Vous remportez le combat !", "success");
         triggerHaptic('medium');
     }
 
     // Gain d'XP basé sur le monstre vaincu (valeur de repli si jamais xpReward est absent)
-    const xpGained = (gameState.currentEnemy && gameState.currentEnemy.xpReward) || 10;
+    const xpGained = (defeatedEnemy && defeatedEnemy.xpReward) || 10;
     gainXp(xpGained);
 
     // Le compagnon actif progresse aussi (fait grimper son agressivité — voir gainCompanionXp)
@@ -2279,18 +2442,13 @@ function winCombat() {
 
     // Butin : garanti pour un boss (avec une chance de second objet), sinon la chance standard.
     // La rareté du loot est pondérée par la puissance du monstre vaincu (voir getLootPowerScore).
-    const lootPower = getLootPowerScore(gameState.currentEnemy);
+    const lootPower = getLootPowerScore(defeatedEnemy);
     if (wasBoss) {
         addLoot(lootPower);
         if (Math.random() * 100 < 50) addLoot(lootPower); // 50% de chance d'un deuxième objet
     } else if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
         addLoot(lootPower);
     }
-
-    gameState.currentEnemy = null;
-    gameState.inCombat = false;
-    gameState.pendingSneakAttack = false;
-    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
 
     // Si ce combat était une salle de boss du quartier (escalier ou non), la salle est désormais
     // calme : on la marque vaincue et on retire le lieu connu correspondant, s'il existait.
