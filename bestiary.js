@@ -24,7 +24,8 @@ const mobModifiers = {
         { name: "Hypocondriaque", stats: { atk: 0.6, def: 1.3, hp: 1.4 }, desc: "Pense avoir attrapé toutes les maladies du donjon." },
         { name: "Philosophe", stats: { atk: 0.4, def: 1.1, hp: 1.3 }, desc: "Discute de l'absurdité de l'existence pendant le combat." },
         { name: "Perfectionniste", stats: { atk: 1.5, def: 0.7, hp: 0.9 }, desc: "Recommence son attaque si elle n'est pas parfaite." },
-        { name: "Superstitieux", stats: { atk: 0.8, def: 1.0, hp: 1.1 }, desc: "Touche du bois avant chaque attaque." }
+        { name: "Superstitieux", stats: { atk: 0.8, def: 1.0, hp: 1.1 }, desc: "Touche du bois avant chaque attaque." },
+        { name: "Terrifiant", stats: { atk: 1.3, def: 0.7, hp: 0.9 }, effect: "fear", desc: "Son regard seul suffit à glacer le sang." }
     ],
 
     // Les tags élémentaires (applicables à presque tout pour plus de chaos)
@@ -40,7 +41,8 @@ const mobModifiers = {
         { name: "Sonique", stats: { atk: 1.1, def: 0.9, hp: 1.0 }, effect: "stun", desc: "Hurle à une fréquence insupportable." },
         { name: "Magnétique", stats: { atk: 1.0, def: 1.2, hp: 1.1 }, effect: "pull", desc: "Attire tous les objets métalliques vers lui. Même les armures." },
         { name: "Gravitationnel", stats: { atk: 1.4, def: 0.8, hp: 1.0 }, effect: "slow", desc: "Ralenti tout autour de lui. Même le temps." },
-        { name: "Lumineux", stats: { atk: 0.8, def: 1.0, hp: 1.0 }, effect: "light", desc: "Éblouit ses ennemis avec une lumière aveuglante." }
+        { name: "Lumineux", stats: { atk: 0.8, def: 1.0, hp: 1.0 }, effect: "light", desc: "Éblouit ses ennemis avec une lumière aveuglante." },
+        { name: "Corrosif", stats: { atk: 1.0, def: 1.2, hp: 1.1 }, effect: "corrode", desc: "Suinte un acide qui ronge armures et convictions." }
     ],
 
     // Les tags physiques (modifications corporelles)
@@ -91,7 +93,22 @@ const baseMobs = [
     { name: "Garde du Marché", hp: 90, atk: 12, def: 7, xpReward: 45, allowedTags: ["mental", "physical", "elemental"], ranged: true },
     { name: "Imprimante à Rêves", hp: 80, atk: 10, def: 5, xpReward: 40, allowedTags: ["elemental", "physical"] },
     { name: "Ordinateur en Colère", hp: 100, atk: 15, def: 8, xpReward: 50, allowedTags: ["elemental", "physical"], ranged: true },
-    { name: "Câble Électrique Vivant", hp: 30, atk: 12, def: 2, xpReward: 15, allowedTags: ["elemental", "physical"] }
+    { name: "Câble Électrique Vivant", hp: 30, atk: 12, def: 2, xpReward: 15, allowedTags: ["elemental", "physical"] },
+
+    // --- Parking Souterrain Maudit ---
+    { name: "Voiture Abandonnée Rouillée", hp: 95, atk: 9, def: 12, xpReward: 35, allowedTags: ["physical", "elemental"] },
+    { name: "Horodateur Vengeur", hp: 55, atk: 11, def: 5, xpReward: 28, allowedTags: ["mental", "elemental"], ranged: true },
+    { name: "Cône de Chantier Fou", hp: 35, atk: 8, def: 2, xpReward: 14, allowedTags: ["mental", "physical"] },
+
+    // --- Piscine Municipale Désaffectée ---
+    { name: "Maître-Nageur Zombifié", hp: 65, atk: 10, def: 6, xpReward: 26, allowedTags: ["mental", "physical"], ranged: true },
+    { name: "Frite de Piscine Étrangleuse", hp: 40, atk: 13, def: 3, xpReward: 16, allowedTags: ["elemental", "physical"] },
+    { name: "Nuage de Chlore Ambulant", hp: 50, atk: 9, def: 4, xpReward: 20, allowedTags: ["elemental"] },
+
+    // --- Studio de Télé-Achat Abandonné ---
+    { name: "Mannequin Vitrine Possédé", hp: 60, atk: 9, def: 7, xpReward: 24, allowedTags: ["mental", "physical"] },
+    { name: "Caméra de Surveillance Autonome", hp: 45, atk: 12, def: 4, xpReward: 22, allowedTags: ["elemental", "physical"], ranged: true },
+    { name: "Présentateur Télé-Achat Hystérique", hp: 50, atk: 14, def: 3, xpReward: 22, allowedTags: ["mental"] }
 ];
 
 function findMobByName(name) {
@@ -108,7 +125,10 @@ const districtBosses = {
     "Rue des Illusions": { name: "Le Maître des Illusions", hp: 220, atk: 16, def: 9, xpReward: 100, effect: "confusion", isBoss: true },
     "Catacombes des Chaussettes Perdues": { name: "Le Roi des Chaussettes Solitaires", hp: 200, atk: 14, def: 13, xpReward: 90, effect: "slow", isBoss: true },
     "Marché Noir du Donjon": { name: "Le Baron des Ombres", hp: 270, atk: 19, def: 14, xpReward: 140, effect: "stun", isBoss: true },
-    "Salle des Machines Infernales": { name: "L'IA Malveillante", hp: 300, atk: 22, def: 15, xpReward: 150, effect: "stun", isBoss: true, ranged: true }
+    "Salle des Machines Infernales": { name: "L'IA Malveillante", hp: 300, atk: 22, def: 15, xpReward: 150, effect: "stun", isBoss: true, ranged: true },
+    "Parking Souterrain Maudit": { name: "Le Gardien du Parking Éternel", hp: 235, atk: 16, def: 13, xpReward: 105, effect: "stun", isBoss: true },
+    "Piscine Municipale Désaffectée": { name: "Le Grand Requin Gonflable", hp: 245, atk: 17, def: 9, xpReward: 110, effect: "bleed", isBoss: true },
+    "Studio de Télé-Achat Abandonné": { name: "L'Animateur Vedette Immortel", hp: 255, atk: 18, def: 10, xpReward: 115, effect: "confusion", isBoss: true }
 };
 
 function findBossForDistrict(districtName) {
