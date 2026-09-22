@@ -254,6 +254,7 @@ const ui = {
     btnAttackRanged: document.getElementById('btn-attack-ranged'),
     btnAttackUnarmed: document.getElementById('btn-attack-unarmed'),
     btnAttackMagic: document.getElementById('btn-attack-magic'),
+    btnSprint: document.getElementById('btn-sprint'),
     btnFlee: document.getElementById('btn-flee'),
     btnStanceToggle: document.getElementById('btn-stance-toggle'),
     stanceLabel: document.getElementById('stance-label'),
@@ -434,6 +435,16 @@ function updateUI() {
             ui.btnAttackRanged.disabled = atMelee;
             ui.btnAttackRanged.classList.toggle('opacity-40', atMelee);
             ui.btnAttackRanged.classList.toggle('pointer-events-none', atMelee);
+        }
+        // Sprint : uniquement pertinent quand le joueur (corps à corps) doit rattraper un mob à
+        // distance qui garde l'écart — masqué dans tous les autres cas (échange classique, ou
+        // joueur en posture à distance qui cherche au contraire à s'éloigner).
+        if (ui.btnSprint) {
+            const sprintUsable = !!gameState.currentEnemy
+                && isDistanceContested(gameState.currentEnemy)
+                && !playerWantsFar()
+                && distance > 0;
+            ui.btnSprint.classList.toggle('hidden', !sprintUsable);
         }
         if (ui.combatDistanceFill) {
             const contested = gameState.currentEnemy ? isDistanceContested(gameState.currentEnemy) : false;
@@ -2140,7 +2151,7 @@ const COMBAT_BEAT_MS = 400;
 
 // Empêche de spammer les boutons de combat pendant la petite pause entre deux actions
 function setCombatInputLocked(locked) {
-    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnFlee].forEach(btn => {
+    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnFlee].forEach(btn => {
         if (!btn) return;
         btn.disabled = locked;
         btn.classList.toggle('opacity-40', locked);
@@ -2364,6 +2375,46 @@ function attackUnarmed() {
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
     const landed = resolveDistanceGatedAttack(gameState.atk, { atkMultiplier: 0.75, varianceRange: 0.10, defReduction }, "à mains nues");
     if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
+}
+
+// Sprint : action dédiée au rapprochement, à la place d'une attaque. Utilisable uniquement quand
+// le joueur (posture corps à corps) tente de rattraper un mob à distance qui garde l'écart (duel
+// contesté, écart > 0 — voir le toggle d'affichage du bouton dans updateUI()). Ne porte JAMAIS de
+// dégâts et ne déclenche aucune mécanique d'arme ni XP de compétence : en échange d'y renoncer
+// complètement ce tour-ci, le jet de rapprochement bénéficie d'un avantage (deux dés lancés, le
+// meilleur est gardé) là où une attaque classique ne tente qu'un jet simple en incident de son
+// propre jet d'attaque (voir resolveDistanceRound). Le joueur reste exposé pendant sa course :
+// contrairement à une attaque qui réussit à la fois à rattraper ET à frapper le même tour,
+// l'ennemi riposte toujours après un sprint, qu'il soit rattrapé ou non.
+function attemptSprint() {
+    if (!tryPlayerAction()) return;
+    const enemy = gameState.currentEnemy;
+    if (!enemy || !isDistanceContested(enemy) || playerWantsFar() || gameState.combatDistance <= 0) {
+        logEvent("Rien à rattraper pour l'instant.", "info");
+        return;
+    }
+
+    const cfg = config.rangedCombat;
+    const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor);
+    const rollOnce = () => 1 + Math.floor(Math.random() * cfg.dieSides) + levelBonus;
+    const playerRoll = Math.max(rollOnce(), rollOnce()); // Avantage : deux dés, le meilleur gardé
+    const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
+    const diff = playerRoll - mobRoll;
+
+    const before = gameState.combatDistance;
+    gameState.combatDistance = Math.max(0, Math.min(cfg.maxDistance, gameState.combatDistance - diff));
+    showDie(ui.combatPlayerDie, "🏃");
+
+    if (gameState.combatDistance <= 0) {
+        logEvent(`🏃 Vous foncez et comblez l'écart face à [${enemy.name}] !`, "success");
+    } else if (gameState.combatDistance < before) {
+        logEvent(`🏃 Vous gagnez du terrain sur [${enemy.name}], mais l'écart n'est pas encore comblé.`, "info");
+    } else {
+        logEvent(`🏃 [${enemy.name}] esquive votre approche et garde ses distances.`, "danger");
+    }
+    // Toujours exposé pendant la course : un sprint ne porte jamais de coup, rien ne dissuade donc
+    // l'ennemi de riposter immédiatement (contrairement à une attaque qui vient de porter).
+    enemyCounterAttack();
 }
 
 // Magie : la plus puissante en moyenne, mais imprévisible, et peut totalement rater (thème absurde/chaotique).
@@ -2674,6 +2725,7 @@ ui.btnAttackWeapon.addEventListener('click', attackWeapon);
 ui.btnAttackRanged.addEventListener('click', attackRanged);
 ui.btnAttackUnarmed.addEventListener('click', attackUnarmed);
 ui.btnAttackMagic.addEventListener('click', attackMagic);
+if (ui.btnSprint) ui.btnSprint.addEventListener('click', attemptSprint);
 ui.btnFlee.addEventListener('click', attemptFlee);
 if (ui.btnStanceToggle) ui.btnStanceToggle.addEventListener('click', togglePlayerStance);
 
