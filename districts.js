@@ -32,6 +32,15 @@ const districts = {
     },
     "Salle des Machines Infernales": {
         mobNames: ["Imprimante à Rêves", "Ordinateur en Colère", "Câble Électrique Vivant"]
+    },
+    "Parking Souterrain Maudit": {
+        mobNames: ["Voiture Abandonnée Rouillée", "Horodateur Vengeur", "Cône de Chantier Fou"]
+    },
+    "Piscine Municipale Désaffectée": {
+        mobNames: ["Maître-Nageur Zombifié", "Frite de Piscine Étrangleuse", "Nuage de Chlore Ambulant"]
+    },
+    "Studio de Télé-Achat Abandonné": {
+        mobNames: ["Mannequin Vitrine Possédé", "Caméra de Surveillance Autonome", "Présentateur Télé-Achat Hystérique"]
     }
 };
 
