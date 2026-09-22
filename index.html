@@ -389,6 +389,14 @@
                 </div>
             </div>
 
+            <!-- Sprint : n'apparaît que lorsqu'il y a effectivement un écart à combler face à un
+                 mob à distance (posture corps à corps du joueur). Masqué (pas juste désactivé) le
+                 reste du temps pour ne pas encombrer l'interface des combats classiques. Voir
+                 attemptSprint() dans app.js. -->
+            <button id="btn-sprint" class="hidden w-full mb-2 px-3 py-3 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-400 uppercase tracking-wider transition-all">
+                🏃 Sprint — foncer vers l'ennemi
+            </button>
+
             <div class="grid grid-cols-2 gap-2">
                 <button id="btn-attack-weapon" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
                     ⚔️ Arme
@@ -552,11 +560,11 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=31"></script>
-    <script src="items.js?v=31"></script>
-    <script src="districts.js?v=31"></script>
-    <script src="safehouses.js?v=31"></script>
-    <script src="generator.js?v=31"></script>
-    <script src="app.js?v=31"></script>
+    <script src="bestiary.js?v=32"></script>
+    <script src="items.js?v=32"></script>
+    <script src="districts.js?v=32"></script>
+    <script src="safehouses.js?v=32"></script>
+    <script src="generator.js?v=32"></script>
+    <script src="app.js?v=32"></script>
 </body>
 </html>
