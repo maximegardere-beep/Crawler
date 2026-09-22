@@ -1832,50 +1832,73 @@ function mobWantsFar(enemy) {
     return !!(enemy && enemy.ranged);
 }
 
-// Contexte de portée courant : un mob de mêlée tenu à distance (écart > 0) ne peut pas toucher le
-// joueur ce tour-ci — un mob à distance, lui, peut toujours tirer, quel que soit l'écart, donc rien
-// ne le protège jamais lui.
+// Contexte de portée courant, symétrique dans les deux sens :
+//   - playerAdvantaged : un mob de mêlée tenu à distance (écart > 0) ne peut pas toucher le joueur.
+//   - mobNeedsDistance : un mob à distance collé au corps à corps (écart == 0) ne peut PAS non plus
+//     tirer directement — il doit d'abord reculer pour reprendre ses distances (symétrique du
+//     joueur, qui doit s'éloigner pour utiliser Tir). Avant ce garde-fou, un mob "à distance" tirait
+//     sans condition, même au contact.
 function getCombatRangeContext() {
     const enemy = gameState.currentEnemy;
     const distance = gameState.combatDistance || 0;
     const playerAdvantaged = !!enemy && !mobWantsFar(enemy) && distance > 0;
-    return { distance, playerAdvantaged };
+    const mobNeedsDistance = !!enemy && mobWantsFar(enemy) && distance <= 0;
+    return { distance, playerAdvantaged, mobNeedsDistance };
 }
 
-// Riposte "sécurisée" : un mob de mêlée ne peut pas toucher un joueur qui tient encore la distance
-// face à lui (playerAdvantaged) — bloque la riposte, sans rien faire d'autre ce tour-ci. Réservé
-// aux actions qui résolvent DÉJÀ elles-mêmes une manche de distance ce tour (Sprint, Reculer) :
-// ajouter une tentative de rapprochement par-dessus doublerait leur propre jet. Pour tout le reste
-// (voir resolveEnemyReaction), la riposte bloquée doit plutôt laisser le mob tenter de combler
-// l'écart, sans quoi il resterait figé indéfiniment tant que le joueur évite les actions gated.
+// Riposte "sécurisée" : bloque la riposte, sans rien faire d'autre ce tour-ci, si le mob ne peut
+// actuellement pas toucher le joueur (mob de mêlée hors de portée, ou mob à distance collé au corps
+// à corps). Réservée aux actions qui résolvent DÉJÀ elles-mêmes une manche de distance ce tour
+// (Sprint, Reculer) : ajouter une tentative de repositionnement par-dessus doublerait leur propre
+// jet. Pour tout le reste (voir resolveEnemyReaction), la riposte bloquée doit plutôt laisser le mob
+// tenter de se repositionner, sans quoi il resterait figé indéfiniment.
 function safeEnemyCounterAttack() {
     const enemy = gameState.currentEnemy;
-    if (enemy && getCombatRangeContext().playerAdvantaged) {
+    if (!enemy) { enemyCounterAttack(); return; }
+    const ctx = getCombatRangeContext();
+    if (ctx.playerAdvantaged) {
         logEvent(`Trop loin : [${enemy.name}] ne peut pas riposter.`, "info");
+        return;
+    }
+    if (ctx.mobNeedsDistance) {
+        logEvent(`Trop près : [${enemy.name}] ne peut pas tirer au corps à corps.`, "info");
         return;
     }
     enemyCounterAttack();
 }
 
 // Réaction par défaut du mob à la fin d'un tour du joueur (attaque, Magie, étourdissement, fuite
-// ratée...). Un mob de mêlée hors de portée (playerAdvantaged) ne peut pas frapper, mais ne reste
-// pas totalement figé pour autant : il tente de combler l'écart (même mécanique que
-// resolveDistanceRound, côté "le joueur veut toujours la distance"), et frappe immédiatement s'il
-// y parvient.
+// ratée...). Un mob hors d'état de frapper immédiatement (mêlée hors de portée, ou à distance collé
+// au contact) ne reste pas pour autant totalement figé : il tente de se repositionner (même
+// mécanique que resolveDistanceRound), et frappe immédiatement s'il y parvient.
 function resolveEnemyReaction() {
     const enemy = gameState.currentEnemy;
     if (!enemy) return;
-    if (!getCombatRangeContext().playerAdvantaged) {
-        enemyCounterAttack();
+    const ctx = getCombatRangeContext();
+
+    if (ctx.playerAdvantaged) {
+        resolveDistanceRound(enemy, true); // rafraîchit déjà l'UI via setCombatDistance()
+        if (gameState.combatDistance > 0) {
+            logEvent(`[${enemy.name}] tente de combler l'écart, mais reste hors de portée pour l'instant.`, "info");
+        } else {
+            logEvent(`[${enemy.name}] parvient à combler l'écart !`, "danger");
+            enemyCounterAttack();
+        }
         return;
     }
-    resolveDistanceRound(enemy, true); // rafraîchit déjà l'UI via setCombatDistance()
-    if (gameState.combatDistance > 0) {
-        logEvent(`[${enemy.name}] tente de combler l'écart, mais reste hors de portée pour l'instant.`, "info");
-    } else {
-        logEvent(`[${enemy.name}] parvient à combler l'écart !`, "danger");
-        enemyCounterAttack();
+
+    if (ctx.mobNeedsDistance) {
+        resolveDistanceRound(enemy, false); // le joueur veut RÉDUIRE l'écart (le coller) ce round-ci
+        if (gameState.combatDistance > 0) {
+            logEvent(`[${enemy.name}] recule pour reprendre ses distances et ouvre le feu !`, "danger");
+            enemyCounterAttack();
+        } else {
+            logEvent(`[${enemy.name}] tente de reculer pour tirer, mais vous le collez au corps à corps.`, "info");
+        }
+        return;
     }
+
+    enemyCounterAttack();
 }
 
 // Point de passage UNIQUE pour toute modification de l'écart de combat en cours de round (clampe
@@ -2470,7 +2493,7 @@ function attackWeapon() {
         if (gameState.status.disarmed.rounds <= 0) gameState.status.disarmed = null;
         showDie(ui.combatPlayerDie, "🧲");
         logEvent("Votre arme reste hors de portée, toujours attirée au loin !", "danger");
-        enemyCounterAttack(); // Toujours à distance nulle ici (voir garde ci-dessus) : le mob est forcément à portée
+        resolveEnemyReaction(); // Écart nul garanti (voir garde ci-dessus) : sans effet sur un mob de mêlée, mais un mob à distance doit encore reculer pour tirer
         return;
     }
 
