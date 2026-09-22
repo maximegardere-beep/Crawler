@@ -16,7 +16,6 @@ function resetTransientState() {
     gameState.inCombat = false;
     gameState.currentEnemy = null;
     gameState.combatDistance = 0;
-    gameState.stance = 'melee';
     gameState.hp = gameState.maxHp;
     gameState.level = 1;
     gameState.equipment = { weapon: null, armor: null, ranged: null };
@@ -32,51 +31,45 @@ function resetTransientState() {
 }
 
 // ===================================================================
-// Sprint (rapprochement dédié en combat à distance contesté)
+// S'approcher (attemptSprint) : action de rapprochement, TOUJOURS disponible dès qu'un écart
+// sépare les deux camps (grisée à écart nul) — plus aucune dépendance à une posture du joueur.
+// (Hors combat, #combat-zone est masqué dans son ensemble ; l'état .disabled des boutons qu'il
+// contient n'est donc plus recalculé, comme pour Arme/Tir/Mains nues — rien à tester ici.)
 // ===================================================================
-resetTransientState();
-ui.btnSprint.classList.add('hidden'); // état initial reproduit depuis index.html
-updateUI();
-assert(ui.btnSprint.classList.contains('hidden'), "Sprint caché hors combat (état initial HTML)");
-
 resetTransientState();
 gameState.inCombat = true;
 gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
 gameState.combatDistance = 0;
 updateUI();
-assert(ui.btnSprint.classList.contains('hidden'), "Sprint caché face à un mob de mêlée (rien à combler)");
+assert(ui.btnSprint.disabled === true, "S'approcher grisé : déjà au corps à corps (rien à combler)");
 
 resetTransientState();
 gameState.inCombat = true;
-gameState.stance = 'melee';
+gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} }; // mob de mêlée
+gameState.combatDistance = config.rangedCombat.initialDistance; // écart ouvert (ex: après un recul)
+updateUI();
+assert(ui.btnSprint.disabled === false, "S'approcher utilisable dès qu'un écart existe, même face à un mob de mêlée");
+
+resetTransientState();
+gameState.inCombat = true;
 gameState.currentEnemy = { name: "Photocopieuse Carnivore", hp: 100, maxHp: 100, atk: 10, def: 6, ranged: true, status: {} };
 gameState.combatDistance = config.rangedCombat.initialDistance;
 updateUI();
-assert(!ui.btnSprint.classList.contains('hidden'), "Sprint visible : mêlée vs mob à distance, écart > 0");
+assert(ui.btnSprint.disabled === false, "S'approcher utilisable face à un mob à distance aussi");
 
 resetTransientState();
 gameState.inCombat = true;
-gameState.stance = 'ranged';
-gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
-gameState.combatDistance = config.rangedCombat.initialDistance;
-updateUI();
-assert(ui.btnSprint.classList.contains('hidden'), "Sprint caché : joueur à distance face à un mob de mêlée");
-
-resetTransientState();
-gameState.inCombat = true;
-gameState.stance = 'melee';
 gameState.level = 5;
 gameState.currentEnemy = { name: "Fusil de Chasse Rouillé Mob", hp: 100, maxHp: 100, atk: 8, def: 4, ranged: true, status: {} };
 gameState.combatDistance = config.rangedCombat.initialDistance;
 const enemyHpBefore = gameState.currentEnemy.hp;
 attemptSprint();
-assert(gameState.currentEnemy.hp === enemyHpBefore, "Sprint ne blesse jamais l'ennemi directement");
+assert(gameState.currentEnemy.hp === enemyHpBefore, "S'approcher ne blesse jamais l'ennemi directement");
 // Un seul round peut voir le mob gagner le jet (l'écart grandit alors) : seules les bornes sont garanties ici.
-assert(gameState.combatDistance >= 0 && gameState.combatDistance <= config.rangedCombat.maxDistance, "Sprint reste dans les bornes [0, maxDistance] après une seule tentative");
+assert(gameState.combatDistance >= 0 && gameState.combatDistance <= config.rangedCombat.maxDistance, "S'approcher reste dans les bornes [0, maxDistance] après une seule tentative");
 
 resetTransientState();
 gameState.inCombat = true;
-gameState.stance = 'melee';
 gameState.level = 10;
 gameState.currentEnemy = { name: "Cible d'entraînement", hp: 9999, maxHp: 9999, atk: 1, def: 1, ranged: true, status: {} };
 gameState.combatDistance = config.rangedCombat.initialDistance;
@@ -87,15 +80,14 @@ while (gameState.combatDistance > 0 && attempts < 200) {
     attempts++;
     if (gameState.hp <= 0) break;
 }
-assert(!outOfBounds, "combatDistance reste toujours dans les bornes [0, maxDistance] au fil des sprints");
-assert(gameState.combatDistance === 0, `L'écart finit par être comblé après plusieurs sprints (${attempts} essais, niveau élevé)`);
+assert(!outOfBounds, "combatDistance reste toujours dans les bornes [0, maxDistance] au fil des approches");
+assert(gameState.combatDistance === 0, `L'écart finit par être comblé après plusieurs tentatives (${attempts} essais, niveau élevé)`);
 
 {
     // Progression garantie : même si le mob gagne le jet à plate couture, l'écart se réduit d'au
     // moins 1 (jamais totalement bloqué). On force le joueur au plus bas et le mob au plus haut.
     resetTransientState();
     gameState.inCombat = true;
-    gameState.stance = 'melee';
     gameState.level = 1;
     gameState.currentEnemy = { name: "Cible d'entraînement", hp: 9999, maxHp: 9999, atk: 1, def: 1, ranged: true, status: {} };
     gameState.combatDistance = 3;
@@ -104,60 +96,72 @@ assert(gameState.combatDistance === 0, `L'écart finit par être comblé après 
     Math.random = () => { callCount++; return callCount <= 2 ? 0 : 0.999; }; // dés du joueur au plus bas, dé du mob au plus haut
     attemptSprint();
     Math.random = originalRandom;
-    assert(gameState.combatDistance === 2, "Sprint : même un jet perdu pour le joueur réduit l'écart d'au moins 1 (progression garantie)");
+    assert(gameState.combatDistance === 2, "S'approcher : même un jet perdu réduit l'écart d'au moins 1 (progression garantie)");
+}
+{
+    // S'approcher face à un mob de mêlée actuellement hors de portée (ex: après un recul) : si le
+    // jet échoue à combler l'écart, le mob reste hors de portée et ne doit PAS pouvoir riposter —
+    // attemptSprint() utilise désormais safeEnemyCounterAttack() (plus seulement attemptRetreat()),
+    // puisqu'un mob de mêlée peut maintenant se retrouver à distance sans notion de posture.
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.level = 1;
+    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {} }; // mêlée
+    gameState.combatDistance = config.rangedCombat.maxDistance; // grand écart à combler
+    const originalRandom = Math.random;
+    let idx = 0;
+    const seq = [0, 0, 0.999]; // dés du joueur au plus bas (x2), dé du mob au plus haut -> échec net
+    Math.random = () => seq[(idx++) % seq.length];
+    ui.btnFlee.disabled = false;
+    attemptSprint();
+    Math.random = originalRandom;
+    assert(gameState.combatDistance > 0, "S'approcher : jet nettement perdu, le mob de mêlée reste hors de portée");
+    assert(ui.btnFlee.disabled === false, "S'approcher : riposte bloquée tant que le mob de mêlée reste hors de portée");
 }
 
 // ===================================================================
-// Reculer (attemptRetreat) : symétrique du Sprint, pour rouvrir l'écart
+// S'éloigner (attemptRetreat) : symétrique de S'approcher, TOUJOURS disponible tant qu'il reste de
+// la marge (grisé à écart maximal) — y compris quand le joueur est DÉJÀ à distance, pas seulement
+// au contact.
 // ===================================================================
 resetTransientState();
-ui.btnRetreat.classList.add('hidden'); // état initial reproduit depuis index.html
-updateUI();
-assert(ui.btnRetreat.classList.contains('hidden'), "Reculer caché hors combat (état initial HTML)");
-
-resetTransientState();
 gameState.inCombat = true;
-gameState.stance = 'ranged';
 gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
 gameState.combatDistance = 0;
 updateUI();
-assert(!ui.btnRetreat.classList.contains('hidden'), "Reculer visible : posture à distance rattrapée au corps à corps (écart = 0)");
+assert(ui.btnRetreat.disabled === false, "S'éloigner utilisable au corps à corps (rattrapé par un mob de mêlée)");
 
 resetTransientState();
 gameState.inCombat = true;
-gameState.stance = 'ranged';
 gameState.currentEnemy = { name: "Photocopieuse Carnivore", hp: 100, maxHp: 100, atk: 10, def: 6, ranged: true, status: {} };
-gameState.combatDistance = config.rangedCombat.initialDistance;
+gameState.combatDistance = config.rangedCombat.initialDistance; // déjà à distance, pas au contact
 updateUI();
-assert(ui.btnRetreat.classList.contains('hidden'), "Reculer caché : duel à distance non contesté (écart déjà tenu par les deux camps)");
+assert(ui.btnRetreat.disabled === false, "S'éloigner utilisable même déjà à distance (booste le jet encore plus loin)");
 
 resetTransientState();
 gameState.inCombat = true;
-gameState.stance = 'melee';
 gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
-gameState.combatDistance = 0;
+gameState.combatDistance = config.rangedCombat.maxDistance;
 updateUI();
-assert(ui.btnRetreat.classList.contains('hidden'), "Reculer caché : joueur en posture corps à corps");
+assert(ui.btnRetreat.disabled === true, "S'éloigner grisé : écart déjà maximal, rien à gagner");
 
 resetTransientState();
 gameState.inCombat = true;
-gameState.stance = 'ranged';
 gameState.level = 10;
 gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 100, maxHp: 100, atk: 8, def: 4, status: {} };
 gameState.combatDistance = 0;
 const enemyHpBeforeRetreat = gameState.currentEnemy.hp;
 attemptRetreat();
-assert(gameState.currentEnemy.hp === enemyHpBeforeRetreat, "Reculer ne blesse jamais l'ennemi directement");
-assert(gameState.combatDistance >= 0, "Reculer ne peut qu'égaler ou augmenter l'écart initial (jamais négatif)");
+assert(gameState.currentEnemy.hp === enemyHpBeforeRetreat, "S'éloigner ne blesse jamais l'ennemi directement");
+assert(gameState.combatDistance >= 0, "S'éloigner ne peut jamais rendre l'écart négatif");
 
 resetTransientState();
 gameState.inCombat = true;
-gameState.stance = 'ranged';
 gameState.level = 10;
 gameState.currentEnemy = { name: "Cible d'entraînement", hp: 9999, maxHp: 9999, atk: 1, def: 1, status: {} };
 gameState.combatDistance = 0;
 let retreatAttempts = 0, retreatOutOfBounds = false;
-while (gameState.combatDistance <= 0 && retreatAttempts < 200) {
+while (gameState.combatDistance < config.rangedCombat.maxDistance && retreatAttempts < 200) {
     attemptRetreat();
     if (gameState.combatDistance < 0 || gameState.combatDistance > config.rangedCombat.maxDistance) retreatOutOfBounds = true;
     retreatAttempts++;
@@ -167,16 +171,16 @@ assert(!retreatOutOfBounds, "combatDistance reste toujours dans les bornes [0, m
 assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusieurs tentatives (${retreatAttempts} essais, niveau élevé)`);
 
 // ===================================================================
-// Portée : un mob de mêlée ne peut pas toucher un joueur qui tient la distance
+// Portée : un mob de mêlée ne peut pas toucher un joueur qui tient la distance — un mob à distance,
+// lui, peut toujours tirer, quel que soit l'écart. Ne dépend plus que du type de mob (mob.ranged).
 // ===================================================================
 {
     resetTransientState();
     gameState.inCombat = true;
-    gameState.stance = 'ranged';
-    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 50, maxHp: 50, atk: 999, def: 0, status: {} };
-    gameState.combatDistance = config.rangedCombat.initialDistance; // contesté, joueur hors de portée
+    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 50, maxHp: 50, atk: 999, def: 0, status: {} }; // mêlée
+    gameState.combatDistance = config.rangedCombat.initialDistance; // hors de portée
     const ctx = getCombatRangeContext();
-    assert(ctx.playerAdvantaged === true, "getCombatRangeContext() : joueur avantagé (à distance face à un mob de mêlée)");
+    assert(ctx.playerAdvantaged === true, "getCombatRangeContext() : joueur avantagé face à un mob de mêlée hors de portée");
 
     ui.btnAttackWeapon.disabled = false;
     safeEnemyCounterAttack();
@@ -185,7 +189,6 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
 {
     resetTransientState();
     gameState.inCombat = true;
-    gameState.stance = 'ranged';
     gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 50, maxHp: 50, atk: 999, def: 0, status: {} };
     gameState.combatDistance = 0; // rattrapé au corps à corps : plus aucun avantage
     assert(getCombatRangeContext().playerAdvantaged === false, "getCombatRangeContext() : plus d'avantage une fois rattrapé au corps à corps");
@@ -197,7 +200,6 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
 {
     resetTransientState();
     gameState.inCombat = true;
-    gameState.stance = 'melee';
     gameState.currentEnemy = { name: "Photocopieuse Carnivore", hp: 50, maxHp: 50, atk: 999, def: 0, ranged: true, status: {} };
     gameState.combatDistance = config.rangedCombat.initialDistance; // mob à distance : peut tirer même de loin
     assert(getCombatRangeContext().playerAdvantaged === false, "getCombatRangeContext() : un mob à distance n'est jamais hors de portée, lui");
@@ -206,13 +208,11 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
 // ===================================================================
 // resolveEnemyReaction() : un mob de mêlée hors de portée ne reste plus figé — il tente de
 // combler l'écart au lieu de rester totalement bloqué (Magie, étourdissement, fuite ratée, ...).
-// Reproduit le scénario du rapport : Magie répétée face à un mob CAC en posture "à distance".
 // ===================================================================
 {
     resetTransientState();
     gameState.inCombat = true;
     gameState.level = 1;
-    gameState.stance = 'ranged';
     gameState.hp = gameState.maxHp = 100;
     gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {} };
     gameState.combatDistance = config.rangedCombat.maxDistance;
@@ -232,8 +232,8 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     // que resolveEnemyReaction() déclenche volontairement (rafraîchir la barre après un rapprochement).
     ui.btnFlee.disabled = false;
     attackMagic();
-    assert(gameState.combatDistance < config.rangedCombat.maxDistance, "resolveEnemyReaction() : un mob de mêlée hors de portée avance quand même vers le joueur (S2 corrigé)");
-    assert(ui.btnFlee.disabled === false, "resolveEnemyReaction() : tant que l'écart tient, le mob de mêlée ne peut pas riposter (S1 corrigé)");
+    assert(gameState.combatDistance < config.rangedCombat.maxDistance, "resolveEnemyReaction() : un mob de mêlée hors de portée avance quand même vers le joueur");
+    assert(ui.btnFlee.disabled === false, "resolveEnemyReaction() : tant que l'écart tient, le mob de mêlée ne peut pas riposter");
 
     attackMagic(); // Doit combler l'écart restant (8 - 5 - 5 < 0) et enfin riposter pour de vrai
     Math.random = originalRandom;
@@ -241,12 +241,10 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     assert(ui.btnFlee.disabled === true, "resolveEnemyReaction() : une fois l'écart comblé, la riposte se déclenche normalement");
 }
 {
-    // attemptRetreat() : si le jet réussit (écart rouvert), la riposte ne doit plus porter —
-    // avant correctif, enemyCounterAttack() était inconditionnelle même après un recul réussi.
+    // attemptRetreat() : si le jet réussit (écart rouvert), la riposte ne doit plus porter.
     resetTransientState();
     gameState.inCombat = true;
     gameState.level = 1;
-    gameState.stance = 'ranged';
     gameState.hp = gameState.maxHp = 100;
     gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {} };
     gameState.combatDistance = 0; // rattrapé au corps à corps, tente de reculer
@@ -260,14 +258,13 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     Math.random = originalRandom;
 
     assert(gameState.combatDistance > 0, "attemptRetreat() : le jet gagnant rouvre bien l'écart");
-    assert(ui.btnFlee.disabled === false, "attemptRetreat() : aucune riposte ne se déclenche une fois l'écart rouvert (bug du rapport corrigé)");
+    assert(ui.btnFlee.disabled === false, "attemptRetreat() : aucune riposte ne se déclenche une fois l'écart rouvert");
 }
 {
     // Fuite ratée sans action gated : l'écart doit quand même évoluer grâce à resolveEnemyReaction().
     resetTransientState();
     gameState.inCombat = true;
     gameState.level = 1;
-    gameState.stance = 'ranged';
     gameState.hp = gameState.maxHp = 100;
     gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {} };
     gameState.combatDistance = config.rangedCombat.maxDistance;
@@ -286,7 +283,8 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
 }
 
 // ===================================================================
-// Barre de distance : le mob est toujours à gauche, le joueur toujours à droite
+// Barre de distance : le mob est toujours à gauche, le joueur toujours à droite, tous deux
+// reflétant symétriquement le même écart (plus de notion de posture/ancrage asymétrique).
 // ===================================================================
 {
     // Constantes dupliquées depuis updateUI() (app.js) pour vérifier les positions attendues.
@@ -295,28 +293,25 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
 
     resetTransientState();
     gameState.inCombat = true;
-    gameState.stance = 'melee';
     gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
-    gameState.combatDistance = 0; // CAC vs CAC
+    gameState.combatDistance = 0; // contact
     updateUI();
     const enemyPos = leftPos(ui.combatDistanceEnemyIcon), playerPos = leftPos(ui.combatDistancePlayerIcon);
-    assert(enemyPos < playerPos, "CAC vs CAC : le mob reste à gauche du joueur");
-    assert(Math.abs(playerPos - enemyPos - ADJACENT_GAP) < 0.01, "CAC vs CAC : les deux icônes sont proches du centre mais non superposées");
+    assert(enemyPos < playerPos, "Écart nul : le mob reste à gauche du joueur");
+    assert(Math.abs(playerPos - enemyPos - ADJACENT_GAP) < 0.01, "Écart nul : les deux icônes sont proches du centre mais non superposées");
 
     resetTransientState();
     gameState.inCombat = true;
-    gameState.stance = 'ranged'; // joueur veut la distance, mob de mêlée la comble
-    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 50, maxHp: 50, atk: 8, def: 4, status: {} };
-    gameState.combatDistance = config.rangedCombat.maxDistance;
+    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 50, maxHp: 50, atk: 8, def: 4, status: {} }; // mob de mêlée
+    gameState.combatDistance = config.rangedCombat.maxDistance; // repoussé au maximum (ex: après S'éloigner)
     updateUI();
-    assert(Math.abs(leftPos(ui.combatDistancePlayerIcon) - (100 - HOME_EDGE)) < 0.01, "Joueur à distance, écart maximal : ancré sur son bord droit");
-    assert(Math.abs(leftPos(ui.combatDistanceEnemyIcon) - HOME_EDGE) < 0.01, "Mob de mêlée, écart maximal : reste sur son bord gauche (n'a pas encore rattrapé)");
+    assert(Math.abs(leftPos(ui.combatDistancePlayerIcon) - (100 - HOME_EDGE)) < 0.01, "Écart maximal : le joueur est sur son bord droit");
+    assert(Math.abs(leftPos(ui.combatDistanceEnemyIcon) - HOME_EDGE) < 0.01, "Écart maximal : le mob est sur son bord gauche");
 
     gameState.combatDistance = 0; // le mob a rattrapé le joueur au corps à corps
     updateUI();
     const closeEnemyPos = leftPos(ui.combatDistanceEnemyIcon), closePlayerPos = leftPos(ui.combatDistancePlayerIcon);
-    assert(Math.abs(closePlayerPos - (100 - HOME_EDGE)) < 0.01, "Joueur à distance rattrapé : reste ancré sur son bord");
-    assert(Math.abs(closePlayerPos - closeEnemyPos - ADJACENT_GAP) < 0.01, "Mob de mêlée ayant rattrapé l'écart : placé juste à côté du joueur (contact)");
+    assert(Math.abs(closePlayerPos - closeEnemyPos - ADJACENT_GAP) < 0.01, "Une fois l'écart comblé : les deux icônes reviennent adjacentes (contact)");
 }
 
 // ===================================================================
@@ -329,7 +324,6 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     resetTransientState();
     gameState.inCombat = true;
     gameState.level = 1;
-    gameState.stance = 'ranged';
     gameState.currentEnemy = { name: "Boucher Sans Visage", hp: 300, maxHp: 300, atk: 20, def: 10, status: {} };
     gameState.combatDistance = 0; // rattrapé au corps à corps
     updateUI();
@@ -343,35 +337,23 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     Math.random = originalRandom;
 
     assert(gameState.combatDistance > 0, "attemptRetreat() : le jet gagnant rouvre bien l'écart");
-    // Le joueur (qui veut la distance) reste ancré sur son bord tant que le mob est de mêlée : seule
-    // l'icône du mob, qui comblait l'écart, doit bouger quand celui-ci se rouvre.
-    assert(ui.combatDistanceEnemyIcon.style.left !== beforeEnemyPos, "attemptRetreat() : l'icône du mob bouge dans la même tick, sans attendre une riposte (bug rapporté corrigé)");
+    assert(ui.combatDistanceEnemyIcon.style.left !== beforeEnemyPos, "attemptRetreat() : l'icône du mob bouge dans la même tick, sans attendre une riposte");
 }
 {
     resetTransientState();
     gameState.inCombat = true;
     gameState.level = 1;
-    gameState.stance = 'ranged';
     gameState.equipment.ranged = { name: "Fronde d'Essai", baseDmg: 4 };
-    gameState.currentEnemy = { name: "Boucher Sans Visage", hp: 300, maxHp: 300, atk: 20, def: 10, status: {} };
+    gameState.currentEnemy = { name: "Boucher Sans Visage", hp: 300, maxHp: 300, atk: 20, def: 10, status: {}, ranged: true };
     gameState.combatDistance = 4;
     updateUI();
 
-    const originalRandom = Math.random;
-    let idx = 0;
-    // Dé joueur haut, dé mob bas : le joueur gagne largement la manche, l'écart reste > 0 (tir qui
-    // "maintient l'écart", la branche sans riposte donc sans rafraîchissement naturel avant ce fix).
-    const seq = [0.999, 0.5, 0];
-    Math.random = () => seq[(idx++) % seq.length];
+    const leftBefore = ui.combatDistanceEnemyIcon.style.left;
     attackRanged();
-    Math.random = originalRandom;
 
-    assert(gameState.combatDistance > 4, "Le tir en maintien de distance élargit bien l'écart");
-    const leftAfterAction = ui.combatDistanceEnemyIcon.style.left;
-    updateUI(); // rendu de référence explicite, pour comparaison
-    assert(ui.combatDistanceEnemyIcon.style.left === leftAfterAction, "attackRanged() (maintien de l'écart, sans riposte) rafraîchit déjà la barre : pas besoin d'un updateUI() séparé");
+    assert(ui.combatDistanceEnemyIcon.style.left === leftBefore, "attackRanged() n'embarque plus aucune manche de distance : l'écart ne bouge que via S'approcher/S'éloigner");
+    assert(gameState.combatDistance === 4, "attackRanged() est une simple attaque gated par l'écart courant, qui ne le modifie plus lui-même");
 }
-
 // ===================================================================
 // Armure : enchantements branchés (applyArmorMechanic)
 // ===================================================================
@@ -565,69 +547,11 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 }
 
 // ===================================================================
-// Recul forcé : un mob de mêlée qui rattrape un joueur en posture à distance ne débloque plus le
-// corps à corps gratuitement (Arme/Mains nues restent grisés, S'éloigner devient la seule option
-// jusqu'à ce que le joueur rouvre l'écart ou assume la posture corps à corps).
-// ===================================================================
-{
-    resetTransientState();
-    gameState.inCombat = true;
-    gameState.stance = 'ranged';
-    gameState.equipment.weapon = { name: "Gourdin d'Essai", baseDmg: 5 };
-    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 50, maxHp: 50, atk: 8, def: 4, status: {} };
-    gameState.combatDistance = 0; // rattrapé au corps à corps malgré la posture à distance
-    updateUI();
-    assert(isForcedRetreatSituation() === true, "isForcedRetreatSituation() détecte le rattrapage non voulu");
-    assert(ui.btnAttackWeapon.disabled === true, "Recul forcé : Arme grisée même avec une arme équipée");
-    assert(ui.btnAttackUnarmed.disabled === true, "Recul forcé : Mains nues grisées aussi");
-    assert(!ui.btnRetreat.classList.contains('hidden'), "Recul forcé : S'éloigner est bien visible");
-
-    const hpBefore = gameState.currentEnemy.hp;
-    attackWeapon();
-    assert(gameState.currentEnemy.hp === hpBefore, "attackWeapon() ne porte pas en situation de recul forcé");
-    attackUnarmed();
-    assert(gameState.currentEnemy.hp === hpBefore, "attackUnarmed() ne porte pas en situation de recul forcé");
-
-    // Le joueur assume finalement le corps à corps : la situation de recul forcé disparaît
-    gameState.stance = 'melee';
-    updateUI();
-    assert(isForcedRetreatSituation() === false, "Assumer la posture CAC lève le recul forcé");
-    assert(ui.btnAttackWeapon.disabled === false, "Arme redevient utilisable une fois la posture CAC assumée");
-}
-
-// ===================================================================
-// togglePlayerStance() : la bascule vers le corps à corps ne doit être bloquée que si un mob de
-// mêlée est activement tenu à distance (duel contesté) — pas simplement parce que combatDistance > 0
-// (cas d'un échange DIST vs DIST non contesté, où l'écart est fixe mais ne "protège" personne).
-// ===================================================================
-{
-    resetTransientState();
-    gameState.inCombat = true;
-    gameState.stance = 'ranged';
-    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 50, maxHp: 50, atk: 8, def: 4, status: {} }; // CAC, contesté
-    gameState.combatDistance = config.rangedCombat.initialDistance;
-    togglePlayerStance();
-    assert(gameState.stance === 'ranged', "togglePlayerStance() : bascule bloquée si un mob de mêlée est activement tenu à distance");
-}
-{
-    resetTransientState();
-    gameState.inCombat = true;
-    gameState.stance = 'ranged';
-    gameState.currentEnemy = { name: "Photocopieuse Carnivore", hp: 50, maxHp: 50, atk: 8, def: 4, ranged: true, status: {} }; // DIST, non contesté
-    gameState.combatDistance = config.rangedCombat.initialDistance;
-    togglePlayerStance();
-    assert(gameState.stance === 'melee', "togglePlayerStance() : bascule autorisée face à un mob DIST non contesté (bug rapporté corrigé)");
-    updateUI();
-    assert(!ui.btnSprint.classList.contains('hidden'), "Sprint devient visible une fois la posture CAC assumée face à un mob à distance");
-}
-
-// ===================================================================
 // Arme/Tir nécessitent une arme réellement équipée (mains nues reste toujours disponible sans rien).
 // ===================================================================
 {
     resetTransientState();
     gameState.inCombat = true;
-    gameState.stance = 'melee';
     gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
     gameState.combatDistance = 0;
     gameState.equipment.weapon = null;
@@ -644,7 +568,6 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 {
     resetTransientState();
     gameState.inCombat = true;
-    gameState.stance = 'ranged';
     gameState.currentEnemy = { name: "Photocopieuse Carnivore", hp: 50, maxHp: 50, atk: 8, def: 4, ranged: true, status: {} };
     gameState.combatDistance = config.rangedCombat.initialDistance;
     gameState.equipment.ranged = null;

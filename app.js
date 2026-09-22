@@ -31,14 +31,11 @@ const gameState = {
     equipment: {
         weapon: null, // Objet de catégorie 'weapons' équipé, ou null
         armor: null,  // Objet de catégorie 'armors' équipé, ou null
-        ranged: null  // Objet de catégorie 'ranged' équipé, ou null (utilisé en posture "à distance")
+        ranged: null  // Objet de catégorie 'ranged' équipé, ou null
     },
-    // Posture de combat : 'melee' (défaut, comportement historique) ou 'ranged'. Togglable en
-    // combat via le bouton de posture. N'a d'effet sur les échanges que si elle diverge de la
-    // nature du monstre affronté (mob.ranged) — voir getCombatRangeContext().
-    stance: 'melee',
-    // Écart de distance courant, actif uniquement quand stance et mob.ranged divergent (sinon 0 =
-    // aucun effet, comportement identique à avant cette fonctionnalité). Voir config.rangedCombat.
+    // Écart de distance courant (0 = corps à corps). Aucune notion de posture : la distance de
+    // départ dépend uniquement de la nature du mob (mob.ranged), et n'évolue ensuite que via les
+    // actions dédiées S'approcher/S'éloigner (attemptSprint/attemptRetreat) — voir config.rangedCombat.
     combatDistance: 0,
     status: {
         bleed: null,     // { rounds, dmgPerRound } ou null
@@ -111,10 +108,10 @@ const config = {
         xp: 0.18   // +18% d'XP donnée par étage de profondeur (suit la difficulté accrue)
     },
 
-    // Paramètres du combat à distance (posture "ranged" vs mobs marqués `ranged: true` dans
-    // bestiary.js). Voir getCombatRangeContext()/resolveDistanceRound() dans app.js.
+    // Paramètres du combat à distance (mobs marqués `ranged: true` dans bestiary.js). Voir
+    // getCombatRangeContext()/resolveDistanceRound() dans app.js.
     rangedCombat: {
-        initialDistance: 4,     // Écart de départ quand les postures divergent (en "unités")
+        initialDistance: 4,     // Écart de départ face à un mob à distance (en "unités")
         maxDistance: 8,         // Plafond de l'écart (ne peut pas s'éloigner indéfiniment)
         dieSides: 6,            // Taille du dé opposé lancé chaque manche par le joueur ET le mob
         levelAdvantageDivisor: 4 // Bonus au dé du joueur = floor(niveau / ce diviseur)
@@ -271,8 +268,6 @@ const ui = {
     btnSprint: document.getElementById('btn-sprint'),
     btnRetreat: document.getElementById('btn-retreat'),
     btnFlee: document.getElementById('btn-flee'),
-    btnStanceToggle: document.getElementById('btn-stance-toggle'),
-    stanceLabel: document.getElementById('stance-label'),
     combatDistanceWrapper: document.getElementById('combat-distance-wrapper'),
     combatDistanceFill: document.getElementById('combat-distance-fill'),
     combatDistancePlayerIcon: document.getElementById('combat-distance-player-icon'),
@@ -318,10 +313,6 @@ function updateUI() {
     ui.floorLevel.innerText = gameState.currentFloor;
     ui.districtName.innerText = gameState.currentDistrict;
 
-    // Posture de combat : affichée en permanence (bouton persistant hors de la zone de combat),
-    // togglable à tout moment pour se préparer avant un affrontement.
-    if (ui.stanceLabel) ui.stanceLabel.innerText = gameState.stance === 'ranged' ? "À distance" : "Corps à corps";
-    
     // Mise à jour des PV (anneau circulaire), ATK et DEF
     setHpRing(ui.compactHpRing, ui.compactHpValue, gameState.hp, gameState.maxHp);
     ui.playerAtk.innerText = gameState.atk;
@@ -434,26 +425,21 @@ function updateUI() {
 
         // --- Distance de combat : verrouille/déverrouille Arme, Tir et Mains nues selon l'écart
         // actuel (0 = corps à corps possible, >0 = seul le Tir porte). La barre est TOUJOURS
-        // affichée pendant un combat, même à 0 ou en échange classique, pour que l'état du duel
-        // reste visible en permanence.
+        // affichée pendant un combat, même à 0, pour que l'état du duel reste visible en permanence.
+        // Aucune notion de posture : ces règles ne dépendent que de l'écart courant et de l'équipement.
         const distance = gameState.combatDistance || 0;
         const atMelee = distance <= 0;
-        const contested = gameState.currentEnemy ? isDistanceContested(gameState.currentEnemy) : false;
-        // Un mob de mêlée qui vient de rattraper un joueur en posture à distance ne débloque pas le
-        // corps à corps "gratuitement" : il faut d'abord reculer (S'éloigner) ou assumer la posture
-        // (voir isForcedRetreatSituation()) — Arme et Mains nues restent grisés dans cette situation.
-        const forcedRetreat = isForcedRetreatSituation();
+        const enemyIsMelee = gameState.currentEnemy ? !mobWantsFar(gameState.currentEnemy) : false;
         if (ui.btnAttackWeapon) {
-            const weaponUsable = atMelee && !forcedRetreat && !!gameState.equipment.weapon;
+            const weaponUsable = atMelee && !!gameState.equipment.weapon;
             ui.btnAttackWeapon.disabled = !weaponUsable;
             ui.btnAttackWeapon.classList.toggle('opacity-40', !weaponUsable);
             ui.btnAttackWeapon.classList.toggle('pointer-events-none', !weaponUsable);
         }
         if (ui.btnAttackUnarmed) {
-            const unarmedUsable = atMelee && !forcedRetreat;
-            ui.btnAttackUnarmed.disabled = !unarmedUsable;
-            ui.btnAttackUnarmed.classList.toggle('opacity-40', !unarmedUsable);
-            ui.btnAttackUnarmed.classList.toggle('pointer-events-none', !unarmedUsable);
+            ui.btnAttackUnarmed.disabled = !atMelee;
+            ui.btnAttackUnarmed.classList.toggle('opacity-40', !atMelee);
+            ui.btnAttackUnarmed.classList.toggle('pointer-events-none', !atMelee);
         }
         if (ui.btnAttackRanged) {
             const rangedUsable = !atMelee && !!gameState.equipment.ranged;
@@ -461,50 +447,36 @@ function updateUI() {
             ui.btnAttackRanged.classList.toggle('opacity-40', !rangedUsable);
             ui.btnAttackRanged.classList.toggle('pointer-events-none', !rangedUsable);
         }
-        // Sprint : uniquement pertinent quand le joueur (corps à corps) doit rattraper un mob à
-        // distance qui garde l'écart — masqué dans tous les autres cas (échange classique, ou
-        // joueur en posture à distance qui cherche au contraire à s'éloigner).
+        // S'approcher (attemptSprint) / S'éloigner (attemptRetreat) : TOUJOURS affichés pendant un
+        // combat, jamais masqués — seulement grisés à l'extrémité correspondante (rien à combler à
+        // écart nul, rien à gagner à écart maximal). Chacun booste le jet de positionnement en
+        // faveur du joueur (avantage : deux dés, le meilleur gardé), quel que soit le type de mob.
         if (ui.btnSprint) {
-            const sprintUsable = !!gameState.currentEnemy && contested && !playerWantsFar() && distance > 0;
-            ui.btnSprint.classList.toggle('hidden', !sprintUsable);
+            const approachUsable = !!gameState.currentEnemy && distance > 0;
+            ui.btnSprint.disabled = !approachUsable;
+            ui.btnSprint.classList.toggle('opacity-40', !approachUsable);
+            ui.btnSprint.classList.toggle('pointer-events-none', !approachUsable);
         }
-        // Reculer : symétrique, quand le joueur (posture à distance) s'est fait rattraper au corps
-        // à corps par un mob de mêlée et veut rouvrir l'écart — voir attemptRetreat().
         if (ui.btnRetreat) {
-            const retreatUsable = !!gameState.currentEnemy && contested && playerWantsFar() && distance <= 0;
-            ui.btnRetreat.classList.toggle('hidden', !retreatUsable);
+            const retreatUsable = !!gameState.currentEnemy && distance < config.rangedCombat.maxDistance;
+            ui.btnRetreat.disabled = !retreatUsable;
+            ui.btnRetreat.classList.toggle('opacity-40', !retreatUsable);
+            ui.btnRetreat.classList.toggle('pointer-events-none', !retreatUsable);
         }
 
         // Icônes joueur/ennemi sur la barre : le mob est TOUJOURS à gauche, le joueur TOUJOURS à
-        // droite. HOME_EDGE est la position (écart maximal tenu) de chaque camp sur son propre bord ;
-        // ADJACENT_GAP est l'écart minimal entre les deux icônes, même à distance nulle (corps à
-        // corps), pour qu'elles restent visuellement distinctes sans se superposer.
-        //   - Non contesté (CAC vs CAC à écart 0, ou DIST vs DIST à écart fixe) : les deux camps
-        //     reflètent symétriquement le même écart de part et d'autre du centre.
-        //   - Contesté : le camp qui VEUT de la distance reste ancré sur son bord ; l'autre (qui
-        //     veut le corps à corps) se rapproche le long de l'axe selon l'écart restant, jusqu'à
-        //     arriver juste à côté de lui quand l'écart tombe à 0 (contact au corps à corps).
+        // droite, tous deux reflétant symétriquement le même écart courant de part et d'autre du
+        // centre — HOME_EDGE est la position de chaque camp à l'écart maximal, ADJACENT_GAP l'écart
+        // minimal entre les deux icônes à écart nul (corps à corps), pour qu'elles restent
+        // visuellement distinctes sans se superposer.
         if (ui.combatDistancePlayerIcon && ui.combatDistanceEnemyIcon && ui.combatDistanceFill) {
             const maxDist = config.rangedCombat.maxDistance || 1;
             const ratio = Math.max(0, Math.min(1, distance / maxDist));
-            const enemyWantsFar = gameState.currentEnemy ? mobWantsFar(gameState.currentEnemy) : false;
             const HOME_EDGE = 8;
             const ADJACENT_GAP = 5;
-
-            let enemyPos, playerPos;
-            if (contested) {
-                if (enemyWantsFar) {
-                    enemyPos = HOME_EDGE;
-                    playerPos = (HOME_EDGE + ADJACENT_GAP) + ratio * (100 - HOME_EDGE - (HOME_EDGE + ADJACENT_GAP));
-                } else {
-                    playerPos = 100 - HOME_EDGE;
-                    enemyPos = (100 - HOME_EDGE - ADJACENT_GAP) - ratio * (100 - HOME_EDGE - ADJACENT_GAP - HOME_EDGE);
-                }
-            } else {
-                const half = 50 - ADJACENT_GAP / 2;
-                enemyPos = half - ratio * (half - HOME_EDGE);
-                playerPos = 100 - enemyPos;
-            }
+            const half = 50 - ADJACENT_GAP / 2;
+            const enemyPos = half - ratio * (half - HOME_EDGE);
+            const playerPos = 100 - enemyPos;
             ui.combatDistancePlayerIcon.style.left = `${playerPos}%`;
             ui.combatDistanceEnemyIcon.style.left = `${enemyPos}%`;
 
@@ -515,10 +487,10 @@ function updateUI() {
             const rightPos = Math.max(enemyPos, playerPos);
             ui.combatDistanceFill.style.left = `${leftPos}%`;
             ui.combatDistanceFill.style.width = `${rightPos - leftPos}%`;
-            // Bleu si le joueur profite de l'écart (il le veut et l'a), rouge s'il le subit
-            // (le mob le veut et le joueur non), gris dans les cas non contestés (échange classique).
-            const playerBenefits = contested && playerWantsFar() && distance > 0;
-            const playerSuffers = contested && !playerWantsFar() && distance > 0;
+            // Bleu si l'écart profite au joueur (mob de mêlée tenu à distance), rouge s'il le subit
+            // (mob à distance qui tient sa portée sans qu'on puisse le rattraper), gris à écart nul.
+            const playerBenefits = enemyIsMelee && distance > 0;
+            const playerSuffers = !enemyIsMelee && distance > 0;
             ui.combatDistanceFill.classList.toggle('bg-cyan-600', playerBenefits);
             ui.combatDistanceFill.classList.toggle('bg-red-600', playerSuffers);
             ui.combatDistanceFill.classList.toggle('bg-gray-600', !playerBenefits && !playerSuffers);
@@ -1813,21 +1785,10 @@ function initiateCombat(forcedEnemy = null) {
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
     }
 
-    // Distance de combat : n'entre en jeu que si la posture du joueur diverge de la nature du
-    // monstre (l'un à distance, l'autre en mêlée) — voir getCombatRangeContext(). Dans tous les
-    // autres cas (les deux en mêlée, comme avant cette fonctionnalité, OU les deux à distance),
-    // la distance reste à 0 et rien ne change au système d'échange classique.
-    // Distance de combat initiale : 0 si les deux camps veulent du corps à corps (comme avant
-    // cette fonctionnalité), une valeur fixe si les deux veulent de la distance (échange classique
-    // dès le début, mais à distance), ou ce même écart de départ si les deux camps divergent
-    // (l'un des deux devra le combler/le maintenir au fil des rounds — voir resolveDistanceGatedAttack).
-    if (!enemy) {
-        gameState.combatDistance = 0;
-    } else if (playerWantsFar() === mobWantsFar(enemy)) {
-        gameState.combatDistance = playerWantsFar() ? config.rangedCombat.initialDistance : 0;
-    } else {
-        gameState.combatDistance = config.rangedCombat.initialDistance;
-    }
+    // Distance de combat initiale : dépend uniquement de la nature du mob (aucune notion de
+    // posture côté joueur). Un mob de mêlée démarre au contact ; un mob à distance démarre à
+    // l'écart de départ, que le joueur devra combler (S'approcher) ou maintenir (S'éloigner).
+    gameState.combatDistance = (enemy && mobWantsFar(enemy)) ? config.rangedCombat.initialDistance : 0;
 
     // Les dés de dégâts repartent à zéro visuellement (aucune action encore jouée ce combat)
     ui.combatPlayerDie.innerText = "–";
@@ -1857,50 +1818,28 @@ function initiateCombat(forcedEnemy = null) {
 }
 
 // ==========================================
-// COMBAT À DISTANCE : POSTURE, DISTANCE, CONTEXTE
+// COMBAT À DISTANCE : DISTANCE, CONTEXTE
 // ==========================================
-// Modèle : chaque camp "veut" une distance (near=0 ou far=un écart) selon sa nature.
-//   - Le joueur veut "far" si sa posture est 'ranged', "near" si elle est 'melee'.
-//   - Le mob veut "far" s'il est marqué ranged:true dans bestiary.js, "near" sinon.
-// Si les deux veulent la MÊME chose, la distance ne bouge jamais (0 fixe si near/near, valeur fixe
-// si far/far) : c'est un échange classique, comme avant cette fonctionnalité entière.
-// Si les deux veulent des choses DIFFÉRENTES (contesté), chaque attaque tente d'abord un jet de
-// distance (voir resolveDistanceRound) avant de se résoudre.
+// Aucune notion de posture côté joueur : seule la nature du mob compte (mob.ranged, fixe pour tout
+// le combat). L'écart de départ dépend uniquement d'elle (voir initiateCombat()) ; ensuite, il
+// n'évolue plus que via les actions dédiées du joueur — S'approcher (attemptSprint, réduit l'écart)
+// et S'éloigner (attemptRetreat, l'augmente) — toujours disponibles, chacune opposant un jet du
+// joueur (avantagé) à un jet du mob, quel que soit son type. Les attaques (Arme/Tir/Mains nues)
+// sont de simples dégâts, strictement gated par l'écart courant : plus aucune manche de distance
+// ne se glisse dans une attaque.
 
-function playerWantsFar() {
-    return gameState.stance === 'ranged';
-}
 function mobWantsFar(enemy) {
     return !!(enemy && enemy.ranged);
 }
-function isDistanceContested(enemy) {
-    if (!enemy) return false;
-    return playerWantsFar() !== mobWantsFar(enemy);
-}
 
-// Vrai quand un mob de mêlée vient de rattraper un joueur en posture "à distance" (duel contesté,
-// écart tombé à 0) : dans cette situation précise, le joueur ne doit plus pouvoir frapper au corps
-// à corps "gratuitement" — il doit d'abord explicitement rouvrir l'écart (voir attemptRetreat()) ou
-// accepter le corps à corps en changeant de posture (togglePlayerStance()). Sans ce garde-fou, se
-// faire rattraper ne coûtait rien : le joueur pouvait juste enchaîner sur une attaque de mêlée
-// comme si de rien n'était, ce qui annulait l'intérêt de la posture à distance face à un mob de CAC.
-function isForcedRetreatSituation() {
-    const enemy = gameState.currentEnemy;
-    return !!enemy && isDistanceContested(enemy) && playerWantsFar() && gameState.combatDistance <= 0;
-}
-
-// Contexte de portée courant : qui, du joueur ou du mob, est actuellement hors d'atteinte de
-// l'autre. `playerAdvantaged` = le joueur tient la distance face à un mob de mêlée qui ne peut
-// donc pas le toucher ce tour-ci ; `mobAdvantaged` = l'inverse (mob à distance hors de portée
-// d'un joueur qui cherche le corps à corps — mais un mob à distance peut tirer, donc ça ne le
-// protège jamais lui, seulement le joueur en face d'un mob de mêlée).
+// Contexte de portée courant : un mob de mêlée tenu à distance (écart > 0) ne peut pas toucher le
+// joueur ce tour-ci — un mob à distance, lui, peut toujours tirer, quel que soit l'écart, donc rien
+// ne le protège jamais lui.
 function getCombatRangeContext() {
     const enemy = gameState.currentEnemy;
-    const contested = isDistanceContested(enemy);
     const distance = gameState.combatDistance || 0;
-    const playerAdvantaged = contested && playerWantsFar() && distance > 0;
-    const mobAdvantaged = contested && !playerWantsFar() && distance > 0;
-    return { contested, distance, playerAdvantaged, mobAdvantaged };
+    const playerAdvantaged = !!enemy && !mobWantsFar(enemy) && distance > 0;
+    return { distance, playerAdvantaged };
 }
 
 // Riposte "sécurisée" : un mob de mêlée ne peut pas toucher un joueur qui tient encore la distance
@@ -1918,13 +1857,11 @@ function safeEnemyCounterAttack() {
     enemyCounterAttack();
 }
 
-// Réaction par défaut du mob à la fin d'un tour du joueur qui n'a PAS résolu de manche de distance
-// lui-même (Magie, étourdissement, désarmement en posture Tir, fuite ratée...) — à la différence de
-// resolveDistanceGatedAttack (Arme/Tir/Mains nues), qui gère déjà sa propre manche. Un mob de mêlée
-// hors de portée (playerAdvantaged) ne peut pas frapper, mais ne reste plus totalement figé pour
-// autant : il tente de combler l'écart (même mécanique que resolveDistanceRound, côté "le joueur
-// veut toujours la distance"), et frappe immédiatement s'il y parvient — comme lorsque le joueur
-// lui-même le rattrape en pleine attaque gated (voir resolveDistanceGatedAttack).
+// Réaction par défaut du mob à la fin d'un tour du joueur (attaque, Magie, étourdissement, fuite
+// ratée...). Un mob de mêlée hors de portée (playerAdvantaged) ne peut pas frapper, mais ne reste
+// pas totalement figé pour autant : il tente de combler l'écart (même mécanique que
+// resolveDistanceRound, côté "le joueur veut toujours la distance"), et frappe immédiatement s'il
+// y parvient.
 function resolveEnemyReaction() {
     const enemy = gameState.currentEnemy;
     if (!enemy) return;
@@ -1958,8 +1895,8 @@ function setCombatDistance(value) {
 
 // Une "manche" de distance : le joueur et le monstre jettent chacun un dé (le joueur bénéficie
 // d'un bonus lié à son niveau), et l'écart évolue selon qui l'emporte. `playerWantsToWiden`
-// indique le sens favorable au joueur ce tour-ci (true = il veut AUGMENTER l'écart, false = il
-// veut le RÉDUIRE) — dérivé de playerWantsFar() à l'appel.
+// indique le sens favorable au joueur pour cette manche (true = il veut AUGMENTER l'écart, false =
+// il veut le RÉDUIRE).
 function resolveDistanceRound(enemy, playerWantsToWiden) {
     const cfg = config.rangedCombat;
     const playerRoll = 1 + Math.floor(Math.random() * cfg.dieSides) + Math.floor(gameState.level / cfg.levelAdvantageDivisor);
@@ -1968,75 +1905,6 @@ function resolveDistanceRound(enemy, playerWantsToWiden) {
     const delta = playerWantsToWiden ? diff : -diff;
     setCombatDistance(gameState.combatDistance + delta);
     return { playerRoll, mobRoll, diff };
-}
-
-// Point d'entrée unique pour toute attaque physique (Arme/Tir/Mains nues) : si le duel est
-// contesté, résout d'abord une manche de distance, PUIS l'attaque elle-même, en tenant compte du
-// nouvel écart. Retourne true si un vrai coup a été porté (pour l'XP de compétence et les
-// mécaniques d'arme), false si ce tour n'était qu'une tentative de rapprochement/éloignement.
-function resolveDistanceGatedAttack(attackerAtk, options, label) {
-    const enemy = gameState.currentEnemy;
-    if (!enemy) return false;
-
-    if (!isDistanceContested(enemy)) {
-        // near/near (0 fixe) ou far/far (distance fixe) : échange classique des deux côtés
-        performPlayerAttack(attackerAtk, options, label);
-        return true;
-    }
-
-    const wantsFar = playerWantsFar();
-    resolveDistanceRound(enemy, wantsFar);
-
-    if (wantsFar) {
-        // Le joueur cherche à garder ses distances face à un mob de mêlée
-        if (gameState.combatDistance > 0) {
-            // Toujours hors de portée du mob : l'attaque porte, sans riposte ce tour-ci
-            performPlayerAttack(attackerAtk, options, label, () => {
-                logEvent(`↔️ Vous maintenez l'écart face à [${enemy.name}].`, "info");
-            });
-        } else {
-            logEvent(`🏃 [${enemy.name}] comble l'écart et vous rattrape au corps à corps !`, "danger");
-            performPlayerAttack(attackerAtk, options, label); // riposte normale désormais
-        }
-        return true;
-    } else {
-        // Le joueur tente de rattraper un mob qui garde ses distances
-        if (gameState.combatDistance > 0) {
-            // Encore trop loin pour un vrai coup : simple tentative de rapprochement, le mob tire librement
-            logEvent(`[${enemy.name}] vous canarde pendant votre approche.`, "danger");
-            enemyCounterAttack();
-            return false;
-        } else {
-            logEvent(`🎯 Vous atteignez [${enemy.name}] au corps à corps !`, "success");
-            performPlayerAttack(attackerAtk, options, label); // le coup porte, riposte normale ensuite
-            return true;
-        }
-    }
-}
-
-// Bascule la posture de combat du joueur. Togglable À TOUT MOMENT, en et hors combat (pour se
-// préparer avant un affrontement) — SAUF retour au corps à corps en plein combat tant qu'un mob de
-// mêlée tient encore à distance (duel CONTESTÉ, écart > 0) : il faut d'abord le combler (voir
-// isDistanceContested). Un duel à distance non contesté (mob lui-même à distance, écart fixe non
-// nul mais jamais "tenu" par personne) ne doit PAS bloquer le passage au corps à corps : c'est au
-// contraire la seule façon de déclarer vouloir charger et faire apparaître le bouton Sprint.
-// Le passage à "à distance" est lui toujours permis instantanément (décider de reculer).
-function togglePlayerStance() {
-    const goingToRanged = gameState.stance === 'melee';
-    const enemy = gameState.currentEnemy;
-
-    if (!goingToRanged && gameState.inCombat && enemy && isDistanceContested(enemy) && gameState.combatDistance > 0) {
-        logEvent("Trop loin pour repasser au corps à corps — comblez d'abord la distance !", "danger");
-        return;
-    }
-
-    gameState.stance = goingToRanged ? 'ranged' : 'melee';
-    if (gameState.inCombat && gameState.currentEnemy) {
-        logEvent(`Vous adoptez la posture ${goingToRanged ? '🎯 à distance' : '⚔️ corps à corps'}.`, "info");
-    } else {
-        logEvent(`Posture ${goingToRanged ? '🎯 à distance' : '⚔️ corps à corps'} choisie pour le prochain affrontement.`, "info");
-    }
-    updateUI();
 }
 
 // Formule de mitigation multiplicative : le ratio ATQ/(ATQ+DEF) donne la part des dégâts qui passe.
@@ -2110,18 +1978,12 @@ function tryPlayerAction() {
     return true;
 }
 
-// Portion commune à toute attaque du joueur : applique les dégâts, vérifie la victoire,
-// et laisse l'ennemi riposter s'il survit.
-// `onSurviveInsteadOfCounter` (optionnel) : si fourni et que l'ennemi survit, remplace la riposte
-// par ce callback — utilisé par resolveDistanceGatedAttack (Arme/Tir/Mains nues), qui a déjà résolu
-// sa propre manche de distance ce tour. Sans override (ex: Magie, qui ignore volontairement le
-// verrouillage par distance de l'attaque elle-même), la riposte par défaut passe par
-// resolveEnemyReaction() : un mob de mêlée hors de portée ne peut pas frapper, mais tente quand
-// même de combler l'écart plutôt que de ne rien faire ce tour-ci.
-function performPlayerAttack(attackerAtk, options, label, onSurviveInsteadOfCounter = null) {
+// Portion commune à toute attaque du joueur : applique les dégâts, vérifie la victoire, et laisse
+// l'ennemi réagir s'il survit (resolveEnemyReaction() : riposte normale, ou tentative de
+// rapprochement si un mob de mêlée est hors de portée — voir getCombatRangeContext()).
+function performPlayerAttack(attackerAtk, options, label) {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
     const enemy = gameState.currentEnemy;
-    const resolveNoDamageOutcome = onSurviveInsteadOfCounter || resolveEnemyReaction;
 
     // Un joueur confus a une chance de rater complètement son attaque (aucun dégât, tour perdu)
     if (gameState.status.confused && gameState.status.confused.rounds > 0) {
@@ -2130,7 +1992,7 @@ function performPlayerAttack(attackerAtk, options, label, onSurviveInsteadOfCoun
         if (Math.random() * 100 < 45) {
             showDie(ui.combatPlayerDie, "❓");
             logEvent(`Désorienté, vous frappez complètement à côté de [${enemy.name}] !`, "danger");
-            resolveNoDamageOutcome();
+            resolveEnemyReaction();
             return true;
         }
     }
@@ -2208,7 +2070,7 @@ function performPlayerAttack(attackerAtk, options, label, onSurviveInsteadOfCoun
         return true;
     }
 
-    resolveNoDamageOutcome();
+    resolveEnemyReaction();
     return true;
 }
 
@@ -2453,14 +2315,12 @@ const COMBAT_BEAT_MS = 400;
 
 // Empêche de spammer les boutons de combat pendant la petite pause entre deux actions
 function setCombatInputLocked(locked) {
-    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnFlee].forEach(btn => {
+    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnRetreat, ui.btnFlee].forEach(btn => {
         if (!btn) return;
         btn.disabled = locked;
         btn.classList.toggle('opacity-40', locked);
         btn.classList.toggle('pointer-events-none', locked);
     });
-    // Le bouton de posture reste utilisable même pendant l'animation d'un combat, SAUF s'il est
-    // lui-même verrouillé pour une autre raison (togglePlayerStance() gère ce cas séparément).
 }
 
 // Riposte de l'ennemi : marque une courte pause (le temps que le dé du joueur reste bien visible)
@@ -2595,11 +2455,7 @@ const SKILL_XP_PER_USE = 3;
 // à distance, et attackUnarmed() pour le repli à mains nues sans arme.
 function attackWeapon() {
     if (gameState.combatDistance > 0) {
-        logEvent("Trop loin pour frapper à l'arme — repassez au corps à corps ou tirez !", "danger");
-        return;
-    }
-    if (isForcedRetreatSituation()) {
-        logEvent("Un mob de mêlée vous colle alors que vous voulez de la distance : reculez d'abord (S'éloigner) !", "danger");
+        logEvent("Trop loin pour frapper à l'arme — approchez-vous ou tirez !", "danger");
         return;
     }
     if (!gameState.equipment.weapon) {
@@ -2607,7 +2463,6 @@ function attackWeapon() {
         return;
     }
     if (!tryPlayerAction()) return;
-    const enemy = gameState.currentEnemy;
 
     // Arme arrachée par un effet magnétique en cours : l'attaque à l'arme est indisponible
     if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) {
@@ -2615,7 +2470,7 @@ function attackWeapon() {
         if (gameState.status.disarmed.rounds <= 0) gameState.status.disarmed = null;
         showDie(ui.combatPlayerDie, "🧲");
         logEvent("Votre arme reste hors de portée, toujours attirée au loin !", "danger");
-        enemyCounterAttack();
+        enemyCounterAttack(); // Toujours à distance nulle ici (voir garde ci-dessus) : le mob est forcément à portée
         return;
     }
 
@@ -2624,11 +2479,8 @@ function attackWeapon() {
     const equippedGear = gameState.equipment.weapon;
     const weaponBonus = equippedGear ? (equippedGear.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
-    // Contesté + le joueur veut de la distance (vient de basculer, encore collé au mob) : il tente
-    // de reculer tout en frappant plutôt que de porter une attaque "normale".
-    const label = (isDistanceContested(enemy) && playerWantsFar()) ? "en reculant" : "à l'arme";
 
-    const landed = resolveDistanceGatedAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0 }, label);
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0 }, "à l'arme");
     if (landed) {
         gainSkillXp('weapon', SKILL_XP_PER_USE);
         applyWeaponMechanic(equippedGear); // Ne fait rien si le combat vient de se terminer ou si l'arme n'a pas de mécanique
@@ -2648,7 +2500,6 @@ function attackRanged() {
         return;
     }
     if (!tryPlayerAction()) return;
-    const enemy = gameState.currentEnemy;
 
     if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) {
         gameState.status.disarmed.rounds -= 1;
@@ -2664,11 +2515,8 @@ function attackRanged() {
     const equippedGear = gameState.equipment.ranged;
     const weaponBonus = equippedGear ? (equippedGear.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
-    // Contesté + le joueur veut du corps à corps (mob à distance qu'il tente de rattraper) :
-    // c'est une charge, pas un tir posé.
-    const label = (isDistanceContested(enemy) && !playerWantsFar()) ? "en chargeant" : "à distance";
 
-    const landed = resolveDistanceGatedAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0 }, label);
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0 }, "à distance");
     if (landed) {
         gainSkillXp('weapon', SKILL_XP_PER_USE);
         applyWeaponMechanic(equippedGear);
@@ -2683,33 +2531,26 @@ function attackUnarmed() {
         logEvent("Trop loin pour frapper à mains nues !", "danger");
         return;
     }
-    if (isForcedRetreatSituation()) {
-        logEvent("Un mob de mêlée vous colle alors que vous voulez de la distance : reculez d'abord (S'éloigner) !", "danger");
-        return;
-    }
     if (!tryPlayerAction()) return;
 
     const skill = gameState.skills.unarmed;
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
-    const landed = resolveDistanceGatedAttack(gameState.atk, { atkMultiplier: 0.75, varianceRange: 0.10, defReduction }, "à mains nues");
+    const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75, varianceRange: 0.10, defReduction }, "à mains nues");
     if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
 }
 
-// Sprint : action dédiée au rapprochement, à la place d'une attaque. Utilisable uniquement quand
-// le joueur (posture corps à corps) tente de rattraper un mob à distance qui garde l'écart (duel
-// contesté, écart > 0 — voir le toggle d'affichage du bouton dans updateUI()). Ne porte JAMAIS de
-// dégâts et ne déclenche aucune mécanique d'arme ni XP de compétence : en échange d'y renoncer
-// complètement ce tour-ci, le jet de rapprochement bénéficie d'un avantage (deux dés lancés, le
-// meilleur est gardé) là où une attaque classique ne tente qu'un jet simple en incident de son
-// propre jet d'attaque (voir resolveDistanceRound). Progression garantie (validé) : même un jet
-// perdant réduit l'écart d'au moins 1 — le mob peut ralentir un sprint, jamais le bloquer
-// totalement. Le joueur reste exposé pendant sa course : contrairement à une attaque qui réussit à
-// la fois à rattraper ET à frapper le même tour, l'ennemi riposte toujours après un sprint, qu'il
-// soit rattrapé ou non.
+// S'approcher : action dédiée au rapprochement, à la place d'une attaque. Toujours disponible dès
+// qu'un écart sépare les deux camps (distance > 0 — grisé sinon, voir updateUI()), quel que soit le
+// type de mob. Ne porte JAMAIS de dégâts et ne déclenche aucune mécanique d'arme ni XP de
+// compétence : en échange, le jet de rapprochement bénéficie d'un avantage (deux dés lancés, le
+// meilleur est gardé). Progression garantie : même un jet perdant réduit l'écart d'au moins 1 — le
+// mob peut ralentir l'approche, jamais la bloquer totalement. Le joueur reste exposé pendant sa
+// course : la riposte est tentée immédiatement après (bloquée si un mob de mêlée est toujours hors
+// de portée à l'issue du jet — voir safeEnemyCounterAttack()).
 function attemptSprint() {
     if (!tryPlayerAction()) return;
     const enemy = gameState.currentEnemy;
-    if (!enemy || !isDistanceContested(enemy) || playerWantsFar() || gameState.combatDistance <= 0) {
+    if (!enemy || gameState.combatDistance <= 0) {
         logEvent("Rien à rattraper pour l'instant.", "info");
         return;
     }
@@ -2733,24 +2574,22 @@ function attemptSprint() {
     } else {
         logEvent(`🏃 [${enemy.name}] esquive votre charge, mais vous grignotez tout de même du terrain.`, "info");
     }
-    // Toujours exposé pendant la course : un sprint ne porte jamais de coup, rien ne dissuade donc
-    // l'ennemi de riposter immédiatement (contrairement à une attaque qui vient de porter).
-    enemyCounterAttack();
+    // Riposte bloquée si un mob de mêlée reste hors de portée à l'issue du jet ; sinon normale
+    // (mob à distance qui tire librement, ou mob de mêlée désormais à portée).
+    safeEnemyCounterAttack();
 }
 
-// Reculer : symétrique du Sprint. Utilisable uniquement quand le joueur (posture à distance) s'est
-// fait rattraper au corps à corps par un mob de mêlée et cherche à rouvrir l'écart (duel contesté,
-// écart tombé à 0 — voir le toggle d'affichage du bouton dans updateUI()). Même mécanique exacte
-// que le Sprint (avantage : deux dés, le meilleur gardé), juste appliquée dans l'autre sens sur
-// l'écart. Ne porte jamais de coup, ne déclenche aucune XP. Si le jet échoue (le mob reste collé,
-// écart toujours à 0), il riposte normalement ; mais si le jet RÉUSSIT (écart rouvert), il n'est
-// plus à portée — safeEnemyCounterAttack() bloque alors la riposte au lieu de frapper malgré la
-// distance qui vient d'être reprise (voir getCombatRangeContext().playerAdvantaged).
+// S'éloigner : symétrique de S'approcher, dans l'autre sens sur l'écart. Toujours disponible tant
+// qu'il reste de la marge (distance < maxDistance — grisé sinon, voir updateUI()), y compris quand
+// le joueur est DÉJÀ à distance : le jet, avantagé de la même façon (deux dés, le meilleur gardé),
+// pousse alors l'écart encore plus loin. Ne porte jamais de coup, ne déclenche aucune XP. Si le mob
+// reste au contact à l'issue du jet, il riposte normalement ; si l'écart s'est ouvert (ou creusé),
+// safeEnemyCounterAttack() bloque la riposte d'un mob de mêlée désormais hors de portée.
 function attemptRetreat() {
     if (!tryPlayerAction()) return;
     const enemy = gameState.currentEnemy;
-    if (!enemy || !isDistanceContested(enemy) || !playerWantsFar() || gameState.combatDistance > 0) {
-        logEvent("Rien à fuir pour l'instant.", "info");
+    if (!enemy || gameState.combatDistance >= config.rangedCombat.maxDistance) {
+        logEvent("Impossible de vous éloigner davantage.", "info");
         return;
     }
 
@@ -2761,16 +2600,15 @@ function attemptRetreat() {
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
     const diff = playerRoll - mobRoll;
 
+    const before = gameState.combatDistance;
     setCombatDistance(gameState.combatDistance + diff);
     showDie(ui.combatPlayerDie, "🏃");
 
-    if (gameState.combatDistance > 0) {
-        logEvent(`↔️ Vous rouvrez l'écart face à [${enemy.name}] !`, "success");
+    if (gameState.combatDistance > before) {
+        logEvent(`↔️ Vous prenez du champ face à [${enemy.name}] !`, "success");
     } else {
-        logEvent(`[${enemy.name}] vous colle et vous empêche de reculer.`, "danger");
+        logEvent(`[${enemy.name}] vous colle et vous empêche de vous éloigner.`, "danger");
     }
-    // Riposte bloquée si le recul a réussi (le mob n'est plus à portée) ; sinon riposte normale,
-    // le mob étant toujours au contact.
     safeEnemyCounterAttack();
 }
 
@@ -3079,7 +2917,6 @@ ui.btnAttackMagic.addEventListener('click', attackMagic);
 if (ui.btnSprint) ui.btnSprint.addEventListener('click', attemptSprint);
 if (ui.btnRetreat) ui.btnRetreat.addEventListener('click', attemptRetreat);
 ui.btnFlee.addEventListener('click', attemptFlee);
-if (ui.btnStanceToggle) ui.btnStanceToggle.addEventListener('click', togglePlayerStance);
 
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)
 ui.btnFightBoss.addEventListener('click', fightBossNow);
