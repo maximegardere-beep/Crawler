@@ -70,6 +70,11 @@ function generateMob(districtName) {
     // 1bis. Mise à l'échelle selon l'étage courant (voir section 0), avant tout modificateur
     applyFloorScaling(finalMob, typeof gameState !== 'undefined' ? gameState.currentFloor : 1);
 
+    // Puissance de référence (ATQ x PV) juste après le scaling d'étage mais AVANT tout
+    // modificateur : sert à isoler la part de puissance apportée par les seuls modificateurs
+    // (voir finalMob.threatMultiplier plus bas), indépendamment de la profondeur de l'étage.
+    const preModifierPower = finalMob.atk * finalMob.hp;
+
     // 2. Jet de dés pour le nombre de modificateurs (Ex: 15% pour 2, 35% pour 1 (total 50%), 50% pour 0)
     const roll = Math.random() * 100;
     let modifierCount = 0;
@@ -136,6 +141,12 @@ function generateMob(districtName) {
     // Tag supplémentaire pour dire à notre boucle de jeu qu'il est prêt
     finalMob.isGenerated = true;
     finalMob.modifiersApplied = modifiersApplied;
+
+    // Multiplicateur de menace apporté par les seuls modificateurs (1 = aucun bonus). Comparé à
+    // config.eliteThreatMultiplier côté app.js pour décider de l'affichage de l'icône 💀 : un
+    // "Colossal" isolé (x3.6) ou une combinaison de deux modificateurs plus modestes peut suffire
+    // à franchir le seuil, indépendamment du nombre d'adjectifs affichés dans le nom.
+    finalMob.threatMultiplier = preModifierPower > 0 ? (finalMob.atk * finalMob.hp) / preModifierPower : 1;
 
     return finalMob;
 }
@@ -303,7 +314,9 @@ function generateCompanionCandidate() {
         xp: 0,
         level: 1,
         xpToNext: 30,
-        aggressiveness: 0 // Grimpe avec l'expérience du compagnon ; à 100, il devient hostile
+        // Probabilité (0-100) qu'il abandonne l'équipe : grimpe avec son expérience, vérifiée à
+        // chaque montée de niveau (voir gainCompanionXp()/attemptCompanionAbandon() dans app.js).
+        leaveChance: 0
     };
 }
 
