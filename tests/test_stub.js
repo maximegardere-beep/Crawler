@@ -1,0 +1,67 @@
+// test_stub.js — Stub DOM minimal pour exécuter app.js sous Node (pas de navigateur).
+// Persisté dans /tests : à ÉTENDRE si un nouveau besoin apparaît, jamais à réécrire de zéro.
+
+function makeEl() {
+    const el = {
+        _children: [],
+        classList: {
+            _set: new Set(),
+            add(...c) { c.forEach(x => this._set.add(x)); },
+            remove(...c) { c.forEach(x => this._set.delete(x)); },
+            toggle(c, force) {
+                const has = this._set.has(c);
+                const want = force === undefined ? !has : !!force;
+                if (want) this._set.add(c); else this._set.delete(c);
+                return want;
+            },
+            contains(c) { return this._set.has(c); },
+            replace(oldC, newC) { if (this._set.has(oldC)) { this._set.delete(oldC); this._set.add(newC); } }
+        },
+        style: {},
+        dataset: {},
+        attributes: {},
+        _listeners: {},
+        addEventListener(evt, fn) {
+            (this._listeners[evt] = this._listeners[evt] || []).push(fn);
+        },
+        dispatch(evt) {
+            (this._listeners[evt] || []).forEach(fn => fn());
+        },
+        appendChild(child) { this._children.push(child); return child; },
+        removeChild(child) { this._children = this._children.filter(c => c !== child); },
+        get innerHTML() { return this._innerHTML || ""; },
+        set innerHTML(v) { this._innerHTML = v; this._children = []; },
+        querySelector(sel) {
+            if (sel.startsWith('[data-action="')) {
+                const action = sel.slice('[data-action="'.length, -2);
+                return this._actionEls && this._actionEls[action] || makeEl();
+            }
+            return makeEl();
+        },
+        querySelectorAll() { return []; },
+        get offsetWidth() { return 100; },
+        scrollTop: 0,
+        scrollHeight: 0,
+        get innerText() { return this._innerText || ""; },
+        set innerText(v) { this._innerText = v; },
+        disabled: false
+    };
+    return el;
+}
+
+global.document = {
+    _elements: {},
+    getElementById(id) {
+        if (!this._elements[id]) this._elements[id] = makeEl();
+        return this._elements[id];
+    },
+    createElement() { return makeEl(); },
+    addEventListener() {}
+};
+
+global.navigator = { vibrate: () => true };
+global.location = { reload: () => {} };
+global.window = global;
+global.console = console;
+
+module.exports = { makeEl };
