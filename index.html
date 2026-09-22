@@ -371,12 +371,21 @@
 
             <!-- Barre de distance : toujours affichée pendant un combat (0 = corps à corps collé,
                  pleine = distance maximale tenue). Voir getCombatRangeContext() dans app.js. -->
-            <div id="combat-distance-wrapper" class="mb-3">
+            <div id="combat-distance-wrapper" class="mb-4">
                 <div class="flex justify-between text-[9px] text-cyan-500 uppercase tracking-wider mb-1">
                     <span>Vous</span><span>Distance</span><span>Ennemi</span>
                 </div>
-                <div class="w-full h-2 bg-gray-900 border border-cyan-900/50 rounded-full overflow-hidden">
-                    <div id="combat-distance-fill" class="h-full bg-gray-600 transition-all duration-300" style="width:0%"></div>
+                <div class="relative w-full h-2">
+                    <div class="absolute inset-0 bg-gray-900 border border-cyan-900/50 rounded-full overflow-hidden">
+                        <div id="combat-distance-fill" class="h-full bg-gray-600 transition-all duration-300" style="width:0%"></div>
+                    </div>
+                    <!-- Icônes joueur/ennemi superposées sur la barre : leur position (left:%) est
+                         calculée dans updateUI() selon getCombatRangeContext() dans app.js.
+                         CAC vs CAC -> les deux au centre (50%). DIST vs DIST -> aux deux extrémités
+                         (0% / 100%). Contesté -> le camp en CAC reste fixe au centre, le camp en
+                         DIST glisse entre le centre et son extrémité selon l'écart courant. -->
+                    <span id="combat-distance-player-icon" class="absolute -top-2 text-sm leading-none select-none transition-all duration-300" style="left:50%; transform:translate(-50%, 0);">🧍</span>
+                    <span id="combat-distance-enemy-icon" class="absolute -top-2 text-sm leading-none select-none transition-all duration-300" style="left:50%; transform:translate(-50%, 0);">👹</span>
                 </div>
             </div>
 
@@ -543,11 +552,11 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=30"></script>
-    <script src="items.js?v=30"></script>
-    <script src="districts.js?v=30"></script>
-    <script src="safehouses.js?v=30"></script>
-    <script src="generator.js?v=30"></script>
-    <script src="app.js?v=30"></script>
+    <script src="bestiary.js?v=31"></script>
+    <script src="items.js?v=31"></script>
+    <script src="districts.js?v=31"></script>
+    <script src="safehouses.js?v=31"></script>
+    <script src="generator.js?v=31"></script>
+    <script src="app.js?v=31"></script>
 </body>
 </html>
