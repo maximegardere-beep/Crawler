@@ -438,25 +438,32 @@ function updateUI() {
         // reste visible en permanence.
         const distance = gameState.combatDistance || 0;
         const atMelee = distance <= 0;
+        const contested = gameState.currentEnemy ? isDistanceContested(gameState.currentEnemy) : false;
+        // Un mob de mêlée qui vient de rattraper un joueur en posture à distance ne débloque pas le
+        // corps à corps "gratuitement" : il faut d'abord reculer (S'éloigner) ou assumer la posture
+        // (voir isForcedRetreatSituation()) — Arme et Mains nues restent grisés dans cette situation.
+        const forcedRetreat = isForcedRetreatSituation();
         if (ui.btnAttackWeapon) {
-            ui.btnAttackWeapon.disabled = !atMelee;
-            ui.btnAttackWeapon.classList.toggle('opacity-40', !atMelee);
-            ui.btnAttackWeapon.classList.toggle('pointer-events-none', !atMelee);
+            const weaponUsable = atMelee && !forcedRetreat && !!gameState.equipment.weapon;
+            ui.btnAttackWeapon.disabled = !weaponUsable;
+            ui.btnAttackWeapon.classList.toggle('opacity-40', !weaponUsable);
+            ui.btnAttackWeapon.classList.toggle('pointer-events-none', !weaponUsable);
         }
         if (ui.btnAttackUnarmed) {
-            ui.btnAttackUnarmed.disabled = !atMelee;
-            ui.btnAttackUnarmed.classList.toggle('opacity-40', !atMelee);
-            ui.btnAttackUnarmed.classList.toggle('pointer-events-none', !atMelee);
+            const unarmedUsable = atMelee && !forcedRetreat;
+            ui.btnAttackUnarmed.disabled = !unarmedUsable;
+            ui.btnAttackUnarmed.classList.toggle('opacity-40', !unarmedUsable);
+            ui.btnAttackUnarmed.classList.toggle('pointer-events-none', !unarmedUsable);
         }
         if (ui.btnAttackRanged) {
-            ui.btnAttackRanged.disabled = atMelee;
-            ui.btnAttackRanged.classList.toggle('opacity-40', atMelee);
-            ui.btnAttackRanged.classList.toggle('pointer-events-none', atMelee);
+            const rangedUsable = !atMelee && !!gameState.equipment.ranged;
+            ui.btnAttackRanged.disabled = !rangedUsable;
+            ui.btnAttackRanged.classList.toggle('opacity-40', !rangedUsable);
+            ui.btnAttackRanged.classList.toggle('pointer-events-none', !rangedUsable);
         }
         // Sprint : uniquement pertinent quand le joueur (corps à corps) doit rattraper un mob à
         // distance qui garde l'écart — masqué dans tous les autres cas (échange classique, ou
         // joueur en posture à distance qui cherche au contraire à s'éloigner).
-        const contested = gameState.currentEnemy ? isDistanceContested(gameState.currentEnemy) : false;
         if (ui.btnSprint) {
             const sprintUsable = !!gameState.currentEnemy && contested && !playerWantsFar() && distance > 0;
             ui.btnSprint.classList.toggle('hidden', !sprintUsable);
@@ -995,7 +1002,7 @@ function handleStealthEncounter() {
     const undetected = Math.random() * 100 < getStealthChance();
 
     if (!undetected) {
-        setCardHeader('⚔️', 'Combat', 'Danger');
+        // L'en-tête de la carte (icône/nom/type) est posé par initiateCombat() lui-même.
         logEvent(`Des bruits de pas approchent... Des créatures de ${gameState.currentDistrict} vous attaquent !`, "danger");
         initiateCombat(enemy);
         return;
@@ -1025,7 +1032,7 @@ function attemptStealthEvasion() {
         gainSkillXp('stealth', 8);
         updateUI();
     } else {
-        setCardHeader('⚔️', 'Repéré !', 'Danger');
+        // L'en-tête de la carte (icône/nom/type) est posé par initiateCombat() lui-même.
         logEvent(`[${enemy.name}] vous repère au dernier moment !`, "danger");
         initiateCombat(enemy);
     }
@@ -1039,7 +1046,7 @@ function attemptStealthAttack() {
     gameState.pendingStealthEncounter = null;
     if (!enemy) { updateUI(); return; }
 
-    setCardHeader('🗡️', 'Attaque Furtive', 'Combat');
+    // L'en-tête de la carte (icône/nom/type) est posé par initiateCombat() lui-même.
     logEvent(`Vous surgissez de l'ombre et frappez [${enemy.name}] par surprise !`, "success");
     gameState.pendingSneakAttack = true;
     initiateCombat(enemy);
@@ -1511,15 +1518,14 @@ function generateQuadrant(quadrantIndex, districtName, roomsById) {
     const bossId = pickDeepRoom(roomsById, roomIds, entryId);
     roomsById[bossId].type = 'boss';
 
-    // Salle(s) sécurisée(s) parmi les pièces restantes : volontairement rares (0 ou 1 par quartier,
-    // jamais 2) depuis l'ajout de la régénération passive sur les cartes calmes — la salle
-    // sécurisée doit rester une vraie trouvaille, pas une ressource banale.
+    // Salle(s) sécurisée(s) parmi les pièces restantes : 1 à 2 par quartier (jamais 0, pour garantir
+    // un vrai point de répit sur chaque quartier).
     const safeCandidates = roomIds.filter(id => id !== entryId && id !== bossId);
     for (let i = safeCandidates.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [safeCandidates[i], safeCandidates[j]] = [safeCandidates[j], safeCandidates[i]];
     }
-    const safeCount = safeCandidates.length > 0 && Math.random() < 0.4 ? 1 : 0;
+    const safeCount = Math.min(safeCandidates.length, Math.random() < 0.5 ? 2 : 1);
     for (let i = 0; i < safeCount; i++) {
         roomsById[safeCandidates[i]].type = 'safe';
         roomsById[safeCandidates[i]].safehouse = pickSafehouseType();
@@ -1787,6 +1793,19 @@ function initiateCombat(forcedEnemy = null) {
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
 
+    // En-tête de la carte : toujours posé ici, quel que soit le chemin d'entrée en combat (embuscade
+    // de trajet, compagnon qui se retourne contre vous, rencontre furtive ratée...). Avant ce correctif,
+    // seuls certains appelants posaient leur propre en-tête ; les autres laissaient celui de la carte
+    // PRÉCÉDENTE affiché (ex: "Silence") pendant que le corps de la carte basculait déjà sur le panneau
+    // du mob (renderCombatMobPanel) — les deux se retrouvaient superposés au premier tour. Les combats
+    // de boss gardent leur en-tête dédié, plus riche ("Gardien de l'Escalier"/"Boss de Quartier"), déjà
+    // posé par triggerBossEncounter() juste avant.
+    if (enemy && !enemy.isBoss) {
+        setCardHeader(isEliteMob(enemy) ? '💀' : '⚔️', enemy.name, 'Danger');
+    } else if (!enemy) {
+        setCardHeader('⚔️', 'Combat', 'Danger');
+    }
+
     // Statuts remis à zéro à chaque nouveau combat (des deux côtés)
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null };
     if (enemy) {
@@ -1857,6 +1876,17 @@ function mobWantsFar(enemy) {
 function isDistanceContested(enemy) {
     if (!enemy) return false;
     return playerWantsFar() !== mobWantsFar(enemy);
+}
+
+// Vrai quand un mob de mêlée vient de rattraper un joueur en posture "à distance" (duel contesté,
+// écart tombé à 0) : dans cette situation précise, le joueur ne doit plus pouvoir frapper au corps
+// à corps "gratuitement" — il doit d'abord explicitement rouvrir l'écart (voir attemptRetreat()) ou
+// accepter le corps à corps en changeant de posture (togglePlayerStance()). Sans ce garde-fou, se
+// faire rattraper ne coûtait rien : le joueur pouvait juste enchaîner sur une attaque de mêlée
+// comme si de rien n'était, ce qui annulait l'intérêt de la posture à distance face à un mob de CAC.
+function isForcedRetreatSituation() {
+    const enemy = gameState.currentEnemy;
+    return !!enemy && isDistanceContested(enemy) && playerWantsFar() && gameState.combatDistance <= 0;
 }
 
 // Contexte de portée courant : qui, du joueur ou du mob, est actuellement hors d'atteinte de
@@ -1971,13 +2001,17 @@ function resolveDistanceGatedAttack(attackerAtk, options, label) {
 }
 
 // Bascule la posture de combat du joueur. Togglable À TOUT MOMENT, en et hors combat (pour se
-// préparer avant un affrontement) — SAUF retour au corps à corps en plein combat tant que de la
-// distance sépare encore les deux camps : il faut d'abord la combler (voir isDistanceContested).
+// préparer avant un affrontement) — SAUF retour au corps à corps en plein combat tant qu'un mob de
+// mêlée tient encore à distance (duel CONTESTÉ, écart > 0) : il faut d'abord le combler (voir
+// isDistanceContested). Un duel à distance non contesté (mob lui-même à distance, écart fixe non
+// nul mais jamais "tenu" par personne) ne doit PAS bloquer le passage au corps à corps : c'est au
+// contraire la seule façon de déclarer vouloir charger et faire apparaître le bouton Sprint.
 // Le passage à "à distance" est lui toujours permis instantanément (décider de reculer).
 function togglePlayerStance() {
     const goingToRanged = gameState.stance === 'melee';
+    const enemy = gameState.currentEnemy;
 
-    if (!goingToRanged && gameState.inCombat && gameState.combatDistance > 0) {
+    if (!goingToRanged && gameState.inCombat && enemy && isDistanceContested(enemy) && gameState.combatDistance > 0) {
         logEvent("Trop loin pour repasser au corps à corps — comblez d'abord la distance !", "danger");
         return;
     }
@@ -2542,13 +2576,20 @@ function resolveEnemyCounterAttack() {
 const SKILL_XP_PER_USE = 3;
 
 // Arme : la référence, équilibrée. Bénéficie du bonus de dégâts et de la mécanique spéciale
-// (saignement/étourdissement) de l'arme équipée, le cas échéant.
-// Arme : la référence, équilibrée. Bénéficie du bonus de dégâts et de la mécanique spéciale
 // (saignement/étourdissement) de l'arme équipée, le cas échéant. Utilisable uniquement à distance
-// nulle (corps à corps) — voir attackRanged() pour l'équivalent à distance.
+// nulle (corps à corps), avec une arme réellement équipée — voir attackRanged() pour l'équivalent
+// à distance, et attackUnarmed() pour le repli à mains nues sans arme.
 function attackWeapon() {
     if (gameState.combatDistance > 0) {
         logEvent("Trop loin pour frapper à l'arme — repassez au corps à corps ou tirez !", "danger");
+        return;
+    }
+    if (isForcedRetreatSituation()) {
+        logEvent("Un mob de mêlée vous colle alors que vous voulez de la distance : reculez d'abord (S'éloigner) !", "danger");
+        return;
+    }
+    if (!gameState.equipment.weapon) {
+        logEvent("Vous n'avez pas d'arme équipée — essayez à mains nues !", "danger");
         return;
     }
     if (!tryPlayerAction()) return;
@@ -2580,12 +2621,16 @@ function attackWeapon() {
     }
 }
 
-// Tir : équivalent à distance de l'attaque à l'arme, avec l'arme à distance équipée (ou à mains
-// nues improvisées si aucune n'est équipée). Utilisable uniquement quand de la distance sépare le
-// joueur du monstre — voir attackWeapon() pour l'équivalent en corps à corps.
+// Tir : équivalent à distance de l'attaque à l'arme, avec l'arme à distance équipée. Utilisable
+// uniquement quand de la distance sépare le joueur du monstre ET qu'une arme à distance est
+// réellement équipée — voir attackWeapon() pour l'équivalent en corps à corps.
 function attackRanged() {
     if (gameState.combatDistance <= 0) {
         logEvent("Trop près pour tirer — repassez à l'Arme !", "danger");
+        return;
+    }
+    if (!gameState.equipment.ranged) {
+        logEvent("Vous n'avez pas d'arme à distance équipée !", "danger");
         return;
     }
     if (!tryPlayerAction()) return;
@@ -2622,6 +2667,10 @@ function attackRanged() {
 function attackUnarmed() {
     if (gameState.combatDistance > 0) {
         logEvent("Trop loin pour frapper à mains nues !", "danger");
+        return;
+    }
+    if (isForcedRetreatSituation()) {
+        logEvent("Un mob de mêlée vous colle alors que vous voulez de la distance : reculez d'abord (S'éloigner) !", "danger");
         return;
     }
     if (!tryPlayerAction()) return;

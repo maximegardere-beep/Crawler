@@ -478,5 +478,151 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(buildMechanicBadgesHtml(null, IMPLEMENTED_ARMOR_MECHANICS) === '', "buildMechanicBadgesHtml() ne plante pas sans objet");
 }
 
+// ===================================================================
+// En-tête de carte au démarrage d'un combat (initiateCombat) : le nom du mob remplace "Combat" et
+// n'importe quel titre laissé par la carte précédente (ex: "Silence") — bug rapporté : une embuscade
+// ou un combat déclenché sans passer par setCardHeader() laissait l'ancien titre affiché pendant que
+// le corps de la carte basculait déjà sur le panneau du mob.
+// ===================================================================
+{
+    resetTransientState();
+    setCardHeader('🌑', 'Silence', 'Exploration'); // simule la carte précédente, comme en vraie partie
+    const mob = { name: "Contrôleur de Billets Zombifié", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
+    initiateCombat(mob);
+    assert(ui.cardTitle.innerText === mob.name, "initiateCombat() : le nom du mob remplace le titre de la carte précédente");
+    assert(ui.cardIcon.innerText === '⚔️', "initiateCombat() : icône épée pour un mob normal");
+    assert(ui.cardTypeLabel.innerText === 'Danger', "initiateCombat() : type 'Danger' pour un mob normal");
+}
+{
+    resetTransientState();
+    setCardHeader('🌑', 'Silence', 'Exploration');
+    const eliteMob = { name: "Boucher Increvable", hp: 30, maxHp: 30, atk: 5, def: 2, threatMultiplier: 3.6, status: {} };
+    initiateCombat(eliteMob);
+    assert(ui.cardTitle.innerText === eliteMob.name, "initiateCombat() : nom du mob élite sur la carte aussi");
+    assert(ui.cardIcon.innerText === '💀', "initiateCombat() : icône crâne pour un mob élite");
+}
+{
+    resetTransientState();
+    // En-tête plus riche posé par triggerBossEncounter() juste avant fightBossNow() -> initiateCombat()
+    setCardHeader('👑', 'Le Chef de Gare Nécrosé', "Gardien de l'Escalier");
+    const boss = { name: "Le Chef de Gare Nécrosé", isBoss: true, hp: 200, maxHp: 200, atk: 20, def: 10, status: {} };
+    initiateCombat(boss);
+    assert(ui.cardTitle.innerText === boss.name, "initiateCombat() : titre correct pour un boss");
+    assert(ui.cardTypeLabel.innerText === "Gardien de l'Escalier", "initiateCombat() : n'écrase pas l'en-tête plus riche déjà posé pour un boss");
+}
+
+// ===================================================================
+// Recul forcé : un mob de mêlée qui rattrape un joueur en posture à distance ne débloque plus le
+// corps à corps gratuitement (Arme/Mains nues restent grisés, S'éloigner devient la seule option
+// jusqu'à ce que le joueur rouvre l'écart ou assume la posture corps à corps).
+// ===================================================================
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.stance = 'ranged';
+    gameState.equipment.weapon = { name: "Gourdin d'Essai", baseDmg: 5 };
+    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 50, maxHp: 50, atk: 8, def: 4, status: {} };
+    gameState.combatDistance = 0; // rattrapé au corps à corps malgré la posture à distance
+    updateUI();
+    assert(isForcedRetreatSituation() === true, "isForcedRetreatSituation() détecte le rattrapage non voulu");
+    assert(ui.btnAttackWeapon.disabled === true, "Recul forcé : Arme grisée même avec une arme équipée");
+    assert(ui.btnAttackUnarmed.disabled === true, "Recul forcé : Mains nues grisées aussi");
+    assert(!ui.btnRetreat.classList.contains('hidden'), "Recul forcé : S'éloigner est bien visible");
+
+    const hpBefore = gameState.currentEnemy.hp;
+    attackWeapon();
+    assert(gameState.currentEnemy.hp === hpBefore, "attackWeapon() ne porte pas en situation de recul forcé");
+    attackUnarmed();
+    assert(gameState.currentEnemy.hp === hpBefore, "attackUnarmed() ne porte pas en situation de recul forcé");
+
+    // Le joueur assume finalement le corps à corps : la situation de recul forcé disparaît
+    gameState.stance = 'melee';
+    updateUI();
+    assert(isForcedRetreatSituation() === false, "Assumer la posture CAC lève le recul forcé");
+    assert(ui.btnAttackWeapon.disabled === false, "Arme redevient utilisable une fois la posture CAC assumée");
+}
+
+// ===================================================================
+// togglePlayerStance() : la bascule vers le corps à corps ne doit être bloquée que si un mob de
+// mêlée est activement tenu à distance (duel contesté) — pas simplement parce que combatDistance > 0
+// (cas d'un échange DIST vs DIST non contesté, où l'écart est fixe mais ne "protège" personne).
+// ===================================================================
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.stance = 'ranged';
+    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 50, maxHp: 50, atk: 8, def: 4, status: {} }; // CAC, contesté
+    gameState.combatDistance = config.rangedCombat.initialDistance;
+    togglePlayerStance();
+    assert(gameState.stance === 'ranged', "togglePlayerStance() : bascule bloquée si un mob de mêlée est activement tenu à distance");
+}
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.stance = 'ranged';
+    gameState.currentEnemy = { name: "Photocopieuse Carnivore", hp: 50, maxHp: 50, atk: 8, def: 4, ranged: true, status: {} }; // DIST, non contesté
+    gameState.combatDistance = config.rangedCombat.initialDistance;
+    togglePlayerStance();
+    assert(gameState.stance === 'melee', "togglePlayerStance() : bascule autorisée face à un mob DIST non contesté (bug rapporté corrigé)");
+    updateUI();
+    assert(!ui.btnSprint.classList.contains('hidden'), "Sprint devient visible une fois la posture CAC assumée face à un mob à distance");
+}
+
+// ===================================================================
+// Arme/Tir nécessitent une arme réellement équipée (mains nues reste toujours disponible sans rien).
+// ===================================================================
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.stance = 'melee';
+    gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
+    gameState.combatDistance = 0;
+    gameState.equipment.weapon = null;
+    updateUI();
+    assert(ui.btnAttackWeapon.disabled === true, "Arme grisée sans arme équipée");
+    const hpBefore = gameState.currentEnemy.hp;
+    attackWeapon();
+    assert(gameState.currentEnemy.hp === hpBefore, "attackWeapon() ne porte pas sans arme équipée");
+
+    gameState.equipment.weapon = { name: "Gourdin d'Essai", baseDmg: 5 };
+    updateUI();
+    assert(ui.btnAttackWeapon.disabled === false, "Arme de nouveau utilisable une fois équipée");
+}
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.stance = 'ranged';
+    gameState.currentEnemy = { name: "Photocopieuse Carnivore", hp: 50, maxHp: 50, atk: 8, def: 4, ranged: true, status: {} };
+    gameState.combatDistance = config.rangedCombat.initialDistance;
+    gameState.equipment.ranged = null;
+    updateUI();
+    assert(ui.btnAttackRanged.disabled === true, "Tir grisé sans arme à distance équipée");
+    const hpBefore = gameState.currentEnemy.hp;
+    attackRanged();
+    assert(gameState.currentEnemy.hp === hpBefore, "attackRanged() ne porte pas sans arme à distance équipée");
+
+    gameState.equipment.ranged = { name: "Fronde d'Essai", baseDmg: 4 };
+    updateUI();
+    assert(ui.btnAttackRanged.disabled === false, "Tir de nouveau utilisable une fois une arme à distance équipée");
+}
+
+// ===================================================================
+// Salles sécurisées : 1 à 2 par quartier (jamais 0, jamais plus de 2) — voir generateQuadrant().
+// ===================================================================
+{
+    let sawZero = false, sawMoreThanTwo = false, sawTwo = false;
+    for (let i = 0; i < 60; i++) {
+        const roomsById = {};
+        generateQuadrant(0, "Quartier de Test", roomsById);
+        const safeCount = Object.values(roomsById).filter(r => r.type === 'safe').length;
+        if (safeCount === 0) sawZero = true;
+        if (safeCount > 2) sawMoreThanTwo = true;
+        if (safeCount === 2) sawTwo = true;
+    }
+    assert(!sawZero, "generateQuadrant() : au moins 1 salle sécurisée par quartier (jamais 0), sur 60 générations");
+    assert(!sawMoreThanTwo, "generateQuadrant() : jamais plus de 2 salles sécurisées par quartier");
+    assert(sawTwo, "generateQuadrant() : 2 salles sécurisées effectivement possibles (60 générations)");
+}
+
 console.log(`${passed} test(s) OK, ${failures} échec(s).`);
 process.exit(failures === 0 ? 0 : 1);
