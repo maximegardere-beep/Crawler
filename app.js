@@ -259,6 +259,8 @@ const ui = {
     stanceLabel: document.getElementById('stance-label'),
     combatDistanceWrapper: document.getElementById('combat-distance-wrapper'),
     combatDistanceFill: document.getElementById('combat-distance-fill'),
+    combatDistancePlayerIcon: document.getElementById('combat-distance-player-icon'),
+    combatDistanceEnemyIcon: document.getElementById('combat-distance-enemy-icon'),
     equippedRanged: document.getElementById('equipped-ranged'),
     btnDevLogs: document.getElementById('btn-dev-logs')
 };
@@ -444,6 +446,23 @@ function updateUI() {
             ui.combatDistanceFill.classList.toggle('bg-cyan-600', playerBenefits);
             ui.combatDistanceFill.classList.toggle('bg-red-600', playerSuffers);
             ui.combatDistanceFill.classList.toggle('bg-gray-600', !playerBenefits && !playerSuffers);
+        }
+        // Icônes joueur/ennemi sur la barre : chaque camp qui VEUT du corps à corps reste fixe au
+        // centre (50%) ; chaque camp qui veut de la distance glisse depuis le centre vers SA propre
+        // extrémité (0% côté "Vous", 100% côté "Ennemi") en proportion de l'écart courant. Ce simple
+        // calcul couvre les trois cas sans branche dédiée :
+        //   - CAC vs CAC : les deux formules donnent 50 -> icônes collées au milieu de la barre.
+        //   - DIST vs DIST : la distance reste au maximum -> icônes aux deux extrémités.
+        //   - Contesté : le camp en CAC reste fixe au centre (ancré), le camp en DIST est le seul
+        //     "mobile", sa position variant à chaque manche de distance (resolveDistanceRound()).
+        if (ui.combatDistancePlayerIcon && ui.combatDistanceEnemyIcon) {
+            const maxDist = config.rangedCombat.maxDistance || 1;
+            const ratio = Math.max(0, Math.min(1, distance / maxDist));
+            const enemyWantsFar = gameState.currentEnemy ? mobWantsFar(gameState.currentEnemy) : false;
+            const playerPos = playerWantsFar() ? (50 - ratio * 50) : 50;
+            const enemyPos = enemyWantsFar ? (50 + ratio * 50) : 50;
+            ui.combatDistancePlayerIcon.style.left = `${playerPos}%`;
+            ui.combatDistanceEnemyIcon.style.left = `${enemyPos}%`;
         }
     } else {
         ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending || gameState.stealthChoicePending);
