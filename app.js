@@ -118,8 +118,21 @@ const config = {
         maxDistance: 8,         // Plafond de l'écart (ne peut pas s'éloigner indéfiniment)
         dieSides: 6,            // Taille du dé opposé lancé chaque manche par le joueur ET le mob
         levelAdvantageDivisor: 4 // Bonus au dé du joueur = floor(niveau / ce diviseur)
-    }
+    },
+
+    // Seuil de mob.threatMultiplier (voir generateMob() dans generator.js) à partir duquel un mob
+    // NON-boss est signalé comme dangereux par l'icône 💀 (nom du combat, panneau "Examiner",
+    // annonce de rencontre). 1.8 correspond environ à un seul modificateur "Musculeux"/"Colossal",
+    // ou à deux modificateurs plus modestes combinés — valeur de départ, à ajuster par playtest.
+    eliteThreatMultiplier: 1.8
 };
+
+// Un mob non-boss est "élite" si ses modificateurs (voir threatMultiplier dans generateMob())
+// dépassent le seuil de config.eliteThreatMultiplier. Les boss ont déjà leur propre signal (👑) :
+// on ne les affuble jamais d'un 💀 en plus, même si un jour ils portaient des modificateurs.
+function isEliteMob(mob) {
+    return !!mob && !mob.isBoss && (mob.threatMultiplier || 1) >= config.eliteThreatMultiplier;
+}
 
 // Bibliothèque de textes pour varier la narration selon la catégorie d'événement tirée
 const flavorText = {
@@ -207,6 +220,7 @@ const ui = {
     inventoryConsumablesIcons: document.getElementById('inventory-consumables-icons'),
     equippedWeapon: document.getElementById('equipped-weapon'),
     equippedArmor: document.getElementById('equipped-armor'),
+    equippedArmorBadges: document.getElementById('equipped-armor-badges'),
     playerStatusIcons: document.getElementById('player-status-icons'),
     combatSideEnemy: document.getElementById('combat-side-enemy'),
     combatSidePlayer: document.getElementById('combat-side-player'),
@@ -244,7 +258,7 @@ const ui = {
     companionStatusBar: document.getElementById('companion-status-bar'),
     companionNameDisplay: document.getElementById('companion-name-display'),
     companionSpecialtyDisplay: document.getElementById('companion-specialty-display'),
-    companionAggroBar: document.getElementById('companion-aggro-bar'),
+    companionLeaveBar: document.getElementById('companion-leave-bar'),
     companionCombatIndicator: document.getElementById('companion-combat-indicator'),
     companionCombatName: document.getElementById('companion-combat-name'),
     companionCombatHpRing: document.getElementById('companion-combat-hp-ring'),
@@ -393,10 +407,12 @@ function updateUI() {
         }
 
         if (gameState.currentEnemy) {
+            const elite = isEliteMob(gameState.currentEnemy);
             ui.enemyName.innerText = gameState.currentEnemy.isBoss
                 ? `👑 ${gameState.currentEnemy.name}`
-                : gameState.currentEnemy.name;
+                : elite ? `💀 ${gameState.currentEnemy.name}` : gameState.currentEnemy.name;
             ui.enemyName.classList.toggle('text-yellow-400', !!gameState.currentEnemy.isBoss);
+            ui.enemyName.classList.toggle('text-red-500', elite);
 
             ui.combatSideEnemy.classList.remove('hidden');
             ui.combatSideEnemy.classList.add('flex', 'flex-col');
@@ -617,6 +633,11 @@ function updateInventoryUI() {
     ui.inventoryCount.innerText = equipmentCount;
     ui.equippedWeapon.innerText = gameState.equipment.weapon ? formatItemDisplayName(gameState.equipment.weapon) : "Aucune";
     ui.equippedArmor.innerText = gameState.equipment.armor ? formatItemDisplayName(gameState.equipment.armor) : "Aucune";
+    if (ui.equippedArmorBadges) {
+        ui.equippedArmorBadges.innerHTML = gameState.equipment.armor
+            ? buildMechanicBadgesHtml(gameState.equipment.armor, IMPLEMENTED_ARMOR_MECHANICS)
+            : "";
+    }
     if (ui.equippedRanged) ui.equippedRanged.innerText = gameState.equipment.ranged ? formatItemDisplayName(gameState.equipment.ranged) : "Aucune";
 
     // --- Armes / armures / armes à distance : cartes façon carte à jouer, dans le déroulant ---
@@ -641,11 +662,15 @@ function updateInventoryUI() {
             card.style.borderColor = rarityColor;
             card.style.borderWidth = "2px";
             const statLine = (isWeapon || isRanged) ? `⚔️ ATK +${item.baseDmg}` : `🛡️ DEF +${item.baseArmor}`;
+            // Badges d'enchantement : uniquement sur les armures (voir applyArmorMechanic()) — les
+            // armes gardent leur affichage inchangé, leurs enchantements sont déjà tous fonctionnels.
+            const armorBadges = !isWeapon && !isRanged ? buildMechanicBadgesHtml(item, IMPLEMENTED_ARMOR_MECHANICS) : "";
             card.innerHTML = `
                 <div class="text-xl leading-none">${icon}</div>
                 <div class="text-[10px] font-bold leading-tight">${item.name}</div>
                 ${item.rarity ? `<div class="text-[8px] font-bold uppercase tracking-wider" style="color:${rarityColor}">${item.rarity}</div>` : ""}
                 <div class="text-[9px] text-stone-600">${statLine}</div>
+                ${armorBadges ? `<div class="flex gap-1 flex-wrap justify-center text-[8px]">${armorBadges}</div>` : ""}
                 <button data-action="equip" class="mt-1 text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>
                 <button data-action="discard" class="absolute top-1 right-1 text-[10px] text-red-700 hover:text-red-500" title="Jeter">🗑️</button>
             `;
@@ -712,6 +737,40 @@ function discardItem(index) {
 // (jamais de perte d'objet lors d'un changement d'équipement).
 // Nom d'affichage d'un objet : ajoute son palier de rareté entre crochets s'il n'est pas Commun
 // (ex: "[Épique] Hache à Viande Tranchant et Lourd"), sinon le nom brut.
+// Icônes/labels des mécaniques d'enchantement (voir itemModifiers.effect dans items.js). Reprend
+// les mêmes émojis que les logs de combat (resolveWeaponMechanicEffect/resolveArmorMechanicEffect)
+// pour rester cohérent visuellement.
+const MECHANIC_ICONS = {
+    bleed: '🩸', stun: '💫', poison: '☢️', slow: '🐌', light: '✨', heal: '💚',
+    lifesteal: '🧛', drain: '🌀', corrode: '🧪', fear: '😱', adrenaline: '💉',
+    stealth: '🤫', random: '🎲', aoe: '💥', darkness: '🌑', pleasure_or_pain: '😬'
+};
+const MECHANIC_LABELS = {
+    bleed: 'Saignement', stun: 'Étourdissement', poison: 'Poison', slow: 'Ralentissement',
+    light: 'Éblouissement', heal: 'Régénération', lifesteal: 'Vol de vie', drain: 'Drain',
+    corrode: 'Corrosion', fear: 'Terreur', adrenaline: 'Adrénaline', stealth: 'Discrétion',
+    random: 'Aléatoire', aoe: 'Explosion', darkness: 'Ténèbres', pleasure_or_pain: 'Vibration'
+};
+
+// Construit les badges d'enchantement d'un objet équipable : un par mécanique portée, coloré si
+// elle a un effet de combat réel pour ce type d'objet (voir implementedList), grisé sinon (encore
+// purement cosmétique — voir le commentaire de IMPLEMENTED_ARMOR_MECHANICS/IMPLEMENTED_WEAPON_MECHANICS).
+// "stealth" (Silencieux) et "random" (Chaotique) sont toujours fonctionnels, quel que soit le type
+// d'objet (détection pré-combat pour le premier, pioche parmi les mécaniques réelles pour le second).
+function buildMechanicBadgesHtml(item, implementedList) {
+    if (!item || !item.mechanics || item.mechanics.length === 0) return '';
+    return item.mechanics.map(mechanic => {
+        const icon = MECHANIC_ICONS[mechanic] || '❔';
+        const label = MECHANIC_LABELS[mechanic] || mechanic;
+        const isFunctional = mechanic === 'random' || mechanic === 'stealth' || implementedList.includes(mechanic);
+        const cls = isFunctional
+            ? 'bg-amber-100 border-amber-400 text-amber-800'
+            : 'bg-stone-200 border-stone-400 text-stone-500 italic';
+        const title = isFunctional ? label : `${label} (cosmétique pour l'instant)`;
+        return `<span class="px-1 py-0.5 rounded border ${cls}" title="${title}">${icon} ${label}</span>`;
+    }).join('');
+}
+
 function formatItemDisplayName(item) {
     if (!item) return "Aucune";
     return item.rarity && item.rarity !== "Commun" ? `[${item.rarity}] ${item.name}` : item.name;
@@ -1194,23 +1253,43 @@ function attackCompanionEncounter() {
 
 // Un compagnon déjà recruté qui devient trop instable (voir gainCompanionXp) se retourne contre
 // le joueur : on relance exactement le même choix que pour une première rencontre hostile.
-function triggerCompanionHostileTurn() {
+// Raisons piochées au hasard quand le compagnon abandonne l'équipe (voir attemptCompanionAbandon()) :
+// registre volontairement absurde/thématique, cohérent avec le reste du bestiaire et des objets.
+const COMPANION_ABANDON_REASONS = [
+    "en a assez de porter votre équipement de rechange",
+    "a reçu une meilleure offre d'un autre groupe de crawlers",
+    "prétexte une urgence familiale suspicieusement pratique",
+    "estime que le partage du butin n'était pas équitable",
+    "a soudainement une peur panique des escaliers",
+    "part sans un mot, en emportant discrètement un souvenir",
+    "a atteint sa limite de stress hebdomadaire, syndicat oblige",
+    "ne supporte plus votre façon de négocier avec les distributeurs automatiques",
+    "déclare que ce donjon ne correspond plus à ses valeurs",
+    "s'est simplement perdu(e) en cherchant les toilettes, et n'est jamais revenu(e)"
+];
+
+// Tente de faire abandonner le compagnon actif : un jet contre companion.leaveChance décide s'il
+// part maintenant. Contrairement à l'ancien système (seuil dur à 100% -> combat forcé), c'est une
+// probabilité pure, vérifiée à chaque montée de niveau du compagnon (voir gainCompanionXp()) : le
+// départ peut donc survenir bien avant que leaveChance n'atteigne 100%, ou au contraire tarder,
+// selon la chance. Un départ est toujours PACIFIQUE (aucun combat) : contrairement à une rencontre
+// hostile initiale (voir ui.companionChoiceHostile, un cas totalement séparé), le compagnon s'en
+// va simplement, avec une raison piochée au hasard. Retourne true s'il est effectivement parti.
+function attemptCompanionAbandon() {
     const companion = gameState.companion;
-    if (!companion) return;
+    if (!companion) return false;
+    if (Math.random() * 100 >= companion.leaveChance) return false;
 
-    gameState.companion = null; // Il n'est plus votre allié pendant qu'on règle la situation
-    gameState.pendingCompanionCandidate = { ...companion, disposition: 'hostile' };
-    gameState.companionChoicePending = true;
-
-    setCardHeader('💢', companion.name, 'Compagnon Instable');
-    logEvent(`${companion.name} craque sous la pression et se retourne contre vous !`, "danger");
+    const reason = COMPANION_ABANDON_REASONS[Math.floor(Math.random() * COMPANION_ABANDON_REASONS.length)];
+    logEvent(`${companion.name} quitte l'équipe : ${reason}.`, "danger");
+    gameState.companion = null;
     updateCompanionUI();
-    ui.companionChoiceHostile.classList.remove('hidden');
-    updateUI();
+    return true;
 }
 
 // Gain d'XP du compagnon (accordé après chaque victoire du joueur tant qu'il est actif).
-// Sa progression fait grimper son agressivité ; à 100%, il devient hostile (voir explore()).
+// Sa progression fait grimper la probabilité qu'il abandonne l'équipe (voir attemptCompanionAbandon(),
+// vérifiée à chaque montée de niveau).
 function gainCompanionXp(amount) {
     const companion = gameState.companion;
     if (!companion || !amount) return;
@@ -1222,17 +1301,22 @@ function gainCompanionXp(amount) {
         companion.xpToNext = Math.round(companion.xpToNext * 1.3);
 
         const increment = 15 + Math.floor(Math.random() * 11); // +15 à +25 par niveau
-        companion.aggressiveness = Math.min(100, companion.aggressiveness + increment);
+        companion.leaveChance = Math.min(100, companion.leaveChance + increment);
 
         logEvent(`${companion.name} gagne en expérience (niveau ${companion.level}).`, "info");
-        if (companion.aggressiveness >= 70 && companion.aggressiveness < 100) {
-            logEvent(`${companion.name} semble de plus en plus instable... (agressivité ${companion.aggressiveness}%)`, "danger");
+        if (companion.leaveChance >= 70) {
+            logEvent(`${companion.name} semble de moins en moins investi(e) dans l'aventure... (${companion.leaveChance}% de risque de départ)`, "danger");
         }
+
+        // Jet d'abandon immédiatement après la montée de niveau : s'il part, inutile de continuer
+        // à faire monter les niveaux suivants dans cette même boucle (companion.xp restant est
+        // simplement perdu avec lui, comme le reste de son état).
+        if (attemptCompanionAbandon()) return;
     }
     updateCompanionUI();
 }
 
-// Reconstruit l'affichage compact du compagnon (hors combat) : nom, spécialité, barre d'agressivité
+// Reconstruit l'affichage compact du compagnon (hors combat) : nom, spécialité, barre de risque de départ
 function updateCompanionUI() {
     const companion = gameState.companion;
     if (!companion) {
@@ -1243,9 +1327,9 @@ function updateCompanionUI() {
     ui.companionNameDisplay.innerText = companion.name;
     ui.companionSpecialtyDisplay.innerText = `(${companion.specialty.label})`;
 
-    const aggroPct = companion.aggressiveness / 100;
-    ui.companionAggroBar.style.width = `${companion.aggressiveness}%`;
-    ui.companionAggroBar.style.background = hpColor(1 - aggroPct); // Vert = calme, rouge = instable
+    const leavePct = companion.leaveChance / 100;
+    ui.companionLeaveBar.style.width = `${companion.leaveChance}%`;
+    ui.companionLeaveBar.style.background = hpColor(1 - leavePct); // Vert = fidèle, rouge = risque de départ élevé
 }
 
 function nextFloor() {
@@ -1632,6 +1716,9 @@ function renderCombatMobPanel() {
     const rangeIcon = enemy.ranged ? '🏹' : '🗡️';
     const rangeLabel = enemy.ranged ? 'DIST' : 'CAC';
     const modifiers = enemy.modifiersApplied || [];
+    const eliteChip = isEliteMob(enemy)
+        ? `<span class="px-1.5 py-0.5 rounded bg-stone-900 border border-red-600 text-red-500">💀 DANGEREUX</span>`
+        : '';
     const effectChip = enemy.effect
         ? `<span class="px-1.5 py-0.5 rounded bg-purple-100 border border-purple-400 text-purple-800">${EFFECT_ICONS[enemy.effect] || '❔'} ${EFFECT_LABELS[enemy.effect] || enemy.effect}</span>`
         : '';
@@ -1639,6 +1726,7 @@ function renderCombatMobPanel() {
 
     ui.cardBody.innerHTML = `
         <div class="flex flex-wrap justify-center gap-1 text-[10px] font-bold">
+            ${eliteChip}
             <span class="px-1.5 py-0.5 rounded bg-stone-200 border border-stone-400 text-stone-700">${rangeIcon} ${rangeLabel}</span>
             <span class="px-1.5 py-0.5 rounded bg-red-100 border border-red-400 text-red-700">⚔️ +${enemy.atk}</span>
             <span class="px-1.5 py-0.5 rounded bg-blue-100 border border-blue-400 text-blue-700">🛡️ +${enemy.def}</span>
@@ -1706,6 +1794,9 @@ function initiateCombat(forcedEnemy = null) {
     if (enemy && enemy.isBoss) {
         logEvent("--- 👑 COMBAT DE BOSS ---", "danger");
         logEvent(`${enemy.name} se dresse devant vous ! (PV: ${Math.round(enemy.hp)} | ATQ: ${enemy.atk} | DEF: ${enemy.def})`, "danger");
+    } else if (enemy && isEliteMob(enemy)) {
+        logEvent("--- 💀 RENCONTRE DANGEREUSE ---", "danger");
+        logEvent(`[${enemy.name}] apparaît, visiblement bien plus coriace que la normale ! (PV: ${Math.round(enemy.hp)} | ATQ: ${enemy.atk} | DEF: ${enemy.def})`, "danger");
     } else if (enemy) {
         logEvent("--- COMBAT INITIÉ ---", "danger");
         logEvent(`Un [${enemy.name}] apparaît ! (PV: ${Math.round(enemy.hp)} | ATQ: ${enemy.atk} | DEF: ${enemy.def})`, "danger");
@@ -2091,6 +2182,93 @@ function applyWeaponMechanic(weaponOverride = null) {
     // l'affichage des PV avant que l'animation du dé n'ait eu le temps d'arriver à destination.
 }
 
+// Mécaniques d'armure qui ont un vrai effet de combat, symétrique de IMPLEMENTED_WEAPON_MECHANICS.
+// Avant ceci, un enchantement roulé sur une armure (autre que "Silencieux") ne servait à RIEN :
+// seule l'arme équipée déclenchait applyWeaponMechanic(). Une armure Légendaire pouvait donc
+// gâcher 2-3 de ses slots. Chaque mécanique retombe désormais sur l'ATTAQUANT (saignement,
+// étourdissement, poison, ralentissement, éblouissement, drain, corrosion, terreur — une punition
+// réactive) ou soigne/galvanise le PORTEUR (Régénérant, Vampirique, Galvanisant).
+const IMPLEMENTED_ARMOR_MECHANICS = ['bleed', 'stun', 'poison', 'slow', 'light', 'heal', 'lifesteal', 'drain', 'corrode', 'fear', 'adrenaline'];
+
+// Résout l'effet concret d'une mécanique d'armure sur l'attaquant (ou le porteur pour heal/lifesteal/
+// adrenaline). Séparé de applyArmorMechanic() pour que "random" (Chaotique) puisse réutiliser cette
+// logique après avoir tiré une mécanique au hasard, sans dupliquer le switch (voir resolveWeaponMechanicEffect,
+// son équivalent côté arme).
+function resolveArmorMechanicEffect(mechanicName, armor, attacker, incomingDamage) {
+    switch (mechanicName) {
+        case 'bleed':
+            attacker.status.bleed = { rounds: 3, dmgPerRound: Math.max(2, Math.round((armor.baseArmor || 5) * 0.3)) };
+            logEvent(`🩸 Les pointes de votre armure entaillent [${attacker.name}] !`, "danger");
+            break;
+        case 'stun':
+            attacker.status.stunned = true;
+            logEvent(`💫 Le choc en retour étourdit [${attacker.name}] !`, "danger");
+            break;
+        case 'poison':
+            attacker.status.bleed = { rounds: 5, dmgPerRound: Math.max(1, Math.round((armor.baseArmor || 5) * 0.15)) };
+            logEvent(`☢️ Votre armure empoisonne [${attacker.name}] au contact !`, "danger");
+            break;
+        case 'slow':
+            attacker.status.slowed = { rounds: 2 };
+            logEvent(`🐌 [${attacker.name}] est ralenti en vous frappant !`, "danger");
+            break;
+        case 'light':
+            attacker.status.blinded = { rounds: 2 };
+            logEvent(`✨ Un éclat de votre armure éblouit [${attacker.name}] !`, "danger");
+            break;
+        case 'heal': {
+            const healAmount = Math.max(3, Math.round((armor.baseArmor || 5) * 0.4));
+            gameState.hp = Math.min(gameState.maxHp, gameState.hp + healAmount);
+            logEvent(`💚 Votre armure régénère vos blessures (+${healAmount} PV).`, "success");
+            break;
+        }
+        case 'lifesteal': {
+            const stolen = Math.max(2, Math.round((incomingDamage || 0) * 0.3));
+            gameState.hp = Math.min(gameState.maxHp, gameState.hp + stolen);
+            logEvent(`🧛 Votre armure vampirique siphonne ${stolen} PV sur le coup encaissé.`, "success");
+            break;
+        }
+        case 'drain':
+            attacker.atk = Math.max(1, Math.round(attacker.atk * 0.85));
+            logEvent(`🌀 Votre armure draine l'énergie de [${attacker.name}], qui semble affaibli.`, "info");
+            break;
+        case 'corrode':
+            attacker.status.corroded = { rounds: 3 };
+            logEvent(`🧪 Le contact avec votre armure corrode celle de [${attacker.name}] !`, "danger");
+            break;
+        case 'fear':
+            attacker.status.feared = { rounds: 3 };
+            logEvent(`😱 [${attacker.name}] recule, terrifié par votre armure !`, "danger");
+            break;
+        case 'adrenaline':
+            gameState.status.adrenaline = { rounds: 2, mult: 1.35 };
+            logEvent("💉 Encaisser ce coup vous galvanise ! (dégâts boostés)", "success");
+            break;
+    }
+}
+
+// Applique la/les mécanique(s) spéciale(s) de l'armure équipée, à chaque coup encaissé (symétrique
+// de applyWeaponMechanic(), déclenchée par resolveEnemyCounterAttack() plutôt que par une attaque
+// du joueur). Chaque enchantement a sa propre chance de se déclencher, indépendamment des autres.
+function applyArmorMechanic(attacker, incomingDamage) {
+    const armor = gameState.equipment.armor;
+    if (!armor || !armor.mechanics || armor.mechanics.length === 0 || !attacker) return;
+
+    const triggerChance = 30; // Même taux que applyWeaponMechanic(), par cohérence
+    armor.mechanics.forEach(mechanic => {
+        if (Math.random() * 100 >= triggerChance) return;
+
+        if (mechanic === 'random') {
+            const picked = IMPLEMENTED_ARMOR_MECHANICS[Math.floor(Math.random() * IMPLEMENTED_ARMOR_MECHANICS.length)];
+            resolveArmorMechanicEffect(picked, armor, attacker, incomingDamage);
+        } else if (IMPLEMENTED_ARMOR_MECHANICS.includes(mechanic)) {
+            resolveArmorMechanicEffect(mechanic, armor, attacker, incomingDamage);
+        }
+        // "stealth" (Silencieux) reste géré à part (détection, avant combat) ; "pleasure_or_pain",
+        // "aoe" et "darkness" restent cosmétiques, comme sur les armes (voir IMPLEMENTED_WEAPON_MECHANICS).
+    });
+}
+
 // Tente d'appliquer un effet de statut au joueur selon le trait élémentaire du monstre
 // (burn/poison/slow/stun/bleed/confusion/pull/light, définis dans mobModifiers). Appelée après
 // une riposte ennemie réussie.
@@ -2278,6 +2456,7 @@ function resolveEnemyCounterAttack() {
     }
 
     applyMobEffectOnPlayer(enemy);
+    applyArmorMechanic(enemy, playerDamage);
     updateUI();
 }
 
@@ -2505,7 +2684,7 @@ function winCombat() {
     const xpGained = (defeatedEnemy && defeatedEnemy.xpReward) || 10;
     gainXp(xpGained);
 
-    // Le compagnon actif progresse aussi (fait grimper son agressivité — voir gainCompanionXp)
+    // Le compagnon actif progresse aussi (fait grimper son risque de départ — voir gainCompanionXp)
     if (gameState.companion) {
         gainCompanionXp(15);
     }
@@ -2655,12 +2834,6 @@ function explore() {
     if (isActionBlocked()) return; // Sécurité si combat en cours ou décision en attente
     if (gameState.hp <= 0 || gameState.timeLeft <= 0) return; // Jeu terminé
     if (!gameState.floorMap) return; // Sécurité si la carte de l'étage n'est pas encore prête
-
-    // Le compagnon a atteint son seuil d'agressivité : il faut d'abord régler la situation
-    if (gameState.companion && gameState.companion.aggressiveness >= 100) {
-        triggerCompanionHostileTurn();
-        return; // Ce tour est consommé par la confrontation, pas par un tirage de carte
-    }
 
     const roomsById = gameState.floorMap.roomsById;
     const current = roomsById[gameState.floorMap.currentRoomId];
