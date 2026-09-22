@@ -43,8 +43,17 @@ const baseItems = {
         { name: "Bâton de Dynamite", baseDmg: 20, baseValue: 30, allowedTags: ["quality", "effect"] },
         { name: "Couteau en Beurre", baseDmg: 3, baseValue: 5, allowedTags: ["quality"] },
         { name: "Lance à Feu", baseDmg: 18, baseValue: 35, allowedTags: ["quality", "effect"] },
-        { name: "Gantelet Électrique", baseDmg: 14, baseValue: 28, allowedTags: ["quality", "effect"] },
-        { name: "Lance-Pierre de Chantier", baseDmg: 10, baseValue: 18, allowedTags: ["quality", "effect"] }
+        { name: "Gantelet Électrique", baseDmg: 14, baseValue: 28, allowedTags: ["quality", "effect"] }
+    ],
+    // Armes à distance (nouvelle catégorie) : utilisées uniquement en posture "à distance" (voir
+    // gameState.stance dans app.js). Mêmes tags de qualité/effet que les armes de mêlée.
+    ranged: [
+        { name: "Lance-Pierre de Chantier", baseDmg: 10, baseValue: 18, allowedTags: ["quality", "effect"] },
+        { name: "Arc de Fortune Rafistolé", baseDmg: 14, baseValue: 22, allowedTags: ["quality", "effect"] },
+        { name: "Arbalète de Musée", baseDmg: 20, baseValue: 35, allowedTags: ["quality", "effect"] },
+        { name: "Pistolet à Clous", baseDmg: 16, baseValue: 28, allowedTags: ["quality", "effect"] },
+        { name: "Fusil de Chasse Rouillé", baseDmg: 25, baseValue: 45, allowedTags: ["quality", "effect"] },
+        { name: "Sarbacane Improvisée", baseDmg: 6, baseValue: 8, allowedTags: ["quality", "effect"] }
     ],
     armors: [
         { name: "Couvercle de Poubelle", baseArmor: 5, baseValue: 8, allowedTags: ["quality", "effect"] },
