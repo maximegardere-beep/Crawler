@@ -21,13 +21,17 @@ Tailwind CDN, **aucun build step**.
   `computeDistance()`, coût/risque de trajet proportionnels).
 - Salles sécurisées : pièces fixes, thème tiré dans `safehouses.js`, deviennent un lieu connu.
 - Exploration = un seul bouton "Explorer" : jamais de choix bloquant de navigation.
-- **Combat à distance** : posture `gameState.stance` (melee/ranged) vs `mob.ranged`. Écart
-  `combatDistance` actif seulement si contesté (postures opposées). `attemptSprint()`/`attemptRetreat()` :
-  actions dédiées au rapprochement/éloignement (jamais de dégâts, jet avantagé). Un mob de mêlée ne
-  peut jamais toucher un joueur qui tient encore la distance (`getCombatRangeContext().playerAdvantaged`) ;
-  toute riposte passe par `resolveEnemyReaction()` (bloque, ou fait avancer le mob d'une manche s'il
-  n'a pas déjà résolu la sienne ce tour — Arme/Tir/Mains nues gèrent la leur directement) plutôt que
-  par `enemyCounterAttack()` en direct, pour ne jamais laisser un mob de mêlée figé hors de portée.
+- **Combat à distance** : aucune posture côté joueur — seul `mob.ranged` détermine l'écart de départ
+  (`gameState.combatDistance`, 0 si mêlée). Arme/Mains nues exigent l'écart nul, Tir l'écart > 0 (+
+  arme à distance équipée pour Tir, arme pour Arme) : ce sont de simples dégâts gated par l'écart
+  courant, sans manche de distance embarquée. `attemptSprint()` (S'approcher) et `attemptRetreat()`
+  (S'éloigner) sont les DEUX SEULES actions qui font évoluer l'écart, toujours affichées pendant un
+  combat et grisées à l'extrémité correspondante (écart nul / maximal) plutôt que masquées ; chacune
+  oppose un jet avantagé du joueur à un jet du mob, jamais de dégâts. Un mob de mêlée ne peut jamais
+  toucher un joueur qui tient encore la distance (`getCombatRangeContext().playerAdvantaged`) ; toute
+  riposte passe par `resolveEnemyReaction()` (bloque, ou fait avancer le mob d'une manche s'il n'a pas
+  déjà agi ce tour) plutôt que par `enemyCounterAttack()` en direct, pour ne jamais laisser un mob de
+  mêlée figé hors de portée.
 - **Furtivité** : détection avant rencontre aléatoire, Esquiver / Attaque Furtive (bonus x2 garanti).
 - **Compagnons** : 4 spécialités. `leaveChance` (0-100) grimpe avec l'XP du compagnon ; à chaque
   montée de niveau, un jet décide s'il abandonne (départ **pacifique**, raison aléatoire parmi
