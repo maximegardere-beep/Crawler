@@ -34,7 +34,10 @@ const itemModifiers = {
         { name: "Ténébreux", mechanic: "darkness", tier: 2, desc: "Plonge tout dans l'obscurité." },
         { name: "Régénérant", mechanic: "heal", tier: 3, desc: "Soigne son porteur à chaque tour." },
         { name: "Vampirique", mechanic: "lifesteal", tier: 3, desc: "Vole la vie de ses ennemis." },
-        { name: "Drainant", mechanic: "drain", tier: 3, desc: "Draine l'énergie de ses ennemis." }
+        { name: "Drainant", mechanic: "drain", tier: 3, desc: "Draine l'énergie de ses ennemis." },
+        { name: "Corrosif", mechanic: "corrode", tier: 2, desc: "Ronge lentement l'armure de la cible." },
+        { name: "Terrifiant", mechanic: "fear", tier: 2, desc: "Glace le sang de quiconque le regarde." },
+        { name: "Galvanisant", mechanic: "adrenaline", tier: 2, desc: "Décharge une bouffée d'adrénaline à chaque coup porté." }
     ]
 };
 
@@ -48,7 +51,9 @@ const baseItems = {
         { name: "Bâton de Dynamite", baseDmg: 20, baseValue: 30 },
         { name: "Couteau en Beurre", baseDmg: 3, baseValue: 5, canEnchant: false },
         { name: "Lance à Feu", baseDmg: 18, baseValue: 35 },
-        { name: "Gantelet Électrique", baseDmg: 14, baseValue: 28 }
+        { name: "Gantelet Électrique", baseDmg: 14, baseValue: 28 },
+        { name: "Antivol de Voiture", baseDmg: 16, baseValue: 26 },
+        { name: "Pied de Parasol", baseDmg: 11, baseValue: 16 }
     ],
     // Armes à distance : utilisées uniquement en posture "à distance" (voir gameState.stance dans
     // app.js). Même système de rareté/enchantement que les armes de mêlée.
@@ -58,7 +63,9 @@ const baseItems = {
         { name: "Arbalète de Musée", baseDmg: 20, baseValue: 35 },
         { name: "Pistolet à Clous", baseDmg: 16, baseValue: 28 },
         { name: "Fusil de Chasse Rouillé", baseDmg: 25, baseValue: 45 },
-        { name: "Sarbacane Improvisée", baseDmg: 6, baseValue: 8 }
+        { name: "Sarbacane Improvisée", baseDmg: 6, baseValue: 8 },
+        { name: "Pistolet à Eau Surpuissant", baseDmg: 9, baseValue: 14 },
+        { name: "Lance-Confettis Bricolé", baseDmg: 7, baseValue: 12 }
     ],
     armors: [
         { name: "Couvercle de Poubelle", baseArmor: 5, baseValue: 8 },
@@ -70,7 +77,9 @@ const baseItems = {
         { name: "Combinaison de Plongée", baseArmor: 10, baseValue: 22 },
         { name: "Gilet Pare-Balles Périmé", baseArmor: 4, baseValue: 10, canEnchant: false },
         { name: "Bouclier en Polystyrène", baseArmor: 7, baseValue: 18 },
-        { name: "Manteau en Cuir de Skaï Renforcé", baseArmor: 12, baseValue: 40 }
+        { name: "Manteau en Cuir de Skaï Renforcé", baseArmor: 12, baseValue: 40 },
+        { name: "Bouée Canard Renforcée", baseArmor: 6, baseValue: 14 },
+        { name: "Gilet de Sécurité Chantier", baseArmor: 9, baseValue: 20 }
     ],
     // Note : les enchantements sur les consommables restent purement cosmétiques pour l'instant
     // (aucune mécanique n'est câblée sur useConsumable()) — seul `heal` est mis à l'échelle par la
@@ -85,7 +94,9 @@ const baseItems = {
         { name: "Barre Protéinée Suspecte du Distributeur", heal: 40, baseValue: 20 },
         { name: "Flasque de Sirop Contre la Toux Premier Prix", heal: 35, baseValue: 18, canEnchant: false },
         { name: "Bonbon Explosif", heal: 5, baseValue: 3 },
-        { name: "Perfusion de Sponsor", heal: 60, baseValue: 30 }
+        { name: "Perfusion de Sponsor", heal: 60, baseValue: 30 },
+        { name: "Barbe à Papa Périmée", heal: 22, baseValue: 9 },
+        { name: "Boisson Isotonique Suspecte", heal: 35, baseValue: 16 }
     ]
 };
 
