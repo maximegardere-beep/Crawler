@@ -516,9 +516,9 @@ function playCardDrawAnimation() {
 // Fonction pour mettre à jour l'inventaire visuel
 function updateInventoryUI() {
     ui.inventoryCount.innerText = gameState.inventory.length;
-    ui.equippedWeapon.innerText = gameState.equipment.weapon ? gameState.equipment.weapon.name : "Aucune";
-    ui.equippedArmor.innerText = gameState.equipment.armor ? gameState.equipment.armor.name : "Aucune";
-    if (ui.equippedRanged) ui.equippedRanged.innerText = gameState.equipment.ranged ? gameState.equipment.ranged.name : "Aucune";
+    ui.equippedWeapon.innerText = gameState.equipment.weapon ? formatItemDisplayName(gameState.equipment.weapon) : "Aucune";
+    ui.equippedArmor.innerText = gameState.equipment.armor ? formatItemDisplayName(gameState.equipment.armor) : "Aucune";
+    if (ui.equippedRanged) ui.equippedRanged.innerText = gameState.equipment.ranged ? formatItemDisplayName(gameState.equipment.ranged) : "Aucune";
 
     // --- Armes / armures / armes à distance : cartes façon carte à jouer, dans le déroulant ---
     ui.inventoryEquipmentCards.innerHTML = "";
@@ -536,12 +536,16 @@ function updateInventoryUI() {
             const isWeapon = item.category === 'weapons';
             const isRanged = item.category === 'ranged';
             const icon = isWeapon ? '⚔️' : (isRanged ? '🏹' : '🛡️');
+            const rarityColor = item.rarityColor || "#57534e"; // gris par défaut (objets pré-existants sans rareté)
             const card = document.createElement('div');
             card.className = "mini-card rounded-lg p-2 flex flex-col gap-1 text-center relative";
+            card.style.borderColor = rarityColor;
+            card.style.borderWidth = "2px";
             const statLine = (isWeapon || isRanged) ? `⚔️ ATK +${item.baseDmg}` : `🛡️ DEF +${item.baseArmor}`;
             card.innerHTML = `
                 <div class="text-xl leading-none">${icon}</div>
                 <div class="text-[10px] font-bold leading-tight">${item.name}</div>
+                ${item.rarity ? `<div class="text-[8px] font-bold uppercase tracking-wider" style="color:${rarityColor}">${item.rarity}</div>` : ""}
                 <div class="text-[9px] text-stone-600">${statLine}</div>
                 <button data-action="equip" class="mt-1 text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>
                 <button data-action="discard" class="absolute top-1 right-1 text-[10px] text-red-700 hover:text-red-500" title="Jeter">🗑️</button>
@@ -607,6 +611,13 @@ function discardItem(index) {
 
 // Équipe une arme ou une armure. L'éventuel équipement précédent retourne dans l'inventaire
 // (jamais de perte d'objet lors d'un changement d'équipement).
+// Nom d'affichage d'un objet : ajoute son palier de rareté entre crochets s'il n'est pas Commun
+// (ex: "[Épique] Hache à Viande Tranchant et Lourd"), sinon le nom brut.
+function formatItemDisplayName(item) {
+    if (!item) return "Aucune";
+    return item.rarity && item.rarity !== "Commun" ? `[${item.rarity}] ${item.name}` : item.name;
+}
+
 function equipItem(index) {
     const item = gameState.inventory[index];
     if (!item) return;
@@ -621,7 +632,7 @@ function equipItem(index) {
         gameState.inventory.push(previouslyEquipped);
     }
 
-    logEvent(`Vous équipez [${item.name}] (${slotLabel}).`, "info");
+    logEvent(`Vous équipez [${formatItemDisplayName(item)}] (${slotLabel}).`, "info");
     updateUI();
     updateInventoryUI();
 }
@@ -673,7 +684,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         setCardHeader('💰', 'Trésor', 'Butin');
         logEvent("Vous trébuchez sur quelque chose de brillant...", "info");
-        addLoot();
+        addLoot(getLootPowerScore(null)); // Pas de monstre : estimation par l'étage courant
         return;
     }
 
@@ -769,9 +780,9 @@ function resolveCardEvent() {
 function getStealthChance() {
     let chance = 15 + (gameState.skills.stealth.level - 1) * 6;
     if (gameState.companion && gameState.companion.specialty.type === 'scout') chance += 10;
-    if (gameState.equipment.weapon && gameState.equipment.weapon.mechanic === 'stealth') chance += 15;
-    if (gameState.equipment.ranged && gameState.equipment.ranged.mechanic === 'stealth') chance += 15;
-    if (gameState.equipment.armor && gameState.equipment.armor.mechanic === 'stealth') chance += 15;
+    if (gameState.equipment.weapon && gameState.equipment.weapon.mechanics && gameState.equipment.weapon.mechanics.includes('stealth')) chance += 15;
+    if (gameState.equipment.ranged && gameState.equipment.ranged.mechanics && gameState.equipment.ranged.mechanics.includes('stealth')) chance += 15;
+    if (gameState.equipment.armor && gameState.equipment.armor.mechanics && gameState.equipment.armor.mechanics.includes('stealth')) chance += 15;
     return Math.min(75, chance);
 }
 
@@ -1130,11 +1141,23 @@ function nextFloor() {
     updateUI();
 }
 
-function addLoot() {
+// Score de puissance (0 à 1) utilisé pour pondérer la rareté du loot obtenu (voir generateItem()
+// dans generator.js) : basé sur l'XP donnée par le monstre vaincu si disponible (capture à la fois
+// l'étage ET la puissance intrinsèque/les modificateurs du monstre), sinon estimé à partir du seul
+// étage courant (loot "Trésor" trouvé en explorant, sans combat).
+const LOOT_POWER_XP_REFERENCE = 400; // xpReward au-delà duquel le score de puissance est plafonné à 1
+function getLootPowerScore(enemy) {
+    if (enemy && enemy.xpReward) {
+        return Math.max(0, Math.min(1, enemy.xpReward / LOOT_POWER_XP_REFERENCE));
+    }
+    return Math.max(0, Math.min(1, gameState.currentFloor / 20));
+}
+
+function addLoot(powerScore = 0) {
     if (gameState.inventory.length < gameState.maxInventory) {
-        const item = generateItem();
+        const item = generateItem(powerScore);
         gameState.inventory.push(item);
-        logEvent(`Objet obtenu : [${item.name}] !`, "loot");
+        logEvent(`Objet obtenu : [${formatItemDisplayName(item)}] !`, "loot");
         updateInventoryUI();
     } else {
         logEvent("Vous trouvez un objet, mais votre inventaire est plein !", "danger");
@@ -1803,25 +1826,31 @@ function resolveWeaponMechanicEffect(mechanicName, weapon, enemy) {
 
 // Applique la mécanique spéciale de l'arme équipée (Tranchant->saignement, Lourd->étourdissement, etc.),
 // avec une chance de déclenchement. Appelée uniquement après une attaque à l'arme réussie.
+// Applique la/les mécanique(s) spéciale(s) de l'arme équipée (Tranchant->saignement,
+// Lourd->étourdissement, etc.). Un objet rare peut porter plusieurs enchantements à la fois (voir
+// itemRarities) : chacun a sa PROPRE chance de se déclencher, indépendamment des autres, ce qui
+// rend un objet à 2-3 enchantements sensiblement plus fiable qu'un objet à un seul.
 function applyWeaponMechanic(weaponOverride = null) {
     const weapon = weaponOverride || gameState.equipment.weapon;
     const enemy = gameState.currentEnemy;
-    if (!weapon || !weapon.mechanic || !enemy) return;
+    if (!weapon || !weapon.mechanics || weapon.mechanics.length === 0 || !enemy) return;
 
-    const triggerChance = 30; // 30% de chance que la mécanique de l'arme se déclenche
-    if (Math.random() * 100 >= triggerChance) return;
+    const triggerChance = 30; // 30% de chance, par enchantement, que celui-ci se déclenche
+    weapon.mechanics.forEach(mechanic => {
+        if (Math.random() * 100 >= triggerChance) return;
 
-    if (weapon.mechanic === 'random') {
-        // Chaotique : tire une mécanique au hasard parmi celles qui ont un vrai effet
-        const picked = IMPLEMENTED_WEAPON_MECHANICS[Math.floor(Math.random() * IMPLEMENTED_WEAPON_MECHANICS.length)];
-        resolveWeaponMechanicEffect(picked, weapon, enemy);
-    } else if (IMPLEMENTED_WEAPON_MECHANICS.includes(weapon.mechanic)) {
-        resolveWeaponMechanicEffect(weapon.mechanic, weapon, enemy);
-    }
-    // "pleasure_or_pain" (Vibrant), "aoe" (Explosif) et "darkness" (Ténébreux) restent des effets
-    // purement comiques/cosmétiques, sans mécanique de combat pour l'instant. "stealth" (Silencieux)
-    // n'a rien à faire ICI (pas de déclenchement pendant un échange) : il compte avant le combat,
-    // dans getStealthChance(), pour éviter de se faire repérer en explorant.
+        if (mechanic === 'random') {
+            // Chaotique : tire une mécanique au hasard parmi celles qui ont un vrai effet
+            const picked = IMPLEMENTED_WEAPON_MECHANICS[Math.floor(Math.random() * IMPLEMENTED_WEAPON_MECHANICS.length)];
+            resolveWeaponMechanicEffect(picked, weapon, enemy);
+        } else if (IMPLEMENTED_WEAPON_MECHANICS.includes(mechanic)) {
+            resolveWeaponMechanicEffect(mechanic, weapon, enemy);
+        }
+        // "pleasure_or_pain" (Vibrant), "aoe" (Explosif) et "darkness" (Ténébreux) restent des effets
+        // purement comiques/cosmétiques, sans mécanique de combat pour l'instant. "stealth" (Silencieux)
+        // n'a rien à faire ICI (pas de déclenchement pendant un échange) : il compte avant le combat,
+        // dans getStealthChance(), pour éviter de se faire repérer en explorant.
+    });
     // Pas de updateUI() ici, pour la même raison que dans gainSkillXp() : ne pas écraser
     // l'affichage des PV avant que l'animation du dé n'ait eu le temps d'arriver à destination.
 }
@@ -2123,12 +2152,14 @@ function winCombat() {
         gainCompanionXp(15);
     }
 
-    // Butin : garanti pour un boss (avec une chance de second objet), sinon la chance standard
+    // Butin : garanti pour un boss (avec une chance de second objet), sinon la chance standard.
+    // La rareté du loot est pondérée par la puissance du monstre vaincu (voir getLootPowerScore).
+    const lootPower = getLootPowerScore(gameState.currentEnemy);
     if (wasBoss) {
-        addLoot();
-        if (Math.random() * 100 < 50) addLoot(); // 50% de chance d'un deuxième objet
+        addLoot(lootPower);
+        if (Math.random() * 100 < 50) addLoot(lootPower); // 50% de chance d'un deuxième objet
     } else if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
-        addLoot();
+        addLoot(lootPower);
     }
 
     gameState.currentEnemy = null;
