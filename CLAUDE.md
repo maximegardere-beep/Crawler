@@ -22,8 +22,12 @@ Tailwind CDN, **aucun build step**.
 - Salles sécurisées : pièces fixes, thème tiré dans `safehouses.js`, deviennent un lieu connu.
 - Exploration = un seul bouton "Explorer" : jamais de choix bloquant de navigation.
 - **Combat à distance** : posture `gameState.stance` (melee/ranged) vs `mob.ranged`. Écart
-  `combatDistance` actif seulement si contesté (postures opposées). `attemptSprint()` : action dédiée
-  au rapprochement (jamais de dégâts, jet avantagé, mais riposte systématique).
+  `combatDistance` actif seulement si contesté (postures opposées). `attemptSprint()`/`attemptRetreat()` :
+  actions dédiées au rapprochement/éloignement (jamais de dégâts, jet avantagé). Un mob de mêlée ne
+  peut jamais toucher un joueur qui tient encore la distance (`getCombatRangeContext().playerAdvantaged`) ;
+  toute riposte passe par `resolveEnemyReaction()` (bloque, ou fait avancer le mob d'une manche s'il
+  n'a pas déjà résolu la sienne ce tour — Arme/Tir/Mains nues gèrent la leur directement) plutôt que
+  par `enemyCounterAttack()` en direct, pour ne jamais laisser un mob de mêlée figé hors de portée.
 - **Furtivité** : détection avant rencontre aléatoire, Esquiver / Attaque Furtive (bonus x2 garanti).
 - **Compagnons** : 4 spécialités. `leaveChance` (0-100) grimpe avec l'XP du compagnon ; à chaque
   montée de niveau, un jet décide s'il abandonne (départ **pacifique**, raison aléatoire parmi

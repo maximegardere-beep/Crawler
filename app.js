@@ -1874,9 +1874,11 @@ function getCombatRangeContext() {
 }
 
 // Riposte "sécurisée" : un mob de mêlée ne peut pas toucher un joueur qui tient encore la distance
-// face à lui (playerAdvantaged). À utiliser partout où une riposte gratuite serait normalement
-// déclenchée sans qu'une vraie tentative d'attaque n'ait d'abord validé la portée (désarmement,
-// sort qui part de travers, fuite ratée...).
+// face à lui (playerAdvantaged) — bloque la riposte, sans rien faire d'autre ce tour-ci. Réservé
+// aux actions qui résolvent DÉJÀ elles-mêmes une manche de distance ce tour (Sprint, Reculer) :
+// ajouter une tentative de rapprochement par-dessus doublerait leur propre jet. Pour tout le reste
+// (voir resolveEnemyReaction), la riposte bloquée doit plutôt laisser le mob tenter de combler
+// l'écart, sans quoi il resterait figé indéfiniment tant que le joueur évite les actions gated.
 function safeEnemyCounterAttack() {
     const enemy = gameState.currentEnemy;
     if (enemy && getCombatRangeContext().playerAdvantaged) {
@@ -1884,6 +1886,30 @@ function safeEnemyCounterAttack() {
         return;
     }
     enemyCounterAttack();
+}
+
+// Réaction par défaut du mob à la fin d'un tour du joueur qui n'a PAS résolu de manche de distance
+// lui-même (Magie, étourdissement, désarmement en posture Tir, fuite ratée...) — à la différence de
+// resolveDistanceGatedAttack (Arme/Tir/Mains nues), qui gère déjà sa propre manche. Un mob de mêlée
+// hors de portée (playerAdvantaged) ne peut pas frapper, mais ne reste plus totalement figé pour
+// autant : il tente de combler l'écart (même mécanique que resolveDistanceRound, côté "le joueur
+// veut toujours la distance"), et frappe immédiatement s'il y parvient — comme lorsque le joueur
+// lui-même le rattrape en pleine attaque gated (voir resolveDistanceGatedAttack).
+function resolveEnemyReaction() {
+    const enemy = gameState.currentEnemy;
+    if (!enemy) return;
+    if (!getCombatRangeContext().playerAdvantaged) {
+        enemyCounterAttack();
+        return;
+    }
+    resolveDistanceRound(enemy, true);
+    if (gameState.combatDistance > 0) {
+        logEvent(`[${enemy.name}] tente de combler l'écart, mais reste hors de portée pour l'instant.`, "info");
+        updateUI();
+    } else {
+        logEvent(`[${enemy.name}] parvient à combler l'écart !`, "danger");
+        enemyCounterAttack();
+    }
 }
 
 // Une "manche" de distance : le joueur et le monstre jettent chacun un dé (le joueur bénéficie
@@ -2027,13 +2053,9 @@ function tryPlayerAction() {
         logEvent("Vous êtes étourdi et ne parvenez pas à agir ce tour-ci !", "danger");
         gameState.status.stunned = false; // L'étourdissement se consomme après ce tour manqué
         showDie(ui.combatPlayerDie, "😵");
-        // Si le joueur est à l'abri grâce à la distance (mob en mêlée, écart > 0), l'étourdissement
-        // ne coûte rien de plus : le mob ne peut de toute façon pas le toucher ce tour-ci.
-        if (getCombatRangeContext().playerAdvantaged) {
-            logEvent("Trop loin pour en profiter, l'ennemi ne peut pas riposter.", "info");
-        } else {
-            enemyCounterAttack();
-        }
+        // resolveEnemyReaction() gère la protection par distance : un mob de mêlée hors de portée
+        // ne peut pas profiter de l'étourdissement, mais tente quand même de combler l'écart.
+        resolveEnemyReaction();
         return false;
     }
 
@@ -2043,13 +2065,15 @@ function tryPlayerAction() {
 // Portion commune à toute attaque du joueur : applique les dégâts, vérifie la victoire,
 // et laisse l'ennemi riposter s'il survit.
 // `onSurviveInsteadOfCounter` (optionnel) : si fourni et que l'ennemi survit, remplace la riposte
-// classique par ce callback — utilisé quand le joueur est "avantagé" par la distance (posture à
-// distance face à un mob de mêlée) : l'ennemi ne peut pas encore riposter, on résout une manche
-// de distance à la place (voir resolveDistanceTickAdvantaged()).
+// par ce callback — utilisé par resolveDistanceGatedAttack (Arme/Tir/Mains nues), qui a déjà résolu
+// sa propre manche de distance ce tour. Sans override (ex: Magie, qui ignore volontairement le
+// verrouillage par distance de l'attaque elle-même), la riposte par défaut passe par
+// resolveEnemyReaction() : un mob de mêlée hors de portée ne peut pas frapper, mais tente quand
+// même de combler l'écart plutôt que de ne rien faire ce tour-ci.
 function performPlayerAttack(attackerAtk, options, label, onSurviveInsteadOfCounter = null) {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
     const enemy = gameState.currentEnemy;
-    const resolveNoDamageOutcome = onSurviveInsteadOfCounter || enemyCounterAttack;
+    const resolveNoDamageOutcome = onSurviveInsteadOfCounter || resolveEnemyReaction;
 
     // Un joueur confus a une chance de rater complètement son attaque (aucun dégât, tour perdu)
     if (gameState.status.confused && gameState.status.confused.rounds > 0) {
@@ -2572,7 +2596,7 @@ function attackRanged() {
         if (gameState.status.disarmed.rounds <= 0) gameState.status.disarmed = null;
         showDie(ui.combatPlayerDie, "🧲");
         logEvent("Votre arme reste hors de portée, toujours attirée au loin !", "danger");
-        safeEnemyCounterAttack(); // Un mob de mêlée ne peut pas punir un joueur qui tient encore la distance
+        resolveEnemyReaction(); // Un mob de mêlée hors de portée ne peut pas punir ce tour perdu, mais tente de se rapprocher
         return;
     }
 
@@ -2656,8 +2680,10 @@ function attemptSprint() {
 // fait rattraper au corps à corps par un mob de mêlée et cherche à rouvrir l'écart (duel contesté,
 // écart tombé à 0 — voir le toggle d'affichage du bouton dans updateUI()). Même mécanique exacte
 // que le Sprint (avantage : deux dés, le meilleur gardé), juste appliquée dans l'autre sens sur
-// l'écart. Ne porte jamais de coup, ne déclenche aucune XP, et le mob (déjà collé au joueur) riposte
-// systématiquement, qu'il soit repoussé ou non.
+// l'écart. Ne porte jamais de coup, ne déclenche aucune XP. Si le jet échoue (le mob reste collé,
+// écart toujours à 0), il riposte normalement ; mais si le jet RÉUSSIT (écart rouvert), il n'est
+// plus à portée — safeEnemyCounterAttack() bloque alors la riposte au lieu de frapper malgré la
+// distance qui vient d'être reprise (voir getCombatRangeContext().playerAdvantaged).
 function attemptRetreat() {
     if (!tryPlayerAction()) return;
     const enemy = gameState.currentEnemy;
@@ -2681,8 +2707,9 @@ function attemptRetreat() {
     } else {
         logEvent(`[${enemy.name}] vous colle et vous empêche de reculer.`, "danger");
     }
-    // Toujours exposé en reculant : le mob est déjà au contact, rien ne l'empêche de frapper.
-    enemyCounterAttack();
+    // Riposte bloquée si le recul a réussi (le mob n'est plus à portée) ; sinon riposte normale,
+    // le mob étant toujours au contact.
+    safeEnemyCounterAttack();
 }
 
 // Magie : la plus puissante en moyenne, mais imprévisible, et peut totalement rater (thème absurde/chaotique).
@@ -2701,7 +2728,7 @@ function attackMagic() {
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
         logEvent("Votre sort part de travers et fait un flop retentissant. Aucun dégât.", "danger");
-        safeEnemyCounterAttack(); // Un mob de mêlée ne peut pas punir un joueur qui tient encore la distance
+        resolveEnemyReaction(); // Un mob de mêlée hors de portée ne peut pas punir ce tour perdu, mais tente de se rapprocher
         gainSkillXp('magic', SKILL_XP_PER_USE); // On apprend même de ses échecs
         return;
     }
@@ -2743,7 +2770,7 @@ function attemptFlee() {
         updateUI();
     } else {
         logEvent(`Votre fuite échoue ! [${enemy.name}] profite de l'ouverture.`, "danger");
-        safeEnemyCounterAttack(); // Un mob de mêlée ne peut pas punir un joueur qui tient encore la distance
+        resolveEnemyReaction(); // Un mob de mêlée hors de portée ne peut pas punir cette fuite ratée, mais tente de se rapprocher
     }
 }
 
