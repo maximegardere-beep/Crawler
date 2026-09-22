@@ -472,11 +472,12 @@
             </div>
         </div>
 
-        <!-- Compagnon actif (hors combat) : nom, spécialité, barre d'agressivité -->
+        <!-- Compagnon actif (hors combat) : nom, spécialité, barre de risque de départ (vert = fidèle,
+             rouge = sur le point d'abandonner l'équipe — voir attemptCompanionAbandon() dans app.js) -->
         <div id="companion-status-bar" class="hidden flex items-center justify-between text-[10px] text-gray-500 bg-gray-950/50 border border-gray-800 rounded px-3 py-2">
             <span>🐾 <span id="companion-name-display" class="text-emerald-400 font-bold">-</span> <span id="companion-specialty-display" class="text-gray-600">(-)</span></span>
             <div class="w-16 bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden shrink-0">
-                <div id="companion-aggro-bar" class="h-full rounded-full transition-all duration-500" style="width:0%; background:#22c55e;"></div>
+                <div id="companion-leave-bar" class="h-full rounded-full transition-all duration-500" style="width:0%; background:#22c55e;"></div>
             </div>
         </div>
 
@@ -507,6 +508,11 @@
                 <span>🏹 Distance : <span id="equipped-ranged" class="text-gray-300">Aucune</span></span>
                 <span>🛡️ Armure : <span id="equipped-armor" class="text-gray-300">Aucune</span></span>
             </div>
+
+            <!-- Badges des enchantements de l'armure équipée (voir MECHANIC_ICONS dans app.js) :
+                 généralise l'ancien indicateur "Silencieux" isolé à tous les états/buffs d'armure,
+                 fonctionnels (colorés) ou encore cosmétiques (grisés) — voir applyArmorMechanic(). -->
+            <div id="equipped-armor-badges" class="flex gap-1 flex-wrap text-[9px]"></div>
 
             <!-- Barre de raccourci consommables : toujours visible, icône seule, touche = utiliser -->
             <div id="consumable-quickbar" class="flex gap-2 flex-wrap min-h-[2.25rem]"></div>
@@ -560,11 +566,11 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=32"></script>
-    <script src="items.js?v=32"></script>
-    <script src="districts.js?v=32"></script>
-    <script src="safehouses.js?v=32"></script>
-    <script src="generator.js?v=32"></script>
-    <script src="app.js?v=32"></script>
+    <script src="bestiary.js?v=33"></script>
+    <script src="items.js?v=33"></script>
+    <script src="districts.js?v=33"></script>
+    <script src="safehouses.js?v=33"></script>
+    <script src="generator.js?v=33"></script>
+    <script src="app.js?v=33"></script>
 </body>
 </html>
