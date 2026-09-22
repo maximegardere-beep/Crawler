@@ -396,6 +396,17 @@
                 </div>
             </div>
 
+            <!-- Barre de Mana en combat : visible uniquement si un sort est équipé, voir updateUI() -->
+            <div id="combat-mana-wrapper" class="hidden mb-2">
+                <div class="flex justify-between text-[9px] text-purple-400 uppercase tracking-wider mb-1">
+                    <span>🔷 Mana</span>
+                    <span id="combat-mana-text">0/100</span>
+                </div>
+                <div class="w-full bg-gray-950 rounded-full h-2 border border-gray-800 overflow-hidden">
+                    <div id="combat-mana-bar" class="bg-purple-600 h-full rounded-full transition-all duration-300" style="width:0%"></div>
+                </div>
+            </div>
+
             <!-- S'approcher / S'éloigner : TOUJOURS affichés pendant un combat (plus de posture à
                  activer/désactiver) — seulement grisés à l'extrémité correspondante (rien à combler
                  à écart nul, rien à gagner à écart maximal). Voir attemptSprint()/attemptRetreat()
@@ -509,6 +520,18 @@
             </div>
         </div>
 
+        <!-- Barre de Mana : visible uniquement si un sort est équipé (voir gameState.equipment.spell
+             / equipSpell() dans app.js) -->
+        <div id="mana-bar-wrapper" class="hidden flex flex-col gap-1 px-1 -mt-1">
+            <div class="flex justify-between text-[9px] text-purple-400 uppercase tracking-widest">
+                <span>🔷 Mana</span>
+                <span id="mana-text">0/100</span>
+            </div>
+            <div class="w-full bg-gray-950 rounded-full h-2 border border-gray-800 overflow-hidden">
+                <div id="mana-bar" class="bg-purple-600 h-full rounded-full shadow-[0_0_8px_rgba(147,51,234,0.8)] transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div>
+
         <!-- 5. Inventaire -->
         <section class="flex flex-col gap-2">
             <div class="flex justify-between items-end">
@@ -541,6 +564,20 @@
                         <p class="text-[9px] uppercase tracking-widest text-gray-600 mb-1">Consommables</p>
                         <div id="inventory-consumables-icons" class="flex gap-2 flex-wrap"></div>
                     </div>
+                </div>
+            </details>
+        </section>
+
+        <!-- 5bis. Grimoire : inventaire magique séparé de l'équipement classique. Un parchemin de
+             sort (catégorie 'scrolls', voir spells.js/generateSpellScroll()) rejoint gameState.spellbook,
+             jamais gameState.inventory — voir addLoot()/equipSpell() dans app.js. -->
+        <section class="flex flex-col gap-1">
+            <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Grimoire</h2>
+            <span class="text-[10px] text-gray-500">Sort équipé : <span id="equipped-spell" class="text-gray-300">Aucun</span></span>
+            <details id="spellbook-details">
+                <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-300 text-[10px] py-1 text-gray-500">📖 Voir les sorts appris</summary>
+                <div class="mt-2 grid grid-cols-2 gap-3" id="spellbook-cards">
+                    <p class="col-span-2 text-[10px] text-gray-600 italic">Aucun parchemin appris pour l'instant.</p>
                 </div>
             </details>
         </section>
@@ -578,11 +615,12 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=40"></script>
-    <script src="items.js?v=40"></script>
-    <script src="districts.js?v=40"></script>
-    <script src="safehouses.js?v=40"></script>
-    <script src="generator.js?v=40"></script>
-    <script src="app.js?v=40"></script>
+    <script src="bestiary.js?v=41"></script>
+    <script src="items.js?v=41"></script>
+    <script src="spells.js?v=41"></script>
+    <script src="districts.js?v=41"></script>
+    <script src="safehouses.js?v=41"></script>
+    <script src="generator.js?v=41"></script>
+    <script src="app.js?v=41"></script>
 </body>
 </html>

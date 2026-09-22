@@ -223,10 +223,16 @@ function rollRarity(powerScore) {
  * @returns {object} - L'objet final généré
  */
 function generateItem(powerScore = 0) {
-    // 1. Choix d'une catégorie d'objet (weapons, ranged, armors, consumables), puis d'un objet de
-    // base dedans
-    const categories = Object.keys(baseItems);
+    // 1. Choix d'une catégorie d'objet (weapons, ranged, armors, consumables, scrolls), puis d'un
+    // objet de base dedans. "scrolls" (parchemins de sorts) n'a pas d'entrée dans baseItems : c'est
+    // le grimoire (spellCatalog, voir spells.js) qui lui sert de pool, via generateSpellScroll() —
+    // même chance de tirage que les 4 autres catégories, pour rester "looté par des mobs ou trouvé"
+    // exactement comme le reste de l'équipement.
+    const categories = [...Object.keys(baseItems), 'scrolls'];
     const categoryName = categories[Math.floor(Math.random() * categories.length)];
+    if (categoryName === 'scrolls') {
+        return generateSpellScroll(powerScore);
+    }
     const categoryItems = baseItems[categoryName];
     const baseItemIndex = Math.floor(Math.random() * categoryItems.length);
     const finalItem = JSON.parse(JSON.stringify(categoryItems[baseItemIndex]));
@@ -242,6 +248,7 @@ function generateItem(powerScore = 0) {
     if (finalItem.baseDmg !== undefined) finalItem.baseDmg = Math.max(1, Math.round(finalItem.baseDmg * statMult));
     if (finalItem.baseArmor !== undefined) finalItem.baseArmor = Math.round(finalItem.baseArmor * statMult);
     if (finalItem.heal !== undefined && finalItem.heal > 0) finalItem.heal = Math.round(finalItem.heal * statMult);
+    if (finalItem.mana !== undefined && finalItem.mana > 0) finalItem.mana = Math.round(finalItem.mana * statMult);
 
     // 3. Enchantements : un par slot de la rareté tirée (voir itemRarities.slots). Le Ne slot
     // pioche dans le pool des effets de tier <= N, donc plus l'objet est rare, plus ses derniers
@@ -270,6 +277,36 @@ function generateItem(powerScore = 0) {
     }
 
     return finalItem;
+}
+
+/**
+ * Génère un parchemin de sort, pioché dans le grimoire (spellCatalog, voir spells.js) puis mis à
+ * l'échelle par un palier de rareté (même système que generateItem() : itemRarities/rollRarity).
+ * Contrairement à une arme, un sort n'a pas de slots d'enchantement — sa rareté fait uniquement
+ * grimper baseDmg ET manaCost ensemble (un sort plus puissant coûte aussi plus cher en mana).
+ * Le résultat rejoint gameState.spellbook (inventaire magique), pas gameState.inventory (voir
+ * addLoot() dans app.js) : `category: 'scrolls'` sert justement à ce tri.
+ *
+ * @param {number} powerScore - Score de puissance entre 0 et 1 (voir getLootPowerScore()).
+ * @returns {object} - Le parchemin final généré
+ */
+function generateSpellScroll(powerScore = 0) {
+    const base = spellCatalog[Math.floor(Math.random() * spellCatalog.length)];
+    const scroll = JSON.parse(JSON.stringify(base));
+    scroll.category = 'scrolls';
+    scroll.spellCategory = base.category; // 'melee' | 'ranged' — voir attackMagic() dans app.js
+    scroll.spellName = base.name;
+
+    const rarity = rollRarity(powerScore);
+    scroll.rarity = rarity.name;
+    scroll.rarityColor = rarity.color;
+
+    const statMult = rarity.statMult * (0.9 + Math.random() * 0.2);
+    scroll.baseDmg = Math.max(1, Math.round(scroll.baseDmg * statMult));
+    scroll.manaCost = Math.max(5, Math.round(scroll.manaCost * statMult));
+
+    scroll.name = `Parchemin : ${base.name}`;
+    return scroll;
 }
 
 // ==========================================
