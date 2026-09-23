@@ -97,7 +97,7 @@ const gameState = {
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 16, label: "Mini carte graphique pour la Carte Urbaine" };
+const APP_VERSION = { pr: 17, label: "Rééquilibrage : kiting, XP, régén, élites, furtivité, magie, loot" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -145,7 +145,20 @@ const config = {
         initialDistance: 4,     // Écart de départ face à un mob à distance (en "unités")
         maxDistance: 8,         // Plafond de l'écart (ne peut pas s'éloigner indéfiniment)
         dieSides: 6,            // Taille du dé opposé lancé chaque manche par le joueur ET le mob
-        levelAdvantageDivisor: 4 // Bonus au dé du joueur = floor(niveau / ce diviseur)
+        levelAdvantageDivisor: 4, // Bonus au dé du joueur = floor(niveau / ce diviseur)
+        // Coût en temps validé par playtest/simulation : ~0.2h par manche CONTESTÉE (jet de
+        // distance, gagné ou perdu), pour qu'un combat kité de bout en bout (10-15 manches face à un
+        // boss) coûte au total ~2-3h — jamais sur les tours d'attaque standards. gameState.timeLeft
+        // accepte des valeurs fractionnaires (formatTimeRemaining() arrondit déjà à l'affichage),
+        // donc pas besoin d'accumulateur séparé.
+        timeCostPerRound: 0.2,
+        // Marge de victoire (sur le dé opposé) au-delà de laquelle un mob de MÊLÉE qui tente de
+        // combler l'écart réussit une "ruée" : l'écart tombe à 0 CE tour-ci (même si la formule
+        // habituelle n'aurait comblé qu'une partie du chemin) et il frappe immédiatement. Sans ça, un
+        // joueur qui atteint l'écart maximal devient mathématiquement increvable par un mob de mêlée
+        // (le delta d'une manche normale ne peut jamais dépasser dieSides-1, donc jamais combler tout
+        // l'écart depuis maxDistance) — voir resolveEnemyReaction()/attemptRetreat().
+        rushMarginThreshold: 3
     },
 
     // Seuil de mob.threatMultiplier (voir generateMob() dans generator.js) à partir duquel un mob
@@ -703,6 +716,13 @@ function updateUI() {
             ui.btnRetreat.classList.toggle('opacity-40', !retreatUsable);
             ui.btnRetreat.classList.toggle('pointer-events-none', !retreatUsable);
         }
+        // Un mob "alerted" (échec de furtivité, voir attemptStealthEvasion()) ne laisse plus fuir.
+        if (ui.btnFlee) {
+            const fleeUsable = !gameState.currentEnemy || !gameState.currentEnemy.alerted;
+            ui.btnFlee.disabled = !fleeUsable;
+            ui.btnFlee.classList.toggle('opacity-40', !fleeUsable);
+            ui.btnFlee.classList.toggle('pointer-events-none', !fleeUsable);
+        }
 
         // Icônes joueur/ennemi sur la barre : le mob est TOUJOURS à gauche, le joueur TOUJOURS à
         // droite, tous deux reflétant symétriquement le même écart courant de part et d'autre du
@@ -1144,16 +1164,25 @@ function useConsumable(index) {
 // Régénération passive de PV et de mana, proportionnelle au temps qui s'écoule en explorant ou en
 // voyageant vers un lieu connu (voir performExploreStep()/travelToKnownLocation()/
 // autoTravelToNearestFrontier()) — jamais sur une perte de temps punitive (piège "Contretemps"),
-// pour ne pas annuler la sanction. Taux fixe et prévisible, contrairement à l'ancien système basé sur
-// le tirage de la carte 🌑 Silence (beaucoup plus lent et aléatoire). Le mana ne régénère que si un
-// sort est équipé (sinon la barre n'existe pas côté joueur).
-const HP_REGEN_PER_HOUR = 10;
-const MANA_REGEN_PER_HOUR = 25;
+// pour ne pas annuler la sanction. Le mana ne régénère que si un sort est équipé (sinon la barre
+// n'existe pas côté joueur).
+// Taux de PV DÉGRESSIF selon le pourcentage de PV déjà restants (voir HP_REGEN_TIERS) : un filet de
+// sécurité franc sous 50%, mais un simple filet d'eau au-delà de 80%, pour qu'explorer en boucle ne
+// vaille plus un soin complet en ~10 pas — voir enterRoom() pour le vrai soin complet (salle
+// sécurisée), désormais la seule façon fiable de repartir plein PV/mana, à un coût en temps.
+const HP_REGEN_TIERS = [
+    { belowRatio: 0.5, perHour: 10 },
+    { belowRatio: 0.8, perHour: 4 },
+    { belowRatio: Infinity, perHour: 1 }
+];
+const MANA_REGEN_PER_HOUR = 12;
 
 function applyTimeElapsedRegen(hours) {
     if (!hours || hours <= 0) return;
     if (gameState.hp < gameState.maxHp) {
-        gameState.hp = Math.min(gameState.maxHp, gameState.hp + HP_REGEN_PER_HOUR * hours);
+        const hpRatio = gameState.maxHp > 0 ? gameState.hp / gameState.maxHp : 0;
+        const tier = HP_REGEN_TIERS.find(t => hpRatio < t.belowRatio);
+        gameState.hp = Math.min(gameState.maxHp, gameState.hp + tier.perHour * hours);
     }
     if (gameState.equipment.spell && gameState.mana < gameState.maxMana) {
         gameState.mana = Math.min(gameState.maxMana, gameState.mana + MANA_REGEN_PER_HOUR * hours);
@@ -1289,7 +1318,7 @@ function getStealthChance() {
     if (gameState.equipment.weapon && gameState.equipment.weapon.mechanics && gameState.equipment.weapon.mechanics.includes('stealth')) chance += 15;
     if (gameState.equipment.ranged && gameState.equipment.ranged.mechanics && gameState.equipment.ranged.mechanics.includes('stealth')) chance += 15;
     if (gameState.equipment.armor && gameState.equipment.armor.mechanics && gameState.equipment.armor.mechanics.includes('stealth')) chance += 15;
-    return Math.min(75, chance);
+    return Math.min(60, chance);
 }
 
 // Point d'entrée d'une rencontre aléatoire : tente d'abord la furtivité avant de basculer sur un
@@ -1322,15 +1351,19 @@ function attemptStealthEvasion() {
     gameState.pendingStealthEncounter = null;
     if (!enemy) { updateUI(); return; }
 
-    const evadeChance = Math.min(85, 40 + (gameState.skills.stealth.level - 1) * 8);
+    const evadeChance = Math.min(70, 40 + (gameState.skills.stealth.level - 1) * 8);
     if (Math.random() * 100 < evadeChance) {
         setCardHeader('🥷', 'Évitement Réussi', 'Furtivité');
         logEvent(`Vous évitez [${enemy.name}] sans un bruit.`, "success");
-        gainSkillXp('stealth', 8);
+        gainSkillXp('stealth', 5);
         updateUI();
     } else {
-        // L'en-tête de la carte (icône/nom/type) est posé par initiateCombat() lui-même.
-        logEvent(`[${enemy.name}] vous repère au dernier moment !`, "danger");
+        // Échec punitif : le mob reste "alerted" pour tout ce combat (voir attemptFlee()), pour que
+        // la boucle esquive-ratée-mais-sans-conséquence ne reste pas totalement gratuite — voir issue
+        // d'équilibrage "Furtivité".  L'en-tête de la carte (icône/nom/type) est posé par
+        // initiateCombat() lui-même.
+        enemy.alerted = true;
+        logEvent(`[${enemy.name}] vous repère au dernier moment, et ne vous laissera pas filer !`, "danger");
         initiateCombat(enemy);
     }
 }
@@ -1731,12 +1764,15 @@ function gainXp(amount) {
     while (gameState.xp >= gameState.xpToNextLevel) {
         gameState.xp -= gameState.xpToNextLevel;
         gameState.level += 1;
-        gameState.xpToNextLevel = Math.round(gameState.xpToNextLevel * 1.4); // Chaque niveau demande un peu plus d'XP
+        gameState.xpToNextLevel = Math.round(gameState.xpToNextLevel * 1.25); // Chaque niveau demande un peu plus d'XP
 
-        // Gains de statistiques à la montée de niveau
+        // Gains de statistiques à la montée de niveau (croissants avec le niveau atteint, pour que
+        // le joueur ne décroche pas en fin de run une fois les niveaux plus rares — voir issue
+        // d'équilibrage "Mur XP étages 6-9" : le scaling des mobs, lui, continue de grimper à taux
+        // fixe par étage).
         const hpGain = 15;
-        const atkGain = 2;
-        const defGain = 1;
+        const atkGain = 2 + Math.floor(gameState.level / 4);
+        const defGain = 1 + Math.floor(gameState.level / 5);
         gameState.maxHp += hpGain;
         gameState.hp = gameState.maxHp; // Montée de niveau = soin complet (récompense marquante)
         gameState.atk += atkGain;
@@ -2012,9 +2048,20 @@ function computeGraphLayout(nodeIds, edges, existingPositions = {}) {
             forces[id].y += (0.5 - positions[id].y) * CENTER_PULL;
         });
 
+        // Écrête la force totale par nœud avant application : la répulsion en 1/distSq peut devenir
+        // énorme quand deux nœuds démarrent quasiment au même point (un nouveau nœud tombe par hasard
+        // tout près d'un existant), provoquant sinon un "saut" d'un bord à l'autre du cadre en une
+        // seule itération plutôt qu'une relaxation progressive.
+        const MAX_STEP = 0.05;
         nodeIds.forEach(id => {
-            positions[id].x = Math.min(0.94, Math.max(0.06, positions[id].x + forces[id].x * mobility[id]));
-            positions[id].y = Math.min(0.94, Math.max(0.06, positions[id].y + forces[id].y * mobility[id]));
+            const f = forces[id];
+            const mag = Math.sqrt(f.x * f.x + f.y * f.y);
+            if (mag > MAX_STEP) {
+                f.x = (f.x / mag) * MAX_STEP;
+                f.y = (f.y / mag) * MAX_STEP;
+            }
+            positions[id].x = Math.min(0.94, Math.max(0.06, positions[id].x + f.x * mobility[id]));
+            positions[id].y = Math.min(0.94, Math.max(0.06, positions[id].y + f.y * mobility[id]));
         });
     }
 
@@ -2467,17 +2514,43 @@ function enterRoom(room) {
     }
 
     if (room.type === 'safe') {
+        // Soin COMPLET (PV + mana si un sort est équipé), en contrepartie de la régénération passive
+        // dégressive (voir HP_REGEN_TIERS) : une salle sécurisée reste le seul moyen fiable de
+        // repartir plein PV/mana, mais le séjour coûte du temps proportionnel à ce qui est
+        // effectivement régénéré — jamais de double comptage avec applyTimeElapsedRegen() sur ce
+        // temps-là, on fixe directement PV/mana au maximum.
         const safehouse = room.safehouse || { name: "Salle Sécurisée", icon: "🏥", desc: "" };
-        const heal = Math.floor(Math.random() * 20) + 15; // 15 à 34 PV
-        gameState.hp = Math.min(gameState.maxHp, gameState.hp + heal);
+        const hasSpell = !!gameState.equipment.spell;
+        const missingHp = gameState.maxHp - gameState.hp;
+        const missingMana = hasSpell ? (gameState.maxMana - gameState.mana) : 0;
+        const restCost = Math.ceil(missingHp / 10) + Math.ceil(missingMana / 12);
+
+        gameState.hp = gameState.maxHp;
+        if (hasSpell) gameState.mana = gameState.maxMana;
+
         setCardHeader(safehouse.icon, safehouse.name, 'Repos');
-        logEvent(
-            firstVisit
-                ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc} Vous vous reposez et récupérez ${heal} PV.`
-                : `Vous retrouvez ${safehouse.name} et vous reposez encore un peu (+${heal} PV).`,
-            "success"
-        );
+        if (restCost > 0) {
+            gameState.timeLeft = Math.max(0, gameState.timeLeft - restCost);
+            const restored = hasSpell ? "PV et mana entièrement restaurés" : "PV entièrement restaurés";
+            logEvent(
+                firstVisit
+                    ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc} Vous vous reposez longuement, ${restored} (-${restCost}H).`
+                    : `Vous retrouvez ${safehouse.name} et vous reposez à nouveau, ${restored} (-${restCost}H).`,
+                "success"
+            );
+        } else {
+            logEvent(
+                firstVisit
+                    ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc} Vous êtes déjà en pleine forme.`
+                    : `Vous retrouvez ${safehouse.name}, toujours aussi accueillant.`,
+                "success"
+            );
+        }
         registerKnownLocation({ id: `safe-${room.id}`, type: 'safeRoom', roomId: room.id, label: safehouse.name, icon: safehouse.icon });
+
+        if (gameState.timeLeft <= 0) {
+            gameOver(true);
+        }
         return;
     }
 
@@ -2746,8 +2819,16 @@ function resolveEnemyReaction() {
     const ctx = getCombatRangeContext();
 
     if (ctx.playerAdvantaged) {
-        resolveDistanceRound(enemy, true); // rafraîchit déjà l'UI via setCombatDistance()
-        if (gameState.combatDistance > 0) {
+        const { diff } = resolveDistanceRound(enemy, true); // rafraîchit déjà l'UI via setCombatDistance()
+        // Ruée : un mob de mêlée qui gagne ce jet avec une marge franche (voir
+        // config.rangedCombat.rushMarginThreshold) comble l'écart d'un bond, quel que soit l'écart de
+        // départ — sans ça, un joueur à l'écart maximal devient mathématiquement increvable (voir le
+        // commentaire de rushMarginThreshold).
+        if (diff <= -config.rangedCombat.rushMarginThreshold) {
+            setCombatDistance(0);
+            logEvent(`[${enemy.name}] se rue et comble l'écart d'un bond !`, "danger");
+            enemyCounterAttack();
+        } else if (gameState.combatDistance > 0) {
             logEvent(`[${enemy.name}] tente de combler l'écart, mais reste hors de portée pour l'instant.`, "info");
         } else {
             logEvent(`[${enemy.name}] parvient à combler l'écart !`, "danger");
@@ -2788,9 +2869,12 @@ function setCombatDistance(value) {
 // Une "manche" de distance : le joueur et le monstre jettent chacun un dé (le joueur bénéficie
 // d'un bonus lié à son niveau), et l'écart évolue selon qui l'emporte. `playerWantsToWiden`
 // indique le sens favorable au joueur pour cette manche (true = il veut AUGMENTER l'écart, false =
-// il veut le RÉDUIRE).
+// il veut le RÉDUIRE). Chaque manche CONTESTÉE consomme un peu de temps (voir
+// config.rangedCombat.timeCostPerRound) — jamais les tours d'attaque standards, qui ne passent pas
+// par cette fonction.
 function resolveDistanceRound(enemy, playerWantsToWiden) {
     const cfg = config.rangedCombat;
+    gameState.timeLeft = Math.max(0, gameState.timeLeft - cfg.timeCostPerRound);
     const playerRoll = 1 + Math.floor(Math.random() * cfg.dieSides) + Math.floor(gameState.level / cfg.levelAdvantageDivisor);
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
     const diff = playerRoll - mobRoll; // positif = le joueur l'emporte ce round
@@ -3454,6 +3538,7 @@ function attemptSprint() {
     }
 
     const cfg = config.rangedCombat;
+    gameState.timeLeft = Math.max(0, gameState.timeLeft - cfg.timeCostPerRound); // Manche contestée (voir resolveDistanceRound())
     const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor);
     const rollOnce = () => 1 + Math.floor(Math.random() * cfg.dieSides) + levelBonus;
     const playerRoll = Math.max(rollOnce(), rollOnce()); // Avantage : deux dés, le meilleur gardé
@@ -3492,11 +3577,23 @@ function attemptRetreat() {
     }
 
     const cfg = config.rangedCombat;
+    gameState.timeLeft = Math.max(0, gameState.timeLeft - cfg.timeCostPerRound); // Manche contestée (voir resolveDistanceRound())
     const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor);
     const rollOnce = () => 1 + Math.floor(Math.random() * cfg.dieSides) + levelBonus;
     const playerRoll = Math.max(rollOnce(), rollOnce()); // Avantage : deux dés, le meilleur gardé
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
     const diff = playerRoll - mobRoll;
+
+    // Ruée : un mob de mêlée qui gagne ce jet avec une marge franche vous rattrape brutalement,
+    // quel que soit l'écart avant la tentative (voir config.rangedCombat.rushMarginThreshold et le
+    // même mécanisme dans resolveEnemyReaction()).
+    if (!mobWantsFar(enemy) && diff <= -cfg.rushMarginThreshold) {
+        setCombatDistance(0);
+        showDie(ui.combatPlayerDie, "🏃");
+        logEvent(`🏃 [${enemy.name}] se rue et vous rattrape brutalement !`, "danger");
+        enemyCounterAttack();
+        return;
+    }
 
     const before = gameState.combatDistance;
     setCombatDistance(gameState.combatDistance + diff);
@@ -3541,8 +3638,8 @@ function attackMagic() {
     gameState.mana -= spell.manaCost;
 
     const skill = gameState.skills.magic;
-    const backfireChance = Math.max(3, 15 - 1.5 * (skill.level - 1)); // 15% de base, jusqu'à 3% minimum
-    const atkMultiplier = 1.4 + 0.02 * (skill.level - 1);
+    const backfireChance = Math.max(8, 15 - 1.5 * (skill.level - 1)); // 15% de base, plancher 8% (un sort chaotique garde toujours un risque)
+    const atkMultiplier = 1.25 + 0.02 * (skill.level - 1);
 
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
@@ -3555,7 +3652,7 @@ function attackMagic() {
     const effectiveAtk = gameState.atk + (spell.baseDmg || 0);
     const used = performPlayerAttack(
         effectiveAtk,
-        { atkMultiplier, varianceRange: 0.35, defReduction: 0 },
+        { atkMultiplier, varianceRange: 0.35, defReduction: 0.15 }, // Les sorts ignorent un peu de DEF (thématique), pas toute
         `avec [${spell.spellName}]`
     );
     if (used) gainSkillXp('magic', SKILL_XP_PER_USE);
@@ -3566,6 +3663,11 @@ function attackMagic() {
 function attemptFlee() {
     if (!gameState.inCombat || !gameState.currentEnemy) return;
     const enemy = gameState.currentEnemy;
+    // Échec de furtivité punitif (voir attemptStealthEvasion()) : ce mob-là ne laisse plus filer.
+    if (enemy.alerted) {
+        logEvent(`[${enemy.name}] vous a repéré et ne vous laissera pas filer aussi facilement !`, "danger");
+        return;
+    }
     let fleeChance = 60; // 60% de réussite de base (pourra dépendre de compétences/stats plus tard)
     if (gameState.companion && gameState.companion.specialty.type === 'scout') {
         fleeChance += 15; // Compagnon "Éclaireur" : facilite la fuite

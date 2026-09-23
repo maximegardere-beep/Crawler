@@ -41,15 +41,21 @@ const itemModifiers = {
     ]
 };
 
+// `jokeItem: true` marque un objet volontairement dérisoire (blague DCC), exclu du tirage normal du
+// loot par generateItem() (voir generator.js) : sans ce flag, ces objets étaient tirés au même titre
+// que le reste et pouvaient constituer une part significative du loot early-game, souvent strictement
+// inférieurs à l'équipement de départ. Ils restent accessibles via le cadeau de bienvenue
+// (generateWelcomeGiftItem()) et le kit de test — le flag est volontairement simple pour rester
+// réutilisable par un futur rework des qualificatifs absurdes.
 const baseItems = {
     weapons: [
         { name: "Pied-de-biche", baseDmg: 8, baseValue: 10 },
-        { name: "Extincteur Cabossé", baseDmg: 1, baseValue: 2, canEnchant: false },
+        { name: "Extincteur Cabossé", baseDmg: 1, baseValue: 2, canEnchant: false, jokeItem: true },
         { name: "Agrafeuse Tactique", baseDmg: 5, baseValue: 15 },
         { name: "Épée en Pain de Mie", baseDmg: 12, baseValue: 20 },
         { name: "Hache à Viande", baseDmg: 15, baseValue: 25 },
         { name: "Bâton de Dynamite", baseDmg: 20, baseValue: 30 },
-        { name: "Couteau en Beurre", baseDmg: 3, baseValue: 5, canEnchant: false },
+        { name: "Couteau en Beurre", baseDmg: 3, baseValue: 5, canEnchant: false, jokeItem: true },
         { name: "Lance à Feu", baseDmg: 18, baseValue: 35 },
         { name: "Gantelet Électrique", baseDmg: 14, baseValue: 28 },
         { name: "Antivol de Voiture", baseDmg: 16, baseValue: 26 },
@@ -63,17 +69,17 @@ const baseItems = {
         { name: "Arbalète de Musée", baseDmg: 20, baseValue: 35 },
         { name: "Pistolet à Clous", baseDmg: 16, baseValue: 28 },
         { name: "Fusil de Chasse Rouillé", baseDmg: 25, baseValue: 45 },
-        { name: "Sarbacane Improvisée", baseDmg: 6, baseValue: 8 },
+        { name: "Sarbacane Improvisée", baseDmg: 6, baseValue: 8, jokeItem: true },
         { name: "Pistolet à Eau Surpuissant", baseDmg: 9, baseValue: 14 },
         { name: "Lance-Confettis Bricolé", baseDmg: 7, baseValue: 12 }
     ],
     armors: [
         { name: "Couvercle de Poubelle", baseArmor: 5, baseValue: 8 },
         { name: "Costume Trois-Pièces Déchiré", baseArmor: 2, baseValue: 20, canEnchant: false },
-        { name: "Gilet Haute Visibilité", baseArmor: 3, baseValue: 5, canEnchant: false },
+        { name: "Gilet Haute Visibilité", baseArmor: 3, baseValue: 5, canEnchant: false, jokeItem: true },
         { name: "Armure de Carton", baseArmor: 8, baseValue: 12 },
         { name: "Plastron de Coquillage", baseArmor: 6, baseValue: 15 },
-        { name: "Rideau de Douche Camouflage", baseArmor: 0, baseValue: 50 },
+        { name: "Rideau de Douche Camouflage", baseArmor: 0, baseValue: 8, jokeItem: true },
         { name: "Combinaison de Plongée", baseArmor: 10, baseValue: 22 },
         { name: "Gilet Pare-Balles Périmé", baseArmor: 4, baseValue: 10, canEnchant: false },
         { name: "Bouclier en Polystyrène", baseArmor: 7, baseValue: 18 },

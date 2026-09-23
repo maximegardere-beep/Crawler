@@ -302,16 +302,17 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     gameState.level = 1;
     gameState.hp = gameState.maxHp = 100;
     gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {} };
-    gameState.combatDistance = config.rangedCombat.maxDistance;
+    gameState.combatDistance = 2; // Petit écart : une marge étroite (1) suffit à le combler en 2 manches, sans déclencher de ruée
     // Sort à distance équipé, mana surabondant : attackMagic() exige désormais un sort dont la
     // catégorie correspond à l'écart courant (voir spellCategory) et assez de mana pour le lancer.
     gameState.equipment.spell = { spellName: "Foudre", spellCategory: 'ranged', baseDmg: 10, manaCost: 5 };
     gameState.mana = 100;
 
     const originalRandom = Math.random;
-    // Séquence par cast de Magie : [pas de backfire, variance de dégâts, dé joueur bas, dé mob haut]
-    // -> le mob gagne systématiquement la manche de rapprochement déclenchée par resolveEnemyReaction().
-    const seq = [0.5, 0.5, 0, 0.999];
+    // Séquence par cast de Magie : [pas de backfire, variance de dégâts, dé joueur bas, dé mob un peu
+    // plus haut] -> le mob gagne la manche de rapprochement d'une marge étroite (1, < rushMarginThreshold)
+    // déclenchée par resolveEnemyReaction() : pas de ruée, l'écart se comble progressivement.
+    const seq = [0.5, 0.5, 0.4, 0.55]; // playerRoll=3, mobRoll=4 (diff=-1)
     let idx = 0;
     Math.random = () => seq[(idx++) % seq.length];
 
@@ -323,10 +324,10 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     // que resolveEnemyReaction() déclenche volontairement (rafraîchir la barre après un rapprochement).
     ui.btnFlee.disabled = false;
     attackMagic();
-    assert(gameState.combatDistance < config.rangedCombat.maxDistance, "resolveEnemyReaction() : un mob de mêlée hors de portée avance quand même vers le joueur");
+    assert(gameState.combatDistance === 1, "resolveEnemyReaction() : un mob de mêlée hors de portée avance quand même vers le joueur");
     assert(ui.btnFlee.disabled === false, "resolveEnemyReaction() : tant que l'écart tient, le mob de mêlée ne peut pas riposter");
 
-    attackMagic(); // Doit combler l'écart restant (8 - 5 - 5 < 0) et enfin riposter pour de vrai
+    attackMagic(); // Doit combler l'écart restant (2 - 1 - 1 = 0) et enfin riposter pour de vrai
     Math.random = originalRandom;
     assert(gameState.combatDistance === 0, "resolveEnemyReaction() : le mob finit par combler l'écart");
     assert(ui.btnFlee.disabled === true, "resolveEnemyReaction() : une fois l'écart comblé, la riposte se déclenche normalement");
@@ -362,8 +363,9 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
 
     const originalRandom = Math.random;
     let idx = 0;
-    // fleeChance=60 : premier appel >= 0.6 force l'échec de la fuite ; puis dé joueur bas, dé mob haut.
-    const seq = [0.99, 0, 0.999];
+    // fleeChance=60 : premier appel >= 0.6 force l'échec de la fuite ; puis dé joueur bas, dé mob un
+    // peu plus haut (marge étroite 1, < rushMarginThreshold : pas de ruée).
+    const seq = [0.99, 0.4, 0.55];
     Math.random = () => seq[(idx++) % seq.length];
     ui.btnFlee.disabled = false;
     attemptFlee();
@@ -831,16 +833,30 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(gameState.inventory.length === 0, "useConsumable() : l'objet disparaît après usage");
 }
 
-// applyTimeElapsedRegen() : régénère PV (10/h) et mana (25/h, seulement si un sort est équipé) au
-// prorata des heures écoulées, les deux jauges régénérant indépendamment l'une de l'autre.
+// applyTimeElapsedRegen() : régénère PV (taux DÉGRESSIF selon le % de PV restants, voir
+// HP_REGEN_TIERS) et mana (12/h, seulement si un sort est équipé) au prorata des heures écoulées,
+// les deux jauges régénérant indépendamment l'une de l'autre.
 {
+    // Palier < 50% des PV max : taux plein (10/h)
     resetTransientState();
-    gameState.hp = gameState.maxHp - 25;
+    gameState.hp = 40; // 40% de 100
+    applyTimeElapsedRegen(2);
+    assert(gameState.hp === 60, "applyTimeElapsedRegen() : palier <50% PV -> 10 PV/h");
+
+    // Palier 50-80% : taux intermédiaire (4/h)
+    resetTransientState();
+    gameState.hp = 75; // 75% de 100
+    applyTimeElapsedRegen(2);
+    assert(gameState.hp === 83, "applyTimeElapsedRegen() : palier 50-80% PV -> 4 PV/h");
+
+    // Palier >= 80% : simple filet d'eau (1/h)
+    resetTransientState();
+    gameState.hp = 90; // 90% de 100
     gameState.equipment.spell = { spellName: "Test", spellCategory: 'melee', baseDmg: 5, manaCost: 5, category: 'scrolls' };
     gameState.mana = 0;
     applyTimeElapsedRegen(2);
-    assert(gameState.hp === gameState.maxHp - 5, "applyTimeElapsedRegen() : régénère 10 PV par heure écoulée");
-    assert(gameState.mana === 50, "applyTimeElapsedRegen() : régénère 25 mana par heure écoulée (sort équipé)");
+    assert(gameState.hp === 92, "applyTimeElapsedRegen() : palier >=80% PV -> 1 PV/h");
+    assert(gameState.mana === 24, "applyTimeElapsedRegen() : régénère 12 mana par heure écoulée (sort équipé)");
 
     gameState.hp = gameState.maxHp; // PV déjà pleins : ne doit pas bloquer la régén de mana
     gameState.mana = gameState.maxMana - 10;
@@ -1187,19 +1203,23 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 {
     // Le voisin ciblé doit être une ville "normale" (ni escalier ni Sortie) : y arriver quand elle
     // n'est pas gardée déclenche nextFloor() (voir arriveAtCity()), qui réinitialise timeLeft à
-    // maxTime et invaliderait à tort l'assertion "consomme du temps" ci-dessous. Quelques tentatives
-    // suffisent toujours à trouver une carte où la ville de départ a un tel voisin direct.
+    // maxTime et invaliderait à tort l'assertion "consomme du temps" ci-dessous. Il faut aussi une
+    // ville pas encore connue pour le premier test (bloqué) — sur un petit réseau (6 villes), la ville
+    // de départ peut parfois se retrouver reliée directement à TOUTES les autres (aucune ville
+    // inconnue restante) : on retente simplement dans ce cas plutôt que de planter sur .find()...id.
     let um, unknownCityId, safeNeighborId;
     for (let attempt = 0; attempt < 20 && !safeNeighborId; attempt++) {
         resetTransientState();
         gameState.currentFloor = 3;
         generateUrbanFloorMap();
         um = gameState.urbanMap;
-        unknownCityId = Object.values(um.citiesById).find(c => !c.known).id;
+        const unknownCity = Object.values(um.citiesById).find(c => !c.known);
+        if (!unknownCity) continue;
+        unknownCityId = unknownCity.id;
         const safeRoad = um.citiesById[um.currentCityId].roads.find(r => !um.citiesById[r.to].isStairs && !um.citiesById[r.to].isExit);
         if (safeRoad) safeNeighborId = safeRoad.to;
     }
-    assert(!!safeNeighborId, "travelToCity() test : une carte urbaine avec un voisin non-escalier doit être trouvable");
+    assert(!!safeNeighborId, "travelToCity() test : une carte urbaine avec un voisin non-escalier ET une ville encore inconnue doit être trouvable");
 
     const timeBefore = gameState.timeLeft;
     travelToCity(unknownCityId);
@@ -1392,6 +1412,198 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     nodesGroup._children[otherNodeIndex].dispatch('click');
     Math.random = originalRandom;
     assert(um.currentCityId !== cityBefore || gameState.inCombat, "updateUrbanMapUI() : cliquer un nœud du graphe déplace bien le joueur (ou déclenche une embuscade)");
+}
+
+// ===================================================================
+// Équilibrage (issues validées "Vibe") : kiting (ruée + coût en temps), courbe XP, métrique d'élite,
+// furtivité, magie, items blagues. Voir CLAUDE.md pour le détail des correctifs.
+// ===================================================================
+
+// Ruée (1B) : un mob de MÊLÉE qui gagne un jet de rapprochement avec une marge >= rushMarginThreshold
+// comble l'écart d'un coup, même depuis un écart que le delta normal (borné par dieSides-1) ne
+// pourrait jamais combler en une seule manche — sans quoi un joueur y parvenant devient
+// mathématiquement increvable. Un mob à DISTANCE, lui, n'en profite jamais.
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Molosse Enragé", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {}, ranged: false };
+    gameState.combatDistance = 7; // Sous-maximal : un delta normal (max 5 avec dieSides=6) ne peut PAS combler seul
+    ui.btnFlee.disabled = false;
+    let originalRandom = Math.random;
+    let seq = [0, 0.999]; // playerRoll bas (1), mobRoll haut (6) -> marge 5, largement au-dessus du seuil (3)
+    let idx = 0;
+    Math.random = () => seq[(idx++) % seq.length];
+    const timeBefore = gameState.timeLeft;
+    resolveEnemyReaction();
+    Math.random = originalRandom;
+    assert(gameState.combatDistance === 0, "Ruée (resolveEnemyReaction) : comble tout l'écart d'un coup malgré un delta normal insuffisant");
+    assert(ui.btnFlee.disabled === true, "Ruée (resolveEnemyReaction) : le mob frappe immédiatement (riposte synchrone)");
+    assert(gameState.timeLeft < timeBefore, "Ruée : la manche contestée consomme quand même du temps (timeCostPerRound)");
+
+    // attemptRetreat() avantage le joueur (deux dés, le meilleur gardé) : il faut donc deux tirages
+    // bas pour le joueur avant le tirage haut du mob, pour obtenir la même marge de 5.
+    const retreatSeq = [0, 0, 0.999];
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Molosse Enragé 2", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {}, ranged: false };
+    gameState.combatDistance = 7;
+    ui.btnFlee.disabled = false;
+    originalRandom = Math.random;
+    idx = 0;
+    Math.random = () => retreatSeq[(idx++) % retreatSeq.length];
+    attemptRetreat();
+    Math.random = originalRandom;
+    assert(gameState.combatDistance === 0, "Ruée (attemptRetreat) : le mob vous rattrape brutalement malgré la tentative de fuite");
+    assert(ui.btnFlee.disabled === true, "Ruée (attemptRetreat) : riposte immédiate");
+
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Tireur d'Élite", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {}, ranged: true };
+    gameState.combatDistance = 7;
+    originalRandom = Math.random;
+    idx = 0;
+    Math.random = () => retreatSeq[(idx++) % retreatSeq.length];
+    attemptRetreat();
+    Math.random = originalRandom;
+    assert(gameState.combatDistance === 2, "Pas de ruée pour un mob à distance : l'écart évolue selon le delta normal (7-5=2), jamais forcé à 0");
+}
+
+// Coût en temps des manches de distance CONTESTÉES (1A) : attemptSprint() et attemptRetreat()
+// déduisent chacun config.rangedCombat.timeCostPerRound, jamais les tours d'attaque standards.
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Cobaye Distance", hp: 9999, maxHp: 9999, atk: 1, def: 0, status: {}, ranged: false };
+    gameState.combatDistance = 4;
+    const timeBefore1 = gameState.timeLeft;
+    attemptSprint();
+    assert(gameState.timeLeft < timeBefore1, "attemptSprint() : consomme le coût d'une manche de distance");
+
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Cobaye Distance 2", hp: 9999, maxHp: 9999, atk: 1, def: 0, status: {}, ranged: false };
+    gameState.combatDistance = 4;
+    const timeBefore2 = gameState.timeLeft;
+    attemptRetreat();
+    assert(gameState.timeLeft < timeBefore2, "attemptRetreat() : consomme le coût d'une manche de distance");
+}
+
+// gainXp() (2) : courbe de niveau ×1.25 (au lieu de ×1.4), gains ATQ/DEF croissants avec le niveau
+// ATTEINT (2+floor(niveau/4) / 1+floor(niveau/5)), PV max inchangé (15).
+{
+    resetTransientState();
+    gameState.xp = 0;
+    gameState.xpToNextLevel = 50;
+    const hpMaxBefore = gameState.maxHp;
+    gainXp(50); // Passe niveau 1 -> 2 (atkGain/defGain encore au plancher à ce niveau)
+    assert(gameState.level === 2, "gainXp() : passe bien au niveau 2");
+    assert(gameState.xpToNextLevel === 63, "gainXp() : xpToNextLevel suit désormais ×1.25 (round(50*1.25)=63)");
+    assert(gameState.maxHp === hpMaxBefore + 15, "gainXp() : gain PV max inchangé (15)");
+
+    resetTransientState();
+    gameState.level = 3; // Le prochain niveau (4) doit donner atkGain=2+floor(4/4)=3 (première hausse)
+    gameState.xp = 0;
+    gameState.xpToNextLevel = 10;
+    const atkBefore = gameState.atk;
+    gainXp(10);
+    assert(gameState.level === 4, "gainXp() : passe au niveau 4");
+    assert(gameState.atk === atkBefore + 3, "gainXp() : gain ATQ croissant à partir du niveau 4 (2+floor(4/4)=3)");
+
+    resetTransientState();
+    gameState.level = 4; // Le prochain niveau (5) doit donner defGain=1+floor(5/5)=2 (première hausse)
+    gameState.xp = 0;
+    gameState.xpToNextLevel = 10;
+    const defBefore = gameState.def;
+    gainXp(10);
+    assert(gameState.level === 5, "gainXp() : passe au niveau 5");
+    assert(gameState.def === defBefore + 2, "gainXp() : gain DEF croissant à partir du niveau 5 (1+floor(5/5)=2)");
+}
+
+// computeThreatMultiplier() (4, generator.js) : la DEF entre désormais dans le calcul avec un poids
+// modéré (0.5) — un tank pur (ATQ en baisse, DEF/PV en hausse) pèse plus lourd que le seul produit
+// ATQ×PV ne le capturait, sans laisser la DEF dominer le score à elle seule.
+{
+    // "Syndiqué" (atk x0.9, def x1.5, hp x1.2) sur un mob de base 10/10/10 : preModifierPower=100
+    const withDef = computeThreatMultiplier(9, 12, 15, 100, 10);
+    assert(Math.abs(withDef - 1.35) < 0.001, "computeThreatMultiplier() : pondère bien la DEF (attendu 1.35, voir 'Syndiqué')");
+
+    // DEF inchangée (defFactor=1) : doit redonner exactement l'ancienne formule (ATQxPV/preModifierPower)
+    const noDefChange = computeThreatMultiplier(15, 15, 10, 100, 10);
+    assert(Math.abs(noDefChange - 2.25) < 0.001, "computeThreatMultiplier() : DEF inchangée -> formule ATQ×PV pure (2.25)");
+
+    // Garde-fous : aucune division par zéro
+    assert(computeThreatMultiplier(10, 10, 10, 0, 10) === 1, "computeThreatMultiplier() : preModifierPower nul -> 1 (pas de crash)");
+    assert(Number.isFinite(computeThreatMultiplier(10, 10, 10, 100, 0)), "computeThreatMultiplier() : preModifierDef nul -> pas de division par zéro");
+}
+
+// Furtivité (5) : plafonds abaissés (détection 60%, évitement 70%), XP réduite (5), et un mob qui
+// repère le joueur au dernier moment reste "alerted" pour tout le combat : attemptFlee() y est bloqué.
+{
+    resetTransientState();
+    gameState.skills.stealth.level = 20; // Niveau très élevé : doit quand même plafonner
+    assert(getStealthChance() === 60, "getStealthChance() : plafonne désormais à 60% (au lieu de 75%)");
+
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.pendingStealthEncounter = { name: "Ombre", hp: 20, maxHp: 20, atk: 5, def: 2, xpReward: 10, status: {} };
+    gameState.stealthChoicePending = true;
+    gameState.skills.stealth.level = 20; // Plafonne l'évitement à 70% quel que soit le niveau
+    const originalRandom = Math.random;
+    Math.random = () => 0.75; // > 70% (nouveau plafond) mais < 85% (ancien) : doit désormais ÉCHOUER
+    attemptStealthEvasion();
+    Math.random = originalRandom;
+    assert(gameState.inCombat === true && gameState.currentEnemy !== null, "attemptStealthEvasion() : plafonne désormais à 70% (au lieu de 85%), échoue ici à 75%");
+    assert(gameState.currentEnemy.alerted === true, "attemptStealthEvasion() (échec) : le mob reste 'alerted' pour tout le combat");
+
+    attemptFlee();
+    assert(gameState.inCombat === true, "attemptFlee() : bloqué face à un mob 'alerted'");
+    updateUI();
+    assert(ui.btnFlee.disabled === true, "updateUI() : bouton Fuir grisé face à un mob 'alerted'");
+
+    // Évitement réussi : XP réduite (8 -> 5)
+    resetTransientState();
+    gameState.stealthChoicePending = true;
+    gameState.pendingStealthEncounter = { name: "Ombre 2", hp: 20, maxHp: 20, atk: 5, def: 2, xpReward: 10, status: {} };
+    gameState.skills.stealth.xp = 0;
+    const xpBefore = gameState.skills.stealth.xp;
+    Math.random = () => 0; // Toujours sous le plafond : évitement garanti
+    attemptStealthEvasion();
+    Math.random = originalRandom;
+    assert(gameState.skills.stealth.xp - xpBefore === 5, "attemptStealthEvasion() (succès) : XP de Furtivité réduite à 5 (au lieu de 8)");
+}
+
+// attackMagic() (6) : plancher de backfire relevé (8%), multiplicateur de base abaissé (1.25),
+// defReduction non nul (0.15) — les sorts ignorent un peu de DEF sans l'ignorer entièrement.
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.skills.magic.level = 50; // Niveau très élevé : le backfire doit quand même plancher à 8%
+    gameState.currentEnemy = { name: "Cobaye Magie", hp: 9999, maxHp: 9999, atk: 1, def: 50, status: {} };
+    gameState.combatDistance = config.rangedCombat.initialDistance;
+    gameState.equipment.spell = { spellName: "Test", spellCategory: 'ranged', baseDmg: 10, manaCost: 5 };
+    gameState.mana = 100;
+    const originalRandom = Math.random;
+    Math.random = () => 0.075; // 7.5% : sous l'ancien plancher (3%) mais sous le nouveau (8%) -> backfire
+    attackMagic();
+    Math.random = originalRandom;
+    assert(gameState.currentEnemy.hp === 9999, "attackMagic() : plancher de backfire relevé à 8% (un tirage à 7.5% échoue désormais)");
+}
+
+// Items blagues (7) : jokeItem exclu du loot normal (generateItem()), et poids de rareté bas de
+// fourchette redistribués (moins de Commun, plus de Rare/Épique/Légendaire).
+{
+    for (let i = 0; i < 150; i++) {
+        const item = generateItem(0); // powerScore=0 : bas de fourchette, le plus favorable aux objets faibles
+        assert(item.jokeItem !== true, `generateItem() : ne tire jamais un objet 'jokeItem' (obtenu: ${item.name})`);
+    }
+    const weights = getRarityWeights(0);
+    assert(weights.commun === 60, "getRarityWeights() : poids Commun bas de fourchette réduit à 60");
+    assert(weights.rare === 30, "getRarityWeights() : poids Rare bas de fourchette relevé à 30");
+    assert(Math.abs(weights.epique - 5.5) < 0.001, "getRarityWeights() : poids Épique bas de fourchette relevé à 5.5");
+    assert(Math.abs(weights.legendaire - 1.5) < 0.001, "getRarityWeights() : poids Légendaire bas de fourchette relevé à 1.5");
+
+    const rideau = baseItems.armors.find(i => i.name === "Rideau de Douche Camouflage");
+    assert(rideau.baseValue === 8, "items.js : Rideau de Douche Camouflage n'est plus le pire objet ET le plus cher (baseValue 50 -> 8)");
 }
 
 console.log(`${passed} test(s) OK, ${failures} échec(s).`);
