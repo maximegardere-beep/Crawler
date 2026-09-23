@@ -597,6 +597,37 @@
 
     </main>
 
+    <!-- Écran de départ : premier écran vu par le joueur, recouvre toute l'interface (déjà
+         initialisée en arrière-plan, voir le lancement du jeu dans app.js). Saisie du nom du
+         crawler, puis enchaîne sur #gift-reveal-overlay (confirmPlayerName() dans app.js). -->
+    <div id="start-screen-overlay" class="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-gray-900 border-2 border-blue-800 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(30,64,175,0.5)]">
+            <div class="text-5xl mb-2">🕳️</div>
+            <h1 class="text-2xl font-black text-blue-400 uppercase tracking-widest mb-1 drop-shadow-[0_0_10px_rgba(96,165,250,0.6)]">Bienvenue, Crawler</h1>
+            <p class="text-sm text-gray-400 mb-4">Le Donjon vous attend. Déclinez votre identité pour le public.</p>
+            <input id="start-name-input" type="text" maxlength="24" placeholder="CRAWLER_01"
+                   class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-center text-gray-100 placeholder-gray-600 uppercase tracking-wider mb-4 focus:outline-none focus:border-blue-500">
+            <button id="btn-start-confirm" class="w-full py-3 bg-blue-900/40 border-2 border-blue-600 rounded-lg text-blue-300 font-bold uppercase tracking-widest hover:bg-blue-800/50 active:scale-95 transition-all">
+                Entrer dans le Donjon
+            </button>
+        </div>
+    </div>
+
+    <!-- Cadeau de bienvenue : révélé juste après la saisie du nom (revealWelcomeGift() dans app.js),
+         masqué par défaut. Réutilise .card-draw-anim (même "pop" que le tirage d'une carte). -->
+    <div id="gift-reveal-overlay" class="hidden fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-gray-900 border-2 border-amber-700 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(180,83,9,0.5)]">
+            <div id="gift-reveal-icon" class="text-5xl mb-2 card-draw-anim">🎁</div>
+            <h2 class="text-lg font-black text-amber-400 uppercase tracking-widest mb-1">Cadeau de Bienvenue du Donjon</h2>
+            <p id="gift-reveal-title" class="text-sm text-gray-300 font-bold mb-1">-</p>
+            <p id="gift-reveal-item-name" class="text-xs text-gray-400 mb-2">-</p>
+            <p id="gift-reveal-joke" class="text-xs italic text-gray-500 mb-4">-</p>
+            <button id="btn-gift-continue" class="w-full py-3 bg-amber-900/40 border-2 border-amber-600 rounded-lg text-amber-300 font-bold uppercase tracking-widest hover:bg-amber-800/50 active:scale-95 transition-all">
+                Entrer en piste
+            </button>
+        </div>
+    </div>
+
     <!-- Écran Game Over : recouvre toute l'interface, quel que soit le scroll -->
     <div id="game-over-overlay" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
         <div class="bg-gray-900 border-2 border-red-800 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(153,27,27,0.5)]">
@@ -615,12 +646,12 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=41"></script>
-    <script src="items.js?v=41"></script>
-    <script src="spells.js?v=41"></script>
-    <script src="districts.js?v=41"></script>
-    <script src="safehouses.js?v=41"></script>
-    <script src="generator.js?v=41"></script>
-    <script src="app.js?v=41"></script>
+    <script src="bestiary.js?v=42"></script>
+    <script src="items.js?v=42"></script>
+    <script src="spells.js?v=42"></script>
+    <script src="districts.js?v=42"></script>
+    <script src="safehouses.js?v=42"></script>
+    <script src="generator.js?v=42"></script>
+    <script src="app.js?v=42"></script>
 </body>
 </html>

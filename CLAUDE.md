@@ -57,6 +57,14 @@ Tailwind CDN, **aucun build step**.
   perdre. Le mana (`gameState.mana`, 0-100) n'existe visuellement pour le joueur qu'une fois un sort
   équipé, et se régénère comme les PV : passif via `registerCalmCard()` (vitesse influencée par le
   niveau de compétence Magie), potions (`item.mana` dans `items.js`), aide du compagnon Médecin.
+- **Écran de départ** : `#start-screen-overlay` (saisie du nom, `confirmPlayerName()`) puis
+  `#gift-reveal-overlay` (`revealWelcomeGift()`) recouvrent l'UI de jeu au chargement — celle-ci est
+  déjà entièrement initialisée en arrière-plan (aucun état de jeu propre à ces deux écrans). Le
+  cadeau de bienvenue est tiré au sort pondéré (`WELCOME_GIFT_WEIGHTS`/`rollWelcomeGiftType()` :
+  Arme > Rien > Tir > Magie) puis équipé directement (`generateWelcomeGiftItem()` dans
+  `generator.js`, toujours au palier Commun), avec une blague sarcastique par type
+  (`flavorText.welcomeGift`). `resetGame()` recharge la page : l'écran de départ réapparaît
+  naturellement à chaque nouvelle partie.
 
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).

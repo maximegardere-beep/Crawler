@@ -850,5 +850,106 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(gameState.mana === 0, "registerCalmCard() : aucune régénération de mana sans sort équipé");
 }
 
+// ===================================================================
+// Écran de départ + cadeau de bienvenue : nom du crawler puis tirage pondéré (Arme > Rien > Tir >
+// Magie), toujours au palier Commun (voir WELCOME_GIFT_WEIGHTS/rollWelcomeGiftType()/
+// generateWelcomeGiftItem() dans generator.js/app.js).
+// ===================================================================
+
+// rollWelcomeGiftType() : vérifie les 4 bornes exactes du tirage pondéré (poids 40/30/20/10 sur 100).
+{
+    const originalRandom = Math.random;
+    Math.random = () => 0; // roll = 0 -> tout premier bloc (weapon, [0, 40))
+    assert(rollWelcomeGiftType() === 'weapon', "rollWelcomeGiftType() : Arme en bas de plage (poids le plus fort)");
+    Math.random = () => 0.45; // roll = 45 -> [40, 70) = nothing
+    assert(rollWelcomeGiftType() === 'nothing', "rollWelcomeGiftType() : Rien au 2e rang de poids");
+    Math.random = () => 0.75; // roll = 75 -> [70, 90) = ranged
+    assert(rollWelcomeGiftType() === 'ranged', "rollWelcomeGiftType() : Tir au 3e rang de poids");
+    Math.random = () => 0.95; // roll = 95 -> [90, 100) = spell
+    assert(rollWelcomeGiftType() === 'spell', "rollWelcomeGiftType() : Magie au poids le plus faible");
+    Math.random = originalRandom;
+
+    const weights = Object.values(WELCOME_GIFT_WEIGHTS);
+    assert(WELCOME_GIFT_WEIGHTS.weapon > WELCOME_GIFT_WEIGHTS.nothing
+        && WELCOME_GIFT_WEIGHTS.nothing > WELCOME_GIFT_WEIGHTS.ranged
+        && WELCOME_GIFT_WEIGHTS.ranged > WELCOME_GIFT_WEIGHTS.spell,
+        "WELCOME_GIFT_WEIGHTS : ordre Arme > Rien > Tir > Magie respecté");
+    assert(weights.every(w => w > 0), "WELCOME_GIFT_WEIGHTS : tous les poids restent strictement positifs");
+}
+
+// generateWelcomeGiftItem() : toujours au palier Commun (aucun enchantement), quel que soit le type.
+{
+    const originalRandom = Math.random;
+    Math.random = () => 0;
+    const weapon = generateWelcomeGiftItem('weapon');
+    const ranged = generateWelcomeGiftItem('ranged');
+    const spell = generateWelcomeGiftItem('spell');
+    Math.random = originalRandom;
+
+    assert(weapon.category === 'weapons' && weapon.rarity === 'Commun' && !weapon.mechanics, "generateWelcomeGiftItem('weapon') : arme Commune, sans enchantement");
+    assert(ranged.category === 'ranged' && ranged.rarity === 'Commun' && !ranged.mechanics, "generateWelcomeGiftItem('ranged') : arme à distance Commune, sans enchantement");
+    assert(spell.category === 'scrolls' && spell.rarity === 'Commun' && ['melee', 'ranged'].includes(spell.spellCategory), "generateWelcomeGiftItem('spell') : parchemin Commun, catégorie de sort valide");
+    assert(generateWelcomeGiftItem('nothing') === null, "generateWelcomeGiftItem('nothing') : aucun objet généré");
+}
+
+// confirmPlayerName() : nom saisi (ou repli sur l'existant si vide), masque l'écran de départ, puis
+// enchaîne sur revealWelcomeGift().
+{
+    resetTransientState();
+    gameState.playerName = "CRAWLER_01";
+    ui.startScreenOverlay.classList.remove('hidden');
+    ui.giftRevealOverlay.classList.add('hidden');
+    ui.startNameInput.value = "  Mordicaï-Deux  ";
+    confirmPlayerName();
+    assert(gameState.playerName === "Mordicaï-Deux", "confirmPlayerName() : nom saisi (avec espaces superflus retirés) adopté");
+    assert(ui.startScreenOverlay.classList.contains('hidden'), "confirmPlayerName() : masque l'écran de départ");
+    assert(!ui.giftRevealOverlay.classList.contains('hidden'), "confirmPlayerName() : enchaîne sur la révélation du cadeau");
+
+    resetTransientState();
+    gameState.playerName = "CRAWLER_01";
+    ui.startNameInput.value = "   ";
+    confirmPlayerName();
+    assert(gameState.playerName === "CRAWLER_01", "confirmPlayerName() : nom vide -> repli sur le nom déjà existant");
+}
+
+// revealWelcomeGift() : équipe directement le bon emplacement selon le type tiré (aucun inventaire à
+// gérer, tout est vide en tout début de partie) ; "nothing" ne touche à rien.
+{
+    resetTransientState();
+    const originalRandom = Math.random;
+    Math.random = () => 0; // -> 'weapon'
+    revealWelcomeGift();
+    Math.random = originalRandom;
+    assert(gameState.equipment.weapon !== null, "revealWelcomeGift('weapon') : équipe directement une arme");
+    assert(gameState.equipment.ranged === null && gameState.equipment.spell === null, "revealWelcomeGift('weapon') : ne touche à aucun autre emplacement");
+
+    resetTransientState();
+    Math.random = () => 0.75; // -> 'ranged'
+    revealWelcomeGift();
+    Math.random = originalRandom;
+    assert(gameState.equipment.ranged !== null, "revealWelcomeGift('ranged') : équipe directement une arme à distance");
+
+    resetTransientState();
+    gameState.mana = 0;
+    Math.random = () => 0.95; // -> 'spell'
+    revealWelcomeGift();
+    Math.random = originalRandom;
+    assert(gameState.equipment.spell !== null, "revealWelcomeGift('spell') : équipe directement un sort");
+    assert(gameState.mana === gameState.maxMana, "revealWelcomeGift('spell') : première équipe -> mana plein, comme equipSpell()");
+
+    resetTransientState();
+    Math.random = () => 0.45; // -> 'nothing'
+    revealWelcomeGift();
+    Math.random = originalRandom;
+    assert(gameState.equipment.weapon === null && gameState.equipment.ranged === null && gameState.equipment.spell === null, "revealWelcomeGift('nothing') : aucun équipement, comme annoncé");
+}
+
+// dismissGiftReveal() : referme l'écran de révélation.
+{
+    ui.giftRevealOverlay.classList.remove('hidden');
+    dismissGiftReveal();
+    assert(ui.giftRevealOverlay.classList.contains('hidden'), "dismissGiftReveal() : masque l'écran de révélation du cadeau");
+}
+
 console.log(`${passed} test(s) OK, ${failures} échec(s).`);
 process.exit(failures === 0 ? 0 : 1);
