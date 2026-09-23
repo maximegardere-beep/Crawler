@@ -237,14 +237,15 @@ function rollRarity(powerScore) {
  * @param {number} powerScore - Score de puissance entre 0 et 1 (voir getLootPowerScore()).
  * @returns {object} - L'objet final généré
  */
-function generateItem(powerScore = 0) {
+function generateItem(powerScore = 0, forcedCategory = null) {
     // 1. Choix d'une catégorie d'objet (weapons, ranged, armors, consumables, scrolls), puis d'un
     // objet de base dedans. "scrolls" (parchemins de sorts) n'a pas d'entrée dans baseItems : c'est
     // le grimoire (spellCatalog, voir spells.js) qui lui sert de pool, via generateSpellScroll() —
     // même chance de tirage que les 4 autres catégories, pour rester "looté par des mobs ou trouvé"
-    // exactement comme le reste de l'équipement.
+    // exactement comme le reste de l'équipement. `forcedCategory` (optionnel) impose la catégorie au
+    // lieu de la tirer — utilisé par le stock d'un marchand spécialisé (voir generateShopStock()).
     const categories = [...Object.keys(baseItems), 'scrolls'];
-    const categoryName = categories[Math.floor(Math.random() * categories.length)];
+    const categoryName = forcedCategory || categories[Math.floor(Math.random() * categories.length)];
     if (categoryName === 'scrolls') {
         return generateSpellScroll(powerScore);
     }

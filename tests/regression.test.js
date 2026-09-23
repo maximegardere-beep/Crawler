@@ -38,6 +38,12 @@ function resetTransientState() {
     gameState.pendingUrbanAdvanceAfterCombat = null;
     gameState.hasWon = false;
     gameState.saveEnabled = false; // Jamais d'autosauvegarde fantôme entre deux tests sans rapport
+    gameState.gold = 0;
+    gameState.shopChoicePending = false;
+    gameState.pendingShopCityId = null;
+    gameState.lairChoicePending = false;
+    gameState.pendingLairId = null;
+    gameState.pendingLairDive = null;
 }
 
 // ===================================================================
@@ -1416,7 +1422,10 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     Math.random = () => 0.99; // Écarte toute embuscade pour un trajet direct et prévisible
     otherNodeG.dispatch('click');
     Math.random = originalRandom;
-    assert(um.currentCityId !== cityBefore || gameState.inCombat, "updateUrbanMapUI() : cliquer un nœud du graphe déplace bien le joueur (ou déclenche une embuscade)");
+    // Troisième issue possible depuis PR "Repaires sur les routes" : si la route directe est un
+    // repaire non nettoyé, le clic ouvre le choix plonger/poursuivre plutôt que de bouger ou combattre.
+    assert(um.currentCityId !== cityBefore || gameState.inCombat || gameState.lairChoicePending,
+        "updateUrbanMapUI() : cliquer un nœud du graphe déplace bien le joueur (ou déclenche une embuscade / un choix de repaire)");
 }
 
 // ===================================================================
@@ -1690,6 +1699,363 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     const markerCircle = markerG && markerG._children.find(c => c.getAttribute && c.getAttribute('r') === '8');
     assert(!!markerCircle && markerCircle.getAttribute('stroke') === GRAPH_MINIMAP_VARIANT_COLORS.guarded.stroke,
         "renderGraphMiniMap() : le marqueur porte bien la couleur 'guarded'");
+}
+
+// renderGraphMiniMap() : node.badge (marchand/professeur...) reste accolé au cercle du nœud lui-même
+// (pas un enfant séparé du groupe de nœuds, contrairement à goalIcon), et edges[].marker (ex :
+// repaire) se dessine au milieu de l'arête elle-même, dans le groupe des arêtes.
+{
+    const nodes = [
+        { id: 'a', label: 'A', icon: '🏙️', badge: '🛒' },
+        { id: 'b', label: 'B', icon: '🏙️' },
+    ];
+    const edges = [{ from: 'a', to: 'b', marker: { icon: '💀', variant: 'guarded' } }];
+    const positions = { a: { x: 0.3, y: 0.5 }, b: { x: 0.7, y: 0.5 } };
+    const svgEl = document.createElement('svg');
+
+    renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId: 'a' });
+    const edgesGroup = svgEl._children[0]; // Pas de background ici : arêtes en premier
+    const nodesGroup = svgEl._children[1];
+
+    const nodeAG = nodesGroup._children.find(c => c.getAttribute('data-node-id') === 'a');
+    const badgeGroup = nodeAG._children.find(c => c._children && c._children.some(child => child.textContent === '🛒'));
+    assert(!!badgeGroup, "renderGraphMiniMap() : node.badge rendu à l'intérieur du groupe du nœud lui-même");
+    assert(nodesGroup._children.length === 2, "renderGraphMiniMap() : le badge n'ajoute PAS de nœud séparé au groupe (contrairement à goalIcon)");
+
+    const edgeMarkerG = edgesGroup._children.find(c => c._children && c._children.some(child => child.getAttribute && child.getAttribute('r') === '8'));
+    const edgeMarkerCircle = edgeMarkerG && edgeMarkerG._children.find(c => c.getAttribute('r') === '8');
+    assert(!!edgeMarkerCircle && edgeMarkerCircle.getAttribute('stroke') === GRAPH_MINIMAP_VARIANT_COLORS.guarded.stroke,
+        "renderGraphMiniMap() : edges[].marker rendu dans le groupe des arêtes, avec sa couleur variant");
+}
+
+// ===================================================================
+// Villes spécialisées (marchand/professeur) : generateUrbanFloorMap()/triggerShopEncounter()/
+// buyShopItem()/trainSkill()/leaveShop(). Voir CLAUDE.md.
+// ===================================================================
+
+// generateUrbanFloorMap() : jamais de rôle sur la ville de départ ni sur la ville gardienne
+// (escalier/Sortie) — un PNJ spécialisé ne se cumule jamais avec un gardien. Spécialité toujours
+// dans le bon pool selon le rôle attribué.
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    for (let i = 0; i < 20; i++) {
+        generateUrbanFloorMap();
+        const um = gameState.urbanMap;
+        const start = um.citiesById[um.currentCityId];
+        assert(start.role === null, "generateUrbanFloorMap() : jamais de rôle sur la ville de départ");
+        Object.values(um.citiesById).forEach(city => {
+            if (city.isStairs || city.isExit) {
+                assert(city.role === null, "generateUrbanFloorMap() : jamais de rôle sur la ville gardienne");
+            }
+            if (city.role === 'merchant') {
+                assert(['weapons', 'ranged', 'armors', 'scrolls'].includes(city.specialty),
+                    "generateUrbanFloorMap() : spécialité marchand dans le bon pool (catégories d'objet)");
+            } else if (city.role === 'trainer') {
+                assert(['weapon', 'unarmed', 'magic', 'stealth'].includes(city.specialty),
+                    "generateUrbanFloorMap() : spécialité professeur dans le bon pool (compétences réelles)");
+            }
+        });
+    }
+}
+
+// generateShopStock() : 3 objets, tous de la catégorie forcée, chacun avec un prix > 0 dérivé de sa
+// baseValue (voir SHOP_MARKUP).
+{
+    const stock = generateShopStock('armors');
+    assert(stock.length === 3, "generateShopStock() : 3 objets générés");
+    stock.forEach(item => {
+        assert(item.category === 'armors', "generateShopStock() : catégorie forcée respectée");
+        assert(item.price === Math.max(1, Math.round((item.baseValue || 1) * SHOP_MARKUP)),
+            "generateShopStock() : prix = baseValue × SHOP_MARKUP");
+    });
+
+    const scrollStock = generateShopStock('scrolls');
+    scrollStock.forEach(item => {
+        assert(item.category === 'scrolls', "generateShopStock() : catégorie 'scrolls' (parchemins) respectée aussi");
+    });
+}
+
+// triggerShopEncounter() : marque le choix en attente, affiche #shop-zone, ne régénère JAMAIS le
+// stock d'un marchand déjà visité (stock fixe pour la partie).
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    const merchantCity = { id: 'test-merchant', name: 'Testopolis', role: 'merchant', specialty: 'weapons', stock: null };
+    gameState.urbanMap.citiesById[merchantCity.id] = merchantCity;
+
+    ui.shopZone.classList.add('hidden');
+    triggerShopEncounter(merchantCity);
+    assert(gameState.shopChoicePending === true, "triggerShopEncounter() : shopChoicePending activé");
+    assert(gameState.pendingShopCityId === merchantCity.id, "triggerShopEncounter() : pendingShopCityId pointe sur la bonne ville");
+    assert(ui.shopZone.classList.contains('hidden') === false, "triggerShopEncounter() : #shop-zone affiché");
+    assert(merchantCity.stock.length === 3, "triggerShopEncounter() : stock généré à la première visite");
+    assert(isActionBlocked() === true, "triggerShopEncounter() : isActionBlocked() true tant que le choix est en attente (masque la Carte Urbaine)");
+
+    const stockBefore = merchantCity.stock;
+    triggerShopEncounter(merchantCity); // Seconde visite
+    assert(merchantCity.stock === stockBefore, "triggerShopEncounter() : stock JAMAIS régénéré sur une visite ultérieure");
+}
+
+// buyShopItem() : achat normal (déduit le prix, retire du stock, ajoute à l'inventaire), refusé si
+// PO insuffisantes ou réserve d'équipement pleine ; un parchemin rejoint le grimoire plutôt que
+// l'inventaire.
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    const city = { id: 'test-merchant-2', name: 'Testburg', role: 'merchant', specialty: 'weapons', stock: null };
+    gameState.urbanMap.citiesById[city.id] = city;
+    gameState.pendingShopCityId = city.id;
+    city.stock = [{ name: "Épée test", category: 'weapons', price: 50, baseValue: 20 }];
+    gameState.gold = 10;
+
+    buyShopItem(0);
+    assert(city.stock.length === 1, "buyShopItem() : achat refusé si PO insuffisantes (stock inchangé)");
+    assert(gameState.gold === 10, "buyShopItem() : PO inchangées si achat refusé");
+
+    gameState.gold = 100;
+    buyShopItem(0);
+    assert(gameState.gold === 50, "buyShopItem() : prix déduit des PO");
+    assert(city.stock.length === 0, "buyShopItem() : objet retiré du stock");
+    assert(gameState.inventory.some(i => i.name === "Épée test"), "buyShopItem() : objet ajouté à l'inventaire");
+
+    // Réserve d'équipement pleine
+    city.stock = [{ name: "Hache test", category: 'weapons', price: 10, baseValue: 5 }];
+    gameState.inventory = [];
+    for (let i = 0; i < gameState.maxInventory; i++) {
+        gameState.inventory.push({ name: `Filler ${i}`, category: 'weapons' });
+    }
+    buyShopItem(0);
+    assert(city.stock.length === 1, "buyShopItem() : achat refusé si réserve d'équipement pleine");
+
+    // Parchemin : rejoint le grimoire, jamais l'inventaire, jamais limité
+    gameState.inventory = [];
+    city.stock = [{ name: "Parchemin test", category: 'scrolls', price: 10, baseValue: 5 }];
+    gameState.spellbook = [];
+    buyShopItem(0);
+    assert(gameState.spellbook.some(i => i.name === "Parchemin test"), "buyShopItem() : parchemin ajouté au grimoire");
+    assert(gameState.inventory.length === 0, "buyShopItem() : parchemin jamais ajouté à l'inventaire");
+}
+
+// trainSkill() : coût = TRAINER_COST_PER_LEVEL × niveau ACTUEL, amène l'XP exactement au niveau
+// suivant, refusé si PO insuffisantes.
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    const city = { id: 'test-trainer', name: 'Testville', role: 'trainer', specialty: 'magic' };
+    gameState.urbanMap.citiesById[city.id] = city;
+    gameState.pendingShopCityId = city.id;
+    gameState.skills.magic = { level: 3, xp: 5, xpToNext: 40 };
+
+    gameState.gold = 10; // Coût attendu : 20 × 3 = 60, insuffisant
+    trainSkill();
+    assert(gameState.skills.magic.level === 3, "trainSkill() : formation refusée si PO insuffisantes (niveau inchangé)");
+    assert(gameState.gold === 10, "trainSkill() : PO inchangées si formation refusée");
+
+    gameState.gold = 100;
+    trainSkill();
+    assert(gameState.gold === 40, "trainSkill() : coût (20 × niveau actuel) déduit des PO");
+    assert(gameState.skills.magic.level === 4, "trainSkill() : franchit exactement le niveau suivant");
+    assert(gameState.skills.magic.xp === 0, "trainSkill() : XP exactement consommée jusqu'au niveau suivant, rien de plus");
+}
+
+// leaveShop() : referme #shop-zone et débloque les actions normales (Carte Urbaine redevient
+// visible via isActionBlocked()).
+{
+    resetTransientState();
+    gameState.shopChoicePending = true;
+    gameState.pendingShopCityId = 'whatever';
+    ui.shopZone.classList.remove('hidden');
+
+    leaveShop();
+    assert(gameState.shopChoicePending === false, "leaveShop() : shopChoicePending désactivé");
+    assert(gameState.pendingShopCityId === null, "leaveShop() : pendingShopCityId réinitialisé");
+    assert(ui.shopZone.classList.contains('hidden') === true, "leaveShop() : #shop-zone masqué");
+    assert(isActionBlocked() === false, "leaveShop() : isActionBlocked() redevient false");
+}
+
+// arriveAtCity() : une ville avec un rôle déclenche l'écran marchand/professeur plutôt que
+// l'arrivée "ville sûre" générique.
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    const city = { id: 'test-dispatch', name: 'Dispatchville', role: 'trainer', specialty: 'weapon', known: false, visited: false, roads: [] };
+    gameState.urbanMap.citiesById[city.id] = city;
+    gameState.pendingUrbanTravel = { destinationCityId: city.id, ambushesRemaining: 0 };
+    ui.shopZone.classList.add('hidden');
+
+    arriveAtCity();
+    assert(gameState.shopChoicePending === true, "arriveAtCity() : dispatch vers triggerShopEncounter() pour une ville avec un rôle");
+    assert(ui.shopZone.classList.contains('hidden') === false, "arriveAtCity() : #shop-zone affiché après dispatch");
+}
+
+// ===================================================================
+// Repaires sur les routes : generateUrbanFloorMap()/triggerLairChoice()/diveIntoLair()/
+// declineLair()/winCombat() (enchaînement combats → boss → butin). Voir CLAUDE.md.
+// ===================================================================
+
+// generateUrbanFloorMap() : exactement lairRoadsPerFloor (ou lairRoadsFinalFloor à l'étage final)
+// routes marquées repaire, symétriquement dans les deux sens (isLair/lairId identiques), avec un
+// lairsById cohérent (2 ou 3 combats forcés, jamais nettoyé à la génération).
+{
+    resetTransientState();
+    for (let i = 0; i < 15; i++) {
+        gameState.currentFloor = 3;
+        generateUrbanFloorMap();
+        const um = gameState.urbanMap;
+        const lairs = Object.values(um.lairsById);
+        assert(lairs.length === config.urbanFloors.lairRoadsPerFloor,
+            "generateUrbanFloorMap() : exactement lairRoadsPerFloor repaires sur un étage normal");
+
+        lairs.forEach(lair => {
+            assert(lair.cleared === false, "generateUrbanFloorMap() : un repaire n'est jamais nettoyé à la génération");
+            assert([2, 3].includes(lair.combatsRemaining), "generateUrbanFloorMap() : 2 ou 3 combats forcés avant le boss");
+            const roadAtoB = um.citiesById[lair.cityAId].roads.find(r => r.to === lair.cityBId);
+            const roadBtoA = um.citiesById[lair.cityBId].roads.find(r => r.to === lair.cityAId);
+            assert(roadAtoB && roadAtoB.isLair && roadAtoB.lairId === lair.id, "generateUrbanFloorMap() : isLair posé dans le sens A→B");
+            assert(roadBtoA && roadBtoA.isLair && roadBtoA.lairId === lair.id, "generateUrbanFloorMap() : isLair posé aussi dans le sens B→A");
+        });
+    }
+
+    gameState.currentFloor = config.urbanFloors.finalFloor;
+    generateUrbanFloorMap();
+    assert(Object.values(gameState.urbanMap.lairsById).length === config.urbanFloors.lairRoadsFinalFloor,
+        "generateUrbanFloorMap() : lairRoadsFinalFloor repaires à l'étage final");
+}
+
+// travelToCity() : un repaire sur la route DIRECTEMENT empruntée déclenche le choix AVANT toute
+// embuscade normale ; le trajet interrompu reste en attente, isActionBlocked() masque la Carte
+// Urbaine (voir updateUI()). declineLair() reprend le trajet normalement, sans marquer le repaire
+// nettoyé (re-proposé à un futur trajet).
+{
+    resetTransientState();
+    gameState.currentDistrict = "Rue des Illusions";
+    const start = { id: 'lair-start', name: 'Départ Test', known: true, visited: true, roads: [] };
+    const neighbor = { id: 'lair-neighbor', name: 'Voisine Test', known: true, visited: false, roads: [] };
+    const lairId = 'lair-test-0';
+    start.roads.push({ to: neighbor.id, distance: 2, isLair: true, lairId });
+    neighbor.roads.push({ to: start.id, distance: 2, isLair: true, lairId });
+    const lair = { id: lairId, cityAId: start.id, cityBId: neighbor.id, cleared: false, combatsRemaining: 2, bossInstance: null };
+    gameState.urbanMap = {
+        theme: gameState.currentDistrict, isFinalFloor: false,
+        citiesById: { [start.id]: start, [neighbor.id]: neighbor },
+        currentCityId: start.id, lairsById: { [lairId]: lair }
+    };
+
+    const originalRandom = Math.random;
+    Math.random = () => 0.99; // Écarte toute embuscade normale sur ce trajet
+    travelToCity(neighbor.id);
+    Math.random = originalRandom;
+
+    assert(gameState.lairChoicePending === true, "travelToCity() : un repaire sur la route directe déclenche le choix AVANT toute embuscade normale");
+    assert(gameState.pendingUrbanTravel && gameState.pendingUrbanTravel.destinationCityId === neighbor.id, "travelToCity() : le trajet interrompu reste en attente pendant le choix");
+    assert(isActionBlocked() === true, "isActionBlocked() : vrai tant que le choix du repaire est en attente");
+
+    declineLair();
+    assert(gameState.lairChoicePending === false, "declineLair() : referme le choix");
+    assert(lair.cleared === false, "declineLair() : le repaire reste intact, re-proposé plus tard");
+    assert(gameState.urbanMap.currentCityId === neighbor.id, "declineLair() : le trajet interrompu reprend et aboutit normalement");
+}
+
+// diveIntoLair() + winCombat() : enchaîne exactement combatsRemaining combats de sbires (stage
+// 'trash'), puis un unique combat de boss (stage 'boss', généré seulement à ce moment-là) ; sa
+// victoire marque le repaire nettoyé et fait reprendre le trajet interrompu jusqu'à destination.
+{
+    resetTransientState();
+    gameState.currentDistrict = "Rue des Illusions";
+    const start = { id: 'lair-start-2', name: 'Départ Test 2', known: true, visited: true, roads: [] };
+    const neighbor = { id: 'lair-neighbor-2', name: 'Voisine Test 2', known: true, visited: false, roads: [] };
+    const lairId = 'lair-test-1';
+    start.roads.push({ to: neighbor.id, distance: 2, isLair: true, lairId });
+    neighbor.roads.push({ to: start.id, distance: 2, isLair: true, lairId });
+    const lair = { id: lairId, cityAId: start.id, cityBId: neighbor.id, cleared: false, combatsRemaining: 2, bossInstance: null };
+    gameState.urbanMap = {
+        theme: gameState.currentDistrict, isFinalFloor: false,
+        citiesById: { [start.id]: start, [neighbor.id]: neighbor },
+        currentCityId: start.id, lairsById: { [lairId]: lair }
+    };
+
+    const originalRandom = Math.random;
+    Math.random = () => 0.99;
+    travelToCity(neighbor.id);
+    Math.random = originalRandom;
+    assert(gameState.lairChoicePending === true, "setup : choix du repaire bien déclenché");
+
+    diveIntoLair();
+    assert(gameState.inCombat === true, "diveIntoLair() : lance immédiatement le premier combat forcé");
+    assert(gameState.pendingLairDive && gameState.pendingLairDive.stage === 'trash', "diveIntoLair() : commence par la vague de sbires (stage 'trash')");
+    assert(gameState.pendingLairDive.combatsLeft === lair.combatsRemaining, "diveIntoLair() : combatsLeft initialisé au nombre de combats du repaire");
+
+    gameState.currentEnemy.hp = -9999;
+    winCombat();
+    assert(gameState.inCombat === true, "winCombat() (repaire) : enchaîne directement sur le combat suivant");
+    assert(gameState.pendingLairDive.stage === 'trash', "winCombat() (repaire) : reste en stage 'trash' tant qu'il reste des sbires");
+    assert(gameState.pendingLairDive.combatsLeft === 1, "winCombat() (repaire) : décrémente combatsLeft");
+    assert(lair.bossInstance === null, "winCombat() (repaire) : le boss n'est pas encore généré pendant la vague de sbires");
+
+    gameState.currentEnemy.hp = -9999;
+    winCombat();
+    assert(gameState.inCombat === true, "winCombat() (repaire) : lance le combat de boss une fois les sbires épuisés");
+    assert(gameState.pendingLairDive.stage === 'boss', "winCombat() (repaire) : bascule en stage 'boss'");
+    assert(lair.bossInstance !== null, "winCombat() (repaire) : génère le boss du repaire à ce moment-là");
+    assert(gameState.currentEnemy === lair.bossInstance, "winCombat() (repaire) : le combat en cours est bien celui du boss du repaire");
+    assert(lair.cleared === false, "winCombat() (repaire) : pas encore nettoyé tant que le boss n'est pas vaincu");
+
+    gameState.currentEnemy.hp = -9999;
+    winCombat();
+    assert(lair.cleared === true, "winCombat() (repaire) : marque le repaire nettoyé après la victoire sur son boss");
+    assert(gameState.pendingLairDive === null, "winCombat() (repaire) : la plongée est terminée");
+    assert(gameState.urbanMap.currentCityId === neighbor.id, "winCombat() (repaire) : le trajet interrompu reprend et aboutit après la plongée");
+}
+
+// attemptFlee() : fuir en pleine plongée laisse le repaire intact (jamais marqué nettoyé), sans
+// forcer la reprise du trajet interrompu — même comportement passif qu'une fuite d'embuscade urbaine
+// normale (voir pendingUrbanTravel, pas de reprise automatique non plus dans ce cas).
+{
+    resetTransientState();
+    gameState.currentDistrict = "Rue des Illusions";
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Sbire Test", hp: 30, maxHp: 30, atk: 5, def: 2, status: {}, alerted: false };
+    const lair = { id: 'lair-flee-0', cityAId: 'a', cityBId: 'b', cleared: false, combatsRemaining: 2, bossInstance: null };
+    gameState.pendingLairDive = { lairId: lair.id, combatsLeft: 2, stage: 'trash' };
+    gameState.urbanMap = { theme: gameState.currentDistrict, isFinalFloor: false, citiesById: {}, currentCityId: 'a', lairsById: { [lair.id]: lair } };
+
+    const originalRandom = Math.random;
+    Math.random = () => 0.01; // Réussite garantie (60% de base, voir attemptFlee())
+    attemptFlee();
+    Math.random = originalRandom;
+
+    assert(gameState.inCombat === false, "attemptFlee() (repaire) : fuite réussie, combat terminé");
+    assert(gameState.pendingLairDive === null, "attemptFlee() (repaire) : la plongée est annulée");
+    assert(lair.cleared === false, "attemptFlee() (repaire) : le repaire reste intact après une fuite");
+}
+
+// buildUrbanMapGraphData() : une route repaire porte un edges[].marker dédié — rouge/💀 tant qu'elle
+// n'est pas nettoyée, gris/🏆 une fois vaincue (jamais un goalIcon : une route reste franchissable).
+{
+    const start = { id: 'lair-map-a', name: 'A', known: true, visited: true, roads: [], x: 0.3, y: 0.5 };
+    const neighbor = { id: 'lair-map-b', name: 'B', known: true, visited: false, roads: [], x: 0.7, y: 0.5 };
+    const lairId = 'lair-map-0';
+    start.roads.push({ to: neighbor.id, distance: 2, isLair: true, lairId });
+    neighbor.roads.push({ to: start.id, distance: 2, isLair: true, lairId });
+    const lair = { id: lairId, cityAId: start.id, cityBId: neighbor.id, cleared: false, combatsRemaining: 2, bossInstance: null };
+    const urbanMap = { theme: "Rue des Illusions", isFinalFloor: false, citiesById: { [start.id]: start, [neighbor.id]: neighbor }, currentCityId: start.id, lairsById: { [lairId]: lair } };
+
+    let graph = buildUrbanMapGraphData(urbanMap);
+    let edge = graph.edges.find(e => (e.from === start.id && e.to === neighbor.id) || (e.from === neighbor.id && e.to === start.id));
+    assert(!!edge && !!edge.marker, "buildUrbanMapGraphData() : une route repaire porte un edges[].marker");
+    assert(edge.marker.icon === '💀' && edge.marker.variant === 'guarded', "buildUrbanMapGraphData() : marqueur rouge/💀 tant que le repaire n'est pas nettoyé");
+    assert(edge.goalIcon === undefined && graph.nodes.every(n => n.goalIcon === null || n.goalIcon === undefined),
+        "buildUrbanMapGraphData() : un repaire n'est jamais un goalIcon, une route reste franchissable");
+
+    lair.cleared = true;
+    graph = buildUrbanMapGraphData(urbanMap);
+    edge = graph.edges.find(e => (e.from === start.id && e.to === neighbor.id) || (e.from === neighbor.id && e.to === start.id));
+    assert(edge.marker.icon === '🏆' && edge.marker.variant === 'default', "buildUrbanMapGraphData() : marqueur 🏆 une fois le repaire nettoyé");
 }
 
 console.log(`${passed} test(s) OK, ${failures} échec(s).`);

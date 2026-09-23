@@ -34,6 +34,10 @@ const gameState = {
     currentDistrict: null,
     inventory: [],
     maxInventory: 5,
+    // PO (pièces d'or) : trouvées en explorant (voir config.chances.goldFind) ou obtenues en
+    // revendant un objet d'inventaire (sellItem()) — seule monnaie du jeu, dépensée dans les villes
+    // spécialisées (marchand/professeur, voir generateUrbanFloorMap()).
+    gold: 0,
     equipment: {
         weapon: null, // Objet de catégorie 'weapons' équipé, ou null
         armor: null,  // Objet de catégorie 'armors' équipé, ou null
@@ -83,6 +87,11 @@ const gameState = {
     pendingUrbanBossEncounter: null, // { cityId, isExit } pendant un choix combattre/repérer urbain
     pendingUrbanBossCityId: null, // Ville dont le combat de boss est en cours, pour la marquer vaincue à la victoire
     pendingUrbanAdvanceAfterCombat: null, // 'nextFloor' | 'win' | null : ce que la victoire du combat en cours déclenche
+    shopChoicePending: false, // Un écran marchand/professeur (ville spécialisée) est ouvert
+    pendingShopCityId: null, // Ville dont l'écran marchand/professeur est actuellement affiché
+    lairChoicePending: false, // Un repaire vient d'être repéré sur la route empruntée : choix plonger/poursuivre
+    pendingLairId: null, // Repaire (gameState.urbanMap.lairsById) dont le choix est actuellement affiché
+    pendingLairDive: null, // { lairId, combatsLeft, stage: 'trash'|'boss' } pendant une plongée en cours (voir winCombat())
     hasWon: false, // Vrai une fois la Sortie de l'étage final franchie (voir winGame())
     companion: null, // Compagnon actuellement recruté (ou null)
     pendingCompanionCandidate: null, // Candidat en attente de décision (recruter/laisser/fuir/attaquer)
@@ -97,7 +106,7 @@ const gameState = {
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 18, label: "Carte Urbaine : gabarit fixe + fond de ville + caméra" };
+const APP_VERSION = { pr: 18, label: "Économie urbaine : PO, marchand/professeur, repaires sur les routes" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -115,12 +124,13 @@ const config = {
         // loot/minorFind rééquilibrés (1->4 / 6->3, validé) : moins de petites trouvailles de PV
         // (régénération désormais surtout passive, voir applyTimeElapsedRegen()), plus d'objets sans
         // toucher à leur rareté (gérée ailleurs par rollRarity()/getLootPowerScore()).
-        nothing: 40,        // Rien de notable
+        nothing: 37,        // Rien de notable
         combat: 25,         // Rencontre hostile
         loot: 4,            // Objet généré procéduralement
         trap: 10,           // NOUVEAU : piège avec de vrais dégâts
         timeLoss: 8,        // NOUVEAU : détour qui coûte du temps
         minorFind: 3,       // NOUVEAU : petite trouvaille (soin mineur)
+        goldFind: 3,        // NOUVEAU : quelques PO trouvées (voir sellItem() pour l'autre source)
         audienceGift: 4,    // NOUVEAU : cadeau des spectateurs (petit bonus d'XP), clin d'œil à l'émission
         companionEncounter: 3, // NOUVEAU : rencontre d'un autre crawler (ami ou hostile, 50/50)
         flavorOnly: 3       // Pur moment narratif, sans effet mécanique (réduit de 6 à 3 pour compenser)
@@ -184,7 +194,14 @@ const config = {
             15: "Bureaux de l'Administration Pénitentiaire",
             18: "Salle des Machines Infernales"
         },
-        stairsGuardChanceByFloor: { 3: 20, 6: 35, 9: 50, 12: 65, 15: 80 }
+        stairsGuardChanceByFloor: { 3: 20, 6: 35, 9: 50, 12: 65, 15: 80 },
+        // Chance qu'une ville normale (ni départ, ni escalier/Sortie) devienne spécialisée
+        // (marchand/professeur, 50/50 ensuite) — voir generateUrbanFloorMap()/triggerShopEncounter().
+        specializedCityChance: 18,
+        // Nombre de routes marquées "repaire" par étage urbain (voir generateUrbanFloorMap()) :
+        // toujours 1, sauf à l'étage final où un second, plus généreux, s'ajoute.
+        lairRoadsPerFloor: 1,
+        lairRoadsFinalFloor: 2
     }
 };
 
@@ -226,6 +243,12 @@ const flavorText = {
         "Un sponsor anonyme salue votre performance télégénique.",
         "L'audience s'enflamme pour votre progression et vous récompense.",
         "Le producteur de l'émission juge votre parcours \"excellent pour l'audimat\"."
+    ],
+    goldFind: [
+        "Le portefeuille d'un crawler moins chanceux que vous.",
+        "Quelques pièces coincées entre deux dalles descellées.",
+        "Une caisse de pourboires, visiblement oubliée par le personnel d'entretien.",
+        "Le Donjon verse une prime de participation. Modique, mais c'est le geste qui compte."
     ],
     flavorOnly: [
         "Une pub holographique pour des nouilles instantanées s'affiche puis disparaît.",
@@ -283,6 +306,7 @@ const ui = {
     compactHpValue: document.getElementById('compact-hp-value'),
     playerAtk: document.getElementById('player-atk'),
     playerDef: document.getElementById('player-def'),
+    playerGold: document.getElementById('player-gold'),
     activeCard: document.getElementById('active-card'),
     cardTypeLabel: document.getElementById('card-type-label'),
     cardFloorLabel: document.getElementById('card-floor-label'),
@@ -352,6 +376,17 @@ const ui = {
     btnFleeCompanion: document.getElementById('btn-flee-companion'),
     btnRecruitHostile: document.getElementById('btn-recruit-hostile'),
     btnAttackCompanion: document.getElementById('btn-attack-companion'),
+    shopZone: document.getElementById('shop-zone'),
+    shopMerchantContent: document.getElementById('shop-merchant-content'),
+    shopTrainerContent: document.getElementById('shop-trainer-content'),
+    shopStockList: document.getElementById('shop-stock-list'),
+    shopSellList: document.getElementById('shop-sell-list'),
+    shopTrainerInfo: document.getElementById('shop-trainer-info'),
+    btnTrainSkill: document.getElementById('btn-train-skill'),
+    btnLeaveShop: document.getElementById('btn-leave-shop'),
+    lairChoiceZone: document.getElementById('lair-choice-zone'),
+    btnDiveLair: document.getElementById('btn-dive-lair'),
+    btnDeclineLair: document.getElementById('btn-decline-lair'),
     companionStatusBar: document.getElementById('companion-status-bar'),
     companionNameDisplay: document.getElementById('companion-name-display'),
     companionSpecialtyDisplay: document.getElementById('companion-specialty-display'),
@@ -496,6 +531,11 @@ function restoreSaveForName(name) {
     gameState.companionChoicePending = false;
     gameState.pendingCompanionCandidate = null;
     gameState.pendingTravel = null;
+    gameState.shopChoicePending = false;
+    gameState.pendingShopCityId = null;
+    gameState.lairChoicePending = false;
+    gameState.pendingLairId = null;
+    gameState.pendingLairDive = null;
 
     gameState.saveEnabled = true; // Réactive l'autosave après une restauration réussie
     return true;
@@ -533,6 +573,7 @@ function updateUI() {
     setHpRing(ui.compactHpRing, ui.compactHpValue, gameState.hp, gameState.maxHp);
     ui.playerAtk.innerText = gameState.atk;
     ui.playerDef.innerText = getEffectiveDef();
+    if (ui.playerGold) ui.playerGold.innerText = gameState.gold;
 
     // Le libellé d'étage sur la carte active reste toujours synchronisé
     ui.cardFloorLabel.innerText = `Étage ${gameState.currentFloor}`;
@@ -1157,6 +1198,23 @@ function useConsumable(index) {
     updateInventoryUI();
 }
 
+// Ratio de revente : un objet de l'inventaire (équipement non équipé ou consommable) se vend à une
+// fraction de sa valeur de base — jamais l'équipement actuellement porté (gameState.equipment),
+// jamais un sort (le grimoire n'a pas de valeur marchande). Réservé à l'interaction boutique (voir
+// triggerShopEncounter()) : pas de vente "de rue" hors ville spécialisée.
+const SELL_VALUE_RATIO = 0.4;
+function sellItem(index) {
+    const item = gameState.inventory[index];
+    if (!item) return;
+
+    const price = Math.max(1, Math.round((item.baseValue || 0) * SELL_VALUE_RATIO));
+    gameState.gold += price;
+    gameState.inventory.splice(index, 1);
+    logEvent(`Vous vendez [${formatItemDisplayName(item)}] pour ${price} PO.`, "success");
+    updateUI();
+    updateInventoryUI();
+}
+
 // ==========================================
 // 3. MOTEUR DE PROBABILITÉS ET ÉVÉNEMENTS
 // ==========================================
@@ -1259,6 +1317,17 @@ function resolveCardEvent() {
         gameState.hp = Math.min(gameState.hp + heal, gameState.maxHp);
         setCardHeader('🎒', 'Petite Trouvaille', 'Butin');
         logEvent(`${pick(flavorText.minorFind)} (+${heal} PV)`, "success");
+        return;
+    }
+
+    // NOUVEAU : Quelques PO trouvées (voir sellItem() pour l'autre source de revenu)
+    cumulative += config.chances.goldFind;
+    if (d100 < cumulative) {
+        const baseGold = Math.floor(Math.random() * 16) + 5; // 5 à 20 PO
+        const gold = Math.round(baseGold * (1 + gameState.currentFloor * 0.15)); // Proportionnel à l'étage
+        gameState.gold += gold;
+        setCardHeader('💰', 'Pièces d\'Or', 'Butin');
+        logEvent(`${pick(flavorText.goldFind)} (+${gold} PO)`, "success");
         return;
     }
 
@@ -1389,7 +1458,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending;
 }
 
 // Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
@@ -2074,15 +2143,22 @@ function computeGraphLayout(nodeIds, edges, existingPositions = {}) {
 // au nœud courant pour ne pas surcharger l'affichage), `positions` = {id:{x,y}} (0..1, fixes ou
 // calculées — voir computeGraphLayout()), `currentId` = nœud où l'on se trouve (mis en évidence,
 // jamais cliquable). `variant` ('guarded'/'goal'/'default') pilote la couleur des nœuds autres que
-// le courant ; `goalIcon` (optionnel) dessine en plus un petit marqueur décalé sur l'arête d'accès du
-// nœud plutôt que dans son propre cercle (ex : un gardien "posté sur la route" plutôt que confondu
-// avec la ville qu'il garde). `onNodeClick(id)` est appelé au clic sur n'importe quel autre nœud —
+// le courant. Deux familles de petits marqueurs, pour deux usages distincts :
+//   - `goalIcon` (sur un NŒUD) : décalé sur l'arête d'accès de ce nœud plutôt que dans son propre
+//     cercle (ex : un gardien "posté sur la route" plutôt que confondu avec la ville qu'il garde).
+//   - `badge` (sur un NŒUD) : petite icône accolée au cercle du nœud lui-même, pour un rôle qui ne
+//     bloque rien (ex : marchand/professeur) — contrairement à goalIcon, jamais décalée sur une arête.
+//   - `marker` (sur une ARÊTE, `edges[i].marker = {icon, variant}`) : rendu au milieu de l'arête
+//     elle-même, pour un élément qui n'appartient à AUCUN des deux nœuds qu'elle relie (ex : un
+//     repaire sur une route).
+// `onNodeClick(id)` est appelé au clic sur n'importe quel autre nœud (y compris son propre goalIcon) —
 // aucune notion de "voisin direct" ici, sans connaissance du jeu : c'est à l'appelant de décider ce
 // qu'un clic déclenche. `focusId`/`viewSpan` (optionnels) centrent la vue (viewBox) sur un nœud
 // donné plutôt que d'afficher tout l'espace normalisé 0..1 — la "caméra" suit ainsi le nœud courant
 // pendant que le reste (positions, fond) ne bouge jamais, plutôt que de recalculer une disposition.
-// `background` (optionnel, {rects, lines} en coordonnées normalisées 0..1) dessine une texture
-// décorative sous les arêtes/nœuds — aucune connaissance du jeu non plus, l'appelant fournit le motif.
+// `background` (optionnel, {rects, lines} en coordonnées normalisées 0..1, lines avec cx/cy optionnel
+// pour une courbe) dessine une texture décorative sous les arêtes/nœuds — aucune connaissance du jeu
+// non plus, l'appelant fournit le motif.
 const GRAPH_MINIMAP_VARIANT_COLORS = {
     current: { fill: "#1d4ed8", stroke: "#93c5fd" },
     guarded: { fill: "#7f1d1d", stroke: "#f87171" },
@@ -2121,13 +2197,22 @@ function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeC
             bgGroup.appendChild(rect);
         });
         (background.lines || []).forEach(l => {
-            const line = document.createElementNS(svgNS, "line");
-            line.setAttribute("x1", l.x1 * W); line.setAttribute("y1", l.y1 * H);
-            line.setAttribute("x2", l.x2 * W); line.setAttribute("y2", l.y2 * H);
-            line.setAttribute("stroke", "#1f2937");
-            line.setAttribute("stroke-width", "3");
-            line.setAttribute("opacity", "0.5");
-            bgGroup.appendChild(line);
+            // Point de contrôle (cx/cy) optionnel : légèrement courbée façon avenue dessinée à la
+            // main plutôt qu'un trait parfaitement rectiligne. Sans lui, reste une simple droite
+            // (rétrocompatible avec un appelant générique qui ne fournirait pas de courbure).
+            const hasCurve = l.cx !== undefined && l.cy !== undefined;
+            const el = document.createElementNS(svgNS, hasCurve ? "path" : "line");
+            if (hasCurve) {
+                el.setAttribute("d", `M ${l.x1 * W} ${l.y1 * H} Q ${l.cx * W} ${l.cy * H} ${l.x2 * W} ${l.y2 * H}`);
+                el.setAttribute("fill", "none");
+            } else {
+                el.setAttribute("x1", l.x1 * W); el.setAttribute("y1", l.y1 * H);
+                el.setAttribute("x2", l.x2 * W); el.setAttribute("y2", l.y2 * H);
+            }
+            el.setAttribute("stroke", "#1f2937");
+            el.setAttribute("stroke-width", "3");
+            el.setAttribute("opacity", "0.5");
+            bgGroup.appendChild(el);
         });
         svgEl.appendChild(bgGroup);
     }
@@ -2153,6 +2238,27 @@ function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeC
             mid.setAttribute("fill", "#60a5fa");
             mid.textContent = e.distance;
             edgesGroup.appendChild(mid);
+        }
+
+        // Marqueur d'arête (ex : repaire) : n'appartient à AUCUN des deux nœuds, rendu au milieu de
+        // la route elle-même — léger décalage vertical pour ne pas chevaucher le chiffre de distance.
+        if (e.marker) {
+            const markerColors = GRAPH_MINIMAP_VARIANT_COLORS[e.marker.variant || 'default'];
+            const markerG = document.createElementNS(svgNS, "g");
+            markerG.setAttribute("transform", `translate(${(a.x + b.x) / 2}, ${(a.y + b.y) / 2 + 11})`);
+            const markerCircle = document.createElementNS(svgNS, "circle");
+            markerCircle.setAttribute("r", "8");
+            markerCircle.setAttribute("fill", "#111827");
+            markerCircle.setAttribute("stroke", markerColors.stroke);
+            markerCircle.setAttribute("stroke-width", "1.5");
+            markerG.appendChild(markerCircle);
+            const markerIcon = document.createElementNS(svgNS, "text");
+            markerIcon.setAttribute("text-anchor", "middle");
+            markerIcon.setAttribute("dominant-baseline", "central");
+            markerIcon.setAttribute("font-size", "9");
+            markerIcon.textContent = e.marker.icon;
+            markerG.appendChild(markerIcon);
+            edgesGroup.appendChild(markerG);
         }
     });
 
@@ -2199,6 +2305,27 @@ function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeC
             label.setAttribute("fill", "#9ca3af");
             label.textContent = node.label.length > 12 ? node.label.slice(0, 11) + "…" : node.label;
             g.appendChild(label);
+        }
+
+        // Badge de rôle (marchand/professeur...) : accolé au cercle du nœud lui-même, jamais décalé
+        // sur une arête (contrairement à goalIcon) puisqu'il ne bloque rien.
+        if (node.badge) {
+            const badgeOffset = (isCurrent ? 13 : 10) * 0.75;
+            const badge = document.createElementNS(svgNS, "g");
+            badge.setAttribute("transform", `translate(${badgeOffset}, ${badgeOffset})`);
+            const badgeCircle = document.createElementNS(svgNS, "circle");
+            badgeCircle.setAttribute("r", "6");
+            badgeCircle.setAttribute("fill", "#111827");
+            badgeCircle.setAttribute("stroke", "#fbbf24");
+            badgeCircle.setAttribute("stroke-width", "1.2");
+            badge.appendChild(badgeCircle);
+            const badgeIcon = document.createElementNS(svgNS, "text");
+            badgeIcon.setAttribute("text-anchor", "middle");
+            badgeIcon.setAttribute("dominant-baseline", "central");
+            badgeIcon.setAttribute("font-size", "7");
+            badgeIcon.textContent = node.badge;
+            badge.appendChild(badgeIcon);
+            g.appendChild(badge);
         }
 
         nodesGroup.appendChild(g);
@@ -2296,22 +2423,34 @@ function mulberry32(seed) {
 const URBAN_MAP_BACKGROUND = (() => {
     const rand = mulberry32(20260923);
     const rects = [];
-    for (let i = 0; i < 55; i++) {
+    // Densité variable plutôt qu'un tirage uniforme : rayon biaisé vers le centre (exposant > 1)
+    // pour un cœur de ville dense qui se clairsème vers la périphérie, plus crédible qu'une
+    // répartition parfaitement homogène des pâtés de maisons.
+    for (let i = 0; i < 70; i++) {
+        const angle = rand() * Math.PI * 2;
+        const radius = Math.pow(rand(), 1.7) * 0.62;
+        const cx = 0.5 + Math.cos(angle) * radius;
+        const cy = 0.5 + Math.sin(angle) * radius;
         const w = 0.02 + rand() * 0.05;
         const h = 0.02 + rand() * 0.05;
         rects.push({
-            x: rand() * (1 - w), y: rand() * (1 - h), w, h,
-            opacity: 0.25 + rand() * 0.35
+            x: Math.min(1 - w, Math.max(0, cx - w / 2)),
+            y: Math.min(1 - h, Math.max(0, cy - h / 2)),
+            w, h,
+            opacity: 0.2 + rand() * 0.35
         });
     }
-    // Quelques grandes avenues traversantes, pour casser la texture uniforme des pâtés de maisons
+    // Quelques grandes avenues traversantes, légèrement courbées (point de contrôle décalé
+    // perpendiculairement) pour casser la rigidité de lignes parfaitement droites — voir le rendu
+    // avec point de contrôle dans renderGraphMiniMap().
     const lines = [];
     for (let i = 0; i < 4; i++) {
         const horizontal = i % 2 === 0;
         const at = 0.15 + rand() * 0.7;
+        const bow = (rand() - 0.5) * 0.18;
         lines.push(horizontal
-            ? { x1: 0, y1: at, x2: 1, y2: at }
-            : { x1: at, y1: 0, x2: at, y2: 1 });
+            ? { x1: 0, y1: at, x2: 1, y2: at, cx: 0.5, cy: at + bow }
+            : { x1: at, y1: 0, x2: at, y2: 1, cx: at + bow, cy: 0.5 });
     }
     return { rects, lines };
 })();
@@ -2361,7 +2500,11 @@ function generateUrbanFloorMap() {
         const point = pointPool.splice(pointIndex, 1)[0];
         citiesById[id] = {
             id, name, x: point.x, y: point.y, visited: false, known: false, roads: [],
-            isStairs: false, isExit: false, guarded: false, bossInstance: null, defeated: false
+            isStairs: false, isExit: false, guarded: false, bossInstance: null, defeated: false,
+            // Ville spécialisée (marchand/professeur) : voir plus bas dans cette fonction et
+            // triggerShopEncounter(). `stock` (marchand uniquement) est généré une seule fois, à la
+            // première visite, pour rester le même si le joueur repart puis revient.
+            role: null, specialty: null, stock: null
         };
         cityIds.push(id);
     }
@@ -2401,7 +2544,63 @@ function generateUrbanFloorMap() {
         target.guarded = Math.random() * 100 < guardChance;
     }
 
-    gameState.urbanMap = { theme, isFinalFloor: isFinal, citiesById, currentCityId: startId };
+    // Villes spécialisées (marchand/professeur) : chaque ville normale (jamais le départ, jamais
+    // l'escalier/la Sortie — pour ne pas cumuler un gardien ET un PNJ sur la même ville) a une
+    // chance de devenir un point de vente ou de formation. Le marchand vend une catégorie d'objet
+    // (voir generateShopStock()) ; le professeur forme UNE des 4 compétences réelles du joueur
+    // (gameState.skills) — pas de "compétence armure", contrairement aux objets.
+    candidateIds.filter(id => id !== target.id).forEach(id => {
+        if (Math.random() * 100 >= config.urbanFloors.specializedCityChance) return;
+        const city = citiesById[id];
+        if (Math.random() < 0.5) {
+            city.role = 'merchant';
+            city.specialty = pick(['weapons', 'ranged', 'armors', 'scrolls']);
+        } else {
+            city.role = 'trainer';
+            city.specialty = pick(['weapon', 'unarmed', 'magic', 'stealth']);
+        }
+    });
+
+    // Repaires sur les routes : quelques routes (voir config.urbanFloors.lairRoadsPerFloor/
+    // lairRoadsFinalFloor) sont désignées "repaire" — plonger dedans (triggerLairChoice()/
+    // diveIntoLair() dans travelToCity()) enchaîne plusieurs combats forcés puis un boss du thème de
+    // l'étage, contre un butin garanti ; le joueur peut toujours poursuivre sa route sans l'affronter.
+    // isLair/lairId sont posés sur LES DEUX sens de la route (comme distance), pour rester
+    // détectables quel que soit le sens du trajet emprunté.
+    const allRoadPairs = [];
+    const seenRoadPairs = new Set();
+    cityIds.forEach(id => {
+        citiesById[id].roads.forEach(road => {
+            const key = [id, road.to].sort().join('|');
+            if (seenRoadPairs.has(key)) return;
+            seenRoadPairs.add(key);
+            allRoadPairs.push({ aId: id, bId: road.to });
+        });
+    });
+    const lairCount = Math.min(
+        isFinal ? config.urbanFloors.lairRoadsFinalFloor : config.urbanFloors.lairRoadsPerFloor,
+        allRoadPairs.length
+    );
+    const lairsById = {};
+    for (let i = 0; i < lairCount; i++) {
+        const pairIndex = Math.floor(Math.random() * allRoadPairs.length);
+        const pair = allRoadPairs.splice(pairIndex, 1)[0];
+        const lairId = `lair-${i}`;
+        lairsById[lairId] = {
+            id: lairId,
+            cityAId: pair.aId,
+            cityBId: pair.bId,
+            cleared: false,
+            combatsRemaining: 2 + Math.floor(Math.random() * 2), // 2 ou 3 combats forcés avant le boss
+            bossInstance: null
+        };
+        const roadAtoB = citiesById[pair.aId].roads.find(r => r.to === pair.bId);
+        const roadBtoA = citiesById[pair.bId].roads.find(r => r.to === pair.aId);
+        if (roadAtoB) { roadAtoB.isLair = true; roadAtoB.lairId = lairId; }
+        if (roadBtoA) { roadBtoA.isLair = true; roadBtoA.lairId = lairId; }
+    }
+
+    gameState.urbanMap = { theme, isFinalFloor: isFinal, citiesById, currentCityId: startId, lairsById };
     // Thématique unique de l'étage : generateMob()/generateBoss() la reçoivent comme un nom de
     // quartier classique, sans aucune adaptation nécessaire de leur côté.
     gameState.currentDistrict = theme;
@@ -2477,6 +2676,17 @@ function travelToCity(cityId) {
         gameOver(true);
         return;
     }
+
+    // Repaire sur la route directement empruntée (voir generateUrbanFloorMap()) : présente le choix
+    // plonger/poursuivre AVANT de résoudre les embuscades normales du trajet — un trajet à plusieurs
+    // sauts vers une ville plus lointaine ne passe pas physiquement par cette route précise, donc ne
+    // déclenche rien ici (voir computeCityDistance(), qui ne suit aucun chemin réel).
+    const directRoad = urbanMap.citiesById[urbanMap.currentCityId].roads.find(r => r.to === cityId);
+    const lair = directRoad && directRoad.isLair ? urbanMap.lairsById[directRoad.lairId] : null;
+    if (lair && !lair.cleared) {
+        triggerLairChoice(lair);
+        return;
+    }
     triggerNextCityAmbushOrArrive();
 }
 
@@ -2526,6 +2736,11 @@ function arriveAtCity() {
             logEvent("La voie est libre !", "success");
             nextFloor();
         }
+        return;
+    }
+
+    if (city.role) {
+        triggerShopEncounter(city);
         return;
     }
 
@@ -2590,6 +2805,212 @@ function retreatFromUrbanBoss() {
     updateUI();
 }
 
+// ==========================================
+// REPAIRES SUR LES ROUTES (voir generateUrbanFloorMap())
+// ==========================================
+
+// Présente le choix "plonger / poursuivre" pour un repaire repéré sur la route directement
+// empruntée — dispatché depuis travelToCity(). Toujours optionnel : poursuivre reprend le trajet
+// normalement (embuscades incluses), sans aucune pénalité pour avoir décliné.
+function triggerLairChoice(lair) {
+    gameState.lairChoicePending = true;
+    gameState.pendingLairId = lair.id;
+    setCardHeader('💀', 'Repaire Repéré', 'Route Urbaine');
+    logEvent("Un repaire hostile borde la route. Plonger dedans (combats enchaînés, butin garanti), ou poursuivre votre chemin sans l'affronter ?", "danger");
+    ui.lairChoiceZone.classList.remove('hidden');
+    updateUI();
+}
+
+// Bouton "Plonger" : lance le premier combat forcé de la séquence (voir winCombat() pour
+// l'enchaînement combats → boss → butin garanti, et attemptFlee() pour une fuite en cours de route).
+function diveIntoLair() {
+    const lairId = gameState.pendingLairId;
+    gameState.lairChoicePending = false;
+    gameState.pendingLairId = null;
+    ui.lairChoiceZone.classList.add('hidden');
+    const lair = gameState.urbanMap.lairsById[lairId];
+    if (!lair) return;
+
+    gameState.pendingLairDive = { lairId, combatsLeft: lair.combatsRemaining, stage: 'trash' };
+    logEvent("Vous plongez dans le repaire...", "danger");
+    initiateCombat();
+}
+
+// Bouton "Poursuivre" : le repaire reste intact (re-proposé à un futur trajet sur cette même route),
+// le trajet interrompu reprend normalement.
+function declineLair() {
+    gameState.lairChoicePending = false;
+    gameState.pendingLairId = null;
+    ui.lairChoiceZone.classList.add('hidden');
+    logEvent("Vous laissez le repaire tranquille et poursuivez votre route.", "info");
+    triggerNextCityAmbushOrArrive();
+}
+
+// ==========================================
+// VILLES SPÉCIALISÉES (marchand/professeur — voir generateUrbanFloorMap())
+// ==========================================
+const SHOP_CATEGORY_LABELS = { weapons: "Armes", ranged: "Armes à distance", armors: "Armures", scrolls: "Magie (parchemins)" };
+const SHOP_MARKUP = 2.5; // Prix d'achat = baseValue × ce multiplicateur (voir SELL_VALUE_RATIO pour l'inverse)
+const TRAINER_COST_PER_LEVEL = 20; // Coût = ce montant × le niveau ACTUEL de la compétence
+
+// Stock FIXE d'un marchand (3 objets de sa spécialité, générés UNE seule fois à la première visite —
+// voir triggerShopEncounter()), avec une puissance proportionnelle à l'étage courant comme le reste
+// du loot (voir getLootPowerScore()). Chaque objet reçoit un prix d'achat dérivé de sa baseValue.
+function generateShopStock(specialty) {
+    const stock = [];
+    for (let i = 0; i < 3; i++) {
+        const item = generateItem(getLootPowerScore(null), specialty);
+        item.price = Math.max(1, Math.round((item.baseValue || 1) * SHOP_MARKUP));
+        stock.push(item);
+    }
+    return stock;
+}
+
+// Présente l'écran marchand/professeur d'une ville spécialisée — dispatché depuis arriveAtCity().
+// Bloque les autres actions (isActionBlocked()) le temps de la visite, comme un choix de boss ou de
+// furtivité, pour que la Carte Urbaine se masque et laisse place à cet écran (voir updateUI()).
+function triggerShopEncounter(city) {
+    if (city.role === 'merchant' && !city.stock) {
+        city.stock = generateShopStock(city.specialty);
+    }
+    gameState.shopChoicePending = true;
+    gameState.pendingShopCityId = city.id;
+    const isMerchant = city.role === 'merchant';
+
+    setCardHeader(isMerchant ? '🛒' : '🎓', city.name, isMerchant ? 'Marchand' : 'Professeur');
+    logEvent(
+        isMerchant
+            ? `Vous entrez dans l'échoppe de ${city.name}, spécialisée en ${SHOP_CATEGORY_LABELS[city.specialty]}.`
+            : `Vous trouvez le professeur de ${city.name}, spécialisé en ${skillLabel(city.specialty)}.`,
+        "info"
+    );
+    ui.shopZone.classList.remove('hidden');
+    updateShopUI();
+    updateUI();
+}
+
+// Achète un objet du stock du marchand actuellement visité : déduit le prix, retire l'objet du
+// stock (jamais reconstitué), et l'ajoute à l'inventaire (ou au grimoire pour un parchemin) — même
+// routage que addLoot(), la réserve d'équipement limitée s'applique identiquement.
+function buyShopItem(stockIndex) {
+    if (!gameState.pendingShopCityId) return;
+    const city = gameState.urbanMap.citiesById[gameState.pendingShopCityId];
+    if (!city || !city.stock) return;
+    const item = city.stock[stockIndex];
+    if (!item) return;
+    if (gameState.gold < item.price) {
+        logEvent("Pas assez de PO pour cet achat.", "danger");
+        return;
+    }
+
+    if (item.category === 'scrolls') {
+        gameState.gold -= item.price;
+        city.stock.splice(stockIndex, 1);
+        gameState.spellbook.push(item);
+        logEvent(`Vous achetez [${formatItemDisplayName(item)}] pour ${item.price} PO.`, "success");
+        updateSpellbookUI();
+    } else {
+        const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
+        if (equipmentCount >= gameState.maxInventory) {
+            logEvent("Votre réserve d'équipement est pleine !", "danger");
+            return;
+        }
+        gameState.gold -= item.price;
+        city.stock.splice(stockIndex, 1);
+        gameState.inventory.push(item);
+        logEvent(`Vous achetez [${formatItemDisplayName(item)}] pour ${item.price} PO.`, "success");
+        updateInventoryUI();
+    }
+    updateUI();
+    updateShopUI();
+}
+
+// Paie pour gagner directement assez d'XP afin de franchir le prochain niveau de la compétence
+// spécialisée du professeur — "payer pour s'entraîner" plutôt que le grind combat habituel.
+function trainSkill() {
+    if (!gameState.pendingShopCityId) return;
+    const city = gameState.urbanMap.citiesById[gameState.pendingShopCityId];
+    if (!city || city.role !== 'trainer') return;
+    const skill = gameState.skills[city.specialty];
+    const cost = TRAINER_COST_PER_LEVEL * skill.level;
+    if (gameState.gold < cost) {
+        logEvent("Pas assez de PO pour cette formation.", "danger");
+        return;
+    }
+
+    gameState.gold -= cost;
+    const xpNeeded = skill.xpToNext - skill.xp;
+    logEvent(`Vous payez ${cost} PO pour une formation intensive en ${skillLabel(city.specialty)}.`, "success");
+    gainSkillXp(city.specialty, xpNeeded);
+    updateUI();
+    updateShopUI();
+}
+
+// Referme l'écran marchand/professeur et rend la main normalement (Carte Urbaine, actions standards).
+function leaveShop() {
+    gameState.shopChoicePending = false;
+    gameState.pendingShopCityId = null;
+    ui.shopZone.classList.add('hidden');
+    updateUI();
+}
+
+// Reconstruit le contenu dynamique de l'écran marchand/professeur (stock/prix, ou compétence à
+// former) selon le rôle de la ville actuellement visitée — n'affiche rien si aucune n'est en cours.
+function updateShopUI() {
+    if (!ui.shopZone || !gameState.pendingShopCityId || !gameState.urbanMap) return;
+    const city = gameState.urbanMap.citiesById[gameState.pendingShopCityId];
+    if (!city) return;
+
+    const isMerchant = city.role === 'merchant';
+    ui.shopMerchantContent.classList.toggle('hidden', !isMerchant);
+    ui.shopMerchantContent.classList.toggle('flex', isMerchant);
+    ui.shopTrainerContent.classList.toggle('hidden', isMerchant);
+    ui.shopTrainerContent.classList.toggle('flex', !isMerchant);
+
+    if (isMerchant) {
+        ui.shopStockList.innerHTML = "";
+        if (city.stock.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = "text-[10px] text-gray-600 italic";
+            empty.innerText = "Stock épuisé.";
+            ui.shopStockList.appendChild(empty);
+        }
+        city.stock.forEach((item, index) => {
+            const row = document.createElement('button');
+            const affordable = gameState.gold >= item.price;
+            row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-yellow-600 hover:bg-yellow-950/20 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-800 disabled:hover:bg-gray-900/80";
+            row.disabled = !affordable;
+            row.innerHTML = `<span class="truncate">${formatItemDisplayName(item)}</span><span class="text-yellow-400 shrink-0">${item.price} PO</span>`;
+            row.addEventListener('click', () => buyShopItem(index));
+            ui.shopStockList.appendChild(row);
+        });
+
+        ui.shopSellList.innerHTML = "";
+        const sellable = gameState.inventory;
+        if (sellable.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = "text-[10px] text-gray-600 italic";
+            empty.innerText = "Rien à vendre pour l'instant.";
+            ui.shopSellList.appendChild(empty);
+        }
+        sellable.forEach((item, index) => {
+            const price = Math.max(1, Math.round((item.baseValue || 0) * SELL_VALUE_RATIO));
+            const row = document.createElement('button');
+            row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
+            row.innerHTML = `<span class="truncate">${formatItemDisplayName(item)}</span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
+            row.addEventListener('click', () => { sellItem(index); updateShopUI(); });
+            ui.shopSellList.appendChild(row);
+        });
+    } else {
+        const skill = gameState.skills[city.specialty];
+        const cost = TRAINER_COST_PER_LEVEL * skill.level;
+        ui.shopTrainerInfo.innerText = `${skillLabel(city.specialty)} — Niveau ${skill.level}. Formation : ${cost} PO (niveau suivant garanti).`;
+        ui.btnTrainSkill.disabled = gameState.gold < cost;
+        ui.btnTrainSkill.classList.toggle('opacity-40', gameState.gold < cost);
+        ui.btnTrainSkill.classList.toggle('cursor-not-allowed', gameState.gold < cost);
+    }
+}
+
 // Reconstruit le panneau "Carte Urbaine" : liste des villes connues, avec leur statut (ici / gardée /
 // escalier / Sortie) et un bouton pour s'y rendre — même esprit que updateKnownLocationsUI(), mais
 // pour le réseau villes/routes plutôt que les lieux connus classiques d'un donjon.
@@ -2603,7 +3024,8 @@ function buildUrbanMapGraphData(urbanMap) {
     const positions = {};
     // `icon` reste générique (toujours 🏙️, un quartier normal) : le marqueur de gardien
     // (`goalIcon`) est rendu à PART par renderGraphMiniMap(), décalé sur la route d'accès plutôt que
-    // dans le cercle de la ville elle-même — "les boss sont positionnés à côté des routes".
+    // dans le cercle de la ville elle-même — "les boss sont positionnés à côté des routes". Un rôle
+    // marchand/professeur, lui, ne bloque rien : simple `badge` accolé au cercle de la ville.
     const nodes = knownCities.map(city => {
         positions[city.id] = { x: city.x, y: city.y };
         let variant = 'default', goalIcon = null;
@@ -2614,11 +3036,15 @@ function buildUrbanMapGraphData(urbanMap) {
                 variant = 'goal'; goalIcon = city.isExit ? '🚪' : '🪜';
             }
         }
-        return { id: city.id, label: city.name, icon: '🏙️', variant, goalIcon };
+        const badge = city.role === 'merchant' ? '🛒' : (city.role === 'trainer' ? '🎓' : null);
+        return { id: city.id, label: city.name, icon: '🏙️', variant, goalIcon, badge };
     });
 
     // Une arête par route reliant deux villes CONNUES (pas de brouillard sur les routes déjà
-    // révélées, mais rien à dessiner vers une ville pas encore repérée).
+    // révélées, mais rien à dessiner vers une ville pas encore repérée). Une route "repaire" (voir
+    // generateUrbanFloorMap()) porte un marqueur dédié (edges[].marker) : rouge/💀 tant qu'elle n'est
+    // pas nettoyée, gris/🏆 une fois vaincue — ni l'un ni l'autre n'est un goalIcon (une route reste
+    // franchissable, contrairement à un gardien qui bloque le passage).
     const edges = [];
     const seenPairs = new Set();
     knownCities.forEach(city => {
@@ -2627,7 +3053,14 @@ function buildUrbanMapGraphData(urbanMap) {
             const key = [city.id, road.to].sort().join('|');
             if (seenPairs.has(key)) return;
             seenPairs.add(key);
-            edges.push({ from: city.id, to: road.to, distance: road.distance });
+            const edge = { from: city.id, to: road.to, distance: road.distance };
+            if (road.isLair) {
+                const lair = urbanMap.lairsById[road.lairId];
+                edge.marker = lair.cleared
+                    ? { icon: '🏆', variant: 'default' }
+                    : { icon: '💀', variant: 'guarded' };
+            }
+            edges.push(edge);
         });
     });
 
@@ -3848,6 +4281,10 @@ function attemptFlee() {
             logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
             gameState.pendingTravel = null;
         }
+        if (gameState.pendingLairDive) {
+            logEvent("Vous fuyez le repaire, encore intact — il faudra y revenir.", "info");
+            gameState.pendingLairDive = null;
+        }
         updateUI();
     } else {
         logEvent(`Votre fuite échoue ! [${enemy.name}] profite de l'ouverture.`, "danger");
@@ -3910,6 +4347,39 @@ function winCombat() {
         const city = gameState.urbanMap && gameState.urbanMap.citiesById[gameState.pendingUrbanBossCityId];
         if (city) city.defeated = true;
         gameState.pendingUrbanBossCityId = null;
+    }
+
+    // Plongée dans un repaire en cours (voir diveIntoLair()) : enchaîne les combats forcés restants,
+    // puis le boss du repaire, AVANT de reprendre le trajet interrompu (pendingUrbanTravel) ci-dessous
+    // — sinon la victoire sur un simple sbire du repaire serait prise pour l'arrivée à destination.
+    if (gameState.pendingLairDive) {
+        const dive = gameState.pendingLairDive;
+        if (dive.stage === 'trash') {
+            dive.combatsLeft -= 1;
+            if (dive.combatsLeft > 0) {
+                logEvent("Un autre adversaire surgit des décombres du repaire...", "danger");
+                initiateCombat();
+                return;
+            }
+            dive.stage = 'boss';
+            const lair = gameState.urbanMap.lairsById[dive.lairId];
+            if (!lair.bossInstance) {
+                lair.bossInstance = generateBoss(gameState.urbanMap.theme) || generateMob(gameState.urbanMap.theme);
+            }
+            logEvent("Le repaire se calme... jusqu'à ce qu'une présence bien plus dangereuse n'émerge de l'ombre !", "danger");
+            initiateCombat(lair.bossInstance);
+            return;
+        }
+        // dive.stage === 'boss' : le boss du repaire vient de tomber, la plongée est terminée
+        // (butin déjà garanti par la branche wasBoss ci-dessus, comme tout autre boss).
+        const lair = gameState.urbanMap.lairsById[dive.lairId];
+        lair.cleared = true;
+        gameState.pendingLairDive = null;
+        logEvent(`🏆 Le repaire est nettoyé ! Plus rien à craindre sur cette route.`, "success");
+        if (gameState.pendingUrbanTravel) {
+            triggerNextCityAmbushOrArrive();
+            return;
+        }
     }
 
     // Si ce combat faisait partie d'un trajet de retour vers un lieu connu (embuscade),
@@ -4292,6 +4762,14 @@ ui.btnDeclineCompanion.addEventListener('click', declineCompanion);
 ui.btnFleeCompanion.addEventListener('click', fleeCompanionEncounter);
 ui.btnRecruitHostile.addEventListener('click', recruitCompanion);
 ui.btnAttackCompanion.addEventListener('click', attackCompanionEncounter);
+
+// Clics sur l'écran marchand/professeur (ville spécialisée)
+ui.btnTrainSkill.addEventListener('click', trainSkill);
+ui.btnLeaveShop.addEventListener('click', leaveShop);
+
+// Clics sur le choix "plonger/poursuivre" d'un repaire repéré sur la route
+ui.btnDiveLair.addEventListener('click', diveIntoLair);
+ui.btnDeclineLair.addEventListener('click', declineLair);
 
 // Clic sur le kit de test (bouton discret)
 ui.btnDevTestKit.addEventListener('click', giveTestKit);
