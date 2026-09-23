@@ -97,7 +97,7 @@ const gameState = {
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 17, label: "Rééquilibrage : kiting, XP, régén, élites, furtivité, magie, loot" };
+const APP_VERSION = { pr: 18, label: "Carte Urbaine : gabarit fixe + fond de ville + caméra" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -2071,23 +2071,66 @@ function computeGraphLayout(nodeIds, edges, existingPositions = {}) {
 // Rendu SVG générique d'un graphe déjà disposé (voir computeGraphLayout()) dans un <svg> existant
 // (viewBox supposé "0 0 200 240", voir index.html) : `nodes` = [{id, label, icon, variant}],
 // `edges` = [{from, to, distance}] (distance optionnelle, affichée seulement sur les arêtes reliées
-// au nœud courant pour ne pas surcharger l'affichage), `positions` = {id:{x,y}} (0..1, voir
-// computeGraphLayout()), `currentId` = nœud où l'on se trouve (mis en évidence, jamais cliquable).
-// `variant` ('guarded'/'goal'/'default') ne pilote que la couleur des nœuds autres que le courant.
-// `onNodeClick(id)` est appelé au clic sur n'importe quel autre nœud — aucune notion de "voisin
-// direct" ici, sans connaissance du jeu : c'est à l'appelant de décider ce qu'un clic déclenche.
+// au nœud courant pour ne pas surcharger l'affichage), `positions` = {id:{x,y}} (0..1, fixes ou
+// calculées — voir computeGraphLayout()), `currentId` = nœud où l'on se trouve (mis en évidence,
+// jamais cliquable). `variant` ('guarded'/'goal'/'default') pilote la couleur des nœuds autres que
+// le courant ; `goalIcon` (optionnel) dessine en plus un petit marqueur décalé sur l'arête d'accès du
+// nœud plutôt que dans son propre cercle (ex : un gardien "posté sur la route" plutôt que confondu
+// avec la ville qu'il garde). `onNodeClick(id)` est appelé au clic sur n'importe quel autre nœud —
+// aucune notion de "voisin direct" ici, sans connaissance du jeu : c'est à l'appelant de décider ce
+// qu'un clic déclenche. `focusId`/`viewSpan` (optionnels) centrent la vue (viewBox) sur un nœud
+// donné plutôt que d'afficher tout l'espace normalisé 0..1 — la "caméra" suit ainsi le nœud courant
+// pendant que le reste (positions, fond) ne bouge jamais, plutôt que de recalculer une disposition.
+// `background` (optionnel, {rects, lines} en coordonnées normalisées 0..1) dessine une texture
+// décorative sous les arêtes/nœuds — aucune connaissance du jeu non plus, l'appelant fournit le motif.
 const GRAPH_MINIMAP_VARIANT_COLORS = {
     current: { fill: "#1d4ed8", stroke: "#93c5fd" },
     guarded: { fill: "#7f1d1d", stroke: "#f87171" },
     goal: { fill: "#78350f", stroke: "#fbbf24" },
     default: { fill: "#111827", stroke: "#4b5563" },
 };
-function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeClick }) {
+function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeClick, focusId, viewSpan, background }) {
     if (!svgEl) return;
     svgEl.innerHTML = "";
     const W = 200, H = 240;
     const toPx = (p) => ({ x: p.x * W, y: p.y * H });
     const svgNS = "http://www.w3.org/2000/svg";
+
+    // Caméra : par défaut la vue couvre tout le cadre normalisé (0..1) ; avec focusId, elle se
+    // recentre sur ce nœud (écrêtée pour ne jamais sortir du cadre) sur une fenêtre de taille
+    // viewSpan (fraction de 0..1, 1 = vue complète).
+    const focusPos = focusId && positions[focusId];
+    const span = Math.max(0.05, Math.min(1, viewSpan || 1));
+    if (focusPos) {
+        const half = span / 2;
+        const cx = Math.min(1 - half, Math.max(half, focusPos.x));
+        const cy = Math.min(1 - half, Math.max(half, focusPos.y));
+        svgEl.setAttribute("viewBox", `${(cx - half) * W} ${(cy - half) * H} ${span * W} ${span * H}`);
+    } else {
+        svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    }
+
+    if (background) {
+        const bgGroup = document.createElementNS(svgNS, "g");
+        (background.rects || []).forEach(r => {
+            const rect = document.createElementNS(svgNS, "rect");
+            rect.setAttribute("x", r.x * W); rect.setAttribute("y", r.y * H);
+            rect.setAttribute("width", r.w * W); rect.setAttribute("height", r.h * H);
+            rect.setAttribute("fill", "#1f2937");
+            rect.setAttribute("opacity", r.opacity ?? 0.3);
+            bgGroup.appendChild(rect);
+        });
+        (background.lines || []).forEach(l => {
+            const line = document.createElementNS(svgNS, "line");
+            line.setAttribute("x1", l.x1 * W); line.setAttribute("y1", l.y1 * H);
+            line.setAttribute("x2", l.x2 * W); line.setAttribute("y2", l.y2 * H);
+            line.setAttribute("stroke", "#1f2937");
+            line.setAttribute("stroke-width", "3");
+            line.setAttribute("opacity", "0.5");
+            bgGroup.appendChild(line);
+        });
+        svgEl.appendChild(bgGroup);
+    }
 
     const edgesGroup = document.createElementNS(svgNS, "g");
     edges.forEach(e => {
@@ -2119,10 +2162,14 @@ function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeC
         if (!pos) return;
         const p = toPx(pos);
         const isCurrent = node.id === currentId;
-        const colors = GRAPH_MINIMAP_VARIANT_COLORS[isCurrent ? 'current' : (node.variant || 'default')];
+        // La ville elle-même reste "normale" (couleur par défaut) même gardée : c'est le marqueur à
+        // part (voir plus bas) qui porte la couleur guarded/goal, posté sur la route plutôt que
+        // confondu avec la ville.
+        const colors = GRAPH_MINIMAP_VARIANT_COLORS[isCurrent ? 'current' : 'default'];
 
         const g = document.createElementNS(svgNS, "g");
         g.setAttribute("transform", `translate(${p.x}, ${p.y})`);
+        g.setAttribute("data-node-id", node.id); // Repère fiable pour retrouver ce nœud (tests, debug)
         if (!isCurrent) {
             g.style.cursor = "pointer";
             g.addEventListener('click', () => { if (onNodeClick) onNodeClick(node.id); });
@@ -2155,6 +2202,45 @@ function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeC
         }
 
         nodesGroup.appendChild(g);
+
+        // Marqueur de gardien : décalé d'une distance FIXE en pixels (pas un pourcentage du chemin —
+        // une route courte collerait sinon le marqueur contre le cercle de la ville) en direction
+        // d'un voisin, sur SA route d'accès plutôt que confondu avec le cercle de la ville — "posté
+        // sur la route". Couleur guarded/goal portée ici, jamais par la ville elle-même (voir plus haut).
+        if (node.goalIcon) {
+            const MARKER_OFFSET_PX = 20;
+            const neighborEdge = edges.find(e => e.from === node.id || e.to === node.id);
+            const neighborId = neighborEdge && (neighborEdge.from === node.id ? neighborEdge.to : neighborEdge.from);
+            const neighborPos = neighborId && positions[neighborId];
+            let markerPos = p;
+            if (neighborPos) {
+                const nPx = toPx(neighborPos);
+                const dx = p.x - nPx.x, dy = p.y - nPx.y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                markerPos = { x: p.x - (dx / dist) * MARKER_OFFSET_PX, y: p.y - (dy / dist) * MARKER_OFFSET_PX };
+            }
+            const markerColors = GRAPH_MINIMAP_VARIANT_COLORS[node.variant || 'default'];
+
+            const marker = document.createElementNS(svgNS, "g");
+            marker.setAttribute("transform", `translate(${markerPos.x}, ${markerPos.y})`);
+            if (!isCurrent) {
+                marker.style.cursor = "pointer";
+                marker.addEventListener('click', () => { if (onNodeClick) onNodeClick(node.id); });
+            }
+            const markerCircle = document.createElementNS(svgNS, "circle");
+            markerCircle.setAttribute("r", "8");
+            markerCircle.setAttribute("fill", "#111827");
+            markerCircle.setAttribute("stroke", markerColors.stroke);
+            markerCircle.setAttribute("stroke-width", "1.5");
+            marker.appendChild(markerCircle);
+            const markerIcon = document.createElementNS(svgNS, "text");
+            markerIcon.setAttribute("text-anchor", "middle");
+            markerIcon.setAttribute("dominant-baseline", "central");
+            markerIcon.setAttribute("font-size", "9");
+            markerIcon.textContent = node.goalIcon;
+            marker.appendChild(markerIcon);
+            nodesGroup.appendChild(marker);
+        }
     });
 
     svgEl.appendChild(edgesGroup);
@@ -2171,6 +2257,64 @@ const URBAN_CITY_NAMES = [
     "Centre Commercial Abandonné", "Faubourg", "Le Ghetto", "Quartier des Affaires",
     "Banlieue Résidentielle", "Port Fluvial", "Terminus"
 ];
+
+// Gabarit FIXE de positions (coordonnées normalisées 0..1) représentant les quartiers possibles
+// d'une seule et même "grande ville", commun à toutes les parties/étages urbains : à chaque
+// génération, seuls `cityCount` de ces points sont TIRÉS et reliés (voir generateUrbanFloorMap()),
+// jamais recalculés/déplacés ensuite (contrairement à l'ancien layout "force-directed", qui faisait
+// bouger la position relative des nœuds à chaque rendu). Une poignée de points de plus que le
+// maximum de villes par étage (6 à 8, voir cityCount), pour varier la répartition/les distances
+// d'une partie à l'autre malgré un gabarit partagé. Disposition organique (pas une grille) : un
+// noyau central + plusieurs couronnes, pour évoquer un vrai plan de ville à l'écran.
+const URBAN_MAP_TEMPLATE_POINTS = [
+    { x: 0.50, y: 0.50 },
+    { x: 0.38, y: 0.40 }, { x: 0.63, y: 0.38 }, { x: 0.44, y: 0.63 }, { x: 0.59, y: 0.60 },
+    { x: 0.23, y: 0.27 }, { x: 0.78, y: 0.25 }, { x: 0.21, y: 0.73 }, { x: 0.80, y: 0.74 },
+    { x: 0.14, y: 0.50 }, { x: 0.86, y: 0.49 }, { x: 0.49, y: 0.14 }, { x: 0.51, y: 0.86 },
+    { x: 0.30, y: 0.11 }, { x: 0.71, y: 0.12 }, { x: 0.11, y: 0.30 }, { x: 0.89, y: 0.31 },
+    { x: 0.31, y: 0.89 }, { x: 0.70, y: 0.88 }, { x: 0.11, y: 0.69 }, { x: 0.88, y: 0.70 }
+];
+
+// PRNG déterministe minimal (mulberry32) : sert UNIQUEMENT à générer le fond de carte décoratif
+// (voir URBAN_MAP_BACKGROUND) toujours avec le même résultat — jamais Math.random() ici, sans quoi
+// le fond "sauterait" à chaque rafraîchissement au lieu de rester la texture fixe d'une seule et
+// même grande ville.
+function mulberry32(seed) {
+    let a = seed;
+    return function () {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+// Fond de carte décoratif "grande ville" (pâtés de maisons + quelques avenues), générique en soi
+// (voir renderGraphMiniMap() : un simple bloc de rectangles/lignes normalisés 0..1, sans connaissance
+// du jeu) mais calculé UNE FOIS ici avec un seed fixe pour rester rigoureusement identique d'une
+// partie à l'autre — la même ville, seuls les quartiers accessibles diffèrent.
+const URBAN_MAP_BACKGROUND = (() => {
+    const rand = mulberry32(20260923);
+    const rects = [];
+    for (let i = 0; i < 55; i++) {
+        const w = 0.02 + rand() * 0.05;
+        const h = 0.02 + rand() * 0.05;
+        rects.push({
+            x: rand() * (1 - w), y: rand() * (1 - h), w, h,
+            opacity: 0.25 + rand() * 0.35
+        });
+    }
+    // Quelques grandes avenues traversantes, pour casser la texture uniforme des pâtés de maisons
+    const lines = [];
+    for (let i = 0; i < 4; i++) {
+        const horizontal = i % 2 === 0;
+        const at = 0.15 + rand() * 0.7;
+        lines.push(horizontal
+            ? { x1: 0, y1: at, x2: 1, y2: at }
+            : { x1: at, y1: 0, x2: at, y2: 1 });
+    }
+    return { rects, lines };
+})();
 
 // Ajoute une route bidirectionnelle entre deux villes (aucun doublon), avec une distance 1-4 —
 // même échelle que le coût de trajet des lieux connus classiques (voir travelToKnownLocation()).
@@ -2202,14 +2346,21 @@ function generateUrbanFloorMap() {
 
     const cityCount = 6 + Math.floor(floor / 9); // Légère croissance avec la profondeur
     const namePool = [...URBAN_CITY_NAMES];
+    // Points tirés sans répétition dans le gabarit fixe (voir URBAN_MAP_TEMPLATE_POINTS) : la
+    // position de chaque ville est donc fixée une fois pour toutes à la génération, jamais
+    // recalculée — seule la SÉLECTION (et donc la répartition/les distances) varie d'une partie à
+    // l'autre.
+    const pointPool = [...URBAN_MAP_TEMPLATE_POINTS];
     const citiesById = {};
     const cityIds = [];
     for (let i = 0; i < cityCount; i++) {
         const id = `city-${i}`;
         const nameIndex = Math.floor(Math.random() * namePool.length);
         const name = namePool.splice(nameIndex, 1)[0] || `Secteur ${i + 1}`;
+        const pointIndex = Math.floor(Math.random() * pointPool.length);
+        const point = pointPool.splice(pointIndex, 1)[0];
         citiesById[id] = {
-            id, name, visited: false, known: false, roads: [],
+            id, name, x: point.x, y: point.y, visited: false, known: false, roads: [],
             isStairs: false, isExit: false, guarded: false, bossInstance: null, defeated: false
         };
         cityIds.push(id);
@@ -2449,16 +2600,21 @@ function buildUrbanMapGraphData(urbanMap) {
     const knownCities = Object.values(urbanMap.citiesById).filter(c => c.known);
     const knownIds = new Set(knownCities.map(c => c.id));
 
+    const positions = {};
+    // `icon` reste générique (toujours 🏙️, un quartier normal) : le marqueur de gardien
+    // (`goalIcon`) est rendu à PART par renderGraphMiniMap(), décalé sur la route d'accès plutôt que
+    // dans le cercle de la ville elle-même — "les boss sont positionnés à côté des routes".
     const nodes = knownCities.map(city => {
-        let icon = '🏙️', variant = 'default';
+        positions[city.id] = { x: city.x, y: city.y };
+        let variant = 'default', goalIcon = null;
         if (city.isStairs || city.isExit) {
             if (city.guarded && !city.defeated) {
-                icon = '👑'; variant = 'guarded';
+                variant = 'guarded'; goalIcon = '👑';
             } else {
-                icon = city.isExit ? '🚪' : '🪜'; variant = 'goal';
+                variant = 'goal'; goalIcon = city.isExit ? '🚪' : '🪜';
             }
         }
-        return { id: city.id, label: city.name, icon, variant };
+        return { id: city.id, label: city.name, icon: '🏙️', variant, goalIcon };
     });
 
     // Une arête par route reliant deux villes CONNUES (pas de brouillard sur les routes déjà
@@ -2475,7 +2631,7 @@ function buildUrbanMapGraphData(urbanMap) {
         });
     });
 
-    return { nodes, edges };
+    return { nodes, edges, positions };
 }
 
 // Reconstruit la Carte Urbaine : dispose (computeGraphLayout(), en repartant de la disposition
@@ -2487,12 +2643,15 @@ function updateUrbanMapUI() {
     const urbanMap = gameState.urbanMap;
     if (!urbanMap) { ui.urbanMapSvg.innerHTML = ""; return; }
 
-    const { nodes, edges } = buildUrbanMapGraphData(urbanMap);
-    urbanMap.mapLayout = computeGraphLayout(nodes.map(n => n.id), edges, urbanMap.mapLayout || {});
+    // Positions FIXES (voir URBAN_MAP_TEMPLATE_POINTS/generateUrbanFloorMap()) : plus de layout à
+    // calculer ici, buildUrbanMapGraphData() les lit directement sur chaque ville.
+    const { nodes, edges, positions } = buildUrbanMapGraphData(urbanMap);
 
     renderGraphMiniMap(ui.urbanMapSvg, {
-        nodes, edges, positions: urbanMap.mapLayout, currentId: urbanMap.currentCityId,
+        nodes, edges, positions, currentId: urbanMap.currentCityId,
         onNodeClick: (cityId) => travelToCity(cityId),
+        focusId: urbanMap.currentCityId, viewSpan: 0.62, // Caméra centrée sur la ville courante
+        background: URBAN_MAP_BACKGROUND,
     });
 }
 
