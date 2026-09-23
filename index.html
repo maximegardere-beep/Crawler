@@ -607,7 +607,11 @@
             <h1 class="text-2xl font-black text-blue-400 uppercase tracking-widest mb-1 drop-shadow-[0_0_10px_rgba(96,165,250,0.6)]">Bienvenue, Crawler</h1>
             <p class="text-sm text-gray-400 mb-4">Le Donjon vous attend. Déclinez votre identité pour le public.</p>
             <input id="start-name-input" type="text" maxlength="24" placeholder="CRAWLER_01"
-                   class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-center text-gray-100 placeholder-gray-600 uppercase tracking-wider mb-4 focus:outline-none focus:border-blue-500">
+                   class="w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-2 text-center text-gray-100 placeholder-gray-600 uppercase tracking-wider mb-2 focus:outline-none focus:border-blue-500">
+            <!-- Indice de sauvegardes existantes (voir listSavedCrawlerNames() dans app.js) : retaper
+                 le nom exact d'un crawler déjà sauvegardé reprend sa partie au lieu d'en démarrer une
+                 nouvelle (confirmPlayerName()). -->
+            <p id="start-saves-hint" class="hidden text-[10px] text-gray-600 mb-3"></p>
             <button id="btn-start-confirm" class="w-full py-3 bg-blue-900/40 border-2 border-blue-600 rounded-lg text-blue-300 font-bold uppercase tracking-widest hover:bg-blue-800/50 active:scale-95 transition-all">
                 Entrer dans le Donjon
             </button>
@@ -647,12 +651,12 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=43"></script>
-    <script src="items.js?v=43"></script>
-    <script src="spells.js?v=43"></script>
-    <script src="districts.js?v=43"></script>
-    <script src="safehouses.js?v=43"></script>
-    <script src="generator.js?v=43"></script>
-    <script src="app.js?v=43"></script>
+    <script src="bestiary.js?v=44"></script>
+    <script src="items.js?v=44"></script>
+    <script src="spells.js?v=44"></script>
+    <script src="districts.js?v=44"></script>
+    <script src="safehouses.js?v=44"></script>
+    <script src="generator.js?v=44"></script>
+    <script src="app.js?v=44"></script>
 </body>
 </html>

@@ -79,7 +79,11 @@ const gameState = {
     floorMap: null,
     companion: null, // Compagnon actuellement recruté (ou null)
     pendingCompanionCandidate: null, // Candidat en attente de décision (recruter/laisser/fuir/attaquer)
-    companionChoicePending: false // Une décision de compagnon est en attente
+    companionChoicePending: false, // Une décision de compagnon est en attente
+    // Autosauvegarde (voir saveGame()) : faux pendant l'initialisation silencieuse au chargement de
+    // la page (avant que le joueur n'ait confirmé son nom), pour ne jamais écraser une sauvegarde
+    // existante avec un état par défaut. Activé par confirmPlayerName()/restoreSaveForName().
+    saveEnabled: false
 };
 
 // ==========================================
@@ -324,6 +328,7 @@ const ui = {
     combatManaBar: document.getElementById('combat-mana-bar'),
     startScreenOverlay: document.getElementById('start-screen-overlay'),
     startNameInput: document.getElementById('start-name-input'),
+    startSavesHint: document.getElementById('start-saves-hint'),
     btnStartConfirm: document.getElementById('btn-start-confirm'),
     giftRevealOverlay: document.getElementById('gift-reveal-overlay'),
     giftRevealIcon: document.getElementById('gift-reveal-icon'),
@@ -362,6 +367,102 @@ function applyScreenStateEffects() {
     for (const cls in classes) {
         ui.screenFxOverlay.classList.toggle(cls, classes[cls]);
     }
+}
+
+// ==========================================
+// SAUVEGARDE (localStorage, une entrée par nom de crawler)
+// ==========================================
+// Une sauvegarde par nom de crawler (saisi sur l'écran de départ, voir confirmPlayerName()) :
+// c'est le nom qui identifie la partie, pas un slot numéroté. Clé normalisée (espaces + casse
+// ignorés) pour que "Barbara" et "barbara " pointent vers la même sauvegarde, tout en conservant la
+// casse d'origine dans gameState.playerName (restaurée depuis le JSON, jamais depuis la saisie).
+const SAVE_KEY_PREFIX = 'crawler-save::';
+
+function saveKeyForName(name) {
+    return SAVE_KEY_PREFIX + name.trim().toLowerCase();
+}
+
+// Sauvegarde tout gameState tel quel (y compris un éventuel combat en cours) : restoreSaveForName()
+// se charge de nettoyer l'état transitoire au chargement plutôt que d'essayer de ne jamais sauver
+// en pleine action, ce qui serait bien plus fragile (nombreux points d'appel à traquer).
+function saveGame() {
+    if (!gameState.saveEnabled || !gameState.playerName) return;
+    try {
+        localStorage.setItem(saveKeyForName(gameState.playerName), JSON.stringify(gameState));
+    } catch (e) {
+        // Quota dépassé ou localStorage indisponible (navigation privée, contexte restreint...) :
+        // on continue à jouer sans persistance plutôt que de planter.
+    }
+}
+
+function hasSaveForName(name) {
+    if (!name || !name.trim()) return false;
+    try {
+        return localStorage.getItem(saveKeyForName(name)) !== null;
+    } catch (e) {
+        return false;
+    }
+}
+
+// Restaure une sauvegarde par-dessus le gameState courant (Object.assign, pas un remplacement pur :
+// un champ absent d'une ancienne sauvegarde garde sa valeur par défaut plutôt que de devenir
+// undefined). Atterrit TOUJOURS sur l'écran d'exploration normal, jamais en plein combat ni sur un
+// choix bloquant, même si la sauvegarde datait d'un de ces instants.
+function restoreSaveForName(name) {
+    let raw;
+    try {
+        raw = localStorage.getItem(saveKeyForName(name));
+    } catch (e) {
+        return false;
+    }
+    if (!raw) return false;
+
+    let saved;
+    try {
+        saved = JSON.parse(raw);
+    } catch (e) {
+        return false; // Sauvegarde corrompue : on ignore plutôt que de planter
+    }
+
+    Object.assign(gameState, saved);
+
+    // Nettoyage de l'état transitoire/bloquant
+    gameState.inCombat = false;
+    gameState.currentEnemy = null;
+    gameState.combatDistance = 0;
+    gameState.bossChoicePending = false;
+    gameState.pendingBossEncounter = null;
+    gameState.stealthChoicePending = false;
+    gameState.pendingStealthEncounter = null;
+    gameState.pendingSneakAttack = false;
+    gameState.companionChoicePending = false;
+    gameState.pendingCompanionCandidate = null;
+    gameState.pendingTravel = null;
+
+    gameState.saveEnabled = true; // Réactive l'autosave après une restauration réussie
+    return true;
+}
+
+// Noms des crawlers ayant une sauvegarde (indice affiché sur l'écran de départ) : on relit
+// directement gameState.playerName DANS chaque sauvegarde plutôt que la clé normalisée, pour
+// afficher la casse d'origine.
+function listSavedCrawlerNames() {
+    const names = [];
+    try {
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key || !key.startsWith(SAVE_KEY_PREFIX)) continue;
+            try {
+                const saved = JSON.parse(localStorage.getItem(key));
+                if (saved && saved.playerName) names.push(saved.playerName);
+            } catch (e) {
+                // Entrée corrompue : ignorée plutôt que de faire échouer toute la liste
+            }
+        }
+    } catch (e) {
+        // localStorage indisponible : liste vide, pas d'erreur
+    }
+    return names;
 }
 
 function updateUI() {
@@ -605,6 +706,11 @@ function updateUI() {
     // Les distances affichées dans "Lieux connus" dépendent de la position actuelle : on les
     // rafraîchit à chaque rendu pour qu'elles restent toujours à jour sans action explicite.
     updateKnownLocationsUI();
+
+    // Autosauvegarde (no-op tant que gameState.saveEnabled est faux, voir confirmPlayerName() /
+    // restoreSaveForName()) : updateUI() est déjà appelée après quasiment toute action modifiant
+    // l'état, donc un seul point d'accroche suffit à couvrir toute la boucle de jeu.
+    saveGame();
 }
 
 // Affiche un résultat de dégâts sous forme de "dé" avec une petite animation, sur le panneau
@@ -3115,13 +3221,27 @@ function rollWelcomeGiftType() {
     return 'nothing';
 }
 
-// Confirme le nom du crawler (écran de départ) puis enchaîne directement sur le cadeau de
-// bienvenue : le reste de la partie (carte d'étage, etc.) est déjà initialisé en arrière-plan
-// (voir le lancement du jeu en bas de ce fichier), donc rien d'autre à faire ici.
+// Confirme le nom du crawler (écran de départ). Le nom EST l'identifiant de sauvegarde (voir
+// saveKeyForName()) : s'il correspond à une partie déjà sauvegardée, on la restaure directement
+// (aucun cadeau de bienvenue pour une partie reprise) ; sinon on enchaîne sur le cadeau de bienvenue
+// d'un nouveau crawler, comme avant. Le reste de la partie (carte d'étage, etc.) est déjà initialisé
+// en arrière-plan (voir le lancement du jeu en bas de ce fichier) dans les deux cas.
 function confirmPlayerName() {
     const raw = ui.startNameInput ? ui.startNameInput.value.trim() : "";
+
+    if (raw && hasSaveForName(raw)) {
+        restoreSaveForName(raw);
+        if (ui.startScreenOverlay) ui.startScreenOverlay.classList.add('hidden');
+        logEvent(`Sauvegarde de [${gameState.playerName}] restaurée. Bon retour dans le Donjon.`, "success");
+        updateUI();
+        updateInventoryUI();
+        updateSpellbookUI();
+        return;
+    }
+
     gameState.playerName = raw || gameState.playerName || "CRAWLER_01";
     if (ui.startScreenOverlay) ui.startScreenOverlay.classList.add('hidden');
+    gameState.saveEnabled = true;
     updateUI();
     revealWelcomeGift();
 }
@@ -3260,4 +3380,11 @@ updateInventoryUI();
 updateSpellbookUI();
 updateKnownLocationsUI();
 updateCompanionUI();
+
+// Indice de sauvegardes existantes sur l'écran de départ (voir listSavedCrawlerNames())
+if (ui.startSavesHint) {
+    const savedNames = listSavedCrawlerNames();
+    ui.startSavesHint.classList.toggle('hidden', savedNames.length === 0);
+    ui.startSavesHint.innerText = savedNames.length ? `Sauvegardes disponibles : ${savedNames.join(', ')}` : '';
+}
 
