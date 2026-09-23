@@ -313,7 +313,7 @@ const ui = {
     combatDistancePlayerIcon: document.getElementById('combat-distance-player-icon'),
     combatDistanceEnemyIcon: document.getElementById('combat-distance-enemy-icon'),
     equippedRanged: document.getElementById('equipped-ranged'),
-    btnDevLogs: document.getElementById('btn-dev-logs'),
+    btnDevTestKit: document.getElementById('btn-dev-testkit'),
     equippedSpell: document.getElementById('equipped-spell'),
     spellbookCards: document.getElementById('spellbook-cards'),
     manaBarWrapper: document.getElementById('mana-bar-wrapper'),
@@ -3161,6 +3161,22 @@ function dismissGiftReveal() {
     if (ui.giftRevealOverlay) ui.giftRevealOverlay.classList.add('hidden');
 }
 
+// Kit de test (bouton discret, voir index.html) : équipe directement 1 arme, 1 arme à distance et 1
+// sort, tous au palier Légendaire (pleinement enchantés, mana au max), pour tester les mécaniques de
+// combat sans dépendre du loot aléatoire. Outil de développement uniquement, sans lien avec la
+// progression normale d'une run — voir generateTestKitItem()/generateTestKitSpell() (generator.js).
+function giveTestKit() {
+    gameState.equipment.weapon = generateTestKitItem('weapons');
+    gameState.equipment.ranged = generateTestKitItem('ranged');
+    gameState.equipment.spell = generateTestKitSpell();
+    gameState.mana = gameState.maxMana;
+
+    logEvent("🧪 Kit de test : arme, arme à distance et sort légendaires équipés.", "info");
+    updateUI();
+    updateInventoryUI();
+    updateSpellbookUI();
+}
+
 function gameOver(timeout = false) {
     gameState.inCombat = true; // Bloque toute action supplémentaire
     ui.combatZone.classList.add('hidden'); // Cache la zone de combat
@@ -3234,12 +3250,8 @@ ui.btnFleeCompanion.addEventListener('click', fleeCompanionEncounter);
 ui.btnRecruitHostile.addEventListener('click', recruitCompanion);
 ui.btnAttackCompanion.addEventListener('click', attackCompanionEncounter);
 
-// Clic sur l'export des logs Dev
-ui.btnDevLogs.addEventListener('click', () => {
-    console.log("--- LOGS DE DÉVELOPPEMENT ---");
-    console.table(gameState);
-    logEvent("Statistiques système exportées dans la console (F12).", "info");
-});
+// Clic sur le kit de test (bouton discret)
+ui.btnDevTestKit.addEventListener('click', giveTestKit);
 
 // Lancement du jeu
 generateFloorMap();
