@@ -64,4 +64,18 @@ global.location = { reload: () => {} };
 global.window = global;
 global.console = console;
 
+// Stub minimal de l'API Web Storage (localStorage), utilisée par le système de sauvegarde
+// (saveGame()/restoreSaveForName() dans app.js). En mémoire pour la durée du process Node.
+global.localStorage = (() => {
+    let store = {};
+    return {
+        getItem(key) { return Object.prototype.hasOwnProperty.call(store, key) ? store[key] : null; },
+        setItem(key, value) { store[key] = String(value); },
+        removeItem(key) { delete store[key]; },
+        clear() { store = {}; },
+        key(index) { return Object.keys(store)[index] || null; },
+        get length() { return Object.keys(store).length; }
+    };
+})();
+
 module.exports = { makeEl };

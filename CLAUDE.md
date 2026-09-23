@@ -65,6 +65,16 @@ Tailwind CDN, **aucun build step**.
   `generator.js`, toujours au palier Commun), avec une blague sarcastique par type
   (`flavorText.welcomeGift`). `resetGame()` recharge la page : l'écran de départ réapparaît
   naturellement à chaque nouvelle partie.
+- **Sauvegarde** : une entrée `localStorage` par nom de crawler (`SAVE_KEY_PREFIX`,
+  `saveKeyForName()` — casse/espaces ignorés à la clé, casse d'origine conservée dans le JSON).
+  Autosauvegarde via `saveGame()`, appelée en dernière ligne d'`updateUI()` (déjà invoquée après
+  quasiment toute action) ; no-op tant que `gameState.saveEnabled` est faux, pour ne jamais écraser
+  une sauvegarde pendant l'initialisation silencieuse au chargement, avant que le joueur n'ait
+  confirmé son nom. `confirmPlayerName()` vérifie si le nom saisi correspond à une sauvegarde
+  (`hasSaveForName()`) : si oui, `restoreSaveForName()` la restaure directement (aucun cadeau de
+  bienvenue) ; sinon, nouveau crawler comme avant. La restauration nettoie systématiquement tout état
+  transitoire/bloquant (combat en cours, choix en attente) : on atterrit toujours sur l'écran
+  d'exploration normal. `listSavedCrawlerNames()` alimente l'indice affiché sur l'écran de départ.
 
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).
