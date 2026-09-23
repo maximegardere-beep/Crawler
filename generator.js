@@ -309,6 +309,41 @@ function generateSpellScroll(powerScore = 0) {
     return scroll;
 }
 
+/**
+ * Génère l'objet du cadeau de bienvenue (écran de départ, voir revealWelcomeGift() dans app.js).
+ * `type` ('weapon'/'ranged'/'spell', jamais 'nothing' — géré à part par l'appelant) est déjà tiré au
+ * hasard pondéré par rollWelcomeGiftType() ; cette fonction ne fait que construire l'objet, toujours
+ * au palier de rareté le plus faible (Commun, aucun enchantement) — "toujours faible qualité", quel
+ * que soit le type tiré.
+ *
+ * @param {string} type - 'weapon' | 'ranged' | 'spell'
+ * @returns {object|null}
+ */
+function generateWelcomeGiftItem(type) {
+    const commun = itemRarities[0];
+    if (type === 'weapon' || type === 'ranged') {
+        const categoryName = type === 'weapon' ? 'weapons' : 'ranged';
+        const pool = baseItems[categoryName];
+        const finalItem = JSON.parse(JSON.stringify(pool[Math.floor(Math.random() * pool.length)]));
+        finalItem.category = categoryName;
+        finalItem.rarity = commun.name;
+        finalItem.rarityColor = commun.color;
+        return finalItem;
+    }
+    if (type === 'spell') {
+        const base = spellCatalog[Math.floor(Math.random() * spellCatalog.length)];
+        const scroll = JSON.parse(JSON.stringify(base));
+        scroll.category = 'scrolls';
+        scroll.spellCategory = base.category;
+        scroll.spellName = base.name;
+        scroll.rarity = commun.name;
+        scroll.rarityColor = commun.color;
+        scroll.name = `Parchemin : ${base.name}`;
+        return scroll;
+    }
+    return null;
+}
+
 // ==========================================
 // 3. GÉNÉRATION DES COMPAGNONS (CRAWLERS RENCONTRÉS)
 // ==========================================

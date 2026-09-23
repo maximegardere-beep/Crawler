@@ -179,7 +179,36 @@ const flavorText = {
         "Vous croisez un panneau publicitaire vantant les mérites du Donjon.",
         "Une voix off anonyme commente votre progression, indifférente.",
         "Un vieux poster décoloré affiche le règlement de l'émission, illisible."
-    ]
+    ],
+    // Blagues sarcastiques accompagnant le cadeau de bienvenue de l'écran de départ (voir
+    // revealWelcomeGift()), une par type de cadeau possible — même ton que audienceGift/flavorOnly
+    // ci-dessus (émission de téléréalité indifférente au sort du candidat).
+    welcomeGift: {
+        weapon: [
+            "Le sponsor a économisé sur la qualité. Sans doute pour financer le champagne des producteurs.",
+            "Cadeau certifié \"à peine fonctionnel\" par le service qualité du Donjon.",
+            "L'audience trouve ça \"charmant\". Vous, vous trouvez ça inquiétant.",
+            "Fabriqué avec amour. Et probablement du scotch."
+        ],
+        ranged: [
+            "Portée maximale : optimiste. Précision : discutable. Ambiance : garantie.",
+            "Le stagiaire chargé du stock d'armes a fait ce qu'il a pu avec ce qu'il restait.",
+            "Ceci a été \"testé\" par un précédent candidat. Il n'a pas survécu pour donner son avis.",
+            "Le règlement exige un cadeau à distance. Personne n'a précisé qu'il devait toucher sa cible."
+        ],
+        spell: [
+            "Un parchemin visiblement récupéré dans les objets trouvés d'un crawler précédent. Paix à son âme.",
+            "La magie, ça se mérite. Ceci, en revanche, ça se subit.",
+            "Le service magie du Donjon vous souhaite \"bonne chance\", entre guillemets bien sentis.",
+            "Testé en interne. Les résultats n'ont pas été jugés diffusables à l'antenne."
+        ],
+        nothing: [
+            "Le budget cadeaux a été réaffecté aux paris des spectateurs sur votre espérance de vie.",
+            "Le Donjon vous souhaite la bienvenue. C'est tout. C'est le cadeau.",
+            "Un stagiaire a \"oublié\" votre cadeau. Le Donjon présente ses excuses, pas un remplacement.",
+            "Sponsorisé par personne. Financé par rien. Bienvenue quand même."
+        ]
+    }
 };
 
 // Choisit un élément au hasard dans un tableau
@@ -292,7 +321,16 @@ const ui = {
     manaBar: document.getElementById('mana-bar'),
     combatManaWrapper: document.getElementById('combat-mana-wrapper'),
     combatManaText: document.getElementById('combat-mana-text'),
-    combatManaBar: document.getElementById('combat-mana-bar')
+    combatManaBar: document.getElementById('combat-mana-bar'),
+    startScreenOverlay: document.getElementById('start-screen-overlay'),
+    startNameInput: document.getElementById('start-name-input'),
+    btnStartConfirm: document.getElementById('btn-start-confirm'),
+    giftRevealOverlay: document.getElementById('gift-reveal-overlay'),
+    giftRevealIcon: document.getElementById('gift-reveal-icon'),
+    giftRevealTitle: document.getElementById('gift-reveal-title'),
+    giftRevealItemName: document.getElementById('gift-reveal-item-name'),
+    giftRevealJoke: document.getElementById('gift-reveal-joke'),
+    btnGiftContinue: document.getElementById('btn-gift-continue')
 };
 
 // ==========================================
@@ -3058,6 +3096,71 @@ function explore() {
     autoTravelToNearestFrontier();
 }
 
+// ==========================================
+// ÉCRAN DE DÉPART ET CADEAU DE BIENVENUE
+// ==========================================
+// Poids du cadeau de bienvenue (#start-screen-overlay -> #gift-reveal-overlay) : Arme > Rien > Tir >
+// Magie, comme demandé. Valeurs de départ, ajustables par playtest comme le reste de l'équilibrage
+// du jeu (voir generateWelcomeGiftItem() dans generator.js : toujours au palier Commun, quel que
+// soit le type tiré ici).
+const WELCOME_GIFT_WEIGHTS = { weapon: 40, nothing: 30, ranged: 20, spell: 10 };
+
+function rollWelcomeGiftType() {
+    const total = Object.values(WELCOME_GIFT_WEIGHTS).reduce((sum, w) => sum + w, 0);
+    let roll = Math.random() * total;
+    for (const type in WELCOME_GIFT_WEIGHTS) {
+        if (roll < WELCOME_GIFT_WEIGHTS[type]) return type;
+        roll -= WELCOME_GIFT_WEIGHTS[type];
+    }
+    return 'nothing';
+}
+
+// Confirme le nom du crawler (écran de départ) puis enchaîne directement sur le cadeau de
+// bienvenue : le reste de la partie (carte d'étage, etc.) est déjà initialisé en arrière-plan
+// (voir le lancement du jeu en bas de ce fichier), donc rien d'autre à faire ici.
+function confirmPlayerName() {
+    const raw = ui.startNameInput ? ui.startNameInput.value.trim() : "";
+    gameState.playerName = raw || gameState.playerName || "CRAWLER_01";
+    if (ui.startScreenOverlay) ui.startScreenOverlay.classList.add('hidden');
+    updateUI();
+    revealWelcomeGift();
+}
+
+// Tire le cadeau de bienvenue, l'équipe directement (aucun inventaire à gérer : tout est vide à cet
+// instant) et affiche l'écran de révélation avec sa blague sarcastique. Un sort de bienvenue suit la
+// même règle qu'un premier équipement normal (voir equipSpell()) : le mana démarre plein.
+function revealWelcomeGift() {
+    const type = rollWelcomeGiftType();
+    const item = type === 'nothing' ? null : generateWelcomeGiftItem(type);
+
+    if (type === 'weapon') gameState.equipment.weapon = item;
+    else if (type === 'ranged') gameState.equipment.ranged = item;
+    else if (type === 'spell') {
+        gameState.equipment.spell = item;
+        gameState.mana = gameState.maxMana;
+    }
+
+    if (ui.giftRevealTitle) {
+        const labels = { weapon: "Une arme", ranged: "Une arme à distance", spell: "Un parchemin de sort", nothing: "Rien du tout" };
+        const icons = { weapon: '⚔️', ranged: '🏹', spell: '📜', nothing: '🎁' };
+        ui.giftRevealIcon.innerText = icons[type];
+        ui.giftRevealTitle.innerText = labels[type];
+        ui.giftRevealItemName.innerText = item ? formatItemDisplayName(item) : "";
+        ui.giftRevealItemName.classList.toggle('hidden', !item);
+        ui.giftRevealJoke.innerText = pick(flavorText.welcomeGift[type]);
+        ui.giftRevealOverlay.classList.remove('hidden');
+    }
+
+    updateUI();
+    updateInventoryUI();
+    updateSpellbookUI();
+}
+
+// Referme l'écran de révélation du cadeau : le joueur atterrit enfin sur l'écran de jeu habituel.
+function dismissGiftReveal() {
+    if (ui.giftRevealOverlay) ui.giftRevealOverlay.classList.add('hidden');
+}
+
 function gameOver(timeout = false) {
     gameState.inCombat = true; // Bloque toute action supplémentaire
     ui.combatZone.classList.add('hidden'); // Cache la zone de combat
@@ -3101,6 +3204,11 @@ ui.cardStackWrapper.addEventListener('click', () => {
 
 // Bouton de redémarrage sur l'écran Game Over
 ui.btnRestart.addEventListener('click', resetGame);
+
+// Écran de départ : nom du crawler (bouton ou touche Entrée), puis révélation du cadeau de bienvenue
+ui.btnStartConfirm.addEventListener('click', confirmPlayerName);
+ui.startNameInput.addEventListener('keydown', (e) => { if (e && e.key === 'Enter') confirmPlayerName(); });
+ui.btnGiftContinue.addEventListener('click', dismissGiftReveal);
 
 // Clics sur les boutons de combat
 ui.btnAttackWeapon.addEventListener('click', attackWeapon);
