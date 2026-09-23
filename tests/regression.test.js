@@ -1185,11 +1185,21 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 // travelToCity() : bloqué vers une ville pas encore connue, consomme du temps + régénère (voir
 // applyTimeElapsedRegen()) vers une ville connue atteignable.
 {
-    resetTransientState();
-    gameState.currentFloor = 3;
-    generateUrbanFloorMap();
-    const um = gameState.urbanMap;
-    const unknownCityId = Object.values(um.citiesById).find(c => !c.known).id;
+    // Le voisin ciblé doit être une ville "normale" (ni escalier ni Sortie) : y arriver quand elle
+    // n'est pas gardée déclenche nextFloor() (voir arriveAtCity()), qui réinitialise timeLeft à
+    // maxTime et invaliderait à tort l'assertion "consomme du temps" ci-dessous. Quelques tentatives
+    // suffisent toujours à trouver une carte où la ville de départ a un tel voisin direct.
+    let um, unknownCityId, safeNeighborId;
+    for (let attempt = 0; attempt < 20 && !safeNeighborId; attempt++) {
+        resetTransientState();
+        gameState.currentFloor = 3;
+        generateUrbanFloorMap();
+        um = gameState.urbanMap;
+        unknownCityId = Object.values(um.citiesById).find(c => !c.known).id;
+        const safeRoad = um.citiesById[um.currentCityId].roads.find(r => !um.citiesById[r.to].isStairs && !um.citiesById[r.to].isExit);
+        if (safeRoad) safeNeighborId = safeRoad.to;
+    }
+    assert(!!safeNeighborId, "travelToCity() test : une carte urbaine avec un voisin non-escalier doit être trouvable");
 
     const timeBefore = gameState.timeLeft;
     travelToCity(unknownCityId);
@@ -1199,8 +1209,7 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     const originalRandom = Math.random;
     Math.random = () => 0.99; // Écarte toute embuscade (jamais sous ambushBaseChance avec un tirage haut)
     gameState.hp = gameState.maxHp - 50;
-    const neighborId = um.citiesById[um.currentCityId].roads[0].to;
-    travelToCity(neighborId);
+    travelToCity(safeNeighborId);
     Math.random = originalRandom;
     assert(gameState.timeLeft < timeBefore, "travelToCity() : consomme du temps");
     assert(gameState.hp > gameState.maxHp - 50, "travelToCity() : la régénération passive s'applique au temps du trajet");
@@ -1268,21 +1277,50 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(gameState.urbanMap !== null && gameState.floorMap === null, "nextFloor() : étage 3 devient un étage urbain");
 }
 
-// UI : panneaux "Lieux connus"/"Carte Urbaine" mutuellement exclusifs, invite "Touchez la carte"
-// masquée sur un étage urbain (voir updateUI() dans app.js).
+// UI : "Lieux connus"/overlay "Carte Urbaine" mutuellement exclusifs, invite "Touchez la carte"
+// masquée sur un étage urbain, et l'overlay se masque bien dès qu'une "situation" est en cours
+// (combat/boss/furtivité/compagnon) pour laisser la carte redevenir visible (voir updateUI() dans
+// app.js).
 {
     resetTransientState();
     gameState.currentFloor = 3;
     generateUrbanFloorMap();
     updateUI();
-    assert(ui.urbanMapSection.classList.contains('hidden') === false, "updateUI() : panneau Carte Urbaine visible sur un étage urbain");
+    assert(ui.urbanTravelOverlay.classList.contains('hidden') === false, "updateUI() : overlay Carte Urbaine visible sur un étage urbain hors situation");
     assert(ui.knownLocationsSection.classList.contains('hidden') === true, "updateUI() : panneau Lieux connus masqué sur un étage urbain");
     assert(ui.advanceHint.classList.contains('hidden') === true, "updateUI() : invite d'exploration masquée sur un étage urbain");
 
+    gameState.inCombat = true;
+    updateUI();
+    assert(ui.urbanTravelOverlay.classList.contains('hidden') === true, "updateUI() : overlay Carte Urbaine masqué en combat (situation)");
+    gameState.inCombat = false;
+
+    gameState.bossChoicePending = true;
+    updateUI();
+    assert(ui.urbanTravelOverlay.classList.contains('hidden') === true, "updateUI() : overlay Carte Urbaine masqué pendant un choix de boss (situation)");
+    gameState.bossChoicePending = false;
+
+    updateUI();
+    assert(ui.urbanTravelOverlay.classList.contains('hidden') === false, "updateUI() : overlay Carte Urbaine réapparaît une fois la situation résolue");
+
     resetTransientState();
     updateUI();
-    assert(ui.urbanMapSection.classList.contains('hidden') === true, "updateUI() : panneau Carte Urbaine masqué sur un étage classique");
+    assert(ui.urbanTravelOverlay.classList.contains('hidden') === true, "updateUI() : overlay Carte Urbaine masqué sur un étage classique");
     assert(ui.knownLocationsSection.classList.contains('hidden') === false, "updateUI() : panneau Lieux connus visible sur un étage classique");
+}
+
+// devJumpToUrbanFloor() (menu DEV) : saute directement à l'étage 3 (urbain), quel que soit l'état
+// bloquant en cours, sans jamais laisser de combat/choix fantôme derrière lui.
+{
+    resetTransientState();
+    gameState.currentFloor = 1;
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Cobaye DEV", hp: 10, maxHp: 10, atk: 1, def: 1, xpReward: 1, status: {} };
+    devJumpToUrbanFloor();
+    assert(gameState.currentFloor === 3, "devJumpToUrbanFloor() : atterrit bien sur l'étage 3");
+    assert(gameState.urbanMap !== null && gameState.floorMap === null, "devJumpToUrbanFloor() : génère bien un étage urbain");
+    assert(gameState.inCombat === false && gameState.currentEnemy === null, "devJumpToUrbanFloor() : ne laisse aucun combat en cours derrière lui");
+    assert(gameState.bossChoicePending === false, "devJumpToUrbanFloor() : ne laisse aucun choix de boss en attente");
 }
 
 console.log(`${passed} test(s) OK, ${failures} échec(s).`);

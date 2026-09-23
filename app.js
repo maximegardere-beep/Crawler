@@ -97,7 +97,7 @@ const gameState = {
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 14, label: "Bouton de version sur l'écran de départ" };
+const APP_VERSION = { pr: 15, label: "Carte Urbaine en overlay + menu DEV" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -330,7 +330,7 @@ const ui = {
     combatZone: document.getElementById('combat-zone'),
     knownLocationsSection: document.getElementById('known-locations-section'),
     knownLocationsContainer: document.getElementById('known-locations'),
-    urbanMapSection: document.getElementById('urban-map-section'),
+    urbanTravelOverlay: document.getElementById('urban-travel-overlay'),
     urbanMapContainer: document.getElementById('urban-map-container'),
     companionChoiceFriendly: document.getElementById('companion-choice-friendly'),
     companionChoiceHostile: document.getElementById('companion-choice-hostile'),
@@ -361,6 +361,7 @@ const ui = {
     combatDistanceEnemyIcon: document.getElementById('combat-distance-enemy-icon'),
     equippedRanged: document.getElementById('equipped-ranged'),
     btnDevTestKit: document.getElementById('btn-dev-testkit'),
+    btnDevJumpUrban: document.getElementById('btn-dev-jump-urban'),
     equippedSpell: document.getElementById('equipped-spell'),
     spellbookCards: document.getElementById('spellbook-cards'),
     manaBarWrapper: document.getElementById('mana-bar-wrapper'),
@@ -750,11 +751,14 @@ function updateUI() {
         ui.combatSidePlayer.classList.remove('flex', 'flex-col');
     }
 
-    // "Lieux connus" (donjon classique) et "Carte Urbaine" (étage urbain) sont mutuellement
-    // exclusifs, comme floorMap/urbanMap eux-mêmes : un seul des deux panneaux est jamais pertinent
-    // à la fois.
+    // "Lieux connus" (donjon classique) reste un panneau séparé ; la "Carte Urbaine" (étage urbain)
+    // s'affiche elle en overlay directement sur la carte active plutôt qu'en panneau séparé, pour
+    // que le déplacement entre villes reste au même endroit que l'exploration classique. Elle se
+    // masque dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
+    // voir isActionBlocked()) : la carte redevient alors visible et se comporte exactement comme sur
+    // un étage classique.
     if (ui.knownLocationsSection) ui.knownLocationsSection.classList.toggle('hidden', !!gameState.urbanMap);
-    if (ui.urbanMapSection) ui.urbanMapSection.classList.toggle('hidden', !gameState.urbanMap);
+    if (ui.urbanTravelOverlay) ui.urbanTravelOverlay.classList.toggle('hidden', !gameState.urbanMap || isActionBlocked());
 
     // Les distances affichées dans "Lieux connus" dépendent de la position actuelle : on les
     // rafraîchit à chaque rendu pour qu'elles restent toujours à jour sans action explicite.
@@ -2232,9 +2236,9 @@ function updateUrbanMapUI() {
         }
 
         const row = document.createElement('button');
-        row.className = "w-full flex justify-between items-center px-3 py-2 bg-gray-950 border border-gray-800 rounded text-xs text-gray-300 hover:border-blue-600 hover:bg-blue-950/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-800 disabled:hover:bg-gray-950";
+        row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-blue-600 hover:bg-blue-950/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-800 disabled:hover:bg-gray-900/80";
         const distLabel = (!isCurrent && distance !== null && distance !== undefined) ? ` (${distance})` : "";
-        row.innerHTML = `<span>${icon} ${city.name}${tag}${isCurrent ? ' · Ici' : distLabel}</span><span class="text-blue-400 uppercase tracking-widest text-[10px]">${isCurrent ? '' : 'Aller →'}</span>`;
+        row.innerHTML = `<span class="truncate">${icon} ${city.name}${tag}${isCurrent ? ' · Ici' : distLabel}</span><span class="text-blue-400 uppercase tracking-widest text-[9px] shrink-0">${isCurrent ? '' : 'Aller →'}</span>`;
         if (isCurrent) {
             row.disabled = true;
         } else {
@@ -3703,6 +3707,31 @@ function giveTestKit() {
     updateSpellbookUI();
 }
 
+// DEV uniquement (menu déroulant, voir index.html) : saute directement à l'étage 3 (premier étage
+// urbain), pour tester le réseau de villes sans traverser les étages précédents. Réinitialise tout
+// état bloquant en cours (combat/boss/furtivité/compagnon) avant le saut, comme resetTransientState()
+// le fait dans les tests — jamais d'étage à moitié configuré ni de combat fantôme après coup.
+function devJumpToUrbanFloor() {
+    gameState.inCombat = false;
+    gameState.currentEnemy = null;
+    gameState.bossChoicePending = false;
+    gameState.stealthChoicePending = false;
+    gameState.pendingStealthEncounter = null;
+    gameState.companionChoicePending = false;
+    gameState.pendingBossEncounter = null;
+    gameState.pendingUrbanBossEncounter = null;
+    gameState.pendingUrbanTravel = null;
+    ui.combatZone.classList.add('hidden');
+    ui.bossChoiceZone.classList.add('hidden');
+    ui.stealthChoiceZone.classList.add('hidden');
+    ui.companionChoiceFriendly.classList.add('hidden');
+    ui.companionChoiceHostile.classList.add('hidden');
+
+    gameState.currentFloor = 2; // nextFloor() incrémente : atterrit bien sur l'étage 3 (urbain)
+    nextFloor();
+    logEvent("🛠️ DEV : saut direct à l'étage 3 (urbain).", "info");
+}
+
 function gameOver(timeout = false) {
     gameState.inCombat = true; // Bloque toute action supplémentaire
     ui.combatZone.classList.add('hidden'); // Cache la zone de combat
@@ -3762,6 +3791,13 @@ ui.cardStackWrapper.addEventListener('click', () => {
     explore();
 });
 
+// La Carte Urbaine se superpose à la carte active (voir index.html) : ses propres clics ne doivent
+// jamais atteindre le listener ci-dessus (explore() y est déjà un no-op sans floorMap, mais on évite
+// quand même une vibration haptique et un log parasite à chaque trajet vers une ville).
+if (ui.urbanTravelOverlay) {
+    ui.urbanTravelOverlay.addEventListener('click', (e) => e.stopPropagation());
+}
+
 // Bouton de redémarrage sur l'écran Game Over
 ui.btnRestart.addEventListener('click', resetGame);
 ui.btnWinRestart.addEventListener('click', resetGame);
@@ -3797,6 +3833,7 @@ ui.btnAttackCompanion.addEventListener('click', attackCompanionEncounter);
 
 // Clic sur le kit de test (bouton discret)
 ui.btnDevTestKit.addEventListener('click', giveTestKit);
+ui.btnDevJumpUrban.addEventListener('click', devJumpToUrbanFloor);
 
 // Lancement du jeu
 generateFloorMap();

@@ -99,7 +99,12 @@ Tailwind CDN, **aucun build step**.
   `config.urbanFloors.finalFloor`) : la ville tirée devient la Sortie (`city.isExit`), **toujours**
   gardée (100 %, jamais de pourcentage) ; la vaincre (ou la trouver non gardée) déclenche `winGame()`
   (`gameState.hasWon`) plutôt que `nextFloor()` — écran de victoire calqué sur Game Over, jamais
-  d'étage 19 généré.
+  d'étage 19 généré. Côté UI, la Carte Urbaine (`#urban-map-container`, rempli par
+  `updateUrbanMapUI()`) s'affiche en **overlay directement sur la carte active** (`#urban-travel-overlay`,
+  dernier enfant de `#card-stack-wrapper`) plutôt qu'en panneau séparé — l'inventaire plus bas reste
+  toujours accessible normalement. Masqué dès qu'une "situation" est en cours (combat/boss/furtivité/
+  compagnon, `isActionBlocked()`) : la carte redevient alors visible et se comporte exactement comme
+  sur un étage classique (toggle dans `updateUI()`).
 
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).

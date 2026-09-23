@@ -329,6 +329,21 @@
                             <p class="italic text-stone-500">Touchez la carte pour tirer votre première carte...</p>
                         </div>
                     </div>
+
+                    <!-- Carte Urbaine (étage urbain uniquement) : déplacement entre villes, en overlay
+                         directement sur la carte active plutôt qu'en panneau séparé (l'inventaire plus
+                         bas reste, lui, toujours accessible normalement). Masquée dès qu'une "situation"
+                         survient (combat/boss/furtivité/compagnon) : la carte redevient alors visible et
+                         se comporte exactement comme sur un étage classique — voir isActionBlocked() et
+                         le toggle dans updateUI() (app.js). stopPropagation() sur les clics pour ne
+                         jamais déclencher explore() sur la carte en dessous. -->
+                    <div id="urban-travel-overlay" class="hidden absolute inset-0 rounded-2xl bg-gray-950 border border-blue-800/60 shadow-[0_10px_25px_rgba(0,0,0,0.45)] flex flex-col p-3 gap-2 z-10 cursor-default">
+                        <div class="flex justify-between items-center text-[9px] uppercase tracking-widest text-blue-400 font-bold shrink-0">
+                            <span>🗺️ Carte Urbaine</span>
+                        </div>
+                        <p class="text-[9px] text-gray-500 leading-snug shrink-0">Villes sûres · routes dangereuses.</p>
+                        <div id="urban-map-container" class="flex-1 flex flex-col gap-1.5 overflow-y-auto min-h-0"></div>
+                    </div>
                 </div>
 
                 <!-- Colonne Joueur (visible uniquement en combat) : PV, statut, dé de dégâts infligés -->
@@ -591,19 +606,24 @@
             </div>
         </section>
 
-        <!-- Carte Urbaine : réseau villes/routes d'un étage urbain (multiples de 3, voir
-             generateUrbanFloorMap() dans app.js). Masqué sur un étage classique. -->
-        <section id="urban-map-section" class="hidden flex flex-col gap-2">
-            <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Carte Urbaine</h2>
-            <p class="text-[10px] text-gray-600">Les villes sont sûres. Les routes entre elles ne le sont pas.</p>
-            <div id="urban-map-container" class="flex flex-col gap-1.5"></div>
-        </section>
-
-        <!-- 6. Kit de Test (Bouton discret) : équipe arme/arme à distance/sort légendaires en un clic,
-             pour tester les mécaniques de combat sans dépendre du loot aléatoire (giveTestKit() dans app.js). -->
-        <button id="btn-dev-testkit" class="absolute bottom-2 right-4 text-[10px] text-gray-700 hover:text-gray-400 transition-colors uppercase tracking-widest cursor-pointer">
-            🧪 Kit de Test
-        </button>
+        <!-- 6. Menu DEV (repli discret) : outils de développement sans lien avec la progression
+             normale d'une run. Kit de Test (giveTestKit()) + saut direct à l'étage 3 pour tester le
+             réseau urbain sans traverser les étages précédents (devJumpToUrbanFloor()), voir app.js. -->
+        <div class="absolute bottom-2 right-4">
+            <details id="dev-menu">
+                <summary class="text-[10px] text-gray-700 hover:text-gray-400 transition-colors uppercase tracking-widest cursor-pointer list-none select-none">
+                    🛠️ DEV
+                </summary>
+                <div class="absolute bottom-full right-0 mb-2 w-44 flex flex-col gap-1 bg-gray-950 border border-gray-800 rounded-lg p-2 shadow-lg z-30">
+                    <button id="btn-dev-testkit" class="text-left text-[10px] text-gray-500 hover:text-gray-300 transition-colors uppercase tracking-widest cursor-pointer py-1">
+                        🧪 Kit de Test
+                    </button>
+                    <button id="btn-dev-jump-urban" class="text-left text-[10px] text-gray-500 hover:text-gray-300 transition-colors uppercase tracking-widest cursor-pointer py-1">
+                        🏙️ Aller à l'étage 3
+                    </button>
+                </div>
+            </details>
+        </div>
 
     </main>
 
@@ -683,12 +703,12 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=47"></script>
-    <script src="items.js?v=47"></script>
-    <script src="spells.js?v=47"></script>
-    <script src="districts.js?v=47"></script>
-    <script src="safehouses.js?v=47"></script>
-    <script src="generator.js?v=47"></script>
-    <script src="app.js?v=47"></script>
+    <script src="bestiary.js?v=48"></script>
+    <script src="items.js?v=48"></script>
+    <script src="spells.js?v=48"></script>
+    <script src="districts.js?v=48"></script>
+    <script src="safehouses.js?v=48"></script>
+    <script src="generator.js?v=48"></script>
+    <script src="app.js?v=48"></script>
 </body>
 </html>
