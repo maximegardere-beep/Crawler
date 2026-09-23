@@ -472,6 +472,21 @@
             </div>
         </div>
 
+        <!-- Repaire repéré sur une route urbaine (voir triggerLairChoice() dans app.js) : plonger
+             dedans enchaîne des combats forcés puis un boss, contre un butin garanti ; sinon la
+             route se poursuit normalement, sans pénalité. -->
+        <div id="lair-choice-zone" class="hidden p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Repaire Repéré</span>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-dive-lair" class="px-3 py-3 bg-gray-900 border border-red-700/80 hover:border-red-400 hover:bg-red-900/30 rounded text-xs text-red-300 uppercase tracking-wider transition-all">
+                    💀 Plonger
+                </button>
+                <button id="btn-decline-lair" class="px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
+                    🚶 Poursuivre
+                </button>
+            </div>
+        </div>
+
         <!-- Zone de choix de furtivité (visible uniquement quand un ennemi ne vous a pas repéré) -->
         <div id="stealth-choice-zone" class="hidden p-4 bg-slate-800/30 border border-slate-600/30 rounded-lg relative">
             <span class="absolute text-[10px] text-slate-500 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Non Repéré</span>
@@ -514,6 +529,31 @@
             </div>
         </div>
 
+        <!-- Ville spécialisée (marchand/professeur, voir triggerShopEncounter() dans app.js) : deux
+             contenus mutuellement exclusifs selon city.role, construits dynamiquement par
+             updateShopUI() (stock/prix, ou compétence à former, changent d'une ville à l'autre). -->
+        <div id="shop-zone" class="hidden p-4 bg-yellow-950/10 border border-yellow-800/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-yellow-700/60 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Ville Spécialisée</span>
+
+            <div id="shop-merchant-content" class="hidden flex-col gap-2">
+                <p class="text-[10px] text-gray-500">Achetez au stock du marchand, ou vendez un objet de votre inventaire.</p>
+                <div id="shop-stock-list" class="flex flex-col gap-1.5"></div>
+                <p class="text-[9px] uppercase tracking-widest text-gray-600 mt-2">Vendre</p>
+                <div id="shop-sell-list" class="flex flex-col gap-1.5"></div>
+            </div>
+
+            <div id="shop-trainer-content" class="hidden flex-col gap-2">
+                <p id="shop-trainer-info" class="text-[11px] text-gray-300"></p>
+                <button id="btn-train-skill" class="px-3 py-3 bg-gray-900 border border-purple-700/80 hover:border-purple-400 hover:bg-purple-900/30 rounded text-xs text-purple-300 uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-purple-700/80 disabled:hover:bg-gray-900">
+                    Se former
+                </button>
+            </div>
+
+            <button id="btn-leave-shop" class="w-full mt-3 px-3 py-2 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
+                👋 Partir
+            </button>
+        </div>
+
         <!-- Compagnon actif (hors combat) : nom, spécialité, barre de risque de départ (vert = fidèle,
              rouge = sur le point d'abandonner l'équipe — voir attemptCompanionAbandon() dans app.js) -->
         <div id="companion-status-bar" class="hidden flex items-center justify-between text-[10px] text-gray-500 bg-gray-950/50 border border-gray-800 rounded px-3 py-2">
@@ -535,6 +575,7 @@
             </div>
             <div class="text-[10px] text-gray-500 uppercase tracking-widest leading-relaxed">
                 <div>⚔️ ATK <span id="player-atk" class="text-gray-300 font-bold">10</span> &nbsp; 🛡️ DEF <span id="player-def" class="text-gray-300 font-bold">5</span></div>
+                <div>💰 <span id="player-gold" class="text-yellow-400 font-bold">0</span> PO</div>
                 <div id="player-status-icons" class="text-sm"></div>
             </div>
         </div>
@@ -707,12 +748,12 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=51"></script>
-    <script src="items.js?v=51"></script>
-    <script src="spells.js?v=51"></script>
-    <script src="districts.js?v=51"></script>
-    <script src="safehouses.js?v=51"></script>
-    <script src="generator.js?v=51"></script>
-    <script src="app.js?v=51"></script>
+    <script src="bestiary.js?v=52"></script>
+    <script src="items.js?v=52"></script>
+    <script src="spells.js?v=52"></script>
+    <script src="districts.js?v=52"></script>
+    <script src="safehouses.js?v=52"></script>
+    <script src="generator.js?v=52"></script>
+    <script src="app.js?v=52"></script>
 </body>
 </html>

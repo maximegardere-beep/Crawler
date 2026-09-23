@@ -144,11 +144,56 @@ Tailwind CDN, **aucun build step**.
   `buildUrbanMapGraphData()` (seule partie qui connaît la forme des données du jeu) adapte le réseau
   villes/routes connu au format générique nœuds/arêtes/positions attendu par `renderGraphMiniMap()` —
   voir la section **Mini carte graphique** ci-dessous.
+- **Système d'argent (PO)** : `gameState.gold`, seule monnaie du jeu. Deux sources : quelques PO
+  trouvées en explorant (`config.chances.goldFind`, D100 au même titre que le reste du loot) et
+  `sellItem(index)` (`SELL_VALUE_RATIO = 0.4` × `item.baseValue`, objet retiré de l'inventaire).
+  Dépensée exclusivement dans les villes spécialisées (marchand/professeur, voir ci-dessous) — pas
+  d'autre sink pour l'instant.
+- **Villes spécialisées (marchand/professeur)** : à la génération d'un étage urbain, chaque ville
+  normale (ni départ, ni escalier/Sortie) a `config.urbanFloors.specializedCityChance` (18%) de
+  devenir marchand OU professeur (50/50), tiré indépendamment par ville. Un marchand vend une
+  catégorie d'objet (`city.specialty` ∈ armes/armes à distance/armures/parchemins) ; un professeur
+  forme UNE des 4 compétences réelles du joueur (`gameState.skills`, pas de "compétence armure" —
+  contrairement aux objets, une compétence n'a que 4 valeurs possibles). `triggerShopEncounter(city)`
+  (dispatché depuis `arriveAtCity()`, avant la résolution générique "ville sûre") ouvre `#shop-zone`
+  et pose `gameState.shopChoicePending` (inclus dans `isActionBlocked()`, comme un choix de boss).
+  `generateShopStock(specialty)` tire 3 objets une seule fois par partie (`city.stock`, jamais
+  régénéré), prix = `item.baseValue × SHOP_MARKUP` (2.5) ; `buyShopItem()`/`sellItem()` sont les deux
+  faces du même `SELL_VALUE_RATIO`/`SHOP_MARKUP`, volontairement asymétriques (acheter coûte plus cher
+  que vendre ne rapporte). `trainSkill()` paie `TRAINER_COST_PER_LEVEL` (20) × le niveau ACTUEL de la
+  compétence pour l'amener exactement au niveau suivant (`gainSkillXp(specialty, xpToNext - xp)`) —
+  "payer pour s'entraîner" plutôt que le grind combat habituel, jamais un raccourci gratuit.
+- **Repaires sur les routes** : `config.urbanFloors.lairRoadsPerFloor` (1, 2 à l'étage final) routes
+  du réseau urbain sont désignées "repaire" à la génération (`generateUrbanFloorMap()`), tirées parmi
+  toutes les paires ville-ville reliées, `isLair`/`lairId` posés sur LES DEUX sens de la route (comme
+  `distance`) pour rester détectables quel que soit le sens du trajet. `gameState.urbanMap.lairsById`
+  garde l'état (`cleared`, `combatsRemaining` 2 ou 3, `bossInstance`). `travelToCity()` détecte un
+  repaire uniquement sur la route DIRECTEMENT empruntée (voisin immédiat) — un trajet à plusieurs
+  sauts vers une ville plus lointaine ne suit aucun chemin réel (`computeCityDistance()` ne fait que
+  sommer des distances par Dijkstra) et ne peut donc pas "passer par" une route précise. Non nettoyé,
+  il déclenche `triggerLairChoice()` (choix plonger/poursuivre, `gameState.lairChoicePending`, inclus
+  dans `isActionBlocked()`) AVANT toute embuscade normale du trajet, qui reste en attente
+  (`pendingUrbanTravel` non consommé) le temps du choix. Poursuivre (`declineLair()`) reprend le
+  trajet normalement, repaire intact, re-proposé à un futur passage. Plonger (`diveIntoLair()`) lance
+  le premier combat forcé ; `winCombat()` enchaîne alors seul les sbires restants puis le boss
+  (`gameState.pendingLairDive.stage`, `'trash'` → `'boss'` — boss généré seulement à ce moment, jamais
+  à l'avance) AVANT de reprendre le trajet interrompu, pour qu'une victoire sur un simple sbire ne
+  soit jamais prise pour l'arrivée à destination ; le butin garanti d'un repaire n'est qu'un combat de
+  boss normal (`winCombat()` garantit déjà du loot à tout `wasBoss`, rien de spécifique à dupliquer).
+  Une fuite réussie en pleine plongée (`attemptFlee()`) annule la plongée SANS marquer le repaire
+  nettoyé ni reprendre automatiquement le trajet interrompu — même comportement passif qu'une fuite
+  d'embuscade urbaine normale. Visualisé sur la Carte Urbaine via `edges[].marker` (voir Mini carte
+  graphique ci-dessous) : 💀 rouge tant qu'actif, 🏆 gris une fois nettoyé — jamais un `goalIcon`,
+  une route reste toujours franchissable (contrairement à un gardien qui bloque le passage).
 - **Mini carte graphique (réutilisable)** : `renderGraphMiniMap(svgEl, {nodes, edges, positions,
   currentId, onNodeClick, focusId, viewSpan, background})` (rendu SVG, aucune connaissance du jeu) est
   le module générique — l'appelant fournit ses propres positions (fixes comme pour les étages urbains,
   ou calculées), un fond décoratif optionnel, et le nœud à centrer (`focusId`) pour l'effet caméra.
-  `computeGraphLayout(nodeIds, edges, existingPositions)` (disposition par relaxation "force-directed"
+  Trois familles de marqueurs, jamais confondues : `node.goalIcon` (décalé sur SA route d'accès,
+  bloque le passage — gardien 👑) vs `node.badge` (fusionné au cercle du nœud, ne bloque rien —
+  marchand 🛒/professeur 🎓) vs `edges[i].marker` (au milieu de l'arête elle-même, n'appartient à
+  AUCUN des deux nœuds — repaire 💀/🏆). `computeGraphLayout(nodeIds, edges, existingPositions)`
+  (disposition par relaxation "force-directed"
   minimaliste, sans dépendance externe) reste disponible pour un futur cas qui aurait vraiment besoin
   d'un layout calculé plutôt que d'un gabarit fixe — non utilisée par les étages urbains depuis leur
   passage aux positions fixes, mais conservée telle quelle (testée, mobilité 1/0.08 pour rester stable
@@ -168,11 +213,17 @@ Tailwind CDN, **aucun build step**.
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
   charge les 7 fichiers sources dans l'ordre.
 - **Rapide** (`node tests/regression.test.js`, quelques secondes) : à lancer avant CHAQUE push.
-  Couvre Sprint, mécaniques d'armure, icône élite, abandon de compagnon, badges. Ajouter une
-  section ici pour toute nouvelle feature testable unitairement.
+  Couvre Sprint, mécaniques d'armure, icône élite, abandon de compagnon, badges, villes spécialisées
+  (marchand/professeur), repaires sur les routes. Ajouter une section ici pour toute nouvelle feature
+  testable unitairement. `resetTransientState()` doit rester à jour : tout nouvel état
+  bloquant/transitoire (`xyzChoicePending`, `pendingXyz...`) doit y être remis à zéro, sinon un échec
+  aléatoire (dû à un test antérieur non lié) peut fuiter sur des tests bien plus loin dans le fichier.
 - **Lourd** (`node tests/long_playthrough.js`, simulation ~200 pas sur plusieurs étages) : à lancer
   UNE fois, seulement si le changement touche la boucle de jeu elle-même (combat, distance,
   compagnon, génération d'étage). Pas nécessaire pour un ajout de contenu isolé (item, quartier, texte).
+  Son auto-résolveur doit connaître TOUT état bloquant existant (`xyzChoicePending`) : en oublier un
+  fige la simulation dessus jusqu'à épuisement du temps imparti (voir `shopChoicePending`/
+  `lairChoicePending`, ajoutés après coup).
 - Les deux n'affichent que les échecs + un résumé final (pas une ligne par test réussi).
 
 ## Backlog
@@ -183,12 +234,13 @@ Tailwind CDN, **aucun build step**.
 - Simulation mob/joueur (voir historique) : les boss restent disproportionnellement plus punitifs
   que les mobs normaux à profondeur égale, et l'écart se rouvre en fin de run (étage 8+) sous
   l'hypothèse testée — non corrigé, à confirmer par playtest réel avant tout changement.
+- Économie urbaine (PO, marchand/professeur, repaires — voir Architecture) : tous les chiffres sont
+  des défauts posés sans playtest (18% de ville spécialisée, ×2.5 marchand / ×0.4 revente, ×20 coût de
+  formation par niveau, 5-20 PO trouvées ×(1+étage×0.15), 1 repaire par étage urbain / 2 à l'étage
+  final, 2-3 combats forcés par repaire) — "on verra à l'usage", à ajuster une fois du retour réel
+  disponible plutôt qu'en tâtonnant sans données.
 
 ## Gros chantiers à venir (non commencés — demander lequel prioriser avant de s'y lancer)
-- Suite des étages urbains (base posée, voir Architecture ci-dessus) :
-  - Repaires/places fortes de mobs sur les routes, avec progression linéaire et un boss à la fin (loot).
-  - Boutiques + professeurs dans les villes (perfectionner des compétences moyennant finance).
-  - Système d'argent (prérequis aux deux points précédents).
 - Sons
 - Succès (achievements)
 - Salles spéciales à choix narratif basé sur les compétences, sans fuite possible

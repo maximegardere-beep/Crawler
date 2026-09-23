@@ -14,6 +14,7 @@ function assert(cond, msg) { if (!cond) { failures++; console.error("FAIL:", msg
 let steps = 0, floorsCleared = 0, combatsWon = 0, bossesEncountered = 0;
 let stealthEncounters = 0, companionEncounters = 0, eliteMobsSeen = 0, armorMechanicProcs = 0;
 let urbanFloorsSeen = 0, cityTravels = 0, winTriggered = false;
+let shopEncounters = 0, lairEncounters = 0;
 const seenErrors = [];
 
 gameState.equipment.armor = { name: "Plastron d'Essai", baseArmor: 12, category: 'armors', mechanics: ['bleed', 'heal', 'adrenaline', 'stealth'] };
@@ -43,6 +44,24 @@ try {
             const candidate = gameState.pendingCompanionCandidate;
             if (candidate && candidate.disposition === 'friendly') recruitCompanion();
             else attackCompanionEncounter();
+        } else if (gameState.shopChoicePending) {
+            // Ville spécialisée (marchand/professeur, voir triggerShopEncounter()) : achète/forme si
+            // possible, repart dans tous les cas — pas de round-trip infini sur l'écran boutique.
+            shopEncounters++;
+            const shopCity = gameState.urbanMap.citiesById[gameState.pendingShopCityId];
+            if (shopCity.role === 'merchant') {
+                const affordable = shopCity.stock.findIndex(item => gameState.gold >= item.price);
+                if (affordable >= 0) buyShopItem(affordable);
+            } else if (shopCity.role === 'trainer') {
+                trainSkill();
+            }
+            leaveShop();
+        } else if (gameState.lairChoicePending) {
+            // Repaire repéré (voir triggerLairChoice()) : alterne plonger/poursuivre pour exercer les
+            // deux issues ; une plongée s'enchaîne ensuite via la branche inCombat ci-dessous, exactement
+            // comme n'importe quel autre combat (winCombat() relance le suivant tout seul).
+            lairEncounters++;
+            if (steps % 2 === 0) diveIntoLair(); else declineLair();
         } else if (gameState.inCombat) {
             const enemy = gameState.currentEnemy;
             if (enemy && isEliteMob(enemy)) eliteMobsSeen++;
@@ -139,6 +158,10 @@ try {
         if (gameState.timeLeft < 50) gameState.timeLeft = gameState.maxTime;
         if (gameState.bossChoicePending) {
             fightBossNow();
+        } else if (gameState.shopChoicePending) {
+            leaveShop(); // Étage final : on ne s'attarde pas en boutique, priorité à la Sortie
+        } else if (gameState.lairChoicePending) {
+            declineLair(); // Idem : on ne dévie jamais vers un repaire quand la Sortie est en vue
         } else if (gameState.inCombat) {
             if (gameState.currentEnemy) {
                 gameState.currentEnemy.hp = -9999;
@@ -162,7 +185,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon, ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon, ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");
