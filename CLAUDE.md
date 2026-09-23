@@ -99,12 +99,27 @@ Tailwind CDN, **aucun build step**.
   `config.urbanFloors.finalFloor`) : la ville tirée devient la Sortie (`city.isExit`), **toujours**
   gardée (100 %, jamais de pourcentage) ; la vaincre (ou la trouver non gardée) déclenche `winGame()`
   (`gameState.hasWon`) plutôt que `nextFloor()` — écran de victoire calqué sur Game Over, jamais
-  d'étage 19 généré. Côté UI, la Carte Urbaine (`#urban-map-container`, rempli par
-  `updateUrbanMapUI()`) s'affiche en **overlay directement sur la carte active** (`#urban-travel-overlay`,
-  dernier enfant de `#card-stack-wrapper`) plutôt qu'en panneau séparé — l'inventaire plus bas reste
-  toujours accessible normalement. Masqué dès qu'une "situation" est en cours (combat/boss/furtivité/
-  compagnon, `isActionBlocked()`) : la carte redevient alors visible et se comporte exactement comme
-  sur un étage classique (toggle dans `updateUI()`).
+  d'étage 19 généré. Côté UI, la Carte Urbaine (`#urban-map-svg`, rempli par `updateUrbanMapUI()`)
+  s'affiche en **overlay directement sur la carte active** (`#urban-travel-overlay`, dernier enfant de
+  `#card-stack-wrapper`) plutôt qu'en panneau séparé — l'inventaire plus bas reste toujours accessible
+  normalement. Masqué dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
+  `isActionBlocked()`) : la carte redevient alors visible et se comporte exactement comme sur un étage
+  classique (toggle dans `updateUI()`). Le déplacement s'y représente comme une **mini carte
+  graphique** (nœuds = villes, arêtes = routes) plutôt qu'une liste : `buildUrbanMapGraphData()` (seule
+  partie qui connaît la forme des données du jeu) adapte le réseau villes/routes connu au format
+  générique nœuds/arêtes attendu par `computeGraphLayout()`/`renderGraphMiniMap()` — voir la section
+  **Mini carte graphique** ci-dessous, pensée pour être réutilisée telle quelle par un futur système de
+  navigation basé sur un graphe (mini-plan de donjon classique par exemple).
+- **Mini carte graphique (réutilisable)** : `computeGraphLayout(nodeIds, edges, existingPositions)`
+  (disposition, aucune connaissance du jeu) + `renderGraphMiniMap(svgEl, {nodes, edges, positions,
+  currentId, onNodeClick})` (rendu SVG, aucune connaissance du jeu non plus) forment un petit module
+  générique. Disposition par relaxation "force-directed" minimaliste (répulsion entre nœuds + ressort
+  sur les arêtes + attraction vers le centre), sans dépendance externe. Point clé pour rester stable
+  d'un rendu à l'autre : chaque nœud a une **mobilité** — 1 (pleinement mobile) s'il vient d'apparaître,
+  0.08 (quasi ancré) s'il avait déjà une position lors de l'appel précédent — sans quoi la relaxation
+  complète (nécessaire pour bien placer un nouveau nœud) réorganiserait tout le graphe à chaque ville
+  révélée au lieu de se contenter d'y intégrer la nouvelle. `gameState.urbanMap.mapLayout` conserve les
+  positions d'un appel à l'autre.
 
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).

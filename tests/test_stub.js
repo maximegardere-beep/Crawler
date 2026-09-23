@@ -20,6 +20,8 @@ function makeEl() {
         style: {},
         dataset: {},
         attributes: {},
+        setAttribute(name, value) { this.attributes[name] = value; },
+        getAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attributes, name) ? this.attributes[name] : null; },
         _listeners: {},
         addEventListener(evt, fn) {
             (this._listeners[evt] = this._listeners[evt] || []).push(fn);
@@ -56,6 +58,7 @@ global.document = {
         return this._elements[id];
     },
     createElement() { return makeEl(); },
+    createElementNS(_ns, _tag) { return makeEl(); },
     addEventListener() {}
 };
 

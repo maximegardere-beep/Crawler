@@ -97,7 +97,7 @@ const gameState = {
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 15, label: "Carte Urbaine en overlay + menu DEV" };
+const APP_VERSION = { pr: 16, label: "Mini carte graphique pour la Carte Urbaine" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -331,7 +331,7 @@ const ui = {
     knownLocationsSection: document.getElementById('known-locations-section'),
     knownLocationsContainer: document.getElementById('known-locations'),
     urbanTravelOverlay: document.getElementById('urban-travel-overlay'),
-    urbanMapContainer: document.getElementById('urban-map-container'),
+    urbanMapSvg: document.getElementById('urban-map-svg'),
     companionChoiceFriendly: document.getElementById('companion-choice-friendly'),
     companionChoiceHostile: document.getElementById('companion-choice-hostile'),
     btnRecruitFriendly: document.getElementById('btn-recruit-friendly'),
@@ -1934,6 +1934,187 @@ function computeDistance(fromRoomId, toRoomId) {
 }
 
 // ==========================================
+// MINI CARTE GRAPHIQUE (réutilisable) — disposition + rendu SVG d'un graphe générique de
+// nœuds/arêtes, sans AUCUNE connaissance du jeu : pensée pour être réutilisée telle quelle par
+// n'importe quel système de navigation basé sur un graphe. Les étages urbains (ci-dessous) sont le
+// premier appelant ; un futur mini-plan de donjon classique (pièces/couloirs de generateFloorMap())
+// pourrait s'y brancher de la même façon, via son propre adaptateur nœuds/arêtes.
+// ==========================================
+
+// Calcule/actualise une disposition 2D (coordonnées normalisées 0..1) pour un ensemble de nœuds
+// reliés par des arêtes, par relaxation "force-directed" minimaliste (répulsion entre tous les
+// nœuds + ressort sur les arêtes vers une longueur cible + légère attraction vers le centre), sans
+// dépendance externe (aucun build step, voir CLAUDE.md). `existingPositions` (optionnel, {id:{x,y}})
+// sert de point de départ : les nœuds déjà positionnés convergent quasiment sur place (équilibre
+// déjà proche) tandis qu'un nœud nouvellement révélé démarre sur un cercle et rejoint sa place —
+// jamais de réarrangement brutal de tout le graphe à chaque nouvel appel.
+function computeGraphLayout(nodeIds, edges, existingPositions = {}) {
+    const positions = {};
+    // Mobilité par nœud : un nœud déjà positionné lors d'un appel précédent reste (quasi) ancré —
+    // seule une petite fraction des forces qu'il subit s'applique réellement — pendant qu'un nœud
+    // tout juste révélé, lui, est pleinement mobile pour rejoindre sa place. Sans ça, la relaxation
+    // complète (ITERATIONS élevé, nécessaire pour bien placer le nouveau nœud) réorganiserait tout
+    // le graphe à chaque révélation, au lieu de se contenter d'y intégrer le nouveau venu.
+    const mobility = {};
+    nodeIds.forEach((id, i) => {
+        if (existingPositions[id]) {
+            positions[id] = { x: existingPositions[id].x, y: existingPositions[id].y };
+            mobility[id] = 0.08;
+        } else {
+            const angle = (i / Math.max(1, nodeIds.length)) * Math.PI * 2 + Math.random() * 0.5;
+            const radius = 0.28 + Math.random() * 0.12;
+            positions[id] = { x: 0.5 + Math.cos(angle) * radius, y: 0.5 + Math.sin(angle) * radius };
+            mobility[id] = 1;
+        }
+    });
+    if (nodeIds.length <= 1) return positions;
+
+    const relevantEdges = edges.filter(e => positions[e.from] && positions[e.to]);
+    const ITERATIONS = 120;
+    const REPULSION = 0.010;
+    const SPRING = 0.06;
+    const SPRING_LENGTH = 0.30;
+    const CENTER_PULL = 0.02;
+
+    for (let iter = 0; iter < ITERATIONS; iter++) {
+        const forces = {};
+        nodeIds.forEach(id => { forces[id] = { x: 0, y: 0 }; });
+
+        // Répulsion entre toutes les paires (petit graphe, O(n²) largement suffisant ici)
+        for (let i = 0; i < nodeIds.length; i++) {
+            for (let j = i + 1; j < nodeIds.length; j++) {
+                const a = nodeIds[i], b = nodeIds[j];
+                let dx = positions[a].x - positions[b].x;
+                let dy = positions[a].y - positions[b].y;
+                const distSq = dx * dx + dy * dy || 0.0001;
+                const dist = Math.sqrt(distSq);
+                const force = REPULSION / distSq;
+                dx /= dist; dy /= dist;
+                forces[a].x += dx * force; forces[a].y += dy * force;
+                forces[b].x -= dx * force; forces[b].y -= dy * force;
+            }
+        }
+
+        // Ressort sur les arêtes : rapproche/éloigne les voisins reliés vers SPRING_LENGTH
+        relevantEdges.forEach(e => {
+            let dx = positions[e.to].x - positions[e.from].x;
+            let dy = positions[e.to].y - positions[e.from].y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
+            const diff = (dist - SPRING_LENGTH) * SPRING;
+            dx /= dist; dy /= dist;
+            forces[e.from].x += dx * diff; forces[e.from].y += dy * diff;
+            forces[e.to].x -= dx * diff; forces[e.to].y -= dy * diff;
+        });
+
+        // Légère attraction vers le centre pour ne pas dériver hors du cadre normalisé
+        nodeIds.forEach(id => {
+            forces[id].x += (0.5 - positions[id].x) * CENTER_PULL;
+            forces[id].y += (0.5 - positions[id].y) * CENTER_PULL;
+        });
+
+        nodeIds.forEach(id => {
+            positions[id].x = Math.min(0.94, Math.max(0.06, positions[id].x + forces[id].x * mobility[id]));
+            positions[id].y = Math.min(0.94, Math.max(0.06, positions[id].y + forces[id].y * mobility[id]));
+        });
+    }
+
+    return positions;
+}
+
+// Rendu SVG générique d'un graphe déjà disposé (voir computeGraphLayout()) dans un <svg> existant
+// (viewBox supposé "0 0 200 240", voir index.html) : `nodes` = [{id, label, icon, variant}],
+// `edges` = [{from, to, distance}] (distance optionnelle, affichée seulement sur les arêtes reliées
+// au nœud courant pour ne pas surcharger l'affichage), `positions` = {id:{x,y}} (0..1, voir
+// computeGraphLayout()), `currentId` = nœud où l'on se trouve (mis en évidence, jamais cliquable).
+// `variant` ('guarded'/'goal'/'default') ne pilote que la couleur des nœuds autres que le courant.
+// `onNodeClick(id)` est appelé au clic sur n'importe quel autre nœud — aucune notion de "voisin
+// direct" ici, sans connaissance du jeu : c'est à l'appelant de décider ce qu'un clic déclenche.
+const GRAPH_MINIMAP_VARIANT_COLORS = {
+    current: { fill: "#1d4ed8", stroke: "#93c5fd" },
+    guarded: { fill: "#7f1d1d", stroke: "#f87171" },
+    goal: { fill: "#78350f", stroke: "#fbbf24" },
+    default: { fill: "#111827", stroke: "#4b5563" },
+};
+function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeClick }) {
+    if (!svgEl) return;
+    svgEl.innerHTML = "";
+    const W = 200, H = 240;
+    const toPx = (p) => ({ x: p.x * W, y: p.y * H });
+    const svgNS = "http://www.w3.org/2000/svg";
+
+    const edgesGroup = document.createElementNS(svgNS, "g");
+    edges.forEach(e => {
+        const from = positions[e.from], to = positions[e.to];
+        if (!from || !to) return;
+        const a = toPx(from), b = toPx(to);
+        const line = document.createElementNS(svgNS, "line");
+        line.setAttribute("x1", a.x); line.setAttribute("y1", a.y);
+        line.setAttribute("x2", b.x); line.setAttribute("y2", b.y);
+        line.setAttribute("stroke", "#374151");
+        line.setAttribute("stroke-width", "1.5");
+        edgesGroup.appendChild(line);
+
+        if (e.distance !== undefined && (e.from === currentId || e.to === currentId)) {
+            const mid = document.createElementNS(svgNS, "text");
+            mid.setAttribute("x", (a.x + b.x) / 2);
+            mid.setAttribute("y", (a.y + b.y) / 2);
+            mid.setAttribute("text-anchor", "middle");
+            mid.setAttribute("font-size", "7");
+            mid.setAttribute("fill", "#60a5fa");
+            mid.textContent = e.distance;
+            edgesGroup.appendChild(mid);
+        }
+    });
+
+    const nodesGroup = document.createElementNS(svgNS, "g");
+    nodes.forEach(node => {
+        const pos = positions[node.id];
+        if (!pos) return;
+        const p = toPx(pos);
+        const isCurrent = node.id === currentId;
+        const colors = GRAPH_MINIMAP_VARIANT_COLORS[isCurrent ? 'current' : (node.variant || 'default')];
+
+        const g = document.createElementNS(svgNS, "g");
+        g.setAttribute("transform", `translate(${p.x}, ${p.y})`);
+        if (!isCurrent) {
+            g.style.cursor = "pointer";
+            g.addEventListener('click', () => { if (onNodeClick) onNodeClick(node.id); });
+        }
+
+        const circle = document.createElementNS(svgNS, "circle");
+        circle.setAttribute("r", isCurrent ? "13" : "10");
+        circle.setAttribute("fill", colors.fill);
+        circle.setAttribute("stroke", colors.stroke);
+        circle.setAttribute("stroke-width", isCurrent ? "2.5" : "1.5");
+        g.appendChild(circle);
+
+        if (node.icon) {
+            const iconText = document.createElementNS(svgNS, "text");
+            iconText.setAttribute("text-anchor", "middle");
+            iconText.setAttribute("dominant-baseline", "central");
+            iconText.setAttribute("font-size", isCurrent ? "13" : "10");
+            iconText.textContent = node.icon;
+            g.appendChild(iconText);
+        }
+
+        if (node.label) {
+            const label = document.createElementNS(svgNS, "text");
+            label.setAttribute("text-anchor", "middle");
+            label.setAttribute("y", isCurrent ? "24" : "20");
+            label.setAttribute("font-size", "7");
+            label.setAttribute("fill", "#9ca3af");
+            label.textContent = node.label.length > 12 ? node.label.slice(0, 11) + "…" : node.label;
+            g.appendChild(label);
+        }
+
+        nodesGroup.appendChild(g);
+    });
+
+    svgEl.appendChild(edgesGroup);
+    svgEl.appendChild(nodesGroup);
+}
+
+// ==========================================
 // ÉTAGES URBAINS (multiples de 3 — voir config.urbanFloors)
 // ==========================================
 // Noms de villes génériques (pas de flavor par ville, contrairement aux quartiers) : piochés sans
@@ -2214,37 +2395,57 @@ function retreatFromUrbanBoss() {
 // Reconstruit le panneau "Carte Urbaine" : liste des villes connues, avec leur statut (ici / gardée /
 // escalier / Sortie) et un bouton pour s'y rendre — même esprit que updateKnownLocationsUI(), mais
 // pour le réseau villes/routes plutôt que les lieux connus classiques d'un donjon.
+// Adapte le réseau villes/routes courant au format générique nœuds/arêtes attendu par
+// computeGraphLayout()/renderGraphMiniMap() : seule fonction qui connaît la forme des données du
+// jeu dans tout ce sous-système, tout le reste (disposition, rendu) est réutilisable tel quel.
+function buildUrbanMapGraphData(urbanMap) {
+    const knownCities = Object.values(urbanMap.citiesById).filter(c => c.known);
+    const knownIds = new Set(knownCities.map(c => c.id));
+
+    const nodes = knownCities.map(city => {
+        let icon = '🏙️', variant = 'default';
+        if (city.isStairs || city.isExit) {
+            if (city.guarded && !city.defeated) {
+                icon = '👑'; variant = 'guarded';
+            } else {
+                icon = city.isExit ? '🚪' : '🪜'; variant = 'goal';
+            }
+        }
+        return { id: city.id, label: city.name, icon, variant };
+    });
+
+    // Une arête par route reliant deux villes CONNUES (pas de brouillard sur les routes déjà
+    // révélées, mais rien à dessiner vers une ville pas encore repérée).
+    const edges = [];
+    const seenPairs = new Set();
+    knownCities.forEach(city => {
+        city.roads.forEach(road => {
+            if (!knownIds.has(road.to)) return;
+            const key = [city.id, road.to].sort().join('|');
+            if (seenPairs.has(key)) return;
+            seenPairs.add(key);
+            edges.push({ from: city.id, to: road.to, distance: road.distance });
+        });
+    });
+
+    return { nodes, edges };
+}
+
+// Reconstruit la Carte Urbaine : dispose (computeGraphLayout(), en repartant de la disposition
+// précédente pour rester stable d'un rendu à l'autre) puis dessine (renderGraphMiniMap()) le réseau
+// de villes connues sous forme de mini-carte graphique. Un clic sur une ville connue (directement
+// reliée ou non : travelToCity() calcule lui-même le trajet le plus court) déclenche le voyage.
 function updateUrbanMapUI() {
-    if (!ui.urbanMapContainer) return;
+    if (!ui.urbanMapSvg) return;
     const urbanMap = gameState.urbanMap;
-    ui.urbanMapContainer.innerHTML = "";
-    if (!urbanMap) return;
+    if (!urbanMap) { ui.urbanMapSvg.innerHTML = ""; return; }
 
-    const known = Object.values(urbanMap.citiesById).filter(c => c.known);
-    known.forEach(city => {
-        const isCurrent = city.id === urbanMap.currentCityId;
-        const distance = isCurrent ? 0 : computeCityDistance(urbanMap.currentCityId, city.id);
+    const { nodes, edges } = buildUrbanMapGraphData(urbanMap);
+    urbanMap.mapLayout = computeGraphLayout(nodes.map(n => n.id), edges, urbanMap.mapLayout || {});
 
-        let icon = '🏙️';
-        let tag = '';
-        if (city.isExit) {
-            icon = '🚪';
-            tag = city.defeated ? ' · Sortie libre' : (city.guarded ? ' · Sortie gardée' : ' · Sortie');
-        } else if (city.isStairs) {
-            icon = '🪜';
-            tag = city.defeated ? ' · Escalier libre' : (city.guarded ? ' · Escalier gardé' : ' · Escalier');
-        }
-
-        const row = document.createElement('button');
-        row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-blue-600 hover:bg-blue-950/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-800 disabled:hover:bg-gray-900/80";
-        const distLabel = (!isCurrent && distance !== null && distance !== undefined) ? ` (${distance})` : "";
-        row.innerHTML = `<span class="truncate">${icon} ${city.name}${tag}${isCurrent ? ' · Ici' : distLabel}</span><span class="text-blue-400 uppercase tracking-widest text-[9px] shrink-0">${isCurrent ? '' : 'Aller →'}</span>`;
-        if (isCurrent) {
-            row.disabled = true;
-        } else {
-            row.addEventListener('click', () => travelToCity(city.id));
-        }
-        ui.urbanMapContainer.appendChild(row);
+    renderGraphMiniMap(ui.urbanMapSvg, {
+        nodes, edges, positions: urbanMap.mapLayout, currentId: urbanMap.currentCityId,
+        onNodeClick: (cityId) => travelToCity(cityId),
     });
 }
 
