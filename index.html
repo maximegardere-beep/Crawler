@@ -624,6 +624,13 @@
             <button id="btn-start-confirm" class="w-full py-3 bg-blue-900/40 border-2 border-blue-600 rounded-lg text-blue-300 font-bold uppercase tracking-widest hover:bg-blue-800/50 active:scale-95 transition-all">
                 Entrer dans le Donjon
             </button>
+
+            <!-- Indicateur de version : numéro de la dernière PR mergée, sert d'identifiant de mise
+                 à jour en l'absence de build step (voir APP_VERSION dans app.js). -->
+            <details class="mt-3 text-[10px] text-gray-600">
+                <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-400 text-center list-none">ℹ️ Version</summary>
+                <p id="version-label" class="text-center mt-1">Chargement...</p>
+            </details>
         </div>
     </div>
 
@@ -676,12 +683,12 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=46"></script>
-    <script src="items.js?v=46"></script>
-    <script src="spells.js?v=46"></script>
-    <script src="districts.js?v=46"></script>
-    <script src="safehouses.js?v=46"></script>
-    <script src="generator.js?v=46"></script>
-    <script src="app.js?v=46"></script>
+    <script src="bestiary.js?v=47"></script>
+    <script src="items.js?v=47"></script>
+    <script src="spells.js?v=47"></script>
+    <script src="districts.js?v=47"></script>
+    <script src="safehouses.js?v=47"></script>
+    <script src="generator.js?v=47"></script>
+    <script src="app.js?v=47"></script>
 </body>
 </html>

@@ -93,6 +93,12 @@ const gameState = {
     saveEnabled: false
 };
 
+// Identifiant de version affiché sur l'écran de départ (voir #start-screen-overlay dans index.html) :
+// le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
+// chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
+// numéro de version généré automatiquement.
+const APP_VERSION = { pr: 14, label: "Bouton de version sur l'écran de départ" };
+
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
 // ==========================================
@@ -366,6 +372,7 @@ const ui = {
     startScreenOverlay: document.getElementById('start-screen-overlay'),
     startNameInput: document.getElementById('start-name-input'),
     startSavesHint: document.getElementById('start-saves-hint'),
+    versionLabel: document.getElementById('version-label'),
     btnStartConfirm: document.getElementById('btn-start-confirm'),
     giftRevealOverlay: document.getElementById('gift-reveal-overlay'),
     giftRevealIcon: document.getElementById('gift-reveal-icon'),
@@ -3804,5 +3811,10 @@ if (ui.startSavesHint) {
     const savedNames = listSavedCrawlerNames();
     ui.startSavesHint.classList.toggle('hidden', savedNames.length === 0);
     ui.startSavesHint.innerText = savedNames.length ? `Sauvegardes disponibles : ${savedNames.join(', ')}` : '';
+}
+
+// Version affichée sur l'écran de départ (voir APP_VERSION)
+if (ui.versionLabel) {
+    ui.versionLabel.innerText = `PR #${APP_VERSION.pr} — ${APP_VERSION.label}`;
 }
 
