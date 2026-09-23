@@ -12,8 +12,8 @@ const gameState = {
     def: 5,  // Réduction des dégâts subis par round de combat
     // Mana (0-100, fixe) : n'existe concrètement pour le joueur qu'une fois un sort équipé (voir
     // equipSpell()) — la barre correspondante reste masquée tant que gameState.equipment.spell est
-    // null. Se régénère comme les PV (passif via registerCalmCard(), potions, aide compagnon), à une
-    // vitesse influencée par le niveau de compétence Magie. Voir attackMagic().
+    // null. Se régénère comme les PV : passif (voir applyTimeElapsedRegen()), potions, aide
+    // compagnon. Voir attackMagic().
     mana: 100,
     maxMana: 100,
     level: 1,
@@ -57,10 +57,6 @@ const gameState = {
         blinded: null    // { rounds } : DEF effective réduite (moins de dégâts adverses parés) pendant ces rounds
     },
     cardsDrawnThisFloor: 0, // Compteur informatif (pièces neuves explorées cet étage), plus utilisé pour l'escalier
-    // Régénération de PV hors combat : incrémenté à chaque "carte calme" (événement 🌑 Silence),
-    // remis à zéro (et un nouveau seuil 2 ou 3 tiré) dès que le seuil est atteint et le soin appliqué.
-    calmCardsSinceRegen: 0,
-    calmCardsRegenThreshold: 2 + Math.floor(Math.random() * 2), // 2 ou 3
     inCombat: false, // Verrouille l'avancée si un combat est en cours
     currentEnemy: null, // Ennemi généré procéduralement, actif pendant un combat
     pendingStairAfterCombat: false, // Si vrai, gagner le combat en cours ouvre l'étage suivant
@@ -99,12 +95,15 @@ const config = {
         // repliés sur "nothing") : le changement de quartier se fait maintenant en traversant une
         // jonction du graphe, et les salles sécurisées sont des pièces fixes du niveau. En
         // attendant le rééquilibrage complet de cette table (proposition faite, pas encore validée).
+        // loot/minorFind rééquilibrés (1->4 / 6->3, validé) : moins de petites trouvailles de PV
+        // (régénération désormais surtout passive, voir applyTimeElapsedRegen()), plus d'objets sans
+        // toucher à leur rareté (gérée ailleurs par rollRarity()/getLootPowerScore()).
         nothing: 40,        // Rien de notable
         combat: 25,         // Rencontre hostile
-        loot: 1,            // Objet généré procéduralement (rare)
+        loot: 4,            // Objet généré procéduralement
         trap: 10,           // NOUVEAU : piège avec de vrais dégâts
         timeLoss: 8,        // NOUVEAU : détour qui coûte du temps
-        minorFind: 6,       // NOUVEAU : petite trouvaille (soin mineur)
+        minorFind: 3,       // NOUVEAU : petite trouvaille (soin mineur)
         audienceGift: 4,    // NOUVEAU : cadeau des spectateurs (petit bonus d'XP), clin d'œil à l'émission
         companionEncounter: 3, // NOUVEAU : rencontre d'un autre crawler (ami ou hostile, 50/50)
         flavorOnly: 3       // Pur moment narratif, sans effet mécanique (réduit de 6 à 3 pour compenser)
@@ -1083,31 +1082,22 @@ function useConsumable(index) {
 // 3. MOTEUR DE PROBABILITÉS ET ÉVÉNEMENTS
 // ==========================================
 
-// Compte une "carte calme" (événement 🌑 Silence) et déclenche une petite régénération de PV ET de
-// mana hors combat tous les 2 à 3 tirages de ce type (seuil re-tiré à chaque déclenchement).
-// Volontairement plus modeste qu'une salle sécurisée (qui reste la vraie source de soin fiable) : un
-// filet de sécurité léger, pas un substitut. Le mana ne régénère que si un sort est équipé (sinon la
-// barre n'existe pas côté joueur) ; sa vitesse de réplétion (montant régénéré par tirage) grimpe avec
-// le niveau de compétence Magie.
-function registerCalmCard() {
-    const hpNeeded = gameState.hp < gameState.maxHp;
-    const manaNeeded = !!gameState.equipment.spell && gameState.mana < gameState.maxMana;
-    if (!hpNeeded && !manaNeeded) return; // Rien à régénérer, on ne consomme pas le compteur
-    gameState.calmCardsSinceRegen += 1;
-    if (gameState.calmCardsSinceRegen < gameState.calmCardsRegenThreshold) return;
+// Régénération passive de PV et de mana, proportionnelle au temps qui s'écoule en explorant ou en
+// voyageant vers un lieu connu (voir performExploreStep()/travelToKnownLocation()/
+// autoTravelToNearestFrontier()) — jamais sur une perte de temps punitive (piège "Contretemps"),
+// pour ne pas annuler la sanction. Taux fixe et prévisible, contrairement à l'ancien système basé sur
+// le tirage de la carte 🌑 Silence (beaucoup plus lent et aléatoire). Le mana ne régénère que si un
+// sort est équipé (sinon la barre n'existe pas côté joueur).
+const HP_REGEN_PER_HOUR = 10;
+const MANA_REGEN_PER_HOUR = 25;
 
-    gameState.calmCardsSinceRegen = 0;
-    gameState.calmCardsRegenThreshold = 2 + Math.floor(Math.random() * 2); // Nouveau seuil : 2 ou 3
-    if (hpNeeded) {
-        const heal = 4 + Math.floor(Math.random() * 5); // 4 à 8 PV
-        gameState.hp = Math.min(gameState.maxHp, gameState.hp + heal);
-        logEvent(`Une pause bienvenue vous permet de reprendre votre souffle (+${heal} PV).`, "success");
+function applyTimeElapsedRegen(hours) {
+    if (!hours || hours <= 0) return;
+    if (gameState.hp < gameState.maxHp) {
+        gameState.hp = Math.min(gameState.maxHp, gameState.hp + HP_REGEN_PER_HOUR * hours);
     }
-    if (manaNeeded) {
-        const magicLevel = gameState.skills.magic.level;
-        const manaGain = 6 + Math.floor(Math.random() * 5) + Math.floor(magicLevel * 1.5); // 6-10 + bonus de niveau
-        gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaGain);
-        logEvent(`Vous recanalisez votre énergie magique (+${manaGain} Mana).`, "success");
+    if (gameState.equipment.spell && gameState.mana < gameState.maxMana) {
+        gameState.mana = Math.min(gameState.maxMana, gameState.mana + MANA_REGEN_PER_HOUR * hours);
     }
 }
 
@@ -1123,7 +1113,6 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         setCardHeader('🌑', 'Silence', 'Exploration');
         logEvent(pick(flavorText.nothing), "normal");
-        registerCalmCard();
         return;
     }
 
@@ -1202,7 +1191,6 @@ function resolveCardEvent() {
             // Déjà accompagné : ce tirage se résout comme un moment calme, pas de rencontre superposée
             setCardHeader('🌑', 'Silence', 'Exploration');
             logEvent(pick(flavorText.nothing), "normal");
-            registerCalmCard();
             return;
         }
 
@@ -1392,6 +1380,7 @@ function travelToKnownLocation(id, virtualLocation = null) {
     }
 
     gameState.timeLeft = Math.max(0, gameState.timeLeft - timeCost);
+    applyTimeElapsedRegen(timeCost);
     gameState.pendingTravel = { destination: location, ambushesRemaining: ambushCount };
     logEvent(`Vous repartez vers : ${location.label} (${distance}, -${timeCost}H)...`, "info");
     if (ambushCount > 0) {
@@ -3114,6 +3103,7 @@ function performExploreStep() {
     const current = roomsById[gameState.floorMap.currentRoomId];
 
     gameState.timeLeft -= 1;
+    applyTimeElapsedRegen(1);
     gameState.cardsDrawnThisFloor += 1;
 
     ui.cardBody.innerHTML = "";
@@ -3170,6 +3160,7 @@ function autoTravelToNearestFrontier() {
     }
 
     gameState.timeLeft = Math.max(0, gameState.timeLeft - timeCost);
+    applyTimeElapsedRegen(timeCost);
     gameState.pendingTravel = { destination: location, ambushesRemaining: ambushCount };
     logEvent(`Ce secteur est entièrement connu : vous filez vers une zone inexplorée (${distance}, -${timeCost}H)...`, "info");
     if (ambushCount > 0) {
