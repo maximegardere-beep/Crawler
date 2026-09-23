@@ -63,6 +63,10 @@ const mobModifiers = {
     ]
 };
 
+// xpReward suit grossièrement les PV de base, sans vraiment refléter la menace réelle (ATQ x DEF) :
+// quelques entrées (Fromage qui Pue, Ouvrier à la Chaîne, Imprimante à Rêves, Présentateur Télé-Achat
+// Hystérique) ont été retouchées ponctuellement pour corriger les écarts les plus visibles — pas de
+// règle générale appliquée à tout le catalogue, ça reste à faire à l'occasion d'un futur rework.
 const baseMobs = [
     { name: "Rat Goulot", hp: 30, atk: 5, def: 2, xpReward: 10, allowedTags: ["mental", "physical", "elemental"] },
     { name: "Distributeur de Snacks Hanté", hp: 70, atk: 11, def: 10, xpReward: 40, allowedTags: ["elemental", "physical"] },
@@ -74,8 +78,8 @@ const baseMobs = [
     { name: "Stagiaire Démoniaque", hp: 25, atk: 4, def: 1, xpReward: 8, allowedTags: ["mental", "physical", "elemental"] },
     { name: "Garde-Chiourme Bureaucrate", hp: 70, atk: 11, def: 8, xpReward: 25, allowedTags: ["mental", "physical"], ranged: true },
     { name: "Saucisse Vivante", hp: 50, atk: 12, def: 3, xpReward: 15, allowedTags: ["elemental", "physical"] },
-    { name: "Fromage qui Pue", hp: 80, atk: 5, def: 12, xpReward: 20, allowedTags: ["elemental", "physical"] },
-    { name: "Ouvrier à la Chaîne", hp: 60, atk: 14, def: 4, xpReward: 25, allowedTags: ["mental", "physical", "elemental"] },
+    { name: "Fromage qui Pue", hp: 80, atk: 5, def: 12, xpReward: 14, allowedTags: ["elemental", "physical"] },
+    { name: "Ouvrier à la Chaîne", hp: 60, atk: 14, def: 4, xpReward: 32, allowedTags: ["mental", "physical", "elemental"] },
     { name: "Livre Maudit", hp: 40, atk: 8, def: 5, xpReward: 18, allowedTags: ["elemental", "physical"] },
     { name: "Bibliothécaire Fantôme", hp: 55, atk: 9, def: 6, xpReward: 22, allowedTags: ["mental", "physical", "elemental"], ranged: true },
     { name: "Encre Vivante", hp: 30, atk: 10, def: 2, xpReward: 10, allowedTags: ["elemental", "physical"] },
@@ -91,7 +95,7 @@ const baseMobs = [
     { name: "Marchand Malhonnête", hp: 70, atk: 8, def: 6, xpReward: 35, allowedTags: ["mental", "physical", "elemental"], ranged: true },
     { name: "Sac de Pièces Vivant", hp: 50, atk: 10, def: 5, xpReward: 20, allowedTags: ["elemental", "physical"] },
     { name: "Garde du Marché", hp: 90, atk: 12, def: 7, xpReward: 45, allowedTags: ["mental", "physical", "elemental"], ranged: true },
-    { name: "Imprimante à Rêves", hp: 80, atk: 10, def: 5, xpReward: 40, allowedTags: ["elemental", "physical"] },
+    { name: "Imprimante à Rêves", hp: 80, atk: 10, def: 5, xpReward: 30, allowedTags: ["elemental", "physical"] },
     { name: "Ordinateur en Colère", hp: 100, atk: 15, def: 8, xpReward: 50, allowedTags: ["elemental", "physical"], ranged: true },
     { name: "Câble Électrique Vivant", hp: 30, atk: 12, def: 2, xpReward: 15, allowedTags: ["elemental", "physical"] },
 
@@ -108,7 +112,7 @@ const baseMobs = [
     // --- Studio de Télé-Achat Abandonné ---
     { name: "Mannequin Vitrine Possédé", hp: 60, atk: 9, def: 7, xpReward: 24, allowedTags: ["mental", "physical"] },
     { name: "Caméra de Surveillance Autonome", hp: 45, atk: 12, def: 4, xpReward: 22, allowedTags: ["elemental", "physical"], ranged: true },
-    { name: "Présentateur Télé-Achat Hystérique", hp: 50, atk: 14, def: 3, xpReward: 22, allowedTags: ["mental"] }
+    { name: "Présentateur Télé-Achat Hystérique", hp: 50, atk: 14, def: 3, xpReward: 28, allowedTags: ["mental"] }
 ];
 
 function findMobByName(name) {

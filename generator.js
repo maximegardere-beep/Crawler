@@ -74,6 +74,7 @@ function generateMob(districtName) {
     // modificateur : sert à isoler la part de puissance apportée par les seuls modificateurs
     // (voir finalMob.threatMultiplier plus bas), indépendamment de la profondeur de l'étage.
     const preModifierPower = finalMob.atk * finalMob.hp;
+    const preModifierDef = finalMob.def;
 
     // 2. Jet de dés pour le nombre de modificateurs (Ex: 15% pour 2, 35% pour 1 (total 50%), 50% pour 0)
     const roll = Math.random() * 100;
@@ -142,13 +143,24 @@ function generateMob(districtName) {
     finalMob.isGenerated = true;
     finalMob.modifiersApplied = modifiersApplied;
 
-    // Multiplicateur de menace apporté par les seuls modificateurs (1 = aucun bonus). Comparé à
-    // config.eliteThreatMultiplier côté app.js pour décider de l'affichage de l'icône 💀 : un
-    // "Colossal" isolé (x3.6) ou une combinaison de deux modificateurs plus modestes peut suffire
-    // à franchir le seuil, indépendamment du nombre d'adjectifs affichés dans le nom.
-    finalMob.threatMultiplier = preModifierPower > 0 ? (finalMob.atk * finalMob.hp) / preModifierPower : 1;
+    // Multiplicateur de menace apporté par les seuls modificateurs (1 = aucun bonus) — voir
+    // computeThreatMultiplier() juste en dessous.
+    finalMob.threatMultiplier = computeThreatMultiplier(finalMob.atk, finalMob.hp, finalMob.def, preModifierPower, preModifierDef);
 
     return finalMob;
+}
+
+// Comparé à config.eliteThreatMultiplier côté app.js pour décider de l'affichage de l'icône 💀 : un
+// "Colossal" isolé (x3.6) ou une combinaison de deux modificateurs plus modestes peut suffire à
+// franchir le seuil, indépendamment du nombre d'adjectifs affichés dans le nom. La DEF entre avec un
+// poids modéré (0.5) : un tank pur (ex. "Syndiqué", ATQ ↓ mais DEF ×1.5) doit peser un peu plus lourd
+// que le seul produit ATQ×PV ne le capturait, sans laisser la DEF dominer le score à elle seule (voir
+// issue d'équilibrage "métrique d'élite"). Extraite en fonction pure (plutôt que laissée inline dans
+// generateMob()) pour rester testable indépendamment du pipeline aléatoire complet.
+function computeThreatMultiplier(atk, hp, def, preModifierPower, preModifierDef) {
+    if (preModifierPower <= 0) return 1;
+    const defFactor = (def && preModifierDef > 0) ? (def / preModifierDef) : 1;
+    return (atk * hp * (1 + 0.5 * (defFactor - 1))) / preModifierPower;
 }
 
 // ==========================================
@@ -192,11 +204,14 @@ function generateBoss(districtName) {
 function getRarityWeights(powerScore) {
     const t = Math.max(0, Math.min(1, powerScore));
     const lerp = (low, high) => low + (high - low) * t;
+    // Bas de fourchette (powerScore proche de 0, ex. loot early-game) légèrement redistribué : moins
+    // de Commun, plus de Rare/Épique/Légendaire — sans toucher la fréquence du loot lui-même, voir
+    // issue d'équilibrage "items blagues".
     return {
-        commun: lerp(70, 15),
-        rare: lerp(25, 35),
-        epique: lerp(4.5, 35),
-        legendaire: lerp(0.5, 15)
+        commun: lerp(60, 15),
+        rare: lerp(30, 35),
+        epique: lerp(5.5, 35),
+        legendaire: lerp(1.5, 15)
     };
 }
 
@@ -233,7 +248,10 @@ function generateItem(powerScore = 0) {
     if (categoryName === 'scrolls') {
         return generateSpellScroll(powerScore);
     }
-    const categoryItems = baseItems[categoryName];
+    // Les objets "blagues" (jokeItem: true, voir items.js) sont exclus du loot normal : réservés au
+    // cadeau de bienvenue et au kit de test, jamais tirés en jouant.
+    const nonJokeItems = baseItems[categoryName].filter(item => !item.jokeItem);
+    const categoryItems = nonJokeItems.length > 0 ? nonJokeItems : baseItems[categoryName];
     const baseItemIndex = Math.floor(Math.random() * categoryItems.length);
     const finalItem = JSON.parse(JSON.stringify(categoryItems[baseItemIndex]));
     finalItem.category = categoryName; // conserve la catégorie (utile pour l'UI/logique future)

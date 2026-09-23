@@ -28,12 +28,22 @@ Tailwind CDN, **aucun build step**.
   courant, sans manche de distance embarquée. `attemptSprint()` (S'approcher) et `attemptRetreat()`
   (S'éloigner) sont les DEUX SEULES actions qui font évoluer l'écart, toujours affichées pendant un
   combat et grisées à l'extrémité correspondante (écart nul / maximal) plutôt que masquées ; chacune
-  oppose un jet avantagé du joueur à un jet du mob, jamais de dégâts. Un mob de mêlée ne peut jamais
+  oppose un jet avantagé du joueur à un jet du mob, jamais de dégâts — SAUF **ruée** :
+  au-delà d'une marge de victoire du mob (`config.rangedCombat.rushMarginThreshold`, 3), un mob de
+  MÊLÉE comble l'écart d'un coup et frappe immédiatement ce tour-ci, quel que soit l'écart de départ —
+  sans ça, un joueur à l'écart maximal devient mathématiquement increvable (le delta d'une manche
+  normale ne peut jamais dépasser `dieSides-1`). En dehors d'une ruée, un mob de mêlée ne peut pas
   toucher un joueur qui tient encore la distance (`getCombatRangeContext().playerAdvantaged`) ; toute
   riposte passe par `resolveEnemyReaction()` (bloque, ou fait avancer le mob d'une manche s'il n'a pas
-  déjà agi ce tour) plutôt que par `enemyCounterAttack()` en direct, pour ne jamais laisser un mob de
-  mêlée figé hors de portée.
-- **Furtivité** : détection avant rencontre aléatoire, Esquiver / Attaque Furtive (bonus x2 garanti).
+  déjà agi ce tour, avec ruée possible) plutôt que par `enemyCounterAttack()` en direct, pour ne jamais
+  laisser un mob de mêlée figé hors de portée. Chaque manche CONTESTÉE (jet de distance, via
+  `resolveDistanceRound()`, `attemptSprint()` ou `attemptRetreat()`) consomme aussi un peu de
+  `gameState.timeLeft` (`config.rangedCombat.timeCostPerRound`), jamais les tours d'attaque standards —
+  un combat kité de bout en bout a donc un coût en temps réel, pas seulement en risque.
+- **Furtivité** : détection avant rencontre aléatoire (plafond 60%), Esquiver (plafond 70%) / Attaque
+  Furtive (bonus x2 garanti). Un échec d'esquive laisse le mob "alerted" (`enemy.alerted`) pour tout le
+  combat qui suit : `attemptFlee()` y est bloqué, pour que la boucle "esquive ratée sans conséquence"
+  ne reste pas totalement gratuite.
 - **Compagnons** : 4 spécialités. `leaveChance` (0-100) grimpe avec l'XP du compagnon ; à chaque
   montée de niveau, un jet décide s'il abandonne (départ **pacifique**, raison aléatoire parmi
   `COMPANION_ABANDON_REASONS`) — ce n'est PAS un seuil dur, juste une probabilité croissante.
@@ -41,10 +51,19 @@ Tailwind CDN, **aucun build step**.
   stats. `IMPLEMENTED_WEAPON_MECHANICS` / `IMPLEMENTED_ARMOR_MECHANICS` listent les enchantements
   qui ont un vrai effet en combat ; le reste (`pleasure_or_pain`, `aoe`, `darkness`) est cosmétique
   des deux côtés. Badges visibles dans l'inventaire (`buildMechanicBadgesHtml()`), colorés si
-  fonctionnels, grisés sinon.
+  fonctionnels, grisés sinon. `jokeItem: true` (`items.js`) marque un objet volontairement dérisoire
+  (blague DCC), exclu du tirage normal du loot (`generateItem()`) mais toujours accessible via le
+  cadeau de bienvenue et le kit de test.
 - **Mobs élite** : `generateMob()` pose `threatMultiplier` (puissance apportée par les seuls
-  modificateurs, hors scaling d'étage). Au-delà de `config.eliteThreatMultiplier`, icône 💀
-  (jamais sur un boss, qui garde 👑 — voir `isEliteMob()`).
+  modificateurs, hors scaling d'étage) via `computeThreatMultiplier()` (generator.js, fonction pure et
+  testable indépendamment du pipeline aléatoire) — ATQ×PV pondéré par la DEF avec un poids modéré
+  (0.5), pour qu'un tank pur (ATQ en baisse, DEF/PV en hausse) pèse plus lourd que le seul produit
+  ATQ×PV ne le capturait, sans laisser la DEF dominer le score à elle seule. Au-delà de
+  `config.eliteThreatMultiplier`, icône 💀 (jamais sur un boss, qui garde 👑 — voir `isEliteMob()`).
+- **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
+  éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
+  grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
+  `1 + floor(niveau/5)` (croissants avec le niveau ATTEINT, pour rester au niveau des mobs en fin de run).
 - **Magie** : un seul sort équipé à la fois (`gameState.equipment.spell`), plus de simple attaque
   magique inconditionnelle. Répertoire de base dans `spellCatalog` (`spells.js`), deux catégories —
   corps à corps ou à distance (`spellCategory`) — qui font se comporter le bouton Magie exactement
@@ -57,10 +76,13 @@ Tailwind CDN, **aucun build step**.
   perdre. Le mana (`gameState.mana`, 0-100) n'existe visuellement pour le joueur qu'une fois un sort
   équipé, et se régénère comme les PV : passif via `applyTimeElapsedRegen()` (voir plus bas),
   potions (`item.mana` dans `items.js`), aide du compagnon Médecin.
-- **Régénération passive (PV/mana)** : `applyTimeElapsedRegen(hours)` — taux fixe, **10 PV/h** et
-  **25 mana/h** (mana seulement si un sort est équipé), appliqué à chaque fois que `gameState.timeLeft`
-  diminue pour une raison "normale" (`performExploreStep()`, `travelToKnownLocation()`,
-  `autoTravelToNearestFrontier()`) — jamais sur la perte de temps punitive du piège "Contretemps", qui
+- **Régénération passive (PV/mana)** : `applyTimeElapsedRegen(hours)` — PV **dégressif** selon le %
+  de PV déjà restants (`HP_REGEN_TIERS` : 10/h sous 50%, 4/h entre 50-80%, 1/h au-delà — un vrai filet
+  de sécurité en dessous, un simple filet d'eau au-delà), mana à **12/h** (seulement si un sort est
+  équipé). Une salle sécurisée reste le seul moyen fiable de repartir plein PV/mana (soin complet à
+  l'entrée, voir `enterRoom()`), mais à un coût en temps proportionnel à ce qui est régénéré. Appliqué
+  à chaque fois que `gameState.timeLeft` diminue pour une raison "normale" (`performExploreStep()`,
+  `travelToKnownLocation()`, `autoTravelToNearestFrontier()`) — jamais sur la perte de temps punitive du piège "Contretemps", qui
   perdrait sinon son sens.
 - **Écran de départ** : `#start-screen-overlay` (saisie du nom, `confirmPlayerName()`) puis
   `#gift-reveal-overlay` (`revealWelcomeGift()`) recouvrent l'UI de jeu au chargement — celle-ci est
