@@ -951,5 +951,44 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(ui.giftRevealOverlay.classList.contains('hidden'), "dismissGiftReveal() : masque l'écran de révélation du cadeau");
 }
 
+// ===================================================================
+// Kit de test (bouton discret "🧪 Kit de Test", remplace l'ancien export de logs) : équipe 1 arme,
+// 1 arme à distance et 1 sort, tous au palier Légendaire, pour tester les mécaniques sans dépendre
+// du loot aléatoire (voir generateTestKitItem()/generateTestKitSpell() dans generator.js).
+// ===================================================================
+{
+    const legendaire = itemRarities[itemRarities.length - 1];
+    assert(legendaire.name === "Légendaire", "Sanity : le dernier palier d'itemRarities est bien Légendaire");
+
+    for (let i = 0; i < 20; i++) {
+        const weapon = generateTestKitItem('weapons');
+        assert(weapon.category === 'weapons' && weapon.rarity === 'Légendaire', "generateTestKitItem('weapons') : catégorie et rareté forcées");
+        if (weapon.canEnchant !== false) {
+            assert(weapon.mechanics && weapon.mechanics.length === legendaire.slots, "generateTestKitItem('weapons') : tous les slots d'enchantement du palier Légendaire sont remplis");
+        }
+
+        const ranged = generateTestKitItem('ranged');
+        assert(ranged.category === 'ranged' && ranged.rarity === 'Légendaire', "generateTestKitItem('ranged') : catégorie et rareté forcées");
+
+        const spell = generateTestKitSpell();
+        assert(spell.category === 'scrolls' && spell.rarity === 'Légendaire', "generateTestKitSpell() : catégorie et rareté forcées");
+        assert(['melee', 'ranged'].includes(spell.spellCategory), "generateTestKitSpell() : catégorie de sort valide");
+    }
+}
+
+// giveTestKit() : équipe directement les 3 emplacements et remplit le mana, en un seul appel.
+{
+    resetTransientState();
+    gameState.equipment.weapon = null;
+    gameState.equipment.ranged = null;
+    gameState.equipment.spell = null;
+    gameState.mana = 0;
+    giveTestKit();
+    assert(gameState.equipment.weapon !== null && gameState.equipment.weapon.rarity === 'Légendaire', "giveTestKit() : équipe une arme légendaire");
+    assert(gameState.equipment.ranged !== null && gameState.equipment.ranged.rarity === 'Légendaire', "giveTestKit() : équipe une arme à distance légendaire");
+    assert(gameState.equipment.spell !== null && gameState.equipment.spell.rarity === 'Légendaire', "giveTestKit() : équipe un sort légendaire");
+    assert(gameState.mana === gameState.maxMana, "giveTestKit() : remplit le mana au maximum");
+}
+
 console.log(`${passed} test(s) OK, ${failures} échec(s).`);
 process.exit(failures === 0 ? 0 : 1);

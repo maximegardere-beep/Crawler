@@ -344,6 +344,69 @@ function generateWelcomeGiftItem(type) {
     return null;
 }
 
+/**
+ * Génère une arme ou une arme à distance de test, toujours au palier Légendaire (tous les slots
+ * d'enchantement) — bouton de test discret (voir giveTestKit() dans app.js), pour équiper le joueur
+ * en un clic avec du matériel déjà pleinement enchanté et tester les mécaniques de combat sans
+ * dépendre du loot aléatoire. Volontairement séparé de generateItem() (catégorie/rareté imposées
+ * plutôt que tirées au hasard) pour ne rien changer à l'ordre des tirages du loot normal du jeu.
+ *
+ * @param {string} categoryName - 'weapons' | 'ranged'
+ * @returns {object}
+ */
+function generateTestKitItem(categoryName) {
+    const rarity = itemRarities[itemRarities.length - 1]; // Légendaire : le palier le plus fort
+    const pool = baseItems[categoryName];
+    const finalItem = JSON.parse(JSON.stringify(pool[Math.floor(Math.random() * pool.length)]));
+    finalItem.category = categoryName;
+    finalItem.rarity = rarity.name;
+    finalItem.rarityColor = rarity.color;
+    if (finalItem.baseDmg !== undefined) finalItem.baseDmg = Math.max(1, Math.round(finalItem.baseDmg * rarity.statMult));
+
+    const appliedNames = [];
+    const appliedMechanics = [];
+    if (finalItem.canEnchant !== false) {
+        for (let slotIndex = 0; slotIndex < rarity.slots; slotIndex++) {
+            const maxTier = slotIndex + 1;
+            const pool = itemModifiers.effect.filter(e => e.tier <= maxTier && !appliedNames.includes(e.name));
+            if (pool.length === 0) continue;
+            const picked = pool[Math.floor(Math.random() * pool.length)];
+            appliedNames.push(picked.name);
+            if (picked.mechanic) appliedMechanics.push(picked.mechanic);
+        }
+    }
+    if (appliedMechanics.length > 0) finalItem.mechanics = appliedMechanics;
+    if (appliedNames.length === 1) {
+        finalItem.name = `${finalItem.name} ${appliedNames[0]}`;
+    } else if (appliedNames.length === 2) {
+        finalItem.name = `${finalItem.name} ${appliedNames[0]} et ${appliedNames[1]}`;
+    } else if (appliedNames.length >= 3) {
+        finalItem.name = `${finalItem.name} ${appliedNames.slice(0, -1).join(", ")} et ${appliedNames[appliedNames.length - 1]}`;
+    }
+
+    return finalItem;
+}
+
+/**
+ * Génère un sort de test, toujours au palier Légendaire — même esprit que generateTestKitItem(),
+ * variante de generateSpellScroll() à rareté imposée plutôt que tirée au hasard.
+ * @returns {object}
+ */
+function generateTestKitSpell() {
+    const rarity = itemRarities[itemRarities.length - 1];
+    const base = spellCatalog[Math.floor(Math.random() * spellCatalog.length)];
+    const scroll = JSON.parse(JSON.stringify(base));
+    scroll.category = 'scrolls';
+    scroll.spellCategory = base.category;
+    scroll.spellName = base.name;
+    scroll.rarity = rarity.name;
+    scroll.rarityColor = rarity.color;
+    scroll.baseDmg = Math.max(1, Math.round(scroll.baseDmg * rarity.statMult));
+    scroll.manaCost = Math.max(5, Math.round(scroll.manaCost * rarity.statMult));
+    scroll.name = `Parchemin : ${base.name}`;
+    return scroll;
+}
+
 // ==========================================
 // 3. GÉNÉRATION DES COMPAGNONS (CRAWLERS RENCONTRÉS)
 // ==========================================
