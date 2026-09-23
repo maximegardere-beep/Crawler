@@ -1389,27 +1389,32 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     stairsCity.guarded = true; // Force la garde pour vérifier l'icône/variant 'guarded'
     stairsCity.known = true; // Garantit sa présence dans le graphe pour cette vérification ciblée
 
-    const { nodes, edges } = buildUrbanMapGraphData(um);
+    const { nodes, edges, positions } = buildUrbanMapGraphData(um);
     const knownCount = Object.values(um.citiesById).filter(c => c.known).length;
     assert(nodes.length === knownCount, "buildUrbanMapGraphData() : un nœud par ville connue, ni plus ni moins");
     assert(edges.every(e => nodes.some(n => n.id === e.from) && nodes.some(n => n.id === e.to)),
         "buildUrbanMapGraphData() : aucune arête ne pointe vers une ville pas encore connue");
+    assert(Object.keys(positions).length === nodes.length, "buildUrbanMapGraphData() : une position (fixe) par nœud connu");
     const stairsNode = nodes.find(n => n.id === stairsCity.id);
-    assert(stairsNode.variant === 'guarded' && stairsNode.icon === '👑',
-        "buildUrbanMapGraphData() : une ville-escalier gardée reçoit l'icône/variant 'guarded'");
+    assert(stairsNode.variant === 'guarded' && stairsNode.icon === '🏙️' && stairsNode.goalIcon === '👑',
+        "buildUrbanMapGraphData() : une ville-escalier gardée garde une icône normale + un goalIcon 'guarded' à part");
 
     updateUrbanMapUI();
-    assert(ui.urbanMapSvg._children.length === 2, "updateUrbanMapUI() : le SVG contient bien un groupe d'arêtes et un groupe de nœuds");
-    const nodesGroup = ui.urbanMapSvg._children[1];
-    assert(nodesGroup._children.length === nodes.length, "updateUrbanMapUI() : un élément SVG par nœud du graphe");
+    assert(ui.urbanMapSvg._children.length === 3, "updateUrbanMapUI() : le SVG contient un fond, un groupe d'arêtes et un groupe de nœuds");
+    const nodesGroup = ui.urbanMapSvg._children[2];
+    // +1 : le marqueur de gardien (goalIcon) de la ville-escalier s'ajoute au groupe des nœuds, en
+    // plus de son propre nœud — voir renderGraphMiniMap().
+    assert(nodesGroup._children.length === nodes.length + 1, "updateUrbanMapUI() : un élément SVG par nœud du graphe, plus le marqueur de gardien");
 
     // Clic sur un nœud autre que la ville courante : doit déclencher travelToCity() (même mécanisme
-    // que la liste précédente, juste porté par le graphe désormais).
-    const otherNodeIndex = nodes.findIndex(n => n.id !== um.currentCityId);
+    // que la liste précédente, juste porté par le graphe désormais). Repéré par data-node-id plutôt
+    // que par index, puisque le marqueur de gardien décale les indices dans le groupe SVG.
+    const otherNode = nodes.find(n => n.id !== um.currentCityId);
+    const otherNodeG = nodesGroup._children.find(c => c.getAttribute('data-node-id') === otherNode.id);
     const cityBefore = um.currentCityId;
     const originalRandom = Math.random;
     Math.random = () => 0.99; // Écarte toute embuscade pour un trajet direct et prévisible
-    nodesGroup._children[otherNodeIndex].dispatch('click');
+    otherNodeG.dispatch('click');
     Math.random = originalRandom;
     assert(um.currentCityId !== cityBefore || gameState.inCombat, "updateUrbanMapUI() : cliquer un nœud du graphe déplace bien le joueur (ou déclenche une embuscade)");
 }
@@ -1604,6 +1609,87 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 
     const rideau = baseItems.armors.find(i => i.name === "Rideau de Douche Camouflage");
     assert(rideau.baseValue === 8, "items.js : Rideau de Douche Camouflage n'est plus le pire objet ET le plus cher (baseValue 50 -> 8)");
+}
+
+// ===================================================================
+// Carte Urbaine : gabarit de positions fixes (fond "grande ville"), caméra centrée sur le joueur,
+// marqueur de gardien décalé sur la route. Voir CLAUDE.md pour le détail.
+// ===================================================================
+
+// generateUrbanFloorMap() : chaque ville reçoit une position FIXE tirée du gabarit
+// (URBAN_MAP_TEMPLATE_POINTS), jamais deux villes sur le même point, et cette position ne bouge plus
+// jamais ensuite (contrairement à l'ancien layout force-directed).
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    const cities = Object.values(gameState.urbanMap.citiesById);
+
+    cities.forEach(city => {
+        const matchesTemplate = URBAN_MAP_TEMPLATE_POINTS.some(pt => pt.x === city.x && pt.y === city.y);
+        assert(matchesTemplate, `generateUrbanFloorMap() : la position de '${city.id}' vient bien du gabarit fixe`);
+    });
+    const seenPositions = new Set(cities.map(c => `${c.x},${c.y}`));
+    assert(seenPositions.size === cities.length, "generateUrbanFloorMap() : jamais deux villes sur le même point du gabarit");
+
+    // Les positions ne bougent jamais après coup, même après plusieurs rafraîchissements de l'UI
+    const before = cities.map(c => ({ id: c.id, x: c.x, y: c.y }));
+    updateUrbanMapUI();
+    updateUrbanMapUI();
+    const after = Object.values(gameState.urbanMap.citiesById);
+    before.forEach(b => {
+        const a = after.find(c => c.id === b.id);
+        assert(a.x === b.x && a.y === b.y, `updateUrbanMapUI() : la position de '${b.id}' reste fixe d'un rendu à l'autre`);
+    });
+}
+
+// renderGraphMiniMap() : la caméra (viewBox) se centre sur `focusId`, écrêtée pour ne jamais sortir
+// du cadre normalisé 0..1 — le reste (positions, fond) ne bouge jamais, seule la vue se déplace.
+{
+    const nodes = [{ id: 'a', label: 'A', icon: '🏙️' }];
+    const edges = [];
+    const positions = { a: { x: 0.5, y: 0.5 } };
+    const svgEl = document.createElement('svg');
+
+    renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId: 'a', focusId: 'a', viewSpan: 0.5 });
+    assert(svgEl.getAttribute('viewBox') === "50 60 100 120", "renderGraphMiniMap() : viewBox centré sur le nœud focus (centre du cadre ici)");
+
+    // Nœud proche d'un bord : la fenêtre est écrêtée pour ne jamais sortir du cadre [0,1]
+    positions.a = { x: 0.02, y: 0.02 };
+    renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId: 'a', focusId: 'a', viewSpan: 0.5 });
+    assert(svgEl.getAttribute('viewBox') === "0 0 100 120", "renderGraphMiniMap() : viewBox écrêté près du coin (0,0)");
+
+    // Sans focusId : vue complète par défaut (comportement générique inchangé)
+    renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId: 'a' });
+    assert(svgEl.getAttribute('viewBox') === "0 0 200 240", "renderGraphMiniMap() : vue complète par défaut sans focusId");
+}
+
+// renderGraphMiniMap() : le fond décoratif (background.rects/lines) se dessine en premier calque, et
+// le marqueur de gardien (goalIcon) porte SA PROPRE couleur (variant), jamais reportée sur le
+// cercle de la ville elle-même (qui reste "normale").
+{
+    const nodes = [
+        { id: 'start', label: 'Départ', icon: '🏙️', variant: 'default' },
+        { id: 'boss', label: 'Gardien', icon: '🏙️', variant: 'guarded', goalIcon: '👑' },
+    ];
+    const edges = [{ from: 'start', to: 'boss', distance: 2 }];
+    const positions = { start: { x: 0.3, y: 0.5 }, boss: { x: 0.7, y: 0.5 } };
+    const background = { rects: [{ x: 0.1, y: 0.1, w: 0.05, h: 0.05 }], lines: [{ x1: 0, y1: 0.5, x2: 1, y2: 0.5 }] };
+    const svgEl = document.createElement('svg');
+
+    renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId: 'start', background });
+    assert(svgEl._children.length === 3, "renderGraphMiniMap() : fond + arêtes + nœuds, dans cet ordre");
+    assert(svgEl._children[0]._children.length === 2, "renderGraphMiniMap() : le calque de fond contient bien le rect ET la ligne fournis");
+
+    const nodesGroup = svgEl._children[2];
+    const bossNodeG = nodesGroup._children.find(c => c.getAttribute('data-node-id') === 'boss');
+    const bossCircle = bossNodeG._children.find(c => c.getAttribute && c.getAttribute('r'));
+    assert(bossCircle.getAttribute('stroke') === GRAPH_MINIMAP_VARIANT_COLORS.default.stroke,
+        "renderGraphMiniMap() : le cercle de la ville gardée reste de couleur par défaut");
+    const markerG = nodesGroup._children.find(c => !c.getAttribute('data-node-id')); // Seul le marqueur n'a pas de data-node-id
+    const markerCircle = markerG && markerG._children.find(c => c.getAttribute && c.getAttribute('r') === '8');
+    assert(!!markerCircle && markerCircle.getAttribute('stroke') === GRAPH_MINIMAP_VARIANT_COLORS.guarded.stroke,
+        "renderGraphMiniMap() : le marqueur porte bien la couleur 'guarded'");
 }
 
 console.log(`${passed} test(s) OK, ${failures} échec(s).`);

@@ -127,21 +127,33 @@ Tailwind CDN, **aucun build step**.
   normalement. Masqué dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
   `isActionBlocked()`) : la carte redevient alors visible et se comporte exactement comme sur un étage
   classique (toggle dans `updateUI()`). Le déplacement s'y représente comme une **mini carte
-  graphique** (nœuds = villes, arêtes = routes) plutôt qu'une liste : `buildUrbanMapGraphData()` (seule
-  partie qui connaît la forme des données du jeu) adapte le réseau villes/routes connu au format
-  générique nœuds/arêtes attendu par `computeGraphLayout()`/`renderGraphMiniMap()` — voir la section
-  **Mini carte graphique** ci-dessous, pensée pour être réutilisée telle quelle par un futur système de
-  navigation basé sur un graphe (mini-plan de donjon classique par exemple).
-- **Mini carte graphique (réutilisable)** : `computeGraphLayout(nodeIds, edges, existingPositions)`
-  (disposition, aucune connaissance du jeu) + `renderGraphMiniMap(svgEl, {nodes, edges, positions,
-  currentId, onNodeClick})` (rendu SVG, aucune connaissance du jeu non plus) forment un petit module
-  générique. Disposition par relaxation "force-directed" minimaliste (répulsion entre nœuds + ressort
-  sur les arêtes + attraction vers le centre), sans dépendance externe. Point clé pour rester stable
-  d'un rendu à l'autre : chaque nœud a une **mobilité** — 1 (pleinement mobile) s'il vient d'apparaître,
-  0.08 (quasi ancré) s'il avait déjà une position lors de l'appel précédent — sans quoi la relaxation
-  complète (nécessaire pour bien placer un nouveau nœud) réorganiserait tout le graphe à chaque ville
-  révélée au lieu de se contenter d'y intégrer la nouvelle. `gameState.urbanMap.mapLayout` conserve les
-  positions d'un appel à l'autre.
+  graphique** (nœuds = villes, arêtes = routes) plutôt qu'une liste, sur un **gabarit de positions
+  fixes** évoquant les quartiers d'une seule et même grande ville (thème DCC) : `URBAN_MAP_TEMPLATE_POINTS`
+  (~20 points, coordonnées normalisées 0..1, jamais recalculées) sert de réservoir dans lequel
+  `generateUrbanFloorMap()` tire `cityCount` points sans répétition et les stocke sur chaque ville
+  (`city.x`/`city.y`) — seule la SÉLECTION/les routes varient d'une partie à l'autre, jamais la
+  disposition elle-même (contrairement à l'ancien layout "force-directed", qui recalculait — et donc
+  bougeait légèrement — la position relative des nœuds à chaque rendu). Un **fond décoratif**
+  "pâtés de maisons + avenues" (`URBAN_MAP_BACKGROUND`, généré une seule fois avec un seed FIXE via
+  `mulberry32()`, jamais `Math.random()`) reste lui aussi rigoureusement identique d'une partie à
+  l'autre. La **caméra** (viewBox du SVG) se recentre sur la ville courante à chaque rendu
+  (`focusId`/`viewSpan` de `renderGraphMiniMap()`) — c'est la vue qui se déplace (translation), jamais
+  les positions/le fond sous-jacents. Le gardien de l'escalier/Sortie garde sa ville normale (icône
+  générique) mais son icône (👑) est dessinée à part, décalée d'une distance fixe en pixels sur SA
+  route d'accès plutôt que confondue avec le cercle de la ville — "posté sur la route".
+  `buildUrbanMapGraphData()` (seule partie qui connaît la forme des données du jeu) adapte le réseau
+  villes/routes connu au format générique nœuds/arêtes/positions attendu par `renderGraphMiniMap()` —
+  voir la section **Mini carte graphique** ci-dessous.
+- **Mini carte graphique (réutilisable)** : `renderGraphMiniMap(svgEl, {nodes, edges, positions,
+  currentId, onNodeClick, focusId, viewSpan, background})` (rendu SVG, aucune connaissance du jeu) est
+  le module générique — l'appelant fournit ses propres positions (fixes comme pour les étages urbains,
+  ou calculées), un fond décoratif optionnel, et le nœud à centrer (`focusId`) pour l'effet caméra.
+  `computeGraphLayout(nodeIds, edges, existingPositions)` (disposition par relaxation "force-directed"
+  minimaliste, sans dépendance externe) reste disponible pour un futur cas qui aurait vraiment besoin
+  d'un layout calculé plutôt que d'un gabarit fixe — non utilisée par les étages urbains depuis leur
+  passage aux positions fixes, mais conservée telle quelle (testée, mobilité 1/0.08 pour rester stable
+  d'un rendu à l'autre) pour un futur système de navigation basé sur un graphe (mini-plan de donjon
+  classique par exemple).
 
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).
