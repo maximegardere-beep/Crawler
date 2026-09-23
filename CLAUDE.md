@@ -55,8 +55,13 @@ Tailwind CDN, **aucun build step**.
   `gameState.spellbook` (inventaire magique séparé, jamais limité) plutôt que `gameState.inventory` ;
   `equipSpell()` l'équipe et renvoie l'éventuel sort précédent dans le grimoire, sans jamais le
   perdre. Le mana (`gameState.mana`, 0-100) n'existe visuellement pour le joueur qu'une fois un sort
-  équipé, et se régénère comme les PV : passif via `registerCalmCard()` (vitesse influencée par le
-  niveau de compétence Magie), potions (`item.mana` dans `items.js`), aide du compagnon Médecin.
+  équipé, et se régénère comme les PV : passif via `applyTimeElapsedRegen()` (voir plus bas),
+  potions (`item.mana` dans `items.js`), aide du compagnon Médecin.
+- **Régénération passive (PV/mana)** : `applyTimeElapsedRegen(hours)` — taux fixe, **10 PV/h** et
+  **25 mana/h** (mana seulement si un sort est équipé), appliqué à chaque fois que `gameState.timeLeft`
+  diminue pour une raison "normale" (`performExploreStep()`, `travelToKnownLocation()`,
+  `autoTravelToNearestFrontier()`) — jamais sur la perte de temps punitive du piège "Contretemps", qui
+  perdrait sinon son sens.
 - **Écran de départ** : `#start-screen-overlay` (saisie du nom, `confirmPlayerName()`) puis
   `#gift-reveal-overlay` (`revealWelcomeGift()`) recouvrent l'UI de jeu au chargement — celle-ci est
   déjà entièrement initialisée en arrière-plan (aucun état de jeu propre à ces deux écrans). Le

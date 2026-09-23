@@ -824,31 +824,33 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(gameState.inventory.length === 0, "useConsumable() : l'objet disparaît après usage");
 }
 
-// registerCalmCard() : régénère aussi le mana passivement, mais seulement si un sort est équipé —
-// et même si les PV sont déjà pleins (les deux jauges régénèrent indépendamment l'une de l'autre).
+// applyTimeElapsedRegen() : régénère PV (10/h) et mana (25/h, seulement si un sort est équipé) au
+// prorata des heures écoulées, les deux jauges régénérant indépendamment l'une de l'autre.
 {
     resetTransientState();
-    gameState.hp = gameState.maxHp; // PV déjà pleins : ne doit pas bloquer la régén de mana
+    gameState.hp = gameState.maxHp - 25;
     gameState.equipment.spell = { spellName: "Test", spellCategory: 'melee', baseDmg: 5, manaCost: 5, category: 'scrolls' };
     gameState.mana = 0;
-    gameState.calmCardsSinceRegen = 0;
-    gameState.calmCardsRegenThreshold = 2;
-    registerCalmCard();
-    assert(gameState.mana === 0, "registerCalmCard() : pas encore de régénération avant d'atteindre le seuil");
-    registerCalmCard();
-    assert(gameState.mana > 0, "registerCalmCard() : régénère du mana au seuil, même PV pleins");
-    assert(gameState.mana <= gameState.maxMana, "registerCalmCard() : ne dépasse jamais maxMana");
+    applyTimeElapsedRegen(2);
+    assert(gameState.hp === gameState.maxHp - 5, "applyTimeElapsedRegen() : régénère 10 PV par heure écoulée");
+    assert(gameState.mana === 50, "applyTimeElapsedRegen() : régénère 25 mana par heure écoulée (sort équipé)");
+
+    gameState.hp = gameState.maxHp; // PV déjà pleins : ne doit pas bloquer la régén de mana
+    gameState.mana = gameState.maxMana - 10;
+    applyTimeElapsedRegen(1);
+    assert(gameState.hp === gameState.maxHp, "applyTimeElapsedRegen() : PV pleins -> aucun débordement au-delà de maxHp");
+    assert(gameState.mana === gameState.maxMana, "applyTimeElapsedRegen() : régénère le mana même PV pleins (jauges indépendantes)");
 
     resetTransientState();
-    gameState.hp = gameState.maxHp;
     gameState.equipment.spell = null; // Aucun sort équipé : rien à régénérer, jamais de mana fantôme
     gameState.mana = 0;
-    gameState.calmCardsSinceRegen = 0;
-    gameState.calmCardsRegenThreshold = 2;
-    registerCalmCard();
-    registerCalmCard();
-    registerCalmCard();
-    assert(gameState.mana === 0, "registerCalmCard() : aucune régénération de mana sans sort équipé");
+    applyTimeElapsedRegen(5);
+    assert(gameState.mana === 0, "applyTimeElapsedRegen() : aucune régénération de mana sans sort équipé");
+
+    resetTransientState();
+    gameState.hp = gameState.maxHp - 100;
+    applyTimeElapsedRegen(0);
+    assert(gameState.hp === gameState.maxHp - 100, "applyTimeElapsedRegen(0) : aucun effet sans heure écoulée");
 }
 
 // ===================================================================
