@@ -73,6 +73,17 @@ const gameState = {
     // un seul graphe (les jonctions inter-quartiers sont des arêtes comme les autres), ce qui
     // simplifie le calcul de distance (computeDistance()). Rien de tout ceci n'est affiché.
     floorMap: null,
+    // Étage urbain (multiples de 3 — voir generateUrbanFloorMap()) : réseau de villes sûres reliées
+    // par des routes dangereuses, exclusif de floorMap (l'un des deux vaut toujours null). Une seule
+    // ville porte l'escalier (ou la Sortie à l'étage final), potentiellement gardée par un boss
+    // généré depuis le thème unique de l'étage (theme, réutilise un quartier existant de districts.js
+    // au même titre qu'un quartier classique — voir gameState.currentDistrict).
+    urbanMap: null,
+    pendingUrbanTravel: null, // { destinationCityId, ambushesRemaining } pendant un trajet entre villes
+    pendingUrbanBossEncounter: null, // { cityId, isExit } pendant un choix combattre/repérer urbain
+    pendingUrbanBossCityId: null, // Ville dont le combat de boss est en cours, pour la marquer vaincue à la victoire
+    pendingUrbanAdvanceAfterCombat: null, // 'nextFloor' | 'win' | null : ce que la victoire du combat en cours déclenche
+    hasWon: false, // Vrai une fois la Sortie de l'étage final franchie (voir winGame())
     companion: null, // Compagnon actuellement recruté (ou null)
     pendingCompanionCandidate: null, // Candidat en attente de décision (recruter/laisser/fuir/attaquer)
     companionChoicePending: false, // Une décision de compagnon est en attente
@@ -135,7 +146,27 @@ const config = {
     // NON-boss est signalé comme dangereux par l'icône 💀 (nom du combat, panneau "Examiner",
     // annonce de rencontre). 1.8 correspond environ à un seul modificateur "Musculeux"/"Colossal",
     // ou à deux modificateurs plus modestes combinés — valeur de départ, à ajuster par playtest.
-    eliteThreatMultiplier: 1.8
+    eliteThreatMultiplier: 1.8,
+
+    // Étages urbains (multiples de 3 — voir generateUrbanFloorMap()). "theme" réutilise TEL QUEL le
+    // nom d'un quartier existant (districts.js/bestiary.js) comme thématique unique de tout l'étage :
+    // generateMob()/generateBoss() n'ont besoin d'aucune adaptation, ils reçoivent simplement ce nom
+    // à la place d'un nom de quartier classique (voir gameState.currentDistrict). Aucun contenu neuf
+    // à maintenir en double. stairsGuardChanceByFloor : probabilité (croissante avec la profondeur)
+    // que la ville de l'escalier soit gardée ; la Sortie de l'étage final, elle, est TOUJOURS gardée
+    // (dernier obstacle avant la victoire), pas de pourcentage à consulter pour elle.
+    urbanFloors: {
+        finalFloor: 18,
+        themes: {
+            3: "Rue des Illusions",
+            6: "Parking Souterrain Maudit",
+            9: "Marché Noir du Donjon",
+            12: "Studio de Télé-Achat Abandonné",
+            15: "Bureaux de l'Administration Pénitentiaire",
+            18: "Salle des Machines Infernales"
+        },
+        stairsGuardChanceByFloor: { 3: 20, 6: 35, 9: 50, 12: 65, 15: 80 }
+    }
 };
 
 // Un mob non-boss est "élite" si ses modificateurs (voir threatMultiplier dans generateMob())
@@ -286,8 +317,15 @@ const ui = {
     gameOverLevel: document.getElementById('game-over-level'),
     gameOverDistrict: document.getElementById('game-over-district'),
     btnRestart: document.getElementById('btn-restart'),
+    winOverlay: document.getElementById('win-overlay'),
+    winFloor: document.getElementById('win-floor'),
+    winLevel: document.getElementById('win-level'),
+    btnWinRestart: document.getElementById('btn-win-restart'),
     combatZone: document.getElementById('combat-zone'),
+    knownLocationsSection: document.getElementById('known-locations-section'),
     knownLocationsContainer: document.getElementById('known-locations'),
+    urbanMapSection: document.getElementById('urban-map-section'),
+    urbanMapContainer: document.getElementById('urban-map-container'),
     companionChoiceFriendly: document.getElementById('companion-choice-friendly'),
     companionChoiceHostile: document.getElementById('companion-choice-hostile'),
     btnRecruitFriendly: document.getElementById('btn-recruit-friendly'),
@@ -690,7 +728,10 @@ function updateUI() {
             ui.combatDistanceFill.classList.toggle('bg-gray-600', !playerBenefits && !playerSuffers);
         }
     } else {
-        ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending || gameState.stealthChoicePending);
+        // Étage urbain : le tapotement de la carte n'a aucun effet (explore() se bloque déjà sur
+        // gameState.floorMap === null), donc l'invite "Touchez la carte pour explorer" n'a plus lieu
+        // d'être — la Carte Urbaine (liste de villes) la remplace comme mode de déplacement.
+        ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending || gameState.stealthChoicePending || !!gameState.urbanMap);
         ui.combatZone.classList.add('hidden');
         ui.compactVitals.classList.remove('hidden'); // On réaffiche les PV compacts hors combat
         ui.cardStackWrapper.style.maxWidth = '240px'; // Retour à la taille normale hors combat
@@ -702,9 +743,16 @@ function updateUI() {
         ui.combatSidePlayer.classList.remove('flex', 'flex-col');
     }
 
+    // "Lieux connus" (donjon classique) et "Carte Urbaine" (étage urbain) sont mutuellement
+    // exclusifs, comme floorMap/urbanMap eux-mêmes : un seul des deux panneaux est jamais pertinent
+    // à la fois.
+    if (ui.knownLocationsSection) ui.knownLocationsSection.classList.toggle('hidden', !!gameState.urbanMap);
+    if (ui.urbanMapSection) ui.urbanMapSection.classList.toggle('hidden', !gameState.urbanMap);
+
     // Les distances affichées dans "Lieux connus" dépendent de la position actuelle : on les
     // rafraîchit à chaque rendu pour qu'elles restent toujours à jour sans action explicite.
     updateKnownLocationsUI();
+    updateUrbanMapUI();
 
     // Autosauvegarde (no-op tant que gameState.saveEnabled est faux, voir confirmPlayerName() /
     // restoreSaveForName()) : updateUI() est déjà appelée après quasiment toute action modifiant
@@ -1608,9 +1656,18 @@ function nextFloor() {
     gameState.cardsDrawnThisFloor = 0;
     gameState.timeLeft = gameState.maxTime; // Réinitialisation du temps
     gameState.knownLocations = []; // Les lieux repérés à l'étage précédent ne sont plus accessibles
-    generateFloorMap(); // Nouvelle zone circulaire à 4 quartiers pour ce nouvel étage
+    gameState.floorMap = null;
+    gameState.urbanMap = null;
+    // Multiple de 3 (voir config.urbanFloors) : étage urbain (réseau villes/routes) plutôt que le
+    // donjon classique à 4 quartiers.
+    if (gameState.currentFloor % 3 === 0) {
+        generateUrbanFloorMap();
+    } else {
+        generateFloorMap(); // Nouvelle zone circulaire à 4 quartiers pour ce nouvel étage
+    }
     logEvent(`--- DÉBUT DE L'ÉTAGE ${gameState.currentFloor} ---`, "info");
     updateKnownLocationsUI();
+    updateUrbanMapUI();
     updateUI();
 }
 
@@ -1865,6 +1922,321 @@ function computeDistance(fromRoomId, toRoomId) {
     return null;
 }
 
+// ==========================================
+// ÉTAGES URBAINS (multiples de 3 — voir config.urbanFloors)
+// ==========================================
+// Noms de villes génériques (pas de flavor par ville, contrairement aux quartiers) : piochés sans
+// répétition à chaque génération d'étage urbain.
+const URBAN_CITY_NAMES = [
+    "Vieille Ville", "Quartier Nord", "Quartier Sud", "Zone Industrielle", "Cité-Dortoir",
+    "Centre Commercial Abandonné", "Faubourg", "Le Ghetto", "Quartier des Affaires",
+    "Banlieue Résidentielle", "Port Fluvial", "Terminus"
+];
+
+// Ajoute une route bidirectionnelle entre deux villes (aucun doublon), avec une distance 1-4 —
+// même échelle que le coût de trajet des lieux connus classiques (voir travelToKnownLocation()).
+function addCityRoad(citiesById, aId, bId) {
+    if (aId === bId || citiesById[aId].roads.some(r => r.to === bId)) return;
+    const distance = 1 + Math.floor(Math.random() * 4);
+    citiesById[aId].roads.push({ to: bId, distance });
+    citiesById[bId].roads.push({ to: aId, distance });
+}
+
+// Révèle (known = true) les villes directement reliées à celle donnée — découverte progressive du
+// réseau au fil des trajets, pas de brouillard de guerre sur les routes elles-mêmes (seulement sur
+// quelles villes existent encore au-delà de la frontière déjà atteinte).
+function revealCityNeighbors(citiesById, cityId) {
+    citiesById[cityId].roads.forEach(road => {
+        citiesById[road.to].known = true;
+    });
+}
+
+// Génère le réseau villes/routes d'un étage urbain : arbre couvrant aléatoire (garantit la
+// connexité) puis quelques routes de bouclage supplémentaires, comme generateQuadrant() le fait déjà
+// pour les couloirs d'un quartier classique. Une ville (autre que celle de départ) porte l'escalier
+// — ou la Sortie à l'étage final (config.urbanFloors.finalFloor) — potentiellement gardée par un
+// boss du thème unique de l'étage.
+function generateUrbanFloorMap() {
+    const floor = gameState.currentFloor;
+    const isFinal = floor === config.urbanFloors.finalFloor;
+    const theme = config.urbanFloors.themes[floor] || config.urbanFloors.themes[3];
+
+    const cityCount = 6 + Math.floor(floor / 9); // Légère croissance avec la profondeur
+    const namePool = [...URBAN_CITY_NAMES];
+    const citiesById = {};
+    const cityIds = [];
+    for (let i = 0; i < cityCount; i++) {
+        const id = `city-${i}`;
+        const nameIndex = Math.floor(Math.random() * namePool.length);
+        const name = namePool.splice(nameIndex, 1)[0] || `Secteur ${i + 1}`;
+        citiesById[id] = {
+            id, name, visited: false, known: false, roads: [],
+            isStairs: false, isExit: false, guarded: false, bossInstance: null, defeated: false
+        };
+        cityIds.push(id);
+    }
+
+    // Arbre couvrant aléatoire
+    const connectedIds = [cityIds[0]];
+    const remainingIds = cityIds.slice(1);
+    while (remainingIds.length > 0) {
+        const fromId = connectedIds[Math.floor(Math.random() * connectedIds.length)];
+        const toId = remainingIds.splice(Math.floor(Math.random() * remainingIds.length), 1)[0];
+        addCityRoad(citiesById, fromId, toId);
+        connectedIds.push(toId);
+    }
+    // Quelques routes de bouclage, pour offrir plusieurs itinéraires possibles
+    const extraRoads = 1 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < extraRoads; i++) {
+        const a = cityIds[Math.floor(Math.random() * cityIds.length)];
+        const b = cityIds[Math.floor(Math.random() * cityIds.length)];
+        addCityRoad(citiesById, a, b);
+    }
+
+    // Ville de départ : toujours connue et déjà visitée
+    const startId = cityIds[0];
+    citiesById[startId].visited = true;
+    citiesById[startId].known = true;
+    revealCityNeighbors(citiesById, startId);
+
+    // Ville de l'escalier (ou de la Sortie à l'étage final), tirée parmi les autres
+    const candidateIds = cityIds.filter(id => id !== startId);
+    const target = citiesById[candidateIds[Math.floor(Math.random() * candidateIds.length)]];
+    if (isFinal) {
+        target.isExit = true;
+        target.guarded = true; // Toujours gardée : dernier obstacle avant la victoire
+    } else {
+        target.isStairs = true;
+        const guardChance = config.urbanFloors.stairsGuardChanceByFloor[floor] || 50;
+        target.guarded = Math.random() * 100 < guardChance;
+    }
+
+    gameState.urbanMap = { theme, isFinalFloor: isFinal, citiesById, currentCityId: startId };
+    // Thématique unique de l'étage : generateMob()/generateBoss() la reçoivent comme un nom de
+    // quartier classique, sans aucune adaptation nécessaire de leur côté.
+    gameState.currentDistrict = theme;
+}
+
+// Distance pondérée (Dijkstra) entre deux villes du réseau urbain courant — même principe que
+// computeDistance() pour le graphe de pièces d'un étage classique, mais sur gameState.urbanMap.
+function computeCityDistance(fromCityId, toCityId) {
+    if (fromCityId === toCityId) return 0;
+    const citiesById = gameState.urbanMap.citiesById;
+    const dist = { [fromCityId]: 0 };
+    const visited = new Set();
+
+    while (true) {
+        let currentId = null;
+        let currentCost = Infinity;
+        for (const id in dist) {
+            if (!visited.has(id) && dist[id] < currentCost) {
+                currentCost = dist[id];
+                currentId = id;
+            }
+        }
+        if (currentId === null) break;
+        if (currentId === toCityId) return currentCost;
+
+        visited.add(currentId);
+        const city = citiesById[currentId];
+        if (!city) continue;
+        city.roads.forEach(road => {
+            const newCost = currentCost + road.distance;
+            if (dist[road.to] === undefined || newCost < dist[road.to]) {
+                dist[road.to] = newCost;
+            }
+        });
+    }
+    return null;
+}
+
+// Voyage vers une ville connue du réseau urbain — calqué sur travelToKnownLocation() (coût en
+// temps + embuscades proportionnels à la distance réelle), mais entre villes plutôt que vers un
+// lieu connu de donjon classique. Les embuscades utilisent le thème unique de l'étage sans aucune
+// adaptation (gameState.currentDistrict y est déjà aligné par generateUrbanFloorMap()).
+function travelToCity(cityId) {
+    if (isActionBlocked()) return;
+    const urbanMap = gameState.urbanMap;
+    if (!urbanMap) return;
+    const city = urbanMap.citiesById[cityId];
+    if (!city || !city.known || cityId === urbanMap.currentCityId) return;
+
+    const distance = computeCityDistance(urbanMap.currentCityId, cityId);
+    if (distance === null || distance === undefined) {
+        logEvent("Cette ville semble hors d'atteinte pour l'instant...", "danger");
+        return;
+    }
+
+    const timeCost = Math.max(1, Math.round(distance / 2));
+    const ambushBaseChance = Math.min(80, distance * 9);
+    let ambushCount = 0;
+    if (Math.random() * 100 < ambushBaseChance) {
+        ambushCount = 1;
+        if (Math.random() * 100 < ambushBaseChance * 0.6) ambushCount = 2;
+    }
+
+    gameState.timeLeft = Math.max(0, gameState.timeLeft - timeCost);
+    applyTimeElapsedRegen(timeCost);
+    gameState.pendingUrbanTravel = { destinationCityId: cityId, ambushesRemaining: ambushCount };
+    logEvent(`Vous prenez la route vers : ${city.name} (${distance}, -${timeCost}H)...`, "info");
+    if (ambushCount > 0) {
+        logEvent("La route ne s'annonce pas de tout repos...", "danger");
+    }
+
+    if (gameState.timeLeft <= 0) {
+        gameOver(true);
+        return;
+    }
+    triggerNextCityAmbushOrArrive();
+}
+
+// Résout la prochaine embuscade du trajet urbain en cours, ou l'arrivée si le trajet est terminé —
+// symétrique de triggerNextAmbushOrArrive() pour les routes entre villes.
+function triggerNextCityAmbushOrArrive() {
+    const travel = gameState.pendingUrbanTravel;
+    if (!travel) return;
+
+    if (travel.ambushesRemaining > 0) {
+        travel.ambushesRemaining -= 1;
+        logEvent("Une présence hostile vous barre la route !", "danger");
+        gameState.pendingUrbanAdvanceAfterCombat = null; // Ce n'est pas encore l'arrivée
+        initiateCombat(); // Mob générique du thème d'étage (gameState.currentDistrict)
+        return;
+    }
+
+    arriveAtCity();
+}
+
+// Arrivée effective dans une ville : marque la visite, révèle ses routes sortantes, puis résout
+// l'éventuel gardien (escalier ou Sortie) — sinon simple arrivée sûre (aucun tirage D100, contrairement
+// à une pièce normale de donjon : "les villes sont sûres").
+function arriveAtCity() {
+    const travel = gameState.pendingUrbanTravel;
+    if (!travel) return;
+    const urbanMap = gameState.urbanMap;
+    gameState.pendingUrbanTravel = null;
+    const city = urbanMap.citiesById[travel.destinationCityId];
+    if (!city) return;
+
+    urbanMap.currentCityId = city.id;
+    const firstVisit = !city.visited;
+    city.visited = true;
+    city.known = true;
+    revealCityNeighbors(urbanMap.citiesById, city.id);
+
+    if ((city.isStairs || city.isExit) && city.guarded && !city.defeated) {
+        triggerUrbanBossEncounter(city);
+        return;
+    }
+    if ((city.isStairs || city.isExit) && (!city.guarded || city.defeated)) {
+        logEvent(`Vous atteignez ${city.name}.`, "info");
+        if (city.isExit) {
+            winGame();
+        } else {
+            logEvent("La voie est libre !", "success");
+            nextFloor();
+        }
+        return;
+    }
+
+    setCardHeader('🏙️', city.name, 'Ville sûre');
+    logEvent(
+        firstVisit
+            ? `Vous découvrez ${city.name}. Les rues sont calmes ici — vous pouvez souffler.`
+            : `Vous retrouvez ${city.name}, toujours aussi tranquille.`,
+        "success"
+    );
+    updateUrbanMapUI();
+    updateUI();
+}
+
+// Présente le choix "combattre maintenant / repérer et partir" pour la ville gardant l'escalier (ou
+// la Sortie, à l'étage final) — même esprit que triggerBossEncounter(), partage le même bloc UI
+// (#boss-choice-zone), mais dispatché séparément : les données sous-jacentes (villes) ne sont pas
+// des pièces de donjon (voir fightBossNow()/retreatFromBoss() pour le dispatch).
+function triggerUrbanBossEncounter(city) {
+    if (!city.bossInstance) {
+        city.bossInstance = generateBoss(gameState.urbanMap.theme) || generateMob(gameState.urbanMap.theme);
+    }
+    const boss = city.bossInstance;
+    gameState.pendingUrbanBossEncounter = { cityId: city.id, isExit: city.isExit === true };
+    gameState.bossChoicePending = true;
+
+    setCardHeader('👑', boss.name, city.isExit ? "Gardien de la Sortie" : "Gardien de l'Escalier");
+    logEvent(
+        city.isExit
+            ? `🎬 Vous atteignez la Sortie... gardée par ${boss.name} !`
+            : `🎬 Vous découvrez l'escalier vers l'étage ${gameState.currentFloor + 1}, gardé par ${boss.name} !`,
+        "danger"
+    );
+    logEvent("Le combattre maintenant, ou repérer l'endroit pour y revenir plus tard ?", "info");
+    ui.bossChoiceZone.classList.remove('hidden');
+    updateUI();
+}
+
+// Bouton "Combattre" pour un gardien urbain (dispatché depuis fightBossNow())
+function fightUrbanBossNow() {
+    const encounter = gameState.pendingUrbanBossEncounter;
+    gameState.bossChoicePending = false;
+    ui.bossChoiceZone.classList.add('hidden');
+    gameState.pendingUrbanBossEncounter = null;
+    if (!encounter) return;
+
+    const city = gameState.urbanMap.citiesById[encounter.cityId];
+    gameState.pendingUrbanAdvanceAfterCombat = encounter.isExit ? 'win' : 'nextFloor';
+    gameState.pendingUrbanBossCityId = encounter.cityId;
+    initiateCombat(city.bossInstance);
+}
+
+// Bouton "Repérer et partir" pour un gardien urbain (dispatché depuis retreatFromBoss()) : la ville
+// reste connue et visitée, donc re-sélectionnable à tout moment depuis la Carte Urbaine — aucun
+// registre "lieux connus" séparé n'est nécessaire, contrairement au donjon classique.
+function retreatFromUrbanBoss() {
+    gameState.bossChoicePending = false;
+    ui.bossChoiceZone.classList.add('hidden');
+    gameState.pendingUrbanBossEncounter = null;
+    logEvent("Vous repérez soigneusement l'endroit et repartez explorer.", "info");
+    updateUrbanMapUI();
+    updateUI();
+}
+
+// Reconstruit le panneau "Carte Urbaine" : liste des villes connues, avec leur statut (ici / gardée /
+// escalier / Sortie) et un bouton pour s'y rendre — même esprit que updateKnownLocationsUI(), mais
+// pour le réseau villes/routes plutôt que les lieux connus classiques d'un donjon.
+function updateUrbanMapUI() {
+    if (!ui.urbanMapContainer) return;
+    const urbanMap = gameState.urbanMap;
+    ui.urbanMapContainer.innerHTML = "";
+    if (!urbanMap) return;
+
+    const known = Object.values(urbanMap.citiesById).filter(c => c.known);
+    known.forEach(city => {
+        const isCurrent = city.id === urbanMap.currentCityId;
+        const distance = isCurrent ? 0 : computeCityDistance(urbanMap.currentCityId, city.id);
+
+        let icon = '🏙️';
+        let tag = '';
+        if (city.isExit) {
+            icon = '🚪';
+            tag = city.defeated ? ' · Sortie libre' : (city.guarded ? ' · Sortie gardée' : ' · Sortie');
+        } else if (city.isStairs) {
+            icon = '🪜';
+            tag = city.defeated ? ' · Escalier libre' : (city.guarded ? ' · Escalier gardé' : ' · Escalier');
+        }
+
+        const row = document.createElement('button');
+        row.className = "w-full flex justify-between items-center px-3 py-2 bg-gray-950 border border-gray-800 rounded text-xs text-gray-300 hover:border-blue-600 hover:bg-blue-950/30 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-800 disabled:hover:bg-gray-950";
+        const distLabel = (!isCurrent && distance !== null && distance !== undefined) ? ` (${distance})` : "";
+        row.innerHTML = `<span>${icon} ${city.name}${tag}${isCurrent ? ' · Ici' : distLabel}</span><span class="text-blue-400 uppercase tracking-widest text-[10px]">${isCurrent ? '' : 'Aller →'}</span>`;
+        if (isCurrent) {
+            row.disabled = true;
+        } else {
+            row.addEventListener('click', () => travelToCity(city.id));
+        }
+        ui.urbanMapContainer.appendChild(row);
+    });
+}
+
 // Point d'entrée unique pour "arriver" dans une pièce, que ce soit en explorant normalement ou en
 // y retournant via un lieu connu (voir arriveAtDestination) : le comportement est donc identique
 // dans les deux cas.
@@ -1930,8 +2302,14 @@ function triggerBossEncounter(room) {
     updateUI();
 }
 
-// Bouton "Combattre" de la zone de choix de boss
+// Bouton "Combattre" de la zone de choix de boss — dispatche vers l'équivalent urbain
+// (fightUrbanBossNow()) si le gardien en attente vient d'un étage urbain plutôt que d'un donjon
+// classique (voir triggerUrbanBossEncounter()), sinon comportement inchangé.
 function fightBossNow() {
+    if (gameState.pendingUrbanBossEncounter) {
+        fightUrbanBossNow();
+        return;
+    }
     const encounter = gameState.pendingBossEncounter;
     gameState.bossChoicePending = false;
     ui.bossChoiceZone.classList.add('hidden');
@@ -1945,8 +2323,12 @@ function fightBossNow() {
 }
 
 // Bouton "Repérer et partir" de la zone de choix de boss : mémorise l'emplacement comme lieu
-// connu, sans y descendre/combattre.
+// connu, sans y descendre/combattre. Dispatche vers retreatFromUrbanBoss() sur un étage urbain.
 function retreatFromBoss() {
+    if (gameState.pendingUrbanBossEncounter) {
+        retreatFromUrbanBoss();
+        return;
+    }
     const encounter = gameState.pendingBossEncounter;
     gameState.bossChoicePending = false;
     ui.bossChoiceZone.classList.add('hidden');
@@ -3049,11 +3431,23 @@ function winCombat() {
         removeKnownLocation(`boss-${gameState.pendingBossRoomId}`);
         gameState.pendingBossRoomId = null;
     }
+    // Équivalent urbain : la ville gardienne (escalier ou Sortie) est désormais vaincue, elle reste
+    // simplement accessible via la Carte Urbaine (aucun registre séparé, voir retreatFromUrbanBoss()).
+    if (gameState.pendingUrbanBossCityId) {
+        const city = gameState.urbanMap && gameState.urbanMap.citiesById[gameState.pendingUrbanBossCityId];
+        if (city) city.defeated = true;
+        gameState.pendingUrbanBossCityId = null;
+    }
 
     // Si ce combat faisait partie d'un trajet de retour vers un lieu connu (embuscade),
     // on enchaîne sur la suite du trajet (nouvelle embuscade ou arrivée à destination)
     if (gameState.pendingTravel) {
         triggerNextAmbushOrArrive();
+        return;
+    }
+    // Équivalent urbain : embuscade de route, on enchaîne vers la suite du trajet entre villes.
+    if (gameState.pendingUrbanTravel) {
+        triggerNextCityAmbushOrArrive();
         return;
     }
 
@@ -3062,6 +3456,20 @@ function winCombat() {
         gameState.pendingStairAfterCombat = false;
         logEvent("La voie vers l'escalier est libre !", "success");
         nextFloor(); // nextFloor() appelle déjà updateUI()
+        return;
+    }
+    // Équivalent urbain : victoire sur le gardien de l'escalier (étage suivant) ou de la Sortie
+    // (victoire finale, uniquement à l'étage final — voir config.urbanFloors.finalFloor).
+    if (gameState.pendingUrbanAdvanceAfterCombat) {
+        const advance = gameState.pendingUrbanAdvanceAfterCombat;
+        gameState.pendingUrbanAdvanceAfterCombat = null;
+        if (advance === 'win') {
+            logEvent("La voie vers la Sortie est libre !", "success");
+            winGame(); // winGame() appelle déjà updateUI()
+        } else {
+            logEvent("La voie vers l'escalier est libre !", "success");
+            nextFloor(); // nextFloor() appelle déjà updateUI()
+        }
         return;
     }
 
@@ -3310,6 +3718,24 @@ function gameOver(timeout = false) {
     updateUI();
 }
 
+// Écran de victoire : déclenché en franchissant la Sortie de l'étage final (config.urbanFloors.finalFloor),
+// une fois son gardien vaincu ou si elle n'était pas gardée. Même structure que gameOver(), en positif.
+function winGame() {
+    gameState.inCombat = true; // Bloque toute action supplémentaire, même logique que gameOver()
+    gameState.hasWon = true;
+    ui.combatZone.classList.add('hidden');
+
+    logEvent("🎉 Vous franchissez la Sortie et quittez le Donjon, vivant !", "success");
+    logEvent("--- VICTOIRE ---", "success");
+    triggerHaptic('heavy');
+
+    ui.winFloor.innerText = gameState.currentFloor;
+    ui.winLevel.innerText = gameState.level;
+    ui.winOverlay.classList.remove('hidden');
+
+    updateUI();
+}
+
 // Redémarre entièrement une nouvelle partie. On recharge la page plutôt que de réinitialiser
 // gameState champ par champ : c'est plus robuste (aucun risque d'oublier un champ imbriqué comme
 // les compétences, l'équipement ou les statuts de combat) et parfaitement adapté à un rogue-like
@@ -3331,6 +3757,7 @@ ui.cardStackWrapper.addEventListener('click', () => {
 
 // Bouton de redémarrage sur l'écran Game Over
 ui.btnRestart.addEventListener('click', resetGame);
+ui.btnWinRestart.addEventListener('click', resetGame);
 
 // Écran de départ : nom du crawler (bouton ou touche Entrée), puis révélation du cadeau de bienvenue
 ui.btnStartConfirm.addEventListener('click', confirmPlayerName);

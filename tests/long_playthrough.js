@@ -13,13 +13,18 @@ function assert(cond, msg) { if (!cond) { failures++; console.error("FAIL:", msg
 
 let steps = 0, floorsCleared = 0, combatsWon = 0, bossesEncountered = 0;
 let stealthEncounters = 0, companionEncounters = 0, eliteMobsSeen = 0, armorMechanicProcs = 0;
+let urbanFloorsSeen = 0, cityTravels = 0, winTriggered = false;
 const seenErrors = [];
 
 gameState.equipment.armor = { name: "Plastron d'Essai", baseArmor: 12, category: 'armors', mechanics: ['bleed', 'heal', 'adrenaline', 'stealth'] };
 gameState.equipment.weapon = { name: "Gourdin d'Essai", baseDmg: 12, category: 'weapons' };
 gameState.equipment.ranged = { name: "Fronde d'Essai", baseDmg: 10, category: 'ranged' };
 
-const MAX_STEPS = 600, MAX_FLOORS = 6;
+// MAX_FLOORS=7 (et non 6) : la boucle s'arrête dès que floorsCleared atteint ce plafond, donc
+// s'arrêter à 6 quitterait la simulation à l'INSTANT où l'étage 6 (urbain) est atteint, sans jamais
+// vraiment le traverser. 7 garantit un vrai passage sur les DEUX étages urbains (3 et 6) de cette
+// plage, ainsi que la transition étage urbain -> étage classique (7) en sortie.
+const MAX_STEPS = 600, MAX_FLOORS = 7;
 
 try {
     while (steps < MAX_STEPS && floorsCleared < MAX_FLOORS && gameState.hp > 0 && gameState.timeLeft > 0) {
@@ -58,9 +63,24 @@ try {
                 gameState.inCombat = false;
                 gameState.currentEnemy = null;
             }
+        } else if (gameState.urbanMap) {
+            // Étage urbain (multiple de 3) : explore() ne fait rien ici (floorMap est null), donc on
+            // simule un déplacement vers une ville connue à la place — en priorité la ville gardienne
+            // (escalier/Sortie) une fois repérée, sinon une ville connue au hasard pour continuer à
+            // révéler le réseau (voir generateUrbanFloorMap()/travelToCity() dans app.js).
+            urbanFloorsSeen++;
+            const urbanMap = gameState.urbanMap;
+            const reachable = Object.values(urbanMap.citiesById).filter(c => c.known && c.id !== urbanMap.currentCityId);
+            if (reachable.length > 0) {
+                const target = reachable.find(c => c.isStairs || c.isExit) || reachable[Math.floor(Math.random() * reachable.length)];
+                travelToCity(target.id);
+                cityTravels++;
+            }
         } else {
             explore();
         }
+
+        if (gameState.hasWon) winTriggered = true;
 
         assert(!Number.isNaN(gameState.hp), `hp devient NaN à l'étape ${steps}`);
         assert(gameState.hp <= gameState.maxHp, `hp dépasse maxHp à l'étape ${steps}`);
@@ -69,8 +89,14 @@ try {
         if (gameState.companion) {
             assert(gameState.companion.leaveChance >= 0 && gameState.companion.leaveChance <= 100, `leaveChance hors bornes à l'étape ${steps}`);
         }
+        if (gameState.urbanMap) {
+            const um = gameState.urbanMap;
+            assert(!!um.citiesById[um.currentCityId], `urbanMap.currentCityId invalide à l'étape ${steps}`);
+            assert(Object.values(um.citiesById).some(c => c.isStairs || c.isExit), `Aucune ville gardienne (escalier/Sortie) à l'étape ${steps}`);
+        }
+        assert(!(gameState.floorMap && gameState.urbanMap), `floorMap et urbanMap ne devraient jamais être définis simultanément (étape ${steps})`);
         if (gameState.currentFloor > floorsCleared) floorsCleared = gameState.currentFloor;
-        if (gameState.hp <= 0) break;
+        if (gameState.hp <= 0 || winTriggered) break;
     }
 } catch (err) {
     seenErrors.push(err);
@@ -93,7 +119,50 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon, ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure.`);
+// Intégration étage final : force l'arrivée à l'étage 18 (urbain, final) et vérifie que la victoire
+// se déclenche bien en atteignant sa Sortie, gardée ou non, sans jamais générer d'étage 19.
+let reachedFinalWin = false;
+try {
+    gameState.currentFloor = config.urbanFloors.finalFloor - 1;
+    gameState.hp = gameState.maxHp;
+    gameState.inCombat = false;
+    gameState.bossChoicePending = false;
+    gameState.pendingUrbanBossEncounter = null;
+    gameState.hasWon = false;
+    nextFloor(); // Génère l'étage final
+    assert(gameState.urbanMap && gameState.urbanMap.isFinalFloor, "L'étage final doit générer un urbanMap marqué isFinalFloor");
+    assert(Object.values(gameState.urbanMap.citiesById).some(c => c.isExit && c.guarded), "La Sortie de l'étage final doit toujours être gardée");
+
+    let finalSteps = 0;
+    while (!gameState.hasWon && finalSteps < 200) {
+        finalSteps++;
+        if (gameState.timeLeft < 50) gameState.timeLeft = gameState.maxTime;
+        if (gameState.bossChoicePending) {
+            fightBossNow();
+        } else if (gameState.inCombat) {
+            if (gameState.currentEnemy) {
+                gameState.currentEnemy.hp = -9999;
+                winCombat();
+            } else {
+                gameState.inCombat = false;
+            }
+        } else if (gameState.urbanMap) {
+            const um = gameState.urbanMap;
+            const reachable = Object.values(um.citiesById).filter(c => c.known && c.id !== um.currentCityId);
+            if (reachable.length > 0) {
+                const target = reachable.find(c => c.isExit) || reachable[Math.floor(Math.random() * reachable.length)];
+                travelToCity(target.id);
+            }
+        }
+    }
+    reachedFinalWin = gameState.hasWon;
+    assert(reachedFinalWin, `La victoire doit se déclencher en atteignant la Sortie de l'étage ${config.urbanFloors.finalFloor} (${finalSteps} pas)`);
+    assert(gameState.currentFloor === config.urbanFloors.finalFloor, "Aucun étage au-delà de l'étage final ne doit jamais être généré");
+} catch (err) {
+    seenErrors.push(err);
+}
+
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon, ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");
@@ -101,6 +170,7 @@ assert(steps > 50, "Progression significative attendue");
 assert(floorsCleared >= 2, "Au moins l'étage 2 doit être atteint");
 assert(combatsWon > 0, "Au moins un combat normal gagné");
 assert(bossesEncountered > 0, "Au moins un boss rencontré");
+assert(urbanFloorsSeen > 0, "Au moins un étage urbain (étage 3, 6...) doit avoir été traversé sur 6 étages");
 
 console.log(failures === 0 ? "OK — tous les invariants tiennent." : `${failures} échec(s) d'invariant.`);
 process.exit(failures === 0 ? 0 : 1);

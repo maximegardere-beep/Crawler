@@ -582,12 +582,21 @@
             </details>
         </section>
 
-        <!-- Lieux connus : escalier retenu, plus tard salles sécurisées et boss -->
-        <section class="flex flex-col gap-2">
+        <!-- Lieux connus : escalier retenu, plus tard salles sécurisées et boss (étages classiques
+             uniquement — masqué sur un étage urbain, voir #urban-map-section ci-dessous). -->
+        <section id="known-locations-section" class="flex flex-col gap-2">
             <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Lieux connus</h2>
             <div id="known-locations" class="flex flex-col gap-1.5">
                 <p class="text-[10px] text-gray-600 italic">Aucun lieu repéré pour l'instant.</p>
             </div>
+        </section>
+
+        <!-- Carte Urbaine : réseau villes/routes d'un étage urbain (multiples de 3, voir
+             generateUrbanFloorMap() dans app.js). Masqué sur un étage classique. -->
+        <section id="urban-map-section" class="hidden flex flex-col gap-2">
+            <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Carte Urbaine</h2>
+            <p class="text-[10px] text-gray-600">Les villes sont sûres. Les routes entre elles ne le sont pas.</p>
+            <div id="urban-map-container" class="flex flex-col gap-1.5"></div>
         </section>
 
         <!-- 6. Kit de Test (Bouton discret) : équipe arme/arme à distance/sort légendaires en un clic,
@@ -650,13 +659,29 @@
         </div>
     </div>
 
+    <!-- Écran de Victoire : Sortie de l'étage final franchie (voir winGame() dans app.js) -->
+    <div id="win-overlay" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-gray-900 border-2 border-emerald-600 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(5,150,105,0.5)]">
+            <div class="text-5xl mb-2">🎉</div>
+            <h2 class="text-2xl font-black text-emerald-400 uppercase tracking-widest mb-1 drop-shadow-[0_0_10px_rgba(52,211,153,0.6)]">Victoire !</h2>
+            <p class="text-sm text-gray-400 mb-4">Vous avez survécu au Donjon et franchi la Sortie.</p>
+            <div class="text-xs text-gray-400 space-y-1.5 mb-6 text-left bg-gray-950 rounded p-3 border border-gray-800">
+                <div class="flex justify-between"><span>Étage atteint</span><span id="win-floor" class="text-gray-100 font-bold">18</span></div>
+                <div class="flex justify-between"><span>Niveau final</span><span id="win-level" class="text-gray-100 font-bold">1</span></div>
+            </div>
+            <button id="btn-win-restart" class="w-full py-3 bg-emerald-900/40 border-2 border-emerald-600 rounded-lg text-emerald-300 font-bold uppercase tracking-widest hover:bg-emerald-800/50 active:scale-95 transition-all">
+                Nouvelle Partie
+            </button>
+        </div>
+    </div>
+
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=45"></script>
-    <script src="items.js?v=45"></script>
-    <script src="spells.js?v=45"></script>
-    <script src="districts.js?v=45"></script>
-    <script src="safehouses.js?v=45"></script>
-    <script src="generator.js?v=45"></script>
-    <script src="app.js?v=45"></script>
+    <script src="bestiary.js?v=46"></script>
+    <script src="items.js?v=46"></script>
+    <script src="spells.js?v=46"></script>
+    <script src="districts.js?v=46"></script>
+    <script src="safehouses.js?v=46"></script>
+    <script src="generator.js?v=46"></script>
+    <script src="app.js?v=46"></script>
 </body>
 </html>

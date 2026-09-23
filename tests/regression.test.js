@@ -30,6 +30,12 @@ function resetTransientState() {
     gameState.pendingBossEncounter = null;
     gameState.pendingBossRoomId = null;
     gameState.pendingTravel = null;
+    gameState.urbanMap = null;
+    gameState.pendingUrbanTravel = null;
+    gameState.pendingUrbanBossEncounter = null;
+    gameState.pendingUrbanBossCityId = null;
+    gameState.pendingUrbanAdvanceAfterCombat = null;
+    gameState.hasWon = false;
     gameState.saveEnabled = false; // Jamais d'autosauvegarde fantôme entre deux tests sans rapport
 }
 
@@ -1102,6 +1108,180 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(gameState.playerName === "Un Tout Nouveau Crawler", "confirmPlayerName() : nom inédit -> nouveau crawler");
     assert(!ui.giftRevealOverlay.classList.contains('hidden'), "confirmPlayerName() : cadeau de bienvenue bien déclenché pour un nouveau crawler");
     assert(gameState.saveEnabled === true, "confirmPlayerName() : active l'autosauvegarde pour un nouveau crawler aussi");
+}
+
+// ===================================================================
+// Étages urbains (multiples de 3 — voir generateUrbanFloorMap()/travelToCity()/
+// triggerUrbanBossEncounter() dans app.js, config.urbanFloors).
+// ===================================================================
+
+// generateUrbanFloorMap() : thème correct par étage, une seule ville gardienne (escalier hors étage
+// final, Sortie TOUJOURS gardée à l'étage final), réseau entièrement connexe.
+{
+    [3, 6, 9, 12, 15].forEach(floor => {
+        resetTransientState();
+        gameState.currentFloor = floor;
+        generateUrbanFloorMap();
+        const um = gameState.urbanMap;
+        assert(um !== null, `generateUrbanFloorMap() : urbanMap défini à l'étage ${floor}`);
+        assert(um.isFinalFloor === false, `generateUrbanFloorMap() : étage ${floor} n'est pas l'étage final`);
+        assert(um.theme === config.urbanFloors.themes[floor], `generateUrbanFloorMap() : thème correct à l'étage ${floor}`);
+        assert(gameState.currentDistrict === um.theme, `generateUrbanFloorMap() : currentDistrict aligné sur le thème à l'étage ${floor}`);
+
+        const cities = Object.values(um.citiesById);
+        assert(cities.filter(c => c.isStairs).length === 1, `generateUrbanFloorMap() : exactement une ville d'escalier à l'étage ${floor}`);
+        assert(cities.filter(c => c.isExit).length === 0, `generateUrbanFloorMap() : aucune Sortie sur un étage non final (${floor})`);
+
+        const allReachable = cities.every(c => computeCityDistance(um.currentCityId, c.id) !== null);
+        assert(allReachable, `generateUrbanFloorMap() : réseau entièrement connexe à l'étage ${floor}`);
+    });
+
+    resetTransientState();
+    gameState.currentFloor = config.urbanFloors.finalFloor;
+    generateUrbanFloorMap();
+    const finalMap = gameState.urbanMap;
+    assert(finalMap.isFinalFloor === true, "generateUrbanFloorMap() : étage final correctement marqué");
+    const finalCities = Object.values(finalMap.citiesById);
+    assert(finalCities.filter(c => c.isExit).length === 1, "generateUrbanFloorMap() : exactement une Sortie à l'étage final");
+    assert(finalCities.filter(c => c.isStairs).length === 0, "generateUrbanFloorMap() : aucun escalier classique à l'étage final");
+    assert(finalCities.find(c => c.isExit).guarded === true, "generateUrbanFloorMap() : la Sortie est TOUJOURS gardée");
+}
+
+// Probabilité de garde de l'escalier croissante avec la profondeur (statistique, nombreuses générations).
+{
+    Object.entries(config.urbanFloors.stairsGuardChanceByFloor).forEach(([floorStr, expectedChance]) => {
+        const floor = Number(floorStr);
+        let guardedCount = 0;
+        const trials = 300;
+        for (let i = 0; i < trials; i++) {
+            resetTransientState();
+            gameState.currentFloor = floor;
+            generateUrbanFloorMap();
+            if (Object.values(gameState.urbanMap.citiesById).find(c => c.isStairs).guarded) guardedCount++;
+        }
+        const observed = (guardedCount / trials) * 100;
+        assert(Math.abs(observed - expectedChance) < 15, `Probabilité de garde à l'étage ${floor} : attendu ~${expectedChance}%, observé ${observed.toFixed(1)}% sur ${trials} tirages`);
+    });
+}
+
+// computeCityDistance() : plus court chemin pondéré, y compris via une route de bouclage plus rapide
+// qu'un détour par l'arbre couvrant.
+{
+    resetTransientState();
+    gameState.urbanMap = {
+        theme: "Test", isFinalFloor: false, currentCityId: 'a',
+        citiesById: {
+            a: { id: 'a', roads: [{ to: 'b', distance: 5 }, { to: 'c', distance: 1 }] },
+            b: { id: 'b', roads: [{ to: 'a', distance: 5 }] },
+            c: { id: 'c', roads: [{ to: 'a', distance: 1 }, { to: 'b', distance: 1 }] }
+        }
+    };
+    assert(computeCityDistance('a', 'a') === 0, "computeCityDistance() : distance nulle vers soi-même");
+    assert(computeCityDistance('a', 'b') === 2, "computeCityDistance() : emprunte le détour par 'c' (1+1=2) plutôt que la route directe (5)");
+    assert(computeCityDistance('a', 'c') === 1, "computeCityDistance() : route directe la plus courte");
+}
+
+// travelToCity() : bloqué vers une ville pas encore connue, consomme du temps + régénère (voir
+// applyTimeElapsedRegen()) vers une ville connue atteignable.
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    const um = gameState.urbanMap;
+    const unknownCityId = Object.values(um.citiesById).find(c => !c.known).id;
+
+    const timeBefore = gameState.timeLeft;
+    travelToCity(unknownCityId);
+    assert(gameState.timeLeft === timeBefore, "travelToCity() : aucun effet vers une ville pas encore connue");
+    assert(um.currentCityId !== unknownCityId, "travelToCity() : n'arrive pas dans une ville inconnue");
+
+    const originalRandom = Math.random;
+    Math.random = () => 0.99; // Écarte toute embuscade (jamais sous ambushBaseChance avec un tirage haut)
+    gameState.hp = gameState.maxHp - 50;
+    const neighborId = um.citiesById[um.currentCityId].roads[0].to;
+    travelToCity(neighborId);
+    Math.random = originalRandom;
+    assert(gameState.timeLeft < timeBefore, "travelToCity() : consomme du temps");
+    assert(gameState.hp > gameState.maxHp - 50, "travelToCity() : la régénération passive s'applique au temps du trajet");
+}
+
+// Gardien urbain : combattre ouvre l'étage suivant ; repérer laisse la ville re-tentable plus tard
+// (aucun registre séparé, contrairement au donjon classique — voir retreatFromUrbanBoss()).
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    const um = gameState.urbanMap;
+    const stairsCity = Object.values(um.citiesById).find(c => c.isStairs);
+    stairsCity.guarded = true; // Force la garde, indépendamment du tirage
+
+    triggerUrbanBossEncounter(stairsCity);
+    assert(gameState.bossChoicePending === true, "triggerUrbanBossEncounter() : ouvre le choix combattre/repérer");
+    assert(stairsCity.bossInstance !== null, "triggerUrbanBossEncounter() : génère et met en cache le boss");
+
+    retreatFromBoss(); // Dispatché vers retreatFromUrbanBoss()
+    assert(gameState.bossChoicePending === false, "retreatFromBoss() (dispatch urbain) : referme le choix");
+    assert(stairsCity.defeated === false, "retreatFromUrbanBoss() : la ville reste non vaincue, re-tentable plus tard");
+
+    triggerUrbanBossEncounter(stairsCity);
+    fightBossNow(); // Dispatché vers fightUrbanBossNow()
+    assert(gameState.inCombat === true, "fightBossNow() (dispatch urbain) : lance bien le combat");
+    assert(gameState.pendingUrbanAdvanceAfterCombat === 'nextFloor', "fightUrbanBossNow() : victoire ouvrira l'étage suivant (pas la Sortie)");
+
+    const floorBefore = gameState.currentFloor;
+    gameState.currentEnemy.hp = -9999;
+    winCombat();
+    assert(gameState.currentFloor === floorBefore + 1, "winCombat() : défaite du gardien de l'escalier urbain ouvre bien l'étage suivant");
+    assert(stairsCity.defeated === true, "winCombat() : marque la ville gardienne vaincue");
+}
+
+// Gardien de la Sortie (étage final) : la victoire déclenche winGame(), jamais nextFloor().
+{
+    resetTransientState();
+    gameState.currentFloor = config.urbanFloors.finalFloor;
+    generateUrbanFloorMap();
+    const exitCity = Object.values(gameState.urbanMap.citiesById).find(c => c.isExit);
+
+    triggerUrbanBossEncounter(exitCity);
+    fightBossNow();
+    assert(gameState.pendingUrbanAdvanceAfterCombat === 'win', "fightUrbanBossNow() : la Sortie de l'étage final déclenchera la victoire");
+
+    const floorBefore = gameState.currentFloor;
+    gameState.currentEnemy.hp = -9999;
+    winCombat();
+    assert(gameState.hasWon === true, "winCombat() : défaite du gardien de la Sortie déclenche winGame()");
+    assert(gameState.currentFloor === floorBefore, "winCombat() : la victoire n'avance jamais vers un étage au-delà de l'étage final");
+}
+
+// nextFloor() : bascule correctement entre étage classique et étage urbain selon le multiple de 3,
+// jamais les deux structures définies en même temps.
+{
+    resetTransientState();
+    gameState.currentFloor = 1; // Le prochain (2) reste classique
+    nextFloor();
+    assert(gameState.floorMap !== null && gameState.urbanMap === null, "nextFloor() : étage 2 reste un donjon classique");
+
+    resetTransientState();
+    gameState.currentFloor = 2; // Le prochain (3) est urbain
+    nextFloor();
+    assert(gameState.urbanMap !== null && gameState.floorMap === null, "nextFloor() : étage 3 devient un étage urbain");
+}
+
+// UI : panneaux "Lieux connus"/"Carte Urbaine" mutuellement exclusifs, invite "Touchez la carte"
+// masquée sur un étage urbain (voir updateUI() dans app.js).
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    updateUI();
+    assert(ui.urbanMapSection.classList.contains('hidden') === false, "updateUI() : panneau Carte Urbaine visible sur un étage urbain");
+    assert(ui.knownLocationsSection.classList.contains('hidden') === true, "updateUI() : panneau Lieux connus masqué sur un étage urbain");
+    assert(ui.advanceHint.classList.contains('hidden') === true, "updateUI() : invite d'exploration masquée sur un étage urbain");
+
+    resetTransientState();
+    updateUI();
+    assert(ui.urbanMapSection.classList.contains('hidden') === true, "updateUI() : panneau Carte Urbaine masqué sur un étage classique");
+    assert(ui.knownLocationsSection.classList.contains('hidden') === false, "updateUI() : panneau Lieux connus visible sur un étage classique");
 }
 
 console.log(`${passed} test(s) OK, ${failures} échec(s).`);

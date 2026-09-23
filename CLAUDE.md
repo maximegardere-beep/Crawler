@@ -4,7 +4,7 @@ Rogue-like textuel minimaliste inspiré de Dungeon Crawler Carl. GitHub Pages, H
 Tailwind CDN, **aucun build step**.
 
 ## Fichiers
-- `index.html` — UI (deck de cartes, combat, inventaire, grimoire, "Lieux connus", Game Over)
+- `index.html` — UI (deck de cartes, combat, inventaire, grimoire, "Lieux connus"/"Carte Urbaine", Game Over/Victoire)
 - `app.js` — moteur : état, exploration, combat, niveau/XP, compétences, équipement, magie/mana, compagnons, carte d'étage
 - `bestiary.js` — monstres de base + boss de quartier (`districtBosses`)
 - `items.js` — objets, raretés, enchantements (`itemModifiers.effect`)
@@ -80,6 +80,26 @@ Tailwind CDN, **aucun build step**.
   bienvenue) ; sinon, nouveau crawler comme avant. La restauration nettoie systématiquement tout état
   transitoire/bloquant (combat en cours, choix en attente) : on atterrit toujours sur l'écran
   d'exploration normal. `listSavedCrawlerNames()` alimente l'indice affiché sur l'écran de départ.
+- **Étages urbains** (multiples de 3 — `config.urbanFloors`, `generateUrbanFloorMap()`) : un réseau
+  de villes sûres (`gameState.urbanMap.citiesById`) reliées par des routes dangereuses, en
+  remplacement du donjon classique à 4 quartiers pour cet étage (`floorMap`/`urbanMap` sont
+  mutuellement exclusifs, `nextFloor()` bascule sur `currentFloor % 3 === 0`). `theme` réutilise TEL
+  QUEL le nom d'un quartier existant de `districts.js`/`bestiary.js` comme thématique unique de tout
+  l'étage : `generateMob()`/`generateBoss()` n'ont besoin d'aucune adaptation (`gameState.currentDistrict`
+  y reste aligné en permanence). Déplacement via `travelToCity()` — calqué sur
+  `travelToKnownLocation()` (coût en temps + embuscades proportionnels à `computeCityDistance()`,
+  Dijkstra équivalent à `computeDistance()`) — avec découverte progressive (`city.known`, révélé
+  ville par ville via `revealCityNeighbors()`). Une ville (jamais la ville de départ) porte
+  l'escalier, avec une chance de garde croissante avec la profondeur
+  (`config.urbanFloors.stairsGuardChanceByFloor` : 20/35/50/65 % aux étages 3/6/9/12, 80 % à
+  l'étage 15) ; le combat de gardien réutilise le même bloc UI que `triggerBossEncounter()`
+  (`#boss-choice-zone`), dispatché séparément (`triggerUrbanBossEncounter()`/`fightUrbanBossNow()`/
+  `retreatFromUrbanBoss()`, voir le dispatch dans `fightBossNow()`/`retreatFromBoss()`) car les
+  données sous-jacentes (villes) ne sont pas des pièces de donjon. **Étage final** (18,
+  `config.urbanFloors.finalFloor`) : la ville tirée devient la Sortie (`city.isExit`), **toujours**
+  gardée (100 %, jamais de pourcentage) ; la vaincre (ou la trouver non gardée) déclenche `winGame()`
+  (`gameState.hasWon`) plutôt que `nextFloor()` — écran de victoire calqué sur Game Over, jamais
+  d'étage 19 généré.
 
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).
@@ -111,7 +131,10 @@ Tailwind CDN, **aucun build step**.
   l'hypothèse testée — non corrigé, à confirmer par playtest réel avant tout changement.
 
 ## Gros chantiers à venir (non commencés — demander lequel prioriser avant de s'y lancer)
-- Niveaux multiples de 3 ("urbain", façon Dungeon Crawler Carl)
+- Suite des étages urbains (base posée, voir Architecture ci-dessus) :
+  - Repaires/places fortes de mobs sur les routes, avec progression linéaire et un boss à la fin (loot).
+  - Boutiques + professeurs dans les villes (perfectionner des compétences moyennant finance).
+  - Système d'argent (prérequis aux deux points précédents).
 - Sons
 - Succès (achievements)
 - Salles spéciales à choix narratif basé sur les compétences, sans fuite possible
