@@ -17,6 +17,7 @@ function resetTransientState() {
     gameState.currentEnemy = null;
     gameState.combatDistance = 0;
     gameState.hp = gameState.maxHp;
+    gameState.timeLeft = gameState.maxTime; // Jamais de temps épuisé résiduel entre deux tests sans rapport
     gameState.level = 1;
     gameState.equipment = { weapon: null, armor: null, ranged: null, spell: null };
     gameState.mana = gameState.maxMana;
