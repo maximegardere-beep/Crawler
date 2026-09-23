@@ -1185,11 +1185,21 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 // travelToCity() : bloqué vers une ville pas encore connue, consomme du temps + régénère (voir
 // applyTimeElapsedRegen()) vers une ville connue atteignable.
 {
-    resetTransientState();
-    gameState.currentFloor = 3;
-    generateUrbanFloorMap();
-    const um = gameState.urbanMap;
-    const unknownCityId = Object.values(um.citiesById).find(c => !c.known).id;
+    // Le voisin ciblé doit être une ville "normale" (ni escalier ni Sortie) : y arriver quand elle
+    // n'est pas gardée déclenche nextFloor() (voir arriveAtCity()), qui réinitialise timeLeft à
+    // maxTime et invaliderait à tort l'assertion "consomme du temps" ci-dessous. Quelques tentatives
+    // suffisent toujours à trouver une carte où la ville de départ a un tel voisin direct.
+    let um, unknownCityId, safeNeighborId;
+    for (let attempt = 0; attempt < 20 && !safeNeighborId; attempt++) {
+        resetTransientState();
+        gameState.currentFloor = 3;
+        generateUrbanFloorMap();
+        um = gameState.urbanMap;
+        unknownCityId = Object.values(um.citiesById).find(c => !c.known).id;
+        const safeRoad = um.citiesById[um.currentCityId].roads.find(r => !um.citiesById[r.to].isStairs && !um.citiesById[r.to].isExit);
+        if (safeRoad) safeNeighborId = safeRoad.to;
+    }
+    assert(!!safeNeighborId, "travelToCity() test : une carte urbaine avec un voisin non-escalier doit être trouvable");
 
     const timeBefore = gameState.timeLeft;
     travelToCity(unknownCityId);
@@ -1199,8 +1209,7 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     const originalRandom = Math.random;
     Math.random = () => 0.99; // Écarte toute embuscade (jamais sous ambushBaseChance avec un tirage haut)
     gameState.hp = gameState.maxHp - 50;
-    const neighborId = um.citiesById[um.currentCityId].roads[0].to;
-    travelToCity(neighborId);
+    travelToCity(safeNeighborId);
     Math.random = originalRandom;
     assert(gameState.timeLeft < timeBefore, "travelToCity() : consomme du temps");
     assert(gameState.hp > gameState.maxHp - 50, "travelToCity() : la régénération passive s'applique au temps du trajet");
@@ -1268,21 +1277,121 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(gameState.urbanMap !== null && gameState.floorMap === null, "nextFloor() : étage 3 devient un étage urbain");
 }
 
-// UI : panneaux "Lieux connus"/"Carte Urbaine" mutuellement exclusifs, invite "Touchez la carte"
-// masquée sur un étage urbain (voir updateUI() dans app.js).
+// UI : "Lieux connus"/overlay "Carte Urbaine" mutuellement exclusifs, invite "Touchez la carte"
+// masquée sur un étage urbain, et l'overlay se masque bien dès qu'une "situation" est en cours
+// (combat/boss/furtivité/compagnon) pour laisser la carte redevenir visible (voir updateUI() dans
+// app.js).
 {
     resetTransientState();
     gameState.currentFloor = 3;
     generateUrbanFloorMap();
     updateUI();
-    assert(ui.urbanMapSection.classList.contains('hidden') === false, "updateUI() : panneau Carte Urbaine visible sur un étage urbain");
+    assert(ui.urbanTravelOverlay.classList.contains('hidden') === false, "updateUI() : overlay Carte Urbaine visible sur un étage urbain hors situation");
     assert(ui.knownLocationsSection.classList.contains('hidden') === true, "updateUI() : panneau Lieux connus masqué sur un étage urbain");
     assert(ui.advanceHint.classList.contains('hidden') === true, "updateUI() : invite d'exploration masquée sur un étage urbain");
 
+    gameState.inCombat = true;
+    updateUI();
+    assert(ui.urbanTravelOverlay.classList.contains('hidden') === true, "updateUI() : overlay Carte Urbaine masqué en combat (situation)");
+    gameState.inCombat = false;
+
+    gameState.bossChoicePending = true;
+    updateUI();
+    assert(ui.urbanTravelOverlay.classList.contains('hidden') === true, "updateUI() : overlay Carte Urbaine masqué pendant un choix de boss (situation)");
+    gameState.bossChoicePending = false;
+
+    updateUI();
+    assert(ui.urbanTravelOverlay.classList.contains('hidden') === false, "updateUI() : overlay Carte Urbaine réapparaît une fois la situation résolue");
+
     resetTransientState();
     updateUI();
-    assert(ui.urbanMapSection.classList.contains('hidden') === true, "updateUI() : panneau Carte Urbaine masqué sur un étage classique");
+    assert(ui.urbanTravelOverlay.classList.contains('hidden') === true, "updateUI() : overlay Carte Urbaine masqué sur un étage classique");
     assert(ui.knownLocationsSection.classList.contains('hidden') === false, "updateUI() : panneau Lieux connus visible sur un étage classique");
+}
+
+// devJumpToUrbanFloor() (menu DEV) : saute directement à l'étage 3 (urbain), quel que soit l'état
+// bloquant en cours, sans jamais laisser de combat/choix fantôme derrière lui.
+{
+    resetTransientState();
+    gameState.currentFloor = 1;
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Cobaye DEV", hp: 10, maxHp: 10, atk: 1, def: 1, xpReward: 1, status: {} };
+    devJumpToUrbanFloor();
+    assert(gameState.currentFloor === 3, "devJumpToUrbanFloor() : atterrit bien sur l'étage 3");
+    assert(gameState.urbanMap !== null && gameState.floorMap === null, "devJumpToUrbanFloor() : génère bien un étage urbain");
+    assert(gameState.inCombat === false && gameState.currentEnemy === null, "devJumpToUrbanFloor() : ne laisse aucun combat en cours derrière lui");
+    assert(gameState.bossChoicePending === false, "devJumpToUrbanFloor() : ne laisse aucun choix de boss en attente");
+}
+
+// computeGraphLayout() (générique, réutilisable — voir app.js) : toutes les positions retournées
+// restent dans le cadre normalisé [0,1], un graphe sans arêtes reste malgré tout disposé (pas de
+// crash), et repartir des positions déjà calculées ne les fait pas dériver loin (stabilité d'un
+// rendu à l'autre, condition nécessaire pour ne pas "sauter" visuellement).
+{
+    const nodeIds = ['a', 'b', 'c', 'd'];
+    const edges = [{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }, { from: 'c', to: 'd' }, { from: 'd', to: 'a' }];
+    const positions = computeGraphLayout(nodeIds, edges, {});
+    nodeIds.forEach(id => {
+        assert(positions[id] && positions[id].x >= 0 && positions[id].x <= 1 && positions[id].y >= 0 && positions[id].y <= 1,
+            `computeGraphLayout() : la position de '${id}' reste dans le cadre normalisé [0,1]`);
+    });
+
+    const isolated = computeGraphLayout(['solo'], [], {});
+    assert(!!isolated.solo, "computeGraphLayout() : un graphe sans arêtes dispose quand même son unique nœud");
+
+    const stabilized = computeGraphLayout(nodeIds, edges, positions);
+    nodeIds.forEach(id => {
+        const dx = stabilized[id].x - positions[id].x;
+        const dy = stabilized[id].y - positions[id].y;
+        assert(Math.sqrt(dx * dx + dy * dy) < 0.05,
+            `computeGraphLayout() : repartir d'une disposition déjà stable ne fait pas dériver '${id}'`);
+    });
+
+    const withNewNode = computeGraphLayout([...nodeIds, 'e'], [...edges, { from: 'a', to: 'e' }], positions);
+    nodeIds.forEach(id => {
+        const dx = withNewNode[id].x - positions[id].x;
+        const dy = withNewNode[id].y - positions[id].y;
+        assert(Math.sqrt(dx * dx + dy * dy) < 0.35,
+            `computeGraphLayout() : l'arrivée d'un nouveau nœud ('e') ne bouscule pas trop les nœuds déjà en place ('${id}')`);
+    });
+    assert(!!withNewNode.e, "computeGraphLayout() : le nouveau nœud reçoit bien une position");
+}
+
+// buildUrbanMapGraphData() : adaptateur urbain -> format générique nœuds/arêtes, et
+// updateUrbanMapUI() : la mini carte graphique (SVG) est bien peuplée, avec un nœud par ville
+// connue et un clic sur un nœud (autre que la ville courante) déclenchant le voyage.
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    const um = gameState.urbanMap;
+    const stairsCity = Object.values(um.citiesById).find(c => c.isStairs);
+    stairsCity.guarded = true; // Force la garde pour vérifier l'icône/variant 'guarded'
+    stairsCity.known = true; // Garantit sa présence dans le graphe pour cette vérification ciblée
+
+    const { nodes, edges } = buildUrbanMapGraphData(um);
+    const knownCount = Object.values(um.citiesById).filter(c => c.known).length;
+    assert(nodes.length === knownCount, "buildUrbanMapGraphData() : un nœud par ville connue, ni plus ni moins");
+    assert(edges.every(e => nodes.some(n => n.id === e.from) && nodes.some(n => n.id === e.to)),
+        "buildUrbanMapGraphData() : aucune arête ne pointe vers une ville pas encore connue");
+    const stairsNode = nodes.find(n => n.id === stairsCity.id);
+    assert(stairsNode.variant === 'guarded' && stairsNode.icon === '👑',
+        "buildUrbanMapGraphData() : une ville-escalier gardée reçoit l'icône/variant 'guarded'");
+
+    updateUrbanMapUI();
+    assert(ui.urbanMapSvg._children.length === 2, "updateUrbanMapUI() : le SVG contient bien un groupe d'arêtes et un groupe de nœuds");
+    const nodesGroup = ui.urbanMapSvg._children[1];
+    assert(nodesGroup._children.length === nodes.length, "updateUrbanMapUI() : un élément SVG par nœud du graphe");
+
+    // Clic sur un nœud autre que la ville courante : doit déclencher travelToCity() (même mécanisme
+    // que la liste précédente, juste porté par le graphe désormais).
+    const otherNodeIndex = nodes.findIndex(n => n.id !== um.currentCityId);
+    const cityBefore = um.currentCityId;
+    const originalRandom = Math.random;
+    Math.random = () => 0.99; // Écarte toute embuscade pour un trajet direct et prévisible
+    nodesGroup._children[otherNodeIndex].dispatch('click');
+    Math.random = originalRandom;
+    assert(um.currentCityId !== cityBefore || gameState.inCombat, "updateUrbanMapUI() : cliquer un nœud du graphe déplace bien le joueur (ou déclenche une embuscade)");
 }
 
 console.log(`${passed} test(s) OK, ${failures} échec(s).`);
