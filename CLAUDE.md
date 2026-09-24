@@ -397,6 +397,12 @@ Tailwind CDN, **aucun build step**.
   fige la simulation dessus jusqu'à épuisement du temps imparti (voir `shopChoicePending`/
   `lairChoicePending`/`floorTransitionPending`/`pactChoicePending`, ajoutés après coup).
 - Les deux n'affichent que les échecs + un résumé final (pas une ligne par test réussi).
+- **CI** (`.github/workflows/ci.yml`) : sur chaque push (toute branche) et chaque pull request,
+  `actions/checkout` + `actions/setup-node` (Node 20) puis `npm test` et `npm run test:long` — pas de
+  `npm install` (aucune dependency/devDependency), pas de cache, pas d'artefact, volontairement minimal.
+  Après un push, le statut de ce workflow devient LA RÉFÉRENCE : le protocole "20+ runs consécutifs en
+  local avant de pousser" reste utile pour chasser le flaky avant même d'arriver jusque-là, mais un
+  push dont la CI passe au rouge doit être corrigé avant de continuer sur autre chose.
 
 ## Backlog
 - Sons : hébergement des fichiers non tranché (3 catégories : actions, ambiance, mobs).
