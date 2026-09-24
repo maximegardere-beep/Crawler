@@ -17,9 +17,22 @@ function getFloorScaling(floor) {
     const rates = (typeof config !== 'undefined' && config.floorScaling)
         ? config.floorScaling
         : { hp: 0.22, atk: 0.12, def: 0.10, xp: 0.18 };
+    const dmgRates = (typeof config !== 'undefined' && config.mobDamageScaling)
+        ? config.mobDamageScaling
+        : { perFloor: 0.12, perMobLevel: 0.03 };
+    // ATQ (chantier "rework combat", scaling dégâts mobs) : formule composée dégâts_mob = base ×
+    // (1 + 0.12×étage) × (1 + 0.03×niveau_mob), remplace l'ancien scaling linéaire par profondeur.
+    // Utilise `f` (l'étage réel, PAS `depth`) pour les deux facteurs : un mob à l'étage 1 tape déjà
+    // plus fort que sa base, plus de "premier étage gratuit" — c'est le point de ce chantier (le
+    // scaling précédent était jugé quasi inexistant). `niveau_mob` n'a pas de champ dédié sur les mobs
+    // (voir getMobLevelEquivalent() dans app.js, même principe) : l'étage sert de proxy pour les
+    // deux facteurs, cohérent avec le reste du moteur qui scale les mobs par étage plutôt que par
+    // niveau propre. hp/def/xp gardent l'ancien scaling linéaire par PROFONDEUR (depth) : seul le
+    // scaling des dégâts (ATQ) était visé par ce chantier.
+    const atkMult = (1 + dmgRates.perFloor * f) * (1 + dmgRates.perMobLevel * f);
     return {
         hpMult: 1 + depth * rates.hp,
-        atkMult: 1 + depth * rates.atk,
+        atkMult,
         defMult: 1 + depth * rates.def,
         xpMult: 1 + depth * rates.xp
     };

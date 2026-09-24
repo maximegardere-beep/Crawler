@@ -196,9 +196,35 @@ const config = {
     // Valeurs de départ, à ajuster par playtest réel (pas de combat de référence à ce stade).
     floorScaling: {
         hp: 0.22,  // +22% de PV par étage de profondeur
-        atk: 0.12, // +12% d'ATQ par étage de profondeur
+        atk: 0.12, // ANCIEN scaling ATQ (profondeur) — remplacé par mobDamageScaling ci-dessous pour
+                    // les dégâts (chantier "rework combat"). Champ conservé pour compatibilité (lu
+                    // par le repli de getFloorScaling() si config.mobDamageScaling est absent).
         def: 0.10, // +10% de DEF par étage de profondeur
         xp: 0.18   // +18% d'XP donnée par étage de profondeur (suit la difficulté accrue)
+    },
+
+    // Chantier "rework combat" — scaling des dégâts des mobs (remplace floorScaling.atk ci-dessus,
+    // voir getFloorScaling() dans generator.js) : dégâts_mob = base × (1 + perFloor×étage) ×
+    // (1 + perMobLevel×étage) — "niveau_mob" n'existe pas comme champ dédié sur les mobs (aucun mob
+    // ne "level up" indépendamment, voir getMobLevelEquivalent()) : l'étage sert de proxy pour les
+    // deux facteurs, cohérent avec le reste du scaling par étage du moteur. `pressureFloorFrac`/
+    // `minMitigation`/`eliteDamageMult` sont consommés par rollDamage()/resolveEnemyCounterAttack()
+    // (mob -> joueur UNIQUEMENT, jamais les dégâts infligés PAR le joueur). Valeurs fournies par la
+    // consigne du chantier, non issues d'un audit d'équilibrage complet (voir NOTES_COMBAT.md).
+    mobDamageScaling: {
+        perFloor: 0.12,
+        perMobLevel: 0.03,
+        // Plancher de pression : un mob inflige TOUJOURS au moins cette fraction des PV max du
+        // joueur par attaque, calculée sur les dégâts BRUTS (avant mitigation par la défense) — voir
+        // rollDamage(). Empêche un joueur très défensif de rendre un mob totalement inoffensif.
+        pressureFloorFrac: 0.10,
+        // Cap de réduction : la défense ne peut jamais faire passer la mitigation sous cette valeur
+        // (fraction des dégâts bruts qui passe malgré la défense) — voir rollDamage().
+        minMitigation: 0.35,
+        // Multiplicateur de dégâts dédié aux mobs élites (voir isEliteMob()), EN PLUS du scaling par
+        // étage ci-dessus et des modificateurs aléatoires déjà existants (qui gonflaient surtout les
+        // PV) — appliqué au moment de la riposte, voir resolveEnemyCounterAttack().
+        eliteDamageMult: 1.65
     },
 
     // Paramètres du combat à distance (mobs marqués `ranged: true` dans bestiary.js). Voir
@@ -4440,15 +4466,24 @@ function rollDamage(attackerAtk, defenderDef, options = {}) {
     const atkMultiplier = options.atkMultiplier ?? 1;
     const varianceRange = options.varianceRange ?? 0.15;
     const defReduction = options.defReduction ?? 0;
+    // Chantier "rework combat" (scaling dégâts mobs) : options.pressureFloor (absolu, en PV) et
+    // options.minMitigation ne sont JAMAIS passés par performPlayerAttack() — uniquement par
+    // resolveEnemyCounterAttack() (voir config.mobDamageScaling), pour que ces deux règles restent
+    // strictement des dégâts MOB -> joueur, sans toucher aux dégâts joueur -> mob.
+    const pressureFloor = options.pressureFloor ?? 0;
+    const minMitigation = options.minMitigation ?? 0;
 
     const effectiveAtk = attackerAtk * atkMultiplier;
     const effectiveDef = Math.max(0, defenderDef * (1 - defReduction));
-    const mitigation = effectiveAtk / (effectiveAtk + effectiveDef);
+    // Cap de réduction : la défense ne peut jamais faire tomber la mitigation sous minMitigation.
+    const mitigation = Math.max(minMitigation, effectiveAtk / (effectiveAtk + effectiveDef));
     const variance = 1 + (Math.random() * varianceRange * 2 - varianceRange);
+    // Plancher de pression : dégâts BRUTS (avant mitigation) jamais sous pressureFloor.
+    const rawDamage = Math.max(effectiveAtk * variance, pressureFloor);
     // Seul point de passage commun aux dégâts du joueur ET des mobs (voir performPlayerAttack()/
     // resolveEnemyCounterAttack()) : anomalyEffects.allDamageMult (ADRENALINE) s'y applique donc
     // symétriquement des deux côtés sans toucher au reste de la formule.
-    const damage = effectiveAtk * mitigation * variance * (gameState.anomalyEffects.allDamageMult || 1);
+    const damage = rawDamage * mitigation * (gameState.anomalyEffects.allDamageMult || 1);
     return Math.max(1, Math.round(damage));
 }
 
@@ -4914,7 +4949,20 @@ function resolveEnemyCounterAttack() {
         if (enemy.status.feared.rounds <= 0) enemy.status.feared = null;
     }
 
-    const enemyDamage = rollDamage(enemyAtk, getEffectiveDef());
+    // Élites (voir isEliteMob()) : multiplicateur de dégâts dédié, EN PLUS du scaling par étage et
+    // des modificateurs aléatoires déjà existants (qui gonflaient surtout les PV) — chantier "rework
+    // combat". Jamais sur un boss : isEliteMob() les exclut déjà (ils ont leur propre traitement,
+    // voir Chantier 2 du même rework).
+    if (isEliteMob(enemy)) {
+        enemyAtk = Math.round(enemyAtk * config.mobDamageScaling.eliteDamageMult);
+    }
+
+    const enemyDamage = rollDamage(enemyAtk, getEffectiveDef(), {
+        // Plancher de pression / cap de réduction : dégâts MOB -> joueur uniquement (chantier "rework
+        // combat", voir config.mobDamageScaling et rollDamage()).
+        pressureFloor: gameState.maxHp * config.mobDamageScaling.pressureFloorFrac,
+        minMitigation: config.mobDamageScaling.minMitigation
+    });
 
     // Compagnon "Garde rapprochée" : jet de dé pour déterminer s'il s'interpose et encaisse une
     // partie du coup à la place du joueur (en plus de son bonus passif de DEF, voir getEffectiveDef).

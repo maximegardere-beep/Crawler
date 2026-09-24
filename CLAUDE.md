@@ -61,6 +61,18 @@ Tailwind CDN, **aucun build step**.
   (0.5), pour qu'un tank pur (ATQ en baisse, DEF/PV en hausse) pèse plus lourd que le seul produit
   ATQ×PV ne le capturait, sans laisser la DEF dominer le score à elle seule. Au-delà de
   `config.eliteThreatMultiplier`, icône 💀 (jamais sur un boss, qui garde 👑 — voir `isEliteMob()`).
+- **Scaling des dégâts mobs** (chantier "rework combat", voir `NOTES_COMBAT.md` pour le détail des
+  valeurs et un écart signalé sur le critère d'acceptation) : `config.mobDamageScaling` remplace
+  l'ancien `floorScaling.atk` pour les mobs — `getFloorScaling()` (generator.js) calcule désormais
+  l'ATQ via une formule composée `(1 + perFloor×étage) × (1 + perMobLevel×étage)` (pas de champ
+  "niveau" dédié sur les mobs, l'étage sert de proxy pour les deux facteurs, comme
+  `getMobLevelEquivalent()` ailleurs) — hp/def/xp des mobs restent sur l'ancien scaling linéaire par
+  PROFONDEUR. `rollDamage()` (app.js) accepte deux options supplémentaires, utilisées UNIQUEMENT côté
+  dégâts mob -> joueur (`resolveEnemyCounterAttack()`, jamais `performPlayerAttack()`) :
+  `pressureFloor` (dégâts bruts jamais sous cette valeur absolue, avant mitigation — 10% des PV max du
+  joueur) et `minMitigation` (la défense ne peut jamais faire tomber la mitigation sous cette fraction
+  des dégâts bruts — 35%). Les mobs élites (`isEliteMob()`) reçoivent en plus
+  `config.mobDamageScaling.eliteDamageMult` (×1.65) sur leur ATQ effective avant `rollDamage()`.
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
