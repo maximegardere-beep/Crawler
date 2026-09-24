@@ -347,6 +347,23 @@ Tailwind CDN, **aucun build step**.
 4. Incrémenter le suffixe `?v=N` sur tous les `<script>` d'`index.html` à chaque changement d'un `.js`.
 5. Un correctif d'équilibrage (stats, taux, formules) se propose en LISTE à valider — jamais appliqué
    directement sans validation explicite.
+6. **Versioning (à chaque merge de PR)** : incrémenter `APP_VERSION` (`app.js`), mettre à jour le
+   `?v=` de TOUS les `<script>` d'`index.html` au même nombre (convention 4 ci-dessus reste valable
+   pour les changements intermédiaires hors merge), puis créer un tag git `v<APP_VERSION.pr>` sur le
+   commit de merge et une GitHub Release portant le même numéro. Non automatisé pour l'instant (pas de
+   script de release) — à faire à la main à chaque merge.
+   **État actuel (constaté, pas corrigé silencieusement — voir Tâche 5 du chantier
+   "fiabilisation")** : `APP_VERSION.pr` (20) et le `?v=` d'`index.html` (57) ne sont PAS la même
+   chose et ne l'ont jamais été — `APP_VERSION.pr` suit le numéro de la dernière PR mergée sur `main`
+   (incrémenté une fois par PR), `?v=` suit le nombre de changements de fichiers `.js` (incrémenté
+   bien plus souvent, à chaque modification d'un `.js`, y compris plusieurs fois au sein d'une même
+   PR). Les deux compteurs ont donc mécaniquement des rythmes différents et n'ont pas de raison de
+   converger tout seuls. La convention ci-dessus, pour être suivie à la lettre, demande de les
+   FUSIONNER en un seul et même nombre à partir de maintenant — ce qui suppose de choisir un point de
+   départ pour ce nombre unique (reprendre 57 ? reprendre 20 et laisser `?v=` "rattraper" son retard
+   au prochain changement de `.js` ? repartir de 1 ?) : un choix qui n'appartient pas à Claude Code de
+   trancher seul, laissé à la personne qui lit ceci. `package.json` (`version: "20.0.0"`, Tâche 1) suit
+   pour l'instant `APP_VERSION.pr`, donc hérite de la même question.
 
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
