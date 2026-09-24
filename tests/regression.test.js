@@ -1134,6 +1134,132 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 }
 
 // ===================================================================
+// Gestion des sauvegardes (écran "Nettoyer les sauvegardes") : listSavedCrawlersDetailed(),
+// requestDeleteSave()/requestDeleteAllSaves()/cancelSaveDeletion()/confirmSaveDeletion(),
+// restoreSavesBackup(). Voir CLAUDE.md.
+// ===================================================================
+
+// listSavedCrawlersDetailed() : nom + étage + horodatage par sauvegarde, entrée corrompue ignorée.
+{
+    localStorage.clear();
+    resetTransientState();
+    gameState.playerName = "Detail Un";
+    gameState.saveEnabled = true;
+    gameState.currentFloor = 6;
+    saveGame();
+    resetTransientState();
+    gameState.playerName = "Detail Deux";
+    gameState.saveEnabled = true;
+    gameState.currentFloor = 11;
+    saveGame();
+    localStorage.setItem(SAVE_KEY_PREFIX + "corrompu", "{pas du json");
+
+    const entries = listSavedCrawlersDetailed();
+    assert(entries.length === 2, "listSavedCrawlersDetailed() : ignore l'entrée corrompue");
+    const one = entries.find(e => e.name === "Detail Un");
+    assert(!!one && one.floor === 6 && typeof one.savedAt === 'number', "listSavedCrawlersDetailed() : étage et horodatage corrects");
+}
+
+// formatSaveTimestamp() : jamais d'exception, "date inconnue" pour une valeur absente.
+{
+    assert(formatSaveTimestamp(null) === "date inconnue", "formatSaveTimestamp() : null -> date inconnue");
+    assert(formatSaveTimestamp(undefined) === "date inconnue", "formatSaveTimestamp() : undefined -> date inconnue");
+    assert(typeof formatSaveTimestamp(Date.now()) === 'string' && formatSaveTimestamp(Date.now()) !== "date inconnue",
+        "formatSaveTimestamp() : un horodatage valide produit une date formatée");
+}
+
+// requestDeleteSave()/confirmSaveDeletion() : supprime UNE sauvegarde après confirmation, sauvegarde
+// d'abord son contenu dans le slot de backup unique (jamais de suppression sans passer par
+// pendingSaveDeletion, donc jamais sans confirmation explicite de l'appelant).
+{
+    localStorage.clear();
+    resetTransientState();
+    gameState.playerName = "À Supprimer";
+    gameState.saveEnabled = true;
+    gameState.currentFloor = 4;
+    saveGame();
+    resetTransientState();
+    gameState.playerName = "À Garder";
+    gameState.saveEnabled = true;
+    saveGame();
+
+    requestDeleteSave("À Supprimer");
+    assert(pendingSaveDeletion && pendingSaveDeletion.mode === 'single' && pendingSaveDeletion.name === "À Supprimer",
+        "requestDeleteSave() : pose l'action en attente, ne supprime rien tout de suite");
+    assert(hasSaveForName("À Supprimer"), "requestDeleteSave() : la sauvegarde existe toujours avant confirmation");
+
+    confirmSaveDeletion();
+    assert(!hasSaveForName("À Supprimer"), "confirmSaveDeletion() : supprime bien la sauvegarde visée après confirmation");
+    assert(hasSaveForName("À Garder"), "confirmSaveDeletion() : ne touche jamais aux autres sauvegardes (suppression individuelle)");
+    assert(pendingSaveDeletion === null, "confirmSaveDeletion() : referme l'action en attente");
+
+    const backupRaw = localStorage.getItem(SAVE_BACKUP_KEY);
+    assert(!!backupRaw, "confirmSaveDeletion() : écrit un backup avant de supprimer");
+    const backup = JSON.parse(backupRaw);
+    assert(backup.entries.length === 1 && backup.entries[0].key === saveKeyForName("À Supprimer"),
+        "confirmSaveDeletion() : le backup contient exactement la sauvegarde supprimée");
+}
+
+// cancelSaveDeletion() : n'importe quelle suppression en attente peut être annulée sans effet.
+{
+    localStorage.clear();
+    resetTransientState();
+    gameState.playerName = "Jamais Supprimé";
+    gameState.saveEnabled = true;
+    saveGame();
+
+    requestDeleteSave("Jamais Supprimé");
+    cancelSaveDeletion();
+    assert(pendingSaveDeletion === null, "cancelSaveDeletion() : referme l'action en attente");
+    assert(hasSaveForName("Jamais Supprimé"), "cancelSaveDeletion() : la sauvegarde n'est jamais supprimée");
+}
+
+// requestDeleteAllSaves()/confirmSaveDeletion() : supprime TOUTES les sauvegardes, toutes présentes
+// dans le backup (écrasant un backup précédent).
+{
+    localStorage.clear();
+    resetTransientState();
+    gameState.playerName = "Tous Un";
+    gameState.saveEnabled = true;
+    saveGame();
+    resetTransientState();
+    gameState.playerName = "Tous Deux";
+    gameState.saveEnabled = true;
+    saveGame();
+
+    requestDeleteAllSaves();
+    assert(pendingSaveDeletion && pendingSaveDeletion.mode === 'all', "requestDeleteAllSaves() : pose l'action 'all' en attente");
+    confirmSaveDeletion();
+    assert(listSavedCrawlerNames().length === 0, "confirmSaveDeletion() (mode 'all') : supprime bien toutes les sauvegardes");
+    const backup = JSON.parse(localStorage.getItem(SAVE_BACKUP_KEY));
+    assert(backup.entries.length === 2, "confirmSaveDeletion() (mode 'all') : le backup contient bien les DEUX sauvegardes supprimées");
+}
+
+// restoreSavesBackup() : réécrit chaque entrée du backup à sa clé d'origine, jamais d'exception sur
+// un backup absent/corrompu.
+{
+    localStorage.clear();
+    resetTransientState();
+    gameState.playerName = "Restaurable";
+    gameState.saveEnabled = true;
+    gameState.currentFloor = 9;
+    saveGame();
+    requestDeleteAllSaves();
+    confirmSaveDeletion();
+    assert(!hasSaveForName("Restaurable"), "setup : la sauvegarde est bien supprimée avant de tester la restauration");
+
+    restoreSavesBackup();
+    assert(hasSaveForName("Restaurable"), "restoreSavesBackup() : la sauvegarde réapparaît après restauration");
+    const ok = restoreSaveForName("Restaurable");
+    assert(ok && gameState.currentFloor === 9, "restoreSavesBackup() : le contenu restauré est bien celui d'avant suppression");
+
+    localStorage.removeItem(SAVE_BACKUP_KEY);
+    restoreSavesBackup(); // Aucun backup : ne doit jamais lever d'exception
+    localStorage.setItem(SAVE_BACKUP_KEY, "{pas du json");
+    restoreSavesBackup(); // Backup corrompu : idem
+}
+
+// ===================================================================
 // Étages urbains (multiples de 3 — voir generateUrbanFloorMap()/travelToCity()/
 // triggerUrbanBossEncounter() dans app.js, config.urbanFloors).
 // ===================================================================

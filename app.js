@@ -99,14 +99,18 @@ const gameState = {
     // Autosauvegarde (voir saveGame()) : faux pendant l'initialisation silencieuse au chargement de
     // la page (avant que le joueur n'ait confirmé son nom), pour ne jamais écraser une sauvegarde
     // existante avec un état par défaut. Activé par confirmPlayerName()/restoreSaveForName().
-    saveEnabled: false
+    saveEnabled: false,
+    // Horodatage (epoch ms) de la dernière sauvegarde réussie, posé par saveGame() — sert uniquement
+    // d'affichage dans l'écran "Nettoyer les sauvegardes" (openManageSaves()). Absent sur une
+    // sauvegarde antérieure à cette feature : traité comme "date inconnue", jamais une erreur.
+    lastSavedAt: null
 };
 
 // Identifiant de version affiché sur l'écran de départ (voir #start-screen-overlay dans index.html) :
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 19, label: "Carte Urbaine : grille + diagonales, caméra pannable, déclutter" };
+const APP_VERSION = { pr: 20, label: "Nettoyer les sauvegardes : liste, suppression confirmée, backup" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -424,6 +428,16 @@ const ui = {
     startSavesHint: document.getElementById('start-saves-hint'),
     versionLabel: document.getElementById('version-label'),
     btnStartConfirm: document.getElementById('btn-start-confirm'),
+    btnOpenManageSaves: document.getElementById('btn-open-manage-saves'),
+    manageSavesOverlay: document.getElementById('manage-saves-overlay'),
+    manageSavesList: document.getElementById('manage-saves-list'),
+    manageSavesConfirm: document.getElementById('manage-saves-confirm'),
+    manageSavesConfirmText: document.getElementById('manage-saves-confirm-text'),
+    btnManageSavesConfirmYes: document.getElementById('btn-manage-saves-confirm-yes'),
+    btnManageSavesConfirmNo: document.getElementById('btn-manage-saves-confirm-no'),
+    btnManageSavesDeleteAll: document.getElementById('btn-manage-saves-delete-all'),
+    btnManageSavesRestoreBackup: document.getElementById('btn-manage-saves-restore-backup'),
+    btnManageSavesClose: document.getElementById('btn-manage-saves-close'),
     giftRevealOverlay: document.getElementById('gift-reveal-overlay'),
     giftRevealIcon: document.getElementById('gift-reveal-icon'),
     giftRevealTitle: document.getElementById('gift-reveal-title'),
@@ -481,6 +495,7 @@ function saveKeyForName(name) {
 // en pleine action, ce qui serait bien plus fragile (nombreux points d'appel à traquer).
 function saveGame() {
     if (!gameState.saveEnabled || !gameState.playerName) return;
+    gameState.lastSavedAt = Date.now();
     try {
         localStorage.setItem(saveKeyForName(gameState.playerName), JSON.stringify(gameState));
     } catch (e) {
@@ -562,6 +577,209 @@ function listSavedCrawlerNames() {
         // localStorage indisponible : liste vide, pas d'erreur
     }
     return names;
+}
+
+// Variante détaillée de listSavedCrawlerNames() pour l'écran "Nettoyer les sauvegardes"
+// (openManageSaves()) : nom, clé localStorage, étage atteint et horodatage de dernière sauvegarde.
+// `floor`/`savedAt` retombent sur des valeurs neutres pour une entrée corrompue ou antérieure à
+// l'ajout de `lastSavedAt` (migration douce, jamais une erreur qui casserait toute la liste).
+function listSavedCrawlersDetailed() {
+    const entries = [];
+    try {
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key || !key.startsWith(SAVE_KEY_PREFIX)) continue;
+            try {
+                const saved = JSON.parse(localStorage.getItem(key));
+                if (saved && saved.playerName) {
+                    entries.push({ name: saved.playerName, key, floor: saved.currentFloor || 1, savedAt: saved.lastSavedAt || null });
+                }
+            } catch (e) {
+                // Entrée corrompue : ignorée plutôt que de faire échouer toute la liste
+            }
+        }
+    } catch (e) {
+        // localStorage indisponible : liste vide, pas d'erreur
+    }
+    return entries;
+}
+
+// Formatage d'affichage d'un horodatage de sauvegarde (voir listSavedCrawlersDetailed()) — "date
+// inconnue" pour une sauvegarde antérieure à lastSavedAt, ou si l'environnement ne sait pas formater
+// de date localisée (jamais une exception qui casserait l'écran de gestion des sauvegardes).
+function formatSaveTimestamp(ts) {
+    if (!ts) return "date inconnue";
+    try {
+        return new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+        return "date inconnue";
+    }
+}
+
+// Rafraîchit l'indice de sauvegardes existantes sur l'écran de départ (voir listSavedCrawlerNames()) —
+// extrait en fonction pour pouvoir être rappelé après une suppression/restauration depuis l'écran
+// "Nettoyer les sauvegardes", en plus de l'appel initial au chargement du jeu.
+function refreshStartSavesHint() {
+    if (!ui.startSavesHint) return;
+    const savedNames = listSavedCrawlerNames();
+    ui.startSavesHint.classList.toggle('hidden', savedNames.length === 0);
+    ui.startSavesHint.innerText = savedNames.length ? `Sauvegardes disponibles : ${savedNames.join(', ')}` : '';
+}
+
+// ==========================================
+// GESTION DES SAUVEGARDES (écran de départ -> "Nettoyer les sauvegardes")
+// ==========================================
+// Slot de backup UNIQUE (pas un historique) : écrasé à chaque nettoyage (suppression individuelle ou
+// totale), toujours au format { savedAt, entries: [{key, data}] } où `data` est le JSON brut de la
+// sauvegarde (round-trip exact, sans re-sérialiser gameState). `pendingSaveDeletion` retient l'action
+// en attente de confirmation ({ mode: 'single', name } ou { mode: 'all' }) — jamais de suppression
+// sans passer par cet état, la confirmation est donc structurellement obligatoire.
+const SAVE_BACKUP_KEY = 'crawler-save-backup';
+let pendingSaveDeletion = null;
+
+// Ouvre l'écran de gestion des sauvegardes depuis l'écran de départ.
+function openManageSaves() {
+    pendingSaveDeletion = null;
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.add('hidden');
+    updateManageSavesUI();
+    if (ui.manageSavesOverlay) ui.manageSavesOverlay.classList.remove('hidden');
+}
+
+function closeManageSaves() {
+    pendingSaveDeletion = null;
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.add('hidden');
+    if (ui.manageSavesOverlay) ui.manageSavesOverlay.classList.add('hidden');
+}
+
+// Reconstruit la liste des sauvegardes + la visibilité du bouton "Restaurer le backup" (masqué tant
+// qu'aucun backup n'existe).
+function updateManageSavesUI() {
+    if (!ui.manageSavesList) return;
+    const entries = listSavedCrawlersDetailed();
+
+    ui.manageSavesList.innerHTML = "";
+    if (entries.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = "text-[10px] text-gray-600 italic text-center py-2";
+        empty.innerText = "Aucune sauvegarde sur cet appareil.";
+        ui.manageSavesList.appendChild(empty);
+    }
+    entries.forEach(entry => {
+        const row = document.createElement('div');
+        row.className = "flex justify-between items-center gap-2 px-2 py-1.5 bg-gray-950/80 border border-gray-800 rounded";
+        row.innerHTML = `
+            <div class="flex flex-col overflow-hidden text-left">
+                <span class="text-gray-200 font-bold text-[11px] truncate">${entry.name}</span>
+                <span class="text-gray-600 text-[9px]">Étage ${entry.floor} · ${formatSaveTimestamp(entry.savedAt)}</span>
+            </div>
+        `;
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = "shrink-0 text-red-500 hover:text-red-300 text-sm px-1 transition-colors";
+        deleteBtn.innerText = "🗑️";
+        deleteBtn.addEventListener('click', () => requestDeleteSave(entry.name));
+        row.appendChild(deleteBtn);
+        ui.manageSavesList.appendChild(row);
+    });
+
+    if (ui.btnManageSavesRestoreBackup) {
+        let hasBackup = false;
+        try { hasBackup = localStorage.getItem(SAVE_BACKUP_KEY) !== null; } catch (e) { /* indisponible */ }
+        ui.btnManageSavesRestoreBackup.classList.toggle('hidden', !hasBackup);
+    }
+}
+
+// Demande confirmation avant de supprimer UNE sauvegarde (bouton 🗑️ d'une ligne).
+function requestDeleteSave(name) {
+    pendingSaveDeletion = { mode: 'single', name };
+    if (ui.manageSavesConfirmText) {
+        ui.manageSavesConfirmText.innerText = `Supprimer définitivement la sauvegarde de "${name}" ? Cette action est irréversible (un backup sera conservé, voir "Restaurer le dernier backup").`;
+    }
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.remove('hidden');
+}
+
+// Demande confirmation avant de supprimer TOUTES les sauvegardes (bouton "Tout supprimer").
+function requestDeleteAllSaves() {
+    pendingSaveDeletion = { mode: 'all' };
+    if (ui.manageSavesConfirmText) {
+        ui.manageSavesConfirmText.innerText = "Supprimer DÉFINITIVEMENT toutes les sauvegardes de cet appareil ? Cette action est irréversible (un backup sera conservé, voir \"Restaurer le dernier backup\").";
+    }
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.remove('hidden');
+}
+
+function cancelSaveDeletion() {
+    pendingSaveDeletion = null;
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.add('hidden');
+}
+
+// Exécute la suppression (individuelle ou totale) demandée, après confirmation explicite. Sauvegarde
+// d'abord TOUTES les entrées concernées dans le slot de backup unique (écrase un backup précédent —
+// "écrasé à chaque nettoyage"), puis les retire réellement de localStorage.
+function confirmSaveDeletion() {
+    if (!pendingSaveDeletion) return;
+    const allEntries = listSavedCrawlersDetailed();
+    const toDelete = pendingSaveDeletion.mode === 'all'
+        ? allEntries
+        : allEntries.filter(e => e.name === pendingSaveDeletion.name);
+
+    if (toDelete.length > 0) {
+        try {
+            const backup = {
+                savedAt: Date.now(),
+                entries: toDelete.map(e => ({ key: e.key, data: localStorage.getItem(e.key) }))
+            };
+            localStorage.setItem(SAVE_BACKUP_KEY, JSON.stringify(backup));
+            toDelete.forEach(e => localStorage.removeItem(e.key));
+            logEvent(
+                pendingSaveDeletion.mode === 'all'
+                    ? `🧹 ${toDelete.length} sauvegarde(s) supprimée(s) (backup conservé).`
+                    : `🧹 Sauvegarde de "${pendingSaveDeletion.name}" supprimée (backup conservé).`,
+                "info"
+            );
+        } catch (e) {
+            logEvent("Échec de la suppression (stockage indisponible).", "danger");
+        }
+    }
+
+    pendingSaveDeletion = null;
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.add('hidden');
+    updateManageSavesUI();
+    refreshStartSavesHint();
+}
+
+// Restaure le backup unique (voir confirmSaveDeletion()) : réécrit chaque entrée à sa clé d'origine,
+// écrasant une éventuelle sauvegarde du même nom recréée depuis. N'efface pas le backup lui-même
+// (restaurable plusieurs fois de suite sans repasser par une suppression).
+function restoreSavesBackup() {
+    let raw;
+    try {
+        raw = localStorage.getItem(SAVE_BACKUP_KEY);
+    } catch (e) {
+        return;
+    }
+    if (!raw) return;
+
+    let backup;
+    try {
+        backup = JSON.parse(raw);
+    } catch (e) {
+        return; // Backup corrompu : on ignore plutôt que de planter
+    }
+    if (!backup || !Array.isArray(backup.entries)) return;
+
+    let restoredCount = 0;
+    backup.entries.forEach(entry => {
+        if (!entry || !entry.key || entry.data === undefined) return;
+        try {
+            localStorage.setItem(entry.key, entry.data);
+            restoredCount++;
+        } catch (e) {
+            // Une entrée en échec ne doit pas bloquer les suivantes
+        }
+    });
+
+    logEvent(`♻️ ${restoredCount} sauvegarde(s) restaurée(s) depuis le backup.`, "success");
+    updateManageSavesUI();
+    refreshStartSavesHint();
 }
 
 function updateUI() {
@@ -4995,6 +5213,14 @@ ui.btnStartConfirm.addEventListener('click', confirmPlayerName);
 ui.startNameInput.addEventListener('keydown', (e) => { if (e && e.key === 'Enter') confirmPlayerName(); });
 ui.btnGiftContinue.addEventListener('click', dismissGiftReveal);
 
+// Écran "Nettoyer les sauvegardes" (voir openManageSaves() dans app.js)
+if (ui.btnOpenManageSaves) ui.btnOpenManageSaves.addEventListener('click', openManageSaves);
+if (ui.btnManageSavesClose) ui.btnManageSavesClose.addEventListener('click', closeManageSaves);
+if (ui.btnManageSavesDeleteAll) ui.btnManageSavesDeleteAll.addEventListener('click', requestDeleteAllSaves);
+if (ui.btnManageSavesConfirmYes) ui.btnManageSavesConfirmYes.addEventListener('click', confirmSaveDeletion);
+if (ui.btnManageSavesConfirmNo) ui.btnManageSavesConfirmNo.addEventListener('click', cancelSaveDeletion);
+if (ui.btnManageSavesRestoreBackup) ui.btnManageSavesRestoreBackup.addEventListener('click', restoreSavesBackup);
+
 // Clics sur les boutons de combat
 ui.btnAttackWeapon.addEventListener('click', attackWeapon);
 ui.btnAttackRanged.addEventListener('click', attackRanged);
@@ -5043,11 +5269,7 @@ updateKnownLocationsUI();
 updateCompanionUI();
 
 // Indice de sauvegardes existantes sur l'écran de départ (voir listSavedCrawlerNames())
-if (ui.startSavesHint) {
-    const savedNames = listSavedCrawlerNames();
-    ui.startSavesHint.classList.toggle('hidden', savedNames.length === 0);
-    ui.startSavesHint.innerText = savedNames.length ? `Sauvegardes disponibles : ${savedNames.join(', ')}` : '';
-}
+refreshStartSavesHint();
 
 // Version affichée sur l'écran de départ (voir APP_VERSION)
 if (ui.versionLabel) {

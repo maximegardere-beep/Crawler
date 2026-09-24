@@ -102,6 +102,16 @@ Tailwind CDN, **aucun build step**.
   bienvenue) ; sinon, nouveau crawler comme avant. La restauration nettoie systématiquement tout état
   transitoire/bloquant (combat en cours, choix en attente) : on atterrit toujours sur l'écran
   d'exploration normal. `listSavedCrawlerNames()` alimente l'indice affiché sur l'écran de départ.
+  **Nettoyage des sauvegardes** (`#btn-open-manage-saves` sur l'écran de départ, `openManageSaves()`) :
+  liste détaillée (`listSavedCrawlersDetailed()` — nom/étage/horodatage `gameState.lastSavedAt`, posé
+  par `saveGame()`) avec suppression individuelle ou totale, TOUJOURS via `pendingSaveDeletion`
+  (`requestDeleteSave()`/`requestDeleteAllSaves()` posent l'action, `confirmSaveDeletion()` l'exécute,
+  `cancelSaveDeletion()` l'annule) — structurellement impossible de supprimer sans confirmation
+  explicite, aucun appelant ne touche `localStorage.removeItem` directement. Un slot de backup UNIQUE
+  (`SAVE_BACKUP_KEY`, écrasé à chaque nettoyage — pas un historique) garde le JSON brut de chaque
+  sauvegarde sur le point d'être supprimée, round-trip exact ; `restoreSavesBackup()` le réécrit tel
+  quel à ses clés d'origine, restaurable plusieurs fois de suite (le backup n'est effacé qu'en étant
+  écrasé par un nettoyage suivant, jamais par une restauration).
 - **Étages urbains** (multiples de 3 — `config.urbanFloors`, `generateUrbanFloorMap()`) : un réseau
   de villes sûres (`gameState.urbanMap.citiesById`) reliées par des routes dangereuses, en
   remplacement du donjon classique à 4 quartiers pour cet étage (`floorMap`/`urbanMap` sont
