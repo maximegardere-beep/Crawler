@@ -119,20 +119,40 @@ function findMobByName(name) {
     return baseMobs.find(mob => mob.name === name);
 }
 
+// `signatureItem` (chantier "rework combat", Chantier 2) : objet UNIQUE garanti à chaque défaite de
+// ce boss précis (voir winCombat() dans app.js), en plus du loot aléatoire de rareté minimale garantie
+// — toujours au palier Légendaire, stats fixes (canEnchant:false, déjà "complet"), un seul mécanisme
+// thématique parmi ceux réellement implémentés (voir IMPLEMENTED_WEAPON_MECHANICS/
+// IMPLEMENTED_ARMOR_MECHANICS dans app.js — "confusion", utilisé comme `effect` narratif de certains
+// boss ci-dessous, n'a pas de mécanique de combat réelle : les objets signature associés utilisent
+// "fear"/"adrenaline", les plus proches thématiquement).
 const districtBosses = {
-    "Tunnels de Métro Abandonnés": { name: "Le Chef de Gare Nécrosé", hp: 220, atk: 15, def: 10, xpReward: 90, effect: "stun", isBoss: true },
-    "Jardins Carnivores": { name: "La Mère-Liane", hp: 210, atk: 14, def: 9, xpReward: 90, effect: "poison", isBoss: true },
-    "Bureaux de l'Administration Pénitentiaire": { name: "Le Directeur Général (Édition Cauchemar)", hp: 230, atk: 16, def: 11, xpReward: 100, effect: "slow", isBoss: true, ranged: true },
-    "Usine de Transformation Alimentaire": { name: "Le Boucher Sans Visage", hp: 250, atk: 18, def: 12, xpReward: 110, effect: "bleed", isBoss: true },
-    "Bibliothèque des Oubliés": { name: "Le Gardien des Mots Perdus", hp: 240, atk: 17, def: 10, xpReward: 120, effect: "confusion", isBoss: true },
-    "Laboratoire de Fous": { name: "Le Professeur Démentiel", hp: 260, atk: 20, def: 8, xpReward: 130, effect: "poison", isBoss: true },
-    "Rue des Illusions": { name: "Le Maître des Illusions", hp: 220, atk: 16, def: 9, xpReward: 100, effect: "confusion", isBoss: true },
-    "Catacombes des Chaussettes Perdues": { name: "Le Roi des Chaussettes Solitaires", hp: 200, atk: 14, def: 13, xpReward: 90, effect: "slow", isBoss: true },
-    "Marché Noir du Donjon": { name: "Le Baron des Ombres", hp: 270, atk: 19, def: 14, xpReward: 140, effect: "stun", isBoss: true },
-    "Salle des Machines Infernales": { name: "L'IA Malveillante", hp: 300, atk: 22, def: 15, xpReward: 150, effect: "stun", isBoss: true, ranged: true },
-    "Parking Souterrain Maudit": { name: "Le Gardien du Parking Éternel", hp: 235, atk: 16, def: 13, xpReward: 105, effect: "stun", isBoss: true },
-    "Piscine Municipale Désaffectée": { name: "Le Grand Requin Gonflable", hp: 245, atk: 17, def: 9, xpReward: 110, effect: "bleed", isBoss: true },
-    "Studio de Télé-Achat Abandonné": { name: "L'Animateur Vedette Immortel", hp: 255, atk: 18, def: 10, xpReward: 115, effect: "confusion", isBoss: true }
+    "Tunnels de Métro Abandonnés": { name: "Le Chef de Gare Nécrosé", hp: 220, atk: 15, def: 10, xpReward: 90, effect: "stun", isBoss: true,
+        signatureItem: { name: "Sifflet du Chef de Gare Nécrosé", category: "weapons", baseDmg: 30, baseValue: 90, canEnchant: false, mechanics: ["stun"], signature: true } },
+    "Jardins Carnivores": { name: "La Mère-Liane", hp: 210, atk: 14, def: 9, xpReward: 90, effect: "poison", isBoss: true,
+        signatureItem: { name: "Tronçon de Liane Toxique", category: "weapons", baseDmg: 28, baseValue: 88, canEnchant: false, mechanics: ["poison"], signature: true } },
+    "Bureaux de l'Administration Pénitentiaire": { name: "Le Directeur Général (Édition Cauchemar)", hp: 230, atk: 16, def: 11, xpReward: 100, effect: "slow", isBoss: true, ranged: true,
+        signatureItem: { name: "Tampon Encreur du Directeur", category: "ranged", baseDmg: 32, baseValue: 95, canEnchant: false, mechanics: ["slow"], signature: true } },
+    "Usine de Transformation Alimentaire": { name: "Le Boucher Sans Visage", hp: 250, atk: 18, def: 12, xpReward: 110, effect: "bleed", isBoss: true,
+        signatureItem: { name: "Couperet du Boucher Sans Visage", category: "weapons", baseDmg: 34, baseValue: 100, canEnchant: false, mechanics: ["bleed"], signature: true } },
+    "Bibliothèque des Oubliés": { name: "Le Gardien des Mots Perdus", hp: 240, atk: 17, def: 10, xpReward: 120, effect: "confusion", isBoss: true,
+        signatureItem: { name: "Reliure du Gardien des Mots Perdus", category: "armors", baseArmor: 16, baseValue: 92, canEnchant: false, mechanics: ["fear"], signature: true } },
+    "Laboratoire de Fous": { name: "Le Professeur Démentiel", hp: 260, atk: 20, def: 8, xpReward: 130, effect: "poison", isBoss: true,
+        signatureItem: { name: "Seringue Géante du Professeur Démentiel", category: "weapons", baseDmg: 30, baseValue: 98, canEnchant: false, mechanics: ["poison"], signature: true } },
+    "Rue des Illusions": { name: "Le Maître des Illusions", hp: 220, atk: 16, def: 9, xpReward: 100, effect: "confusion", isBoss: true,
+        signatureItem: { name: "Cape en Lambeaux du Maître des Illusions", category: "armors", baseArmor: 14, baseValue: 90, canEnchant: false, mechanics: ["fear"], signature: true } },
+    "Catacombes des Chaussettes Perdues": { name: "Le Roi des Chaussettes Solitaires", hp: 200, atk: 14, def: 13, xpReward: 90, effect: "slow", isBoss: true,
+        signatureItem: { name: "Chaussette Royale Dépareillée", category: "armors", baseArmor: 17, baseValue: 85, canEnchant: false, mechanics: ["slow"], signature: true } },
+    "Marché Noir du Donjon": { name: "Le Baron des Ombres", hp: 270, atk: 19, def: 14, xpReward: 140, effect: "stun", isBoss: true,
+        signatureItem: { name: "Canne-Épée du Baron des Ombres", category: "weapons", baseDmg: 33, baseValue: 105, canEnchant: false, mechanics: ["stun"], signature: true } },
+    "Salle des Machines Infernales": { name: "L'IA Malveillante", hp: 300, atk: 22, def: 15, xpReward: 150, effect: "stun", isBoss: true, ranged: true,
+        signatureItem: { name: "Canon à Impulsions de l'IA Malveillante", category: "ranged", baseDmg: 36, baseValue: 115, canEnchant: false, mechanics: ["stun"], signature: true } },
+    "Parking Souterrain Maudit": { name: "Le Gardien du Parking Éternel", hp: 235, atk: 16, def: 13, xpReward: 105, effect: "stun", isBoss: true,
+        signatureItem: { name: "Barre de Péage Maudite", category: "weapons", baseDmg: 29, baseValue: 93, canEnchant: false, mechanics: ["stun"], signature: true } },
+    "Piscine Municipale Désaffectée": { name: "Le Grand Requin Gonflable", hp: 245, atk: 17, def: 9, xpReward: 110, effect: "bleed", isBoss: true,
+        signatureItem: { name: "Dents du Grand Requin Gonflable", category: "weapons", baseDmg: 31, baseValue: 96, canEnchant: false, mechanics: ["bleed"], signature: true } },
+    "Studio de Télé-Achat Abandonné": { name: "L'Animateur Vedette Immortel", hp: 255, atk: 18, def: 10, xpReward: 115, effect: "confusion", isBoss: true,
+        signatureItem: { name: "Micro Électrifié de l'Animateur Vedette", category: "weapons", baseDmg: 30, baseValue: 94, canEnchant: false, mechanics: ["adrenaline"], signature: true } }
 };
 
 function findBossForDistrict(districtName) {

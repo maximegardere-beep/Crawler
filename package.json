@@ -1,0 +1,11 @@
+{
+  "name": "crawler",
+  "version": "20.0.0",
+  "private": true,
+  "description": "Rogue-like textuel minimaliste (HTML/JS vanilla, aucun build step) — voir CLAUDE.md.",
+  "scripts": {
+    "test": "node tests/regression.test.js",
+    "test:long": "node tests/long_playthrough.js",
+    "test:all": "npm test && npm run test:long"
+  }
+}

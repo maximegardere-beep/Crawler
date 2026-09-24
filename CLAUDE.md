@@ -61,6 +61,62 @@ Tailwind CDN, **aucun build step**.
   (0.5), pour qu'un tank pur (ATQ en baisse, DEF/PV en hausse) pèse plus lourd que le seul produit
   ATQ×PV ne le capturait, sans laisser la DEF dominer le score à elle seule. Au-delà de
   `config.eliteThreatMultiplier`, icône 💀 (jamais sur un boss, qui garde 👑 — voir `isEliteMob()`).
+- **Scaling des dégâts mobs** (chantier "rework combat", voir `NOTES_COMBAT.md` pour le détail des
+  valeurs et un écart signalé sur le critère d'acceptation) : `config.mobDamageScaling` remplace
+  l'ancien `floorScaling.atk` pour les mobs — `getFloorScaling()` (generator.js) calcule désormais
+  l'ATQ via une formule composée `(1 + perFloor×étage) × (1 + perMobLevel×étage)` (pas de champ
+  "niveau" dédié sur les mobs, l'étage sert de proxy pour les deux facteurs, comme
+  `getMobLevelEquivalent()` ailleurs) — hp/def/xp des mobs restent sur l'ancien scaling linéaire par
+  PROFONDEUR. `rollDamage()` (app.js) accepte deux options supplémentaires, utilisées UNIQUEMENT côté
+  dégâts mob -> joueur (`resolveEnemyCounterAttack()`, jamais `performPlayerAttack()`) :
+  `pressureFloor` (dégâts bruts jamais sous cette valeur absolue, avant mitigation — 10% des PV max du
+  joueur) et `minMitigation` (la défense ne peut jamais faire tomber la mitigation sous cette fraction
+  des dégâts bruts — 35%). Les mobs élites (`isEliteMob()`) reçoivent en plus
+  `config.mobDamageScaling.eliteDamageMult` (×1.65) sur leur ATQ effective avant `rollDamage()`.
+- **Rework des boss** (chantier "rework combat", Chantier 2 — voir `NOTES_COMBAT.md` pour le détail
+  des valeurs) : un boss n'est plus "un mob avec plus de PV" — son pattern d'attaque change par palier
+  de PV (`getBossPhase()`, 100-66%/66-33%/<33%), via `performBossCounterAttack()` (app.js), un chemin
+  de riposte totalement séparé du mob normal/élite (`resolveEnemyCounterAttack()` bascule dessus dès
+  `enemy.isBoss`, avant tout calcul lié au Chantier 1 — aucun recouvrement). Phase 1 : attaque de base
+  + chance de télégraphier une attaque lourde (`enemy.status.telegraph`, tour d'annonce SANS dégât,
+  tour d'exécution à `telegraphHeavyMult`). Phase 2 : reprend le télégraphe (chance réduite) + frappe
+  multiple (2-3 coups/tour, `executeBossStrike()` réutilisé en boucle — voir plus bas pour le plancher
+  de pression), harcèlement à distance (stub minimal, pont vers un futur Chantier 3 "enrage distance"
+  pas encore implémenté) et buff de défense télégraphié ("il se hérisse",
+  `enemy.status.defBuffed`, DEF boss effective ×`defBuffMult` pendant `defBuffRounds` tours — lu
+  symétriquement aux réductions ébloui/corrodé existantes dans `performPlayerAttack()`). Phase 3
+  ("folie") : plus de télégraphe, dégâts fixes `phase3.atkMult` (+40%) et DEF effective fixe
+  `phase3.defMult` (-30%, `enemy.status.frenzied`) — la défense réduite EST la fenêtre
+  risque/récompense de cette phase. Toutes les valeurs dans `config.bossPhases`. **Piège identifié et
+  corrigé pendant ce chantier** : le plancher de pression du Chantier 1 (`pressureFloorFrac`, pensé
+  "par ATTAQUE" = par tour) se multipliait par le nombre de coups sur un multi-coups sans correctif —
+  `executeBossStrike(enemy, atk, label, pressureFloorOverride)` accepte désormais un plancher réparti
+  explicitement entre les frappes d'un même tour, pour que la SOMME reste le plancher standard d'un
+  tour de boss. Récompenses de boss (déjà en place avant le reste du chantier 2) :
+  `config.bossRewards.minRarityKey` plombe la rareté du loot aléatoire garanti, et
+  `awardBossSignatureItem()` attache en plus un objet signature légendaire unique par boss
+  (`bestiary.js`, `districtBosses.*.signatureItem`, cloné frais à chaque victoire).
+- **Enrage distance et engagement** (chantier "rework combat", Chantier 3 — voir `NOTES_COMBAT.md`
+  pour le détail des valeurs) : anti-kite générique, tous mobs confondus (boss inclus).
+  `enemy.kitingRounds` (base 1 pour un boss, 0 sinon — `mobKitingBaseline()`) s'incrémente à chaque
+  tour où le mob reste à distance sans pouvoir attaquer (`noteMobKitingRound()`, appelée depuis
+  `resolveEnemyReaction()`/`safeEnemyCounterAttack()`), remis à sa base dès qu'il frappe
+  (`resetMobKiting()`, au tout début de `resolveEnemyCounterAttack()`). Probabilité d'enrage par tour :
+  `min(0.15 + 0.15×kitingRounds, 0.80)`. Déclenché (`triggerMobEnrage()`), le mob comble l'écart d'un
+  coup et place une frappe bonus immédiate (`config.distanceEnrage.atkMult`, +40%, via
+  `executeBossStrike()` réutilisée telle quelle) ; cette frappe d'entrée ne compte volontairement PAS
+  comme "il place un coup" pour la sortie anticipée — l'état `enemy.status.enraged` (2-3 tours,
+  `defMult` ÷2 sur sa DEF effective, lu par `performPlayerAttack()`) s'installe SEULEMENT APRÈS elle,
+  pour laisser une vraie fenêtre de burst au joueur (sans ce choix, la durée 2-3 tours aurait été
+  inatteignable, la ruée portant toujours un coup). Une frappe RÉELLEMENT réussie pendant l'état y met
+  fin immédiatement (`endMobEnrage()`, détecté pour un boss via le delta de
+  `gameState.floorStats.damageTaken`), suivi d'un cooldown (`cooldownRounds`). Anti-abus mêlée collée :
+  `meleeGluedDamageMult` (+10%) sur tout mob dès `gameState.combatDistance <= 0`. Nouvelle action
+  joueur "Charger" (`attemptEngage()`, bouton `#btn-engage`) : ferme l'écart d'un coup sans jet opposé
+  et enchaîne une attaque à `config.engageAction.atkMultiplier` (+25%), au prix de
+  `gameState.engageDefHalved` (DEF joueur ÷2 pour la riposte qui suit, lu par `getEffectiveDef()`,
+  consommé au tout début de la PROCHAINE action par `tryPlayerAction()` — même convention que
+  `lastPlayerActionWasBackfire`).
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
@@ -347,23 +403,80 @@ Tailwind CDN, **aucun build step**.
 4. Incrémenter le suffixe `?v=N` sur tous les `<script>` d'`index.html` à chaque changement d'un `.js`.
 5. Un correctif d'équilibrage (stats, taux, formules) se propose en LISTE à valider — jamais appliqué
    directement sans validation explicite.
+6. **Versioning (à chaque merge de PR)** : incrémenter `APP_VERSION` (`app.js`), mettre à jour le
+   `?v=` de TOUS les `<script>` d'`index.html` au même nombre (convention 4 ci-dessus reste valable
+   pour les changements intermédiaires hors merge), puis créer un tag git `v<APP_VERSION.pr>` sur le
+   commit de merge et une GitHub Release portant le même numéro. Non automatisé pour l'instant (pas de
+   script de release) — à faire à la main à chaque merge.
+   **État actuel (constaté, pas corrigé silencieusement — voir Tâche 5 du chantier
+   "fiabilisation")** : `APP_VERSION.pr` (20) et le `?v=` d'`index.html` (57) ne sont PAS la même
+   chose et ne l'ont jamais été — `APP_VERSION.pr` suit le numéro de la dernière PR mergée sur `main`
+   (incrémenté une fois par PR), `?v=` suit le nombre de changements de fichiers `.js` (incrémenté
+   bien plus souvent, à chaque modification d'un `.js`, y compris plusieurs fois au sein d'une même
+   PR). Les deux compteurs ont donc mécaniquement des rythmes différents et n'ont pas de raison de
+   converger tout seuls. La convention ci-dessus, pour être suivie à la lettre, demande de les
+   FUSIONNER en un seul et même nombre à partir de maintenant — ce qui suppose de choisir un point de
+   départ pour ce nombre unique (reprendre 57 ? reprendre 20 et laisser `?v=` "rattraper" son retard
+   au prochain changement de `.js` ? repartir de 1 ?) : un choix qui n'appartient pas à Claude Code de
+   trancher seul, laissé à la personne qui lit ceci. `package.json` (`version: "20.0.0"`, Tâche 1) suit
+   pour l'instant `APP_VERSION.pr`, donc hérite de la même question.
 
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
   charge les 8 fichiers sources dans l'ordre.
-- **Rapide** (`node tests/regression.test.js`, quelques secondes) : à lancer avant CHAQUE push.
-  Couvre Sprint, mécaniques d'armure, icône élite, abandon de compagnon, badges, villes spécialisées
-  (marchand/professeur), repaires sur les routes. Ajouter une section ici pour toute nouvelle feature
-  testable unitairement. `resetTransientState()` doit rester à jour : tout nouvel état
+- `npm test` (= `node tests/regression.test.js`), `npm run test:long` (= `node tests/long_playthrough.js`),
+  `npm run test:all` (les deux à la suite, s'arrête au premier échec) — voir `package.json`.
+- **Rapide** (`npm test`, quelques secondes) : à lancer avant CHAQUE push. `tests/regression.test.js`
+  est un AGRÉGATEUR (depuis la Tâche 2 du chantier "fiabilisation" — l'ancien fichier monolithique
+  faisait ~172 Ko) : il ne fait que `require()` chaque module de `tests/regression/*.js`, regroupés
+  par domaine (`meta-reset.js`, `combat.js`, `combat-scaling.js`, `combat-boss.js`,
+  `combat-enrage.js`, `items.js`, `misc.js`, `magic.js`, `saves.js`,
+  `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`), dans l'ordre où chacun apparaît en tête de
+  liste dans `regression.test.js` — cet
+  ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
+  monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests
+  restent malgré tout indépendants : chaque section démarre par `resetTransientState()`).
+  `tests/regression/_helpers.js` centralise le chargement du jeu (une seule fois, via le cache de
+  `require()` — peu importe combien de modules l'importent), `assert()` et `resetTransientState()`,
+  avec un compteur d'assertions PARTAGÉ (`counts`, objet muté par référence) pour que l'agrégateur
+  affiche un résumé global à la fin. Étendre une feature existante : ajouter une section au module de
+  domaine concerné (jamais dans `regression.test.js` directement). Nouveau domaine : nouveau fichier
+  dans `tests/regression/`, puis l'ajouter à la liste de `require()` de l'agrégateur.
+  `resetTransientState()` (dans `_helpers.js`) doit rester à jour : tout nouvel état
   bloquant/transitoire (`xyzChoicePending`, `pendingXyz...`) doit y être remis à zéro, sinon un échec
-  aléatoire (dû à un test antérieur non lié) peut fuiter sur des tests bien plus loin dans le fichier.
-- **Lourd** (`node tests/long_playthrough.js`, simulation ~200 pas sur plusieurs étages) : à lancer
-  UNE fois, seulement si le changement touche la boucle de jeu elle-même (combat, distance,
-  compagnon, génération d'étage). Pas nécessaire pour un ajout de contenu isolé (item, quartier, texte).
+  aléatoire (dû à un test antérieur non lié) peut fuiter sur des tests bien plus loin dans la suite —
+  voir `tests/regression/meta-reset.js` ci-dessous, qui détecte cette classe de bug AUTOMATIQUEMENT.
+- **Règle : tout nouveau champ transitoire de `gameState` doit être ajouté à `resetTransientState()`
+  ET répertorié dans `KNOWN_GAMESTATE_KEYS`** (`tests/regression/meta-reset.js`, Tâche 3 du chantier
+  "fiabilisation"). Ce test méta détecte AUTOMATIQUEMENT (sans liste à maintenir à la main pour cette
+  partie) deux classes de fuite d'état, responsables de plusieurs échecs flaky lointains par le passé
+  (`timeLeft` oublié, champs d'anomalies, un cas `travelToCity`) : (1) tout champ nommé `*ChoicePending`
+  ou `pending*` est délibérément "sali" (valeur truthy) puis vérifié falsy juste après
+  `resetTransientState()` — cette convention de nommage est déjà strictement respectée par tout état
+  bloquant/transitoire existant ; (2) toute clé de `gameState` LUE par `isActionBlocked()` doit être
+  explicitement AFFECTÉE dans le corps de `resetTransientState()` (comparaison directe des deux sources
+  via `.toString()`), pour qu'un nouveau `xyzChoicePending` ajouté à l'un des deux sans l'autre échoue
+  immédiatement plutôt que de fuiter silencieusement. `KNOWN_GAMESTATE_KEYS` (liste blanche EXPLICITE,
+  celle-ci À MAINTENIR À LA MAIN) complète ces deux mécanismes pour toute clé de `gameState` qui
+  n'entre dans aucun des deux (ex. `xp`/`xpToNextLevel`/`skills`, repérés et corrigés en écrivant ce
+  test — non-transitoires au sens "blocage", mais tout de même remis à un niveau de base par
+  `resetTransientState()` pour l'isolation des tests) : une clé absente de `gameState` mais présente
+  dans la liste (ou l'inverse) fait échouer ce test, forçant une décision consciente à chaque nouveau
+  champ plutôt qu'un oubli silencieux.
+- **Lourd** (`npm run test:long`, simulation ~200 pas sur plusieurs étages) : à lancer UNE fois,
+  seulement si le changement touche la boucle de jeu elle-même (combat, distance, compagnon,
+  génération d'étage). Pas nécessaire pour un ajout de contenu isolé (item, quartier, texte).
   Son auto-résolveur doit connaître TOUT état bloquant existant (`xyzChoicePending`) : en oublier un
   fige la simulation dessus jusqu'à épuisement du temps imparti (voir `shopChoicePending`/
   `lairChoicePending`/`floorTransitionPending`/`pactChoicePending`, ajoutés après coup).
 - Les deux n'affichent que les échecs + un résumé final (pas une ligne par test réussi).
+- **CI** (`.github/workflows/ci.yml`) : sur chaque push (toute branche) et chaque pull request,
+  `actions/checkout` + `actions/setup-node` (Node 20) puis `npm test` et `npm run test:long` — pas de
+  `npm install` (aucune dependency/devDependency), pas de cache, pas d'artefact, volontairement minimal.
+  Après un push, le statut de ce workflow devient LA RÉFÉRENCE : le protocole "20+ runs consécutifs en
+  local avant de pousser" reste utile pour chasser le flaky avant même d'arriver jusque-là, mais un
+  push dont la CI passe au rouge doit être corrigé avant de continuer sur autre chose.
 
 ## Backlog
 - Sons : hébergement des fichiers non tranché (3 catégories : actions, ambiance, mobs).

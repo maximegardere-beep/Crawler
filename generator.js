@@ -17,9 +17,22 @@ function getFloorScaling(floor) {
     const rates = (typeof config !== 'undefined' && config.floorScaling)
         ? config.floorScaling
         : { hp: 0.22, atk: 0.12, def: 0.10, xp: 0.18 };
+    const dmgRates = (typeof config !== 'undefined' && config.mobDamageScaling)
+        ? config.mobDamageScaling
+        : { perFloor: 0.12, perMobLevel: 0.03 };
+    // ATQ (chantier "rework combat", scaling dégâts mobs) : formule composée dégâts_mob = base ×
+    // (1 + 0.12×étage) × (1 + 0.03×niveau_mob), remplace l'ancien scaling linéaire par profondeur.
+    // Utilise `f` (l'étage réel, PAS `depth`) pour les deux facteurs : un mob à l'étage 1 tape déjà
+    // plus fort que sa base, plus de "premier étage gratuit" — c'est le point de ce chantier (le
+    // scaling précédent était jugé quasi inexistant). `niveau_mob` n'a pas de champ dédié sur les mobs
+    // (voir getMobLevelEquivalent() dans app.js, même principe) : l'étage sert de proxy pour les
+    // deux facteurs, cohérent avec le reste du moteur qui scale les mobs par étage plutôt que par
+    // niveau propre. hp/def/xp gardent l'ancien scaling linéaire par PROFONDEUR (depth) : seul le
+    // scaling des dégâts (ATQ) était visé par ce chantier.
+    const atkMult = (1 + dmgRates.perFloor * f) * (1 + dmgRates.perMobLevel * f);
     return {
         hpMult: 1 + depth * rates.hp,
-        atkMult: 1 + depth * rates.atk,
+        atkMult,
         defMult: 1 + depth * rates.def,
         xpMult: 1 + depth * rates.xp
     };
@@ -234,16 +247,25 @@ function getRarityWeights(powerScore) {
 }
 
 // Tire un palier de rareté au hasard, pondéré par le score de puissance (voir getRarityWeights()).
-function rollRarity(powerScore) {
+// `minRarityKey` (optionnel, chantier "rework combat" — loot garanti de rareté minimale sur un boss,
+// voir winCombat()) relève le tirage au palier minimal donné s'il est tombé plus bas, SANS changer la
+// pondération du tirage lui-même (juste un plancher après coup).
+function rollRarity(powerScore, minRarityKey = null) {
     const weights = getRarityWeights(powerScore);
     const entries = itemRarities.map(r => ({ rarity: r, weight: weights[r.key] || 0 }));
     const total = entries.reduce((sum, e) => sum + e.weight, 0);
     let roll = Math.random() * total;
+    let picked = entries[entries.length - 1].rarity;
     for (const e of entries) {
-        if (roll < e.weight) return e.rarity;
+        if (roll < e.weight) { picked = e.rarity; break; }
         roll -= e.weight;
     }
-    return entries[entries.length - 1].rarity;
+    if (minRarityKey) {
+        const minIndex = itemRarities.findIndex(r => r.key === minRarityKey);
+        const pickedIndex = itemRarities.findIndex(r => r.key === picked.key);
+        if (minIndex >= 0 && pickedIndex < minIndex) return itemRarities[minIndex];
+    }
+    return picked;
 }
 
 /**
@@ -255,7 +277,7 @@ function rollRarity(powerScore) {
  * @param {number} powerScore - Score de puissance entre 0 et 1 (voir getLootPowerScore()).
  * @returns {object} - L'objet final généré
  */
-function generateItem(powerScore = 0, forcedCategory = null) {
+function generateItem(powerScore = 0, forcedCategory = null, minRarityKey = null) {
     // 1. Choix d'une catégorie d'objet (weapons, ranged, armors, consumables, scrolls), puis d'un
     // objet de base dedans. "scrolls" (parchemins de sorts) n'a pas d'entrée dans baseItems : c'est
     // le grimoire (spellCatalog, voir spells.js) qui lui sert de pool, via generateSpellScroll() —
@@ -283,7 +305,7 @@ function generateItem(powerScore = 0, forcedCategory = null) {
         }
     }
     if (categoryName === 'scrolls') {
-        return generateSpellScroll(powerScore);
+        return generateSpellScroll(powerScore, minRarityKey);
     }
     // Les objets "blagues" (jokeItem: true, voir items.js) sont exclus du loot normal : réservés au
     // cadeau de bienvenue et au kit de test, jamais tirés en jouant.
@@ -295,7 +317,7 @@ function generateItem(powerScore = 0, forcedCategory = null) {
 
     // 2. Tirage du palier de rareté, puis mise à l'échelle des stats de base (avec un peu
     // d'aléatoire ±10% pour éviter que deux objets de même rareté soient rigoureusement identiques)
-    const rarity = rollRarity(powerScore);
+    const rarity = rollRarity(powerScore, minRarityKey);
     finalItem.rarity = rarity.name;
     finalItem.rarityColor = rarity.color;
 
@@ -345,14 +367,14 @@ function generateItem(powerScore = 0, forcedCategory = null) {
  * @param {number} powerScore - Score de puissance entre 0 et 1 (voir getLootPowerScore()).
  * @returns {object} - Le parchemin final généré
  */
-function generateSpellScroll(powerScore = 0) {
+function generateSpellScroll(powerScore = 0, minRarityKey = null) {
     const base = spellCatalog[Math.floor(Math.random() * spellCatalog.length)];
     const scroll = JSON.parse(JSON.stringify(base));
     scroll.category = 'scrolls';
     scroll.spellCategory = base.category; // 'melee' | 'ranged' — voir attackMagic() dans app.js
     scroll.spellName = base.name;
 
-    const rarity = rollRarity(powerScore);
+    const rarity = rollRarity(powerScore, minRarityKey);
     scroll.rarity = rarity.name;
     scroll.rarityColor = rarity.color;
 

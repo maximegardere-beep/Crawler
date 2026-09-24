@@ -1,0 +1,196 @@
+# Notes — Rework combat (scaling dégâts, boss, gestion de la distance)
+
+Valeurs appliquées et écarts signalés pour les trois chantiers du rework combat. Chaque chantier a son
+propre commit ; ce fichier est mis à jour au fil de l'implémentation, pas réécrit à la fin.
+
+## Chantier 1 — Scaling des dégâts des mobs
+
+Valeurs appliquées (`config.mobDamageScaling`, `app.js`) :
+- `perFloor: 0.12`, `perMobLevel: 0.03` — formule `dégâts_mob = base × (1 + 0.12×étage) × (1 +
+  0.03×niveau_mob)`, remplace l'ancien `floorScaling.atk` (scaling ATQ linéaire par PROFONDEUR) pour
+  les mobs. hp/def/xp des mobs restent sur l'ancien scaling linéaire (hors périmètre de ce chantier).
+- `pressureFloorFrac: 0.10` — un mob inflige toujours au moins 10% des PV max du joueur par attaque,
+  calculé sur les dégâts BRUTS avant mitigation (`rollDamage()`, `options.pressureFloor`).
+- `minMitigation: 0.35` — la défense ne peut jamais faire descendre la mitigation sous 35% des dégâts
+  bruts (`rollDamage()`, `options.minMitigation`).
+- `eliteDamageMult: 1.65` — mobs élites (`isEliteMob()`), appliqué à l'ATQ effective avant
+  `rollDamage()` (`resolveEnemyCounterAttack()`), en plus du scaling par étage.
+
+**Interprétation retenue pour "niveau_mob"** : aucun champ de niveau n'existe sur les mobs dans ce
+moteur (ils scalent par ÉTAGE, pas par niveau propre — voir `getMobLevelEquivalent()` dans app.js,
+même principe déjà utilisé pour la nécrologie). `niveau_mob` reprend donc l'étage courant comme proxy,
+comme `getMobLevelEquivalent()` le fait déjà ailleurs. La formule appliquée est donc, en pratique,
+`base × (1 + 0.12×étage) × (1 + 0.03×étage)`.
+
+**Écart signalé — critère d'acceptation NON atteint** (« un joueur optimal à l'étage 20 doit perdre
+entre 25% et 35% de ses PV par combat ») :
+
+Mesuré par simulation Monte Carlo (voir `tests/regression/combat-scaling.js`, joueur "à niveau" =
+niveau 20 à l'étage 20, stats de base sans équipement, contre un mob typique non-élite de l'étage 20,
+150 combats simulés avec le moteur de dégâts réel) : **~10-20% de PV perdus par combat, PAS 25-35%.**
+
+Cause identifiée : ce chantier ne touche QUE le scaling des DÉGÂTS des mobs (consigne explicite du
+chantier). Ni le scaling des PV des mobs (resté linéaire par profondeur, `floorScaling.hp`), ni la
+courbe de progression ATQ du joueur (`gainXp()`, non touchée) ne changent. Un joueur "à niveau"
+atteint un ATQ qui tue le mob typique en 2-3 tours — trop rapide pour que le nouveau taux de dégâts
+par coup s'accumule jusqu'à 25-35% du total sur l'ensemble du combat. Corriger ce point demanderait de
+toucher le scaling des PV mobs et/ou la courbe de progression du joueur, explicitement **hors
+périmètre** de ce chantier ("ne modifie pas d'autres mécaniques déjà traitées par ailleurs" / "ne
+réécris pas le moteur de combat"). Signalé ici plutôt que corrigé unilatéralement, comme demandé par
+la consigne.
+
+**Anomalie secondaire observée** (non corrigée, simple constat) : dans la même simulation, un mob
+ÉLITE (modificateurs aléatoires + `eliteDamageMult`) inflige en moyenne un peu MOINS de dégâts totaux
+qu'un mob normal dans cet échantillon (~5% contre ~14%). Cause probable : `isEliteMob()` se base sur
+`threatMultiplier`, qui pondère PV/DEF autant que l'ATQ (voir `computeThreatMultiplier()` dans
+`generator.js`) — un mob peut donc devenir "élite" via un modificateur qui gonfle surtout ses PV/DEF
+sans gonfler son ATQ, ce qui allonge le combat sans forcément augmenter les dégâts subis par coup.
+Signalé pour information, non corrigé (touche `computeThreatMultiplier()`/`generateMob()`, hors
+périmètre de ce chantier qui porte sur la formule de dégâts, pas sur la sélection des modificateurs).
+
+## Chantier 2 — Rework des boss
+
+Un boss n'est plus "un mob avec plus de PV" : son pattern d'attaque change par palier de PV
+(`getBossPhase()`, app.js), via des états/contenus ajoutés au moteur de riposte existant
+(`performBossCounterAttack()`, appelée depuis `resolveEnemyCounterAttack()` dès `enemy.isBoss`,
+chemin totalement séparé du mob normal/élite pour ne rien changer au Chantier 1) — aucune nouvelle
+entité, aucune modélisation spatiale, comme demandé.
+
+**Phases** (`config.bossPhases`, valeurs de départ non issues d'un audit d'équilibrage — à ajuster
+par playtest comme le reste des chiffres du jeu) :
+- **Phase 1 (100-66% PV)** : attaque de base, avec `phase1TelegraphChance` (30%) de chance par tour
+  de télégraphier une attaque lourde à la place d'attaquer (`enemy.status.telegraph = {type:'heavy'}`
+  — le tour d'ANNONCE n'inflige AUCUN dégât, message narratif dédié). Le tour suivant, l'attaque
+  s'exécute avec `telegraphHeavyMult` (×1.8) sur l'ATQ du boss. C'est le "vrai choix" laissé au
+  joueur : défense, esquive (fuite/repositionnement), ou tenter de burst le boss avant l'impact.
+- **Phase 2 (66-33% PV)** : reprend le télégraphe lourd (chance réduite, `phase2TelegraphChance`
+  18%, la phase étant plus occupée par ses propres patterns) et ajoute trois patterns supplémentaires
+  (tirage exclusif) :
+  - **Frappe multiple** (`multiStrikeChance` 22%) : 2 ou 3 coups dans le même tour, dégâts par coup
+    réduits pour que le total reste lisible (`multiStrikeTotalMult` 1.3 réparti entre les coups).
+  - **Harcèlement à distance** (`rangedHarassChance` 15%, `rangedHarassMult` ×0.6) : mécanique
+    volontairement MINIMALE ici — un simple coup à dégâts réduits sans logique de distance propre —
+    posée comme point de pont pour le futur Chantier 3 ("enrage distance", pas encore implémenté).
+    Punit un joueur qui garderait ses distances sans que le Chantier 3 existe encore pour formaliser
+    "l'enrage" complet.
+  - **Buff de défense télégraphié** ("il se hérisse", `defBuffTelegraphChance` 15%) : même mécanique
+    de télégraphe que l'attaque lourde (tour d'annonce sans dégât), mais pose
+    `enemy.status.defBuffed` au lieu de frapper — DEF effective du boss ×`defBuffMult` (1.6) pendant
+    `defBuffRounds` (2) tours, lu symétriquement aux réductions ébloui/corrodé déjà existantes dans
+    `performPlayerAttack()`. "Frapper maintenant ou subir une garde relevée."
+- **Phase 3 (<33% PV, "phase de folie")** : plus de télégraphe (le boss cesse d'être tactique) —
+  dégâts fixes `phase3.atkMult` (+40%) et DEF effective fixe `phase3.defMult` (-30%, lue
+  symétriquement dans `performPlayerAttack()` via `enemy.status.frenzied`). La défense réduite EST la
+  fenêtre risque/récompense demandée par la consigne : le joueur encaisse plus par coup, mais peut
+  aussi faire tomber le boss bien plus vite tant qu'il tient le choc — pas de mécanique d'échange
+  séparée, cette lecture est documentée ici faute d'avoir été précisée davantage par la consigne
+  d'origine.
+
+**Bug de conception détecté et corrigé EN COURS DE CHANTIER** (pas un simple écart signalé — un vrai
+recouvrement entre deux mécaniques du même chantier, corrigé directement) : le plancher de pression du
+Chantier 1 (`pressureFloorFrac`, "≥10% des PV max joueur par ATTAQUE") suppose implicitement qu'une
+attaque = un tour de boss. Le multi-coups de phase 2 fractionne un tour en plusieurs frappes ; sans
+correctif, CHAQUE frappe redéclenchait indépendamment ce plancher ABSOLU, le multipliant par le nombre
+de coups (~10%/tour prévu -> ~30%/tour mesuré en test avec 3 frappes). Corrigé en répartissant le
+plancher entre les frappes du tour (`executeBossStrike(..., pressureFloorOverride)`) plutôt qu'en
+laissant chaque frappe le redéclencher : la SOMME sur le tour reste le plancher standard d'un tour de
+boss, cohérent avec l'intention du Chantier 1.
+
+**Récompenses de boss** (implémenté avant le reste du chantier 2, déjà en place) :
+`config.bossRewards.minRarityKey` ('epique') plancher la rareté du loot aléatoire garanti d'un boss
+(`rollRarity()`/`generateItem()`/`generateSpellScroll()`, plombé optionnellement via `addLoot()`) ;
+`awardBossSignatureItem()` attache en plus un objet signature LÉGENDAIRE unique par boss
+(`bestiary.js`, `districtBosses.*.signatureItem`, cloné frais à chaque victoire — jamais le même
+objet muté) — garanti à chaque victoire sur CE boss précis, pas un "une fois par partie".
+
+**Hors périmètre, non implémenté ici** : le compteur de kiting du boss "démarre à 1" (voir consigne
+du Chantier 3) — aucun champ de compteur de kiting n'existe encore nulle part dans le moteur, le
+Chantier 3 doit l'introduire en premier ; ce chantier 2 ne fait qu'y préparer un point de pont
+narratif (harcèlement à distance ci-dessus), sans rien câbler de réel dessus.
+
+## Chantier 3 — Enrage distance et engagement
+
+## Chantier 3 — Enrage distance et engagement
+
+Anti-kite générique, tous mobs confondus (boss inclus) : `config.distanceEnrage` (app.js). Un mob
+accumule un "tour de kiting" (`enemy.kitingRounds`) chaque fois qu'il reste à distance sans pouvoir
+attaquer (mêlée hors de portée OU mob à distance collé au corps à corps — voir
+`noteMobKitingRound()`), remis à sa base dès qu'il parvient à frapper (`resetMobKiting()`, appelé au
+tout début de `resolveEnemyCounterAttack()`, avant même le branchement boss/non-boss). Un boss
+démarre à 1 (voir Chantier 2, "les boss s'enragent plus vite") plutôt qu'à 0.
+
+**Probabilité d'enrage** : `min(baseChance + chancePerRound × kitingRounds, maxChance)` =
+`min(0.15 + 0.15×tours, 0.80)`, exactement la formule de la consigne. Testée à la fois en isolation
+(`combat-enrage.js`) et via `noteMobKitingRound()` avec un `Math.random()` contrôlé.
+
+**Déclenchement** (`triggerMobEnrage()`) : le mob comble l'écart d'un coup (ruée, `setCombatDistance(0)`)
+et place une frappe bonus IMMÉDIATE (`config.distanceEnrage.atkMult`, +40%, via `executeBossStrike()`
+réutilisée telle quelle — générique à tout mob boss ou non). **Choix de conception documenté** : cette
+frappe d'entrée ne compte volontairement PAS comme "il place un coup" pour la sortie anticipée de
+l'état — l'état enragé (`enemy.status.enraged`, 2-3 tours) s'installe SEULEMENT APRÈS elle, pour
+laisser une vraie fenêtre où sa DEF réduite (`defMult`, ÷2, lue par `performPlayerAttack()`) reste
+exploitable par le joueur et ses dégâts restent boostés sur les tours suivants — sans ce choix, la
+consigne ("dure 2-3 tours OU jusqu'à ce qu'il place un coup") se serait auto-contredite : la ruée
+d'entrée porte TOUJOURS un coup, donc l'état se serait terminé instantanément à chaque fois si elle
+avait compté, rendant la durée de 2-3 tours inatteignable en pratique.
+
+**Fin de l'enrage** : une frappe RÉELLEMENT réussie pendant l'état (détectée pour un boss via le delta
+de `gameState.floorStats.damageTaken` — point de passage unique de toute perte de PV joueur, voir
+`applyPlayerDamage()` — car `performBossCounterAttackInner()` a plusieurs points de sortie et certains
+ne portent aucun coup) y met fin immédiatement (`endMobEnrage()`), sinon la durée décroît d'un tour à
+chaque tour de kiting supplémentaire (`noteMobKitingRound()`) jusqu'à expiration. Un cooldown
+(`cooldownRounds`, 2 tours) suit systématiquement la fin d'un enrage, empêchant un nouveau tirage
+immédiat.
+
+**Anti-abus mêlée collée** : `meleeGluedDamageMult` (+10%) appliqué à TOUT mob (boss inclus, voir
+`performBossCounterAttackInner()`) dès que `gameState.combatDistance <= 0`, pour que rester collé au
+corps à corps ne devienne jamais une stratégie strictement dominante à coût nul face à l'anti-kite.
+
+**"Charger" (`attemptEngage()`)** : nouvelle action joueur (bouton dédié, `#btn-engage`), alternative
+agressive à S'approcher. Ferme l'écart D'UN COUP sans jet opposé (contrairement à S'approcher) et
+enchaîne IMMÉDIATEMENT une attaque avec `config.engageAction.atkMultiplier` (+25%), réutilisant
+`performPlayerAttack()` tel quel. Prix : `gameState.engageDefHalved` divise la DEF effective du joueur
+par 2 (`getEffectiveDef()`) pour la riposte qui suit — consommé au tout début de la PROCHAINE action
+(`tryPlayerAction()`), même convention que `gameState.lastPlayerActionWasBackfire`.
+
+**Valeurs appliquées** (non issues d'un audit d'équilibrage complet, à ajuster par playtest comme le
+reste des chiffres du jeu) : `baseChance` 0.15, `chancePerRound` 0.15, `maxChance` 0.80 (fournies par
+la consigne), `atkMult` 1.40 (fourni), `defMult` 0.5 (fourni), `cooldownRounds` 2 (chiffre non fourni
+par la consigne d'origine, valeur de départ raisonnable posée ici), `meleeGluedDamageMult` 1.10
+(fourni), `engageAction.atkMultiplier` 1.25 (fourni).
+
+**Non implémenté, hors périmètre** : la mécanique de "harcèlement à distance" du boss (Chantier 2,
+`config.bossPhases.rangedHarassChance`/`rangedHarassMult`) reste le stub minimal posé à l'époque — ce
+chantier ne l'a pas retouchée ni fusionnée avec le système d'enrage générique ci-dessus (les deux
+coexistent, indépendants). Les rewrites de `resolveEnemyReaction()`/`safeEnemyCounterAttack()` pour
+appeler `noteMobKitingRound()` ont nécessité d'ajuster plusieurs tests pré-existants
+(`tests/regression/combat.js`) dont les séquences `Math.random` fixes ne prévoyaient pas ce nouveau
+tirage — comportement attendu d'un nouveau point de consommation aléatoire dans un chemin de code déjà
+testé, pas un bug.
+
+## Labels et titres d'issue proposés (GitHub)
+
+**Constat** (vérifié via l'API GitHub avant de proposer quoi que ce soit) : ce dépôt n'a actuellement
+AUCUNE issue (ouverte ou fermée) et aucun label `équilibrage`/`balance` déjà créé — le renvoi de
+CLAUDE.md vers une « issue d'équilibrage "métrique d'élite" » (section Backlog) est une référence
+informelle à la terminologie du projet, pas à une issue GitHub réellement existante. Il n'y a donc pas
+de style d'issue GitHub préexistant à imiter au sens strict ; la proposition ci-dessous reprend plutôt
+la convention déjà utilisée dans les messages de commit de ce rework (`fix: scaling dégâts mobs`,
+`feat: rework boss 3 phases`, `feat: enrage distance et engagement`) et le vocabulaire du projet
+(« chantier », « équilibrage », voir CLAUDE.md). Non créées automatiquement — proposées ici pour
+validation, comme le veut la convention de travail n°5 du projet (« un correctif d'équilibrage se
+propose en liste, jamais appliqué directement »).
+
+- **Label proposé** : `équilibrage` (un seul label générique, réutilisable pour tout futur ajustement
+  de chiffres de jeu — cohérent avec le seul terme déjà utilisé dans CLAUDE.md/Backlog).
+- **Chantier 1** — titre : *« Équilibrage combat : scaling des dégâts mobs (plancher de pression,
+  cap de réduction) »*. Corps suggéré : reprendre tel quel le paragraphe "Écart signalé" de ce fichier
+  (critère d'acceptation 25-35% non atteint, mesuré 5-25%).
+- **Chantier 2** — titre : *« Équilibrage combat : rework des boss en 3 phases (télégraphes,
+  multi-coups, phase de folie) »*. Corps suggéré : le paragraphe "Bug de conception détecté et
+  corrigé" (plancher de pression réparti sur le multi-coups) + un rappel que les chiffres de
+  `config.bossPhases` sont des valeurs de départ non playtestées.
+- **Chantier 3** — titre : *« Équilibrage combat : enrage par distance et action Charger »*. Corps
+  suggéré : le paragraphe "Choix de conception documenté" (pourquoi la frappe d'entrée ne compte pas
+  comme fin d'enrage) + les valeurs de `config.distanceEnrage`/`config.engageAction` à ajuster par
+  playtest.
