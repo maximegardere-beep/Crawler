@@ -1,0 +1,72 @@
+// _helpers.js — infrastructure partagée par tous les modules de tests/regression/*.js : charge le
+// jeu UNE SEULE fois (require() met en cache, peu importe combien de modules l'importent), et fournit
+// assert()/resetTransientState() avec un compteur PARTAGÉ (`counts`, objet muté par référence) pour
+// que l'agrégateur (tests/regression.test.js) puisse afficher un résumé global à la fin. Extrait tel
+// quel de l'ancien regression.test.js monolithique (voir Tâche 2, CLAUDE.md) — aucune logique changée.
+require('../test_stub.js');
+const { loadGame } = require('../load_game.js');
+loadGame();
+
+const counts = { failures: 0, passed: 0 };
+function assert(cond, msg) {
+    if (!cond) { counts.failures++; console.error("FAIL:", msg); }
+    else counts.passed++;
+}
+
+function resetTransientState() {
+    gameState.inCombat = false;
+    gameState.currentEnemy = null;
+    gameState.combatDistance = 0;
+    // Anomalies AVANT tout calcul de PV max : gameState.maxHp est DÉRIVÉ (voir recomputeMaxHp()) de
+    // baseMaxHp × anomalyEffects.playerMaxHpMult — sans ce reset ici, un test antérieur ayant tiré/
+    // appliqué une anomalie (PEAU_DE_VERRE notamment) fausserait silencieusement tous les tests
+    // suivants qui ne s'y attendent pas (chance de furtivité, dégâts, etc. lisent tous
+    // gameState.anomalyEffects directement).
+    gameState.baseMaxHp = 100;
+    gameState.atk = 10;
+    gameState.def = 5;
+    gameState.anomalyEffects = createNeutralAnomalyEffects();
+    gameState.activeAnomalies = [];
+    gameState.pendingNextFloorAnomalies = null;
+    gameState.pactChoicePending = false;
+    gameState.pactBlessingDelta = null;
+    if (ui.pactChoiceOverlay) ui.pactChoiceOverlay.classList.add('hidden');
+    recomputeMaxHp();
+    gameState.hp = gameState.maxHp;
+    gameState.timeLeft = gameState.maxTime; // Jamais de temps épuisé résiduel entre deux tests sans rapport
+    gameState.level = 1;
+    gameState.equipment = { weapon: null, armor: null, ranged: null, spell: null };
+    gameState.mana = gameState.maxMana;
+    gameState.spellbook = [];
+    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null };
+    gameState.companion = null;
+    gameState.bossChoicePending = false;
+    gameState.stealthChoicePending = false;
+    gameState.pendingStealthEncounter = null;
+    gameState.companionChoicePending = false;
+    gameState.pendingBossEncounter = null;
+    gameState.pendingBossRoomId = null;
+    gameState.pendingTravel = null;
+    gameState.urbanMap = null;
+    gameState.pendingUrbanTravel = null;
+    gameState.pendingUrbanBossEncounter = null;
+    gameState.pendingUrbanBossCityId = null;
+    gameState.pendingUrbanAdvanceAfterCombat = null;
+    gameState.hasWon = false;
+    gameState.saveEnabled = false; // Jamais d'autosauvegarde fantôme entre deux tests sans rapport
+    gameState.gold = 0;
+    gameState.shopChoicePending = false;
+    gameState.pendingShopCityId = null;
+    gameState.lairChoicePending = false;
+    gameState.pendingLairId = null;
+    gameState.pendingLairDive = null;
+    gameState.floorTransitionPending = false;
+    gameState.floorStats = { mobsKilled: 0, damageTaken: 0, itemsFound: 0, xpGained: 0 };
+    if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
+    gameState.fleesThisRun = 0;
+    gameState.lastPlayerActionWasBackfire = false;
+    gameState.necrologie = [];
+    if (ui.gameOverOverlay) ui.gameOverOverlay.classList.add('hidden');
+}
+
+module.exports = { assert, resetTransientState, counts };

@@ -351,15 +351,29 @@ Tailwind CDN, **aucun build step**.
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
   charge les 8 fichiers sources dans l'ordre.
-- **Rapide** (`node tests/regression.test.js`, quelques secondes) : à lancer avant CHAQUE push.
-  Couvre Sprint, mécaniques d'armure, icône élite, abandon de compagnon, badges, villes spécialisées
-  (marchand/professeur), repaires sur les routes. Ajouter une section ici pour toute nouvelle feature
-  testable unitairement. `resetTransientState()` doit rester à jour : tout nouvel état
+- `npm test` (= `node tests/regression.test.js`), `npm run test:long` (= `node tests/long_playthrough.js`),
+  `npm run test:all` (les deux à la suite, s'arrête au premier échec) — voir `package.json`.
+- **Rapide** (`npm test`, quelques secondes) : à lancer avant CHAQUE push. `tests/regression.test.js`
+  est un AGRÉGATEUR (depuis la Tâche 2 du chantier "fiabilisation" — l'ancien fichier monolithique
+  faisait ~172 Ko) : il ne fait que `require()` chaque module de `tests/regression/*.js`, regroupés
+  par domaine (`combat.js`, `items.js`, `misc.js`, `magic.js`, `saves.js`, `floor-transition.js`,
+  `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`, `urban-map.js`, `urban-shops.js`,
+  `urban-lairs.js`), dans l'ordre où chacun apparaît en tête de liste dans `regression.test.js` — cet
+  ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
+  monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests
+  restent malgré tout indépendants : chaque section démarre par `resetTransientState()`).
+  `tests/regression/_helpers.js` centralise le chargement du jeu (une seule fois, via le cache de
+  `require()` — peu importe combien de modules l'importent), `assert()` et `resetTransientState()`,
+  avec un compteur d'assertions PARTAGÉ (`counts`, objet muté par référence) pour que l'agrégateur
+  affiche un résumé global à la fin. Étendre une feature existante : ajouter une section au module de
+  domaine concerné (jamais dans `regression.test.js` directement). Nouveau domaine : nouveau fichier
+  dans `tests/regression/`, puis l'ajouter à la liste de `require()` de l'agrégateur.
+  `resetTransientState()` (dans `_helpers.js`) doit rester à jour : tout nouvel état
   bloquant/transitoire (`xyzChoicePending`, `pendingXyz...`) doit y être remis à zéro, sinon un échec
-  aléatoire (dû à un test antérieur non lié) peut fuiter sur des tests bien plus loin dans le fichier.
-- **Lourd** (`node tests/long_playthrough.js`, simulation ~200 pas sur plusieurs étages) : à lancer
-  UNE fois, seulement si le changement touche la boucle de jeu elle-même (combat, distance,
-  compagnon, génération d'étage). Pas nécessaire pour un ajout de contenu isolé (item, quartier, texte).
+  aléatoire (dû à un test antérieur non lié) peut fuiter sur des tests bien plus loin dans la suite.
+- **Lourd** (`npm run test:long`, simulation ~200 pas sur plusieurs étages) : à lancer UNE fois,
+  seulement si le changement touche la boucle de jeu elle-même (combat, distance, compagnon,
+  génération d'étage). Pas nécessaire pour un ajout de contenu isolé (item, quartier, texte).
   Son auto-résolveur doit connaître TOUT état bloquant existant (`xyzChoicePending`) : en oublier un
   fige la simulation dessus jusqu'à épuisement du temps imparti (voir `shopChoicePending`/
   `lairChoicePending`/`floorTransitionPending`/`pactChoicePending`, ajoutés après coup).
