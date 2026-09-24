@@ -127,23 +127,35 @@ Tailwind CDN, **aucun build step**.
   normalement. Masqué dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
   `isActionBlocked()`) : la carte redevient alors visible et se comporte exactement comme sur un étage
   classique (toggle dans `updateUI()`). Le déplacement s'y représente comme une **mini carte
-  graphique** (nœuds = villes, arêtes = routes) plutôt qu'une liste, sur un **gabarit de positions
-  fixes** évoquant les quartiers d'une seule et même grande ville (thème DCC) : `URBAN_MAP_TEMPLATE_POINTS`
-  (~20 points, coordonnées normalisées 0..1, jamais recalculées) sert de réservoir dans lequel
-  `generateUrbanFloorMap()` tire `cityCount` points sans répétition et les stocke sur chaque ville
-  (`city.x`/`city.y`) — seule la SÉLECTION/les routes varient d'une partie à l'autre, jamais la
-  disposition elle-même (contrairement à l'ancien layout "force-directed", qui recalculait — et donc
-  bougeait légèrement — la position relative des nœuds à chaque rendu). Un **fond décoratif**
-  "pâtés de maisons + avenues" (`URBAN_MAP_BACKGROUND`, généré une seule fois avec un seed FIXE via
-  `mulberry32()`, jamais `Math.random()`) reste lui aussi rigoureusement identique d'une partie à
-  l'autre. La **caméra** (viewBox du SVG) se recentre sur la ville courante à chaque rendu
-  (`focusId`/`viewSpan` de `renderGraphMiniMap()`) — c'est la vue qui se déplace (translation), jamais
-  les positions/le fond sous-jacents. Le gardien de l'escalier/Sortie garde sa ville normale (icône
-  générique) mais son icône (👑) est dessinée à part, décalée d'une distance fixe en pixels sur SA
-  route d'accès plutôt que confondue avec le cercle de la ville — "posté sur la route".
-  `buildUrbanMapGraphData()` (seule partie qui connaît la forme des données du jeu) adapte le réseau
-  villes/routes connu au format générique nœuds/arêtes/positions attendu par `renderGraphMiniMap()` —
-  voir la section **Mini carte graphique** ci-dessous.
+  graphique** (nœuds = villes, arêtes = routes) plutôt qu'une liste, sur une **grille logique** (gx/gy
+  entiers, `URBAN_GRID_CELL` = 70 unités monde par cellule) plutôt qu'un gabarit de points fixes :
+  `generateConnectedCityGrid(cityCount)` fait croître une région CONNEXE par construction (chaque
+  nouvelle cellule tirée adjacente à une cellule déjà choisie, départ toujours en `cells[0]`) —
+  connexité garantie sans réparation après coup, contrairement à l'ancien arbre couvrant. Les routes
+  sont TOUTES les paires de cellules choisies adjacentes 8-directions (`computeGridAdjacencyPairs()`,
+  N/S/E/O + diagonales, jamais de connexion longue distance façon étoile) : presque toujours plus d'un
+  chemin possible entre deux villes, sans étape de bouclage séparée. Position d'AFFICHAGE (`city.x`/
+  `city.y`, dérivée de `gx`/`gy` × `URBAN_GRID_CELL`) passée UNE fois par `computeDeclutterLayout()`
+  (répulsion pure, déterministe — aucun `Math.random()` — déplacement plafonné depuis la position de
+  départ) puis figée pour de bon ; sur une grille pure l'espacement minimal (70) dépasse déjà le
+  `minDist` du déclutter (50), donc cette passe est un no-op ici — conservée telle quelle pour une
+  future disposition plus dense qui en aurait vraiment besoin (voir aussi `computeGraphLayout()`,
+  toujours réservée à un futur layout calculé depuis rien). Un **fond décoratif** "pâtés de maisons +
+  avenues" (`URBAN_MAP_BACKGROUND`, généré une seule fois avec un seed FIXE via `mulberry32()`, jamais
+  `Math.random()`) couvre une étendue MONDE fixe et généreuse (`URBAN_MAP_WORLD_EXTENT`), rigoureusement
+  identique d'une partie à l'autre. La **caméra** est un monde PANNABLE par glissement (souris et
+  tactile) plutôt qu'un simple recentrage automatique : `gameState.urbanMap.camera` (`null` = centrée
+  sur la ville courante par défaut, un `{x,y}` = position choisie par le joueur en glissant la carte,
+  via `onCameraChange` de `renderGraphMiniMap()`) est réinitialisée à `null` à chaque arrivée dans une
+  nouvelle ville (`arriveAtCity()`, "la caméra suit de nouveau le joueur") et par le bouton
+  `#btn-recenter-map` (`recenterUrbanMap()`). Écrêtée aux limites du réseau connu
+  (`computeDefaultWorldBounds()`/`clampCameraToBounds()`, marge ≥ la moitié de la fenêtre affichée —
+  sans quoi une ville de bord de zone connue ne pourrait jamais être parfaitement centrée). Le gardien
+  de l'escalier/Sortie garde sa ville normale (icône générique) mais son icône (👑) est dessinée à
+  part, décalée d'une distance fixe en pixels sur SA route d'accès plutôt que confondue avec le cercle
+  de la ville — "posté sur la route". `buildUrbanMapGraphData()` (seule partie qui connaît la forme des
+  données du jeu) adapte le réseau villes/routes connu au format générique nœuds/arêtes/positions
+  attendu par `renderGraphMiniMap()` — voir la section **Mini carte graphique** ci-dessous.
 - **Système d'argent (PO)** : `gameState.gold`, seule monnaie du jeu. Deux sources : quelques PO
   trouvées en explorant (`config.chances.goldFind`, D100 au même titre que le reste du loot) et
   `sellItem(index)` (`SELL_VALUE_RATIO = 0.4` × `item.baseValue`, objet retiré de l'inventaire).
@@ -186,19 +198,39 @@ Tailwind CDN, **aucun build step**.
   graphique ci-dessous) : 💀 rouge tant qu'actif, 🏆 gris une fois nettoyé — jamais un `goalIcon`,
   une route reste toujours franchissable (contrairement à un gardien qui bloque le passage).
 - **Mini carte graphique (réutilisable)** : `renderGraphMiniMap(svgEl, {nodes, edges, positions,
-  currentId, onNodeClick, focusId, viewSpan, background})` (rendu SVG, aucune connaissance du jeu) est
-  le module générique — l'appelant fournit ses propres positions (fixes comme pour les étages urbains,
-  ou calculées), un fond décoratif optionnel, et le nœud à centrer (`focusId`) pour l'effet caméra.
-  Trois familles de marqueurs, jamais confondues : `node.goalIcon` (décalé sur SA route d'accès,
-  bloque le passage — gardien 👑) vs `node.badge` (fusionné au cercle du nœud, ne bloque rien —
-  marchand 🛒/professeur 🎓) vs `edges[i].marker` (au milieu de l'arête elle-même, n'appartient à
-  AUCUN des deux nœuds — repaire 💀/🏆). `computeGraphLayout(nodeIds, edges, existingPositions)`
-  (disposition par relaxation "force-directed"
-  minimaliste, sans dépendance externe) reste disponible pour un futur cas qui aurait vraiment besoin
-  d'un layout calculé plutôt que d'un gabarit fixe — non utilisée par les étages urbains depuis leur
-  passage aux positions fixes, mais conservée telle quelle (testée, mobilité 1/0.08 pour rester stable
-  d'un rendu à l'autre) pour un futur système de navigation basé sur un graphe (mini-plan de donjon
-  classique par exemple).
+  currentId, onNodeClick, camera, viewSize, worldBounds, onCameraChange, background})` (rendu SVG,
+  aucune connaissance du jeu) est le module générique — `positions` en coordonnées MONDE (unités
+  arbitraires, plus de normalisation 0..1 : le viewBox reflète directement `camera ± viewSize/2`,
+  aucune mise à l'échelle interne). Trois familles de marqueurs, jamais confondues : `node.goalIcon`
+  (décalé sur SA route d'accès, bloque le passage — gardien 👑) vs `node.badge` (fusionné au cercle du
+  nœud, ne bloque rien — marchand 🛒/professeur 🎓) vs `edges[i].marker` (au milieu de l'arête
+  elle-même, n'appartient à AUCUN des deux nœuds — repaire 💀/🏆).
+  **Caméra pannable** : sans `camera` explicite, centrée sur `currentId` puis, à défaut, sur la boîte
+  englobante de tous les nœuds (`computeDefaultWorldBounds()` calcule des bornes par défaut si
+  `worldBounds` est omis) — c'est à l'APPELANT de mémoriser un `camera` explicite d'un rendu à l'autre
+  (ce module ne garde aucun état lui-même). Avec `onCameraChange`, le pan par glissement (souris ET
+  tactile, `pointerdown`/`pointermove`/`pointerup`) s'active sur `svgEl` : le viewBox se déplace EN
+  DIRECT pendant le glissement (mutation d'un seul attribut, jamais un re-rendu complet — coûteux à
+  chaque `pointermove`, vu le volume du fond décoratif), `onCameraChange` n'étant appelé qu'UNE fois à
+  la fin pour que l'appelant persiste la position. Un relâchement sous 5px de mouvement reste un
+  tap/clic, résolu en retrouvant le nœud le plus proche du point relâché par distance MONDE
+  (`clickableRegions`, rempli au fil du rendu) plutôt que via le `click` natif du navigateur — **ce
+  dernier s'est avéré peu fiable une fois qu'un pointeur a été capturé pendant l'interaction** (même
+  relâché ensuite : constaté en conditions réelles avec Playwright, pas qu'en environnement de test —
+  si jamais retenté, bien re-vérifier en navigateur, pas seulement via `tests/test_stub.js`). Sans pan
+  (`onCameraChange` absent), aucun pointeur n'est jamais capturé et le `click` natif classique reste
+  utilisé directement sur chaque nœud, comme avant ce système. `clampCameraToBounds()` (écrêtage pur,
+  testable seule) empêche le pan de sortir des `worldBounds`.
+  `computeGraphLayout(nodeIds, edges, existingPositions)` (disposition par relaxation "force-directed"
+  minimaliste avec ressorts + attraction centrale, sans dépendance externe) reste disponible pour un
+  futur cas qui aurait vraiment besoin d'un layout calculé depuis rien plutôt qu'une grille logique —
+  non utilisée par les étages urbains, mais conservée telle quelle (testée, mobilité 1/0.08 pour
+  rester stable d'un rendu à l'autre) pour un futur système de navigation basé sur un graphe (mini-plan
+  de donjon classique par exemple). `computeDeclutterLayout(basePositions, ids, {minDist, iterations,
+  maxShift})` (répulsion PURE, sans ressort ni attraction, contrairement à `computeGraphLayout()`) est
+  le second module de layout : pas un calcul depuis rien, une petite correction déterministe d'un
+  layout déjà bon (la grille urbaine) pour écarter les points trop proches sans le déformer — voir
+  Étages urbains ci-dessus pour son usage concret.
 
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).

@@ -341,12 +341,18 @@
                         <div class="flex justify-between items-center text-[9px] uppercase tracking-widest text-blue-400 font-bold shrink-0">
                             <span>🗺️ Carte Urbaine</span>
                         </div>
-                        <p class="text-[9px] text-gray-500 leading-snug shrink-0">Touchez une ville pour vous y rendre.</p>
+                        <p class="text-[9px] text-gray-500 leading-snug shrink-0">Touchez une ville pour vous y rendre. Glissez la carte pour regarder autour.</p>
                         <!-- Mini carte graphique (réutilisable, voir computeGraphLayout()/renderGraphMiniMap()
                              dans app.js) : nœuds = villes connues, arêtes = routes reliant deux villes
-                             connues, disposition "force-directed" recalculée à chaque rafraîchissement
-                             (updateUrbanMapUI()) en repartant de la précédente pour rester stable. -->
-                        <svg id="urban-map-svg" viewBox="0 0 200 240" preserveAspectRatio="xMidYMid meet" class="flex-1 w-full min-h-0"></svg>
+                             connues, sur une grille logique à positions FIXES (computeDeclutterLayout(),
+                             jamais recalculées après la génération). Caméra pannable par glissement
+                             (souris/tactile) ; #btn-recenter-map la ramène sur la ville courante. -->
+                        <div class="relative flex-1 min-h-0">
+                            <svg id="urban-map-svg" viewBox="0 0 200 240" preserveAspectRatio="xMidYMid meet" class="w-full h-full"></svg>
+                            <button id="btn-recenter-map" class="absolute bottom-1.5 right-1.5 px-2 py-1 bg-gray-900/90 border border-blue-800/60 hover:border-blue-400 rounded text-[9px] text-blue-300 uppercase tracking-wider transition-all">
+                                🎯 Recentrer
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -748,12 +754,12 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=52"></script>
-    <script src="items.js?v=52"></script>
-    <script src="spells.js?v=52"></script>
-    <script src="districts.js?v=52"></script>
-    <script src="safehouses.js?v=52"></script>
-    <script src="generator.js?v=52"></script>
-    <script src="app.js?v=52"></script>
+    <script src="bestiary.js?v=53"></script>
+    <script src="items.js?v=53"></script>
+    <script src="spells.js?v=53"></script>
+    <script src="districts.js?v=53"></script>
+    <script src="safehouses.js?v=53"></script>
+    <script src="generator.js?v=53"></script>
+    <script src="app.js?v=53"></script>
 </body>
 </html>
