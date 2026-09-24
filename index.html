@@ -277,6 +277,9 @@
                 Étage <span id="floor-level" class="text-blue-400 font-bold">1</span> ·
                 <span id="district-name" class="text-blue-400 font-bold">Chargement...</span>
             </p>
+            <!-- Badge(s) permanent(s) des anomalies actives sur l'étage (voir updateAnomalyStatusUI() dans
+                 app.js) : icône+nom toujours visibles, description complète via l'infobulle (title). -->
+            <div id="anomaly-status-bar" class="hidden flex flex-wrap gap-1.5 pl-6 pt-1"></div>
         </header>
 
         <!-- 2. Temps Restant (Barre de progression) -->
@@ -493,6 +496,21 @@
             </div>
         </div>
 
+        <!-- Choix forcé de l'anomalie PACTE_DU_CRAWLER (voir triggerPactChoice()/choosePactBlessing()
+             dans app.js et anomalies.js) : à l'entrée d'un étage où cette anomalie est active. -->
+        <div id="pact-choice-overlay" class="hidden p-4 bg-purple-950/20 border border-purple-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-purple-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Pacte du Crawler</span>
+            <p class="text-xs text-gray-400 mb-3 text-center">Un choix s'impose : bénédiction ATQ, ou bénédiction PV ? L'autre stat sera nerfée en échange.</p>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-pact-atk" class="px-3 py-3 bg-gray-900 border border-red-700/80 hover:border-red-400 hover:bg-red-900/30 rounded text-xs text-red-300 uppercase tracking-wider transition-all">
+                    ⚔️ Bénédiction ATQ
+                </button>
+                <button id="btn-pact-hp" class="px-3 py-3 bg-gray-900 border border-emerald-700/80 hover:border-emerald-400 hover:bg-emerald-900/30 rounded text-xs text-emerald-300 uppercase tracking-wider transition-all">
+                    ❤️ Bénédiction PV
+                </button>
+            </div>
+        </div>
+
         <!-- Zone de choix de furtivité (visible uniquement quand un ennemi ne vous a pas repéré) -->
         <div id="stealth-choice-zone" class="hidden p-4 bg-slate-800/30 border border-slate-600/30 rounded-lg relative">
             <span class="absolute text-[10px] text-slate-500 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Non Repéré</span>
@@ -702,6 +720,48 @@
                 <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-400 text-center list-none">ℹ️ Version</summary>
                 <p id="version-label" class="text-center mt-1">Chargement...</p>
             </details>
+
+            <!-- Gestion des sauvegardes (voir openManageSaves() dans app.js) : discret, en bas de
+                 l'écran de départ, pas un vrai "menu principal" séparé (le jeu n'en a pas d'autre). -->
+            <button id="btn-open-manage-saves" class="mt-2 text-[10px] text-gray-700 hover:text-gray-400 uppercase tracking-widest transition-colors">
+                🧹 Nettoyer les sauvegardes
+            </button>
+        </div>
+    </div>
+
+    <!-- Gestion des sauvegardes : liste des parties enregistrées sur cet appareil, suppression
+         (individuelle ou totale) avec confirmation obligatoire + backup automatique restaurable, voir
+         openManageSaves()/updateManageSavesUI()/requestDeleteSave()/requestDeleteAllSaves()/
+         confirmDeleteSaves()/restoreSavesBackup() dans app.js. -->
+    <div id="manage-saves-overlay" class="hidden fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-gray-900 border-2 border-gray-700 rounded-xl p-6 max-w-sm w-full shadow-[0_0_50px_rgba(0,0,0,0.6)]">
+            <h2 class="text-lg font-black text-gray-300 uppercase tracking-widest mb-1 text-center">🧹 Sauvegardes</h2>
+            <p class="text-[11px] text-gray-500 mb-4 text-center">Parties enregistrées sur cet appareil.</p>
+
+            <div id="manage-saves-list" class="flex flex-col gap-1.5 mb-4 max-h-52 overflow-y-auto"></div>
+
+            <!-- Confirmation obligatoire avant toute suppression (masquée par défaut) -->
+            <div id="manage-saves-confirm" class="hidden mb-4 p-3 bg-red-950/30 border border-red-800/50 rounded-lg">
+                <p id="manage-saves-confirm-text" class="text-[11px] text-red-300 mb-3">Cette action est irréversible.</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-manage-saves-confirm-yes" class="py-2 bg-red-900/40 border border-red-600 rounded text-red-300 text-[10px] font-bold uppercase tracking-wider hover:bg-red-800/50 transition-all">
+                        Confirmer
+                    </button>
+                    <button id="btn-manage-saves-confirm-no" class="py-2 bg-gray-800 border border-gray-600 rounded text-gray-300 text-[10px] font-bold uppercase tracking-wider hover:bg-gray-700 transition-all">
+                        Annuler
+                    </button>
+                </div>
+            </div>
+
+            <button id="btn-manage-saves-delete-all" class="w-full py-2 mb-2 bg-red-900/20 border border-red-800/50 rounded-lg text-red-400 text-[11px] font-bold uppercase tracking-wider hover:bg-red-900/40 transition-all">
+                Tout supprimer
+            </button>
+            <button id="btn-manage-saves-restore-backup" class="hidden w-full py-2 mb-2 bg-gray-800/50 border border-gray-700 rounded-lg text-gray-500 text-[10px] uppercase tracking-wider hover:text-gray-300 hover:border-gray-500 transition-all">
+                ♻️ Restaurer le dernier backup
+            </button>
+            <button id="btn-manage-saves-close" class="w-full py-2 bg-gray-800 border border-gray-600 rounded-lg text-gray-300 text-[11px] font-bold uppercase tracking-wider hover:bg-gray-700 transition-all">
+                Fermer
+            </button>
         </div>
     </div>
 
@@ -726,11 +786,12 @@
             <div class="text-5xl mb-2">💀</div>
             <h2 class="text-2xl font-black text-red-500 uppercase tracking-widest mb-1 drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]">Game Over</h2>
             <p id="game-over-reason" class="text-sm text-gray-400 mb-4">Le donjon vous a eu.</p>
-            <div class="text-xs text-gray-400 space-y-1.5 mb-6 text-left bg-gray-950 rounded p-3 border border-gray-800">
+            <div class="text-xs text-gray-400 space-y-1.5 mb-4 text-left bg-gray-950 rounded p-3 border border-gray-800">
                 <div class="flex justify-between"><span>Étage atteint</span><span id="game-over-floor" class="text-gray-100 font-bold">1</span></div>
                 <div class="flex justify-between"><span>Niveau final</span><span id="game-over-level" class="text-gray-100 font-bold">1</span></div>
                 <div class="flex justify-between"><span>Quartier</span><span id="game-over-district" class="text-gray-100 font-bold">-</span></div>
             </div>
+            <p id="game-over-epitaph" class="w-full text-sm italic text-gray-300 mb-6 text-left bg-gray-950/70 rounded p-3 border border-gray-800"></p>
             <button id="btn-restart" class="w-full py-3 bg-red-900/40 border-2 border-red-600 rounded-lg text-red-300 font-bold uppercase tracking-widest hover:bg-red-800/50 active:scale-95 transition-all">
                 Nouvelle Partie
             </button>
@@ -753,13 +814,41 @@
         </div>
     </div>
 
+    <!-- Écran d'escalier (félicitations) : affiché avant de générer l'étage suivant, voir
+         triggerFloorTransition()/continueFromFloorTransition() dans app.js. Résumé du tally de
+         l'étage qui vient de se terminer (gameState.floorStats) + annonce de l'anomalie du prochain
+         étage (bloc masqué tant qu'aucun système d'anomalies n'est branché, voir
+         getUpcomingAnomalyAnnouncement()). -->
+    <div id="floor-transition-overlay" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-gray-900 border-2 border-blue-700 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(29,78,216,0.5)]">
+            <div class="text-4xl mb-2">🪜</div>
+            <p id="floor-transition-title" class="text-sm text-blue-300 font-bold mb-4 leading-snug">-</p>
+
+            <div class="text-xs text-gray-400 space-y-1.5 mb-4 text-left bg-gray-950 rounded p-3 border border-gray-800">
+                <div class="flex justify-between"><span>💀 Mobs tués</span><span id="floor-transition-mobs" class="text-gray-100 font-bold">0</span></div>
+                <div class="flex justify-between"><span>🩸 Dégâts subis</span><span id="floor-transition-damage" class="text-gray-100 font-bold">0</span></div>
+                <div class="flex justify-between"><span>🎁 Objets trouvés</span><span id="floor-transition-items" class="text-gray-100 font-bold">0</span></div>
+                <div class="flex justify-between"><span>⭐ XP gagnée</span><span id="floor-transition-xp" class="text-gray-100 font-bold">0</span></div>
+            </div>
+
+            <div id="floor-transition-anomaly" class="hidden mb-4 p-3 bg-purple-950/30 border border-purple-800/50 rounded-lg text-left">
+                <p id="floor-transition-anomaly-text" class="text-[11px] text-purple-300 leading-snug">-</p>
+            </div>
+
+            <button id="btn-floor-transition-continue" class="w-full py-3 bg-blue-900/40 border-2 border-blue-600 rounded-lg text-blue-300 font-bold uppercase tracking-widest hover:bg-blue-800/50 active:scale-95 transition-all">
+                Continuer
+            </button>
+        </div>
+    </div>
+
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=53"></script>
-    <script src="items.js?v=53"></script>
-    <script src="spells.js?v=53"></script>
-    <script src="districts.js?v=53"></script>
-    <script src="safehouses.js?v=53"></script>
-    <script src="generator.js?v=53"></script>
-    <script src="app.js?v=53"></script>
+    <script src="bestiary.js?v=57"></script>
+    <script src="items.js?v=57"></script>
+    <script src="spells.js?v=57"></script>
+    <script src="districts.js?v=57"></script>
+    <script src="safehouses.js?v=57"></script>
+    <script src="generator.js?v=57"></script>
+    <script src="anomalies.js?v=57"></script>
+    <script src="app.js?v=57"></script>
 </body>
 </html>

@@ -8,6 +8,11 @@ const gameState = {
     playerName: "CRAWLER_01",
     hp: 100,
     maxHp: 100,
+    // Vrai maximum de PV, tel que fait progresser la seule montée de niveau (voir gainXp()) — jamais
+    // touché directement par une anomalie d'étage (voir PEAU_DE_VERRE). gameState.maxHp reste la
+    // valeur EFFECTIVE réellement utilisée partout ailleurs (recomputeMaxHp() la recalcule à partir de
+    // celle-ci × gameState.anomalyEffects.playerMaxHpMult à chaque changement de l'un des deux).
+    baseMaxHp: 100,
     atk: 10, // Dégâts de base infligés par round de combat
     def: 5,  // Réduction des dégâts subis par round de combat
     // Mana (0-100, fixe) : n'existe concrètement pour le joueur qu'une fois un sort équipé (voir
@@ -92,6 +97,7 @@ const gameState = {
     lairChoicePending: false, // Un repaire vient d'être repéré sur la route empruntée : choix plonger/poursuivre
     pendingLairId: null, // Repaire (gameState.urbanMap.lairsById) dont le choix est actuellement affiché
     pendingLairDive: null, // { lairId, combatsLeft, stage: 'trash'|'boss' } pendant une plongée en cours (voir winCombat())
+    floorTransitionPending: false, // L'écran d'escalier (félicitations) est affiché, voir triggerFloorTransition()
     hasWon: false, // Vrai une fois la Sortie de l'étage final franchie (voir winGame())
     companion: null, // Compagnon actuellement recruté (ou null)
     pendingCompanionCandidate: null, // Candidat en attente de décision (recruter/laisser/fuir/attaquer)
@@ -99,14 +105,60 @@ const gameState = {
     // Autosauvegarde (voir saveGame()) : faux pendant l'initialisation silencieuse au chargement de
     // la page (avant que le joueur n'ait confirmé son nom), pour ne jamais écraser une sauvegarde
     // existante avec un état par défaut. Activé par confirmPlayerName()/restoreSaveForName().
-    saveEnabled: false
+    saveEnabled: false,
+    // Horodatage (epoch ms) de la dernière sauvegarde réussie, posé par saveGame() — sert uniquement
+    // d'affichage dans l'écran "Nettoyer les sauvegardes" (openManageSaves()). Absent sur une
+    // sauvegarde antérieure à cette feature : traité comme "date inconnue", jamais une erreur.
+    lastSavedAt: null,
+    // Tally de l'étage EN COURS (mobs tués, dégâts subis, objets trouvés, XP gagnés) — voir
+    // applyPlayerDamage()/winCombat()/gainXp()/addLoot(). Affiché sur l'écran d'escalier
+    // (triggerFloorTransition()) puis remis à zéro par advanceToNextFloor(). Absent d'une sauvegarde
+    // antérieure : retombe sur des zéros via Object.assign (jamais undefined à l'affichage, voir
+    // restoreSaveForName()).
+    floorStats: { mobsKilled: 0, damageTaken: 0, itemsFound: 0, xpGained: 0 },
+    // Nombre de fuites RÉUSSIES depuis le début du run (voir attemptFlee()) — jamais remis à zéro en
+    // cours de run, sert uniquement à la mention spéciale de generateEpitaph() ("mort en ayant fui 3+
+    // fois"). Absent d'une sauvegarde antérieure : retombe sur 0 via Object.assign.
+    fleesThisRun: 0,
+    // Vrai seulement pendant le tour où le sort du joueur vient de partir en flop (voir attackMagic()) :
+    // remis à faux au tout début de CHAQUE action joueur (tryPlayerAction()), pour que seul un décès
+    // survenant DANS ce même tour (riposte immédiate de l'ennemi) soit attribué au backfire par
+    // gameOver()/generateEpitaph(), jamais un décès plus tardif sans rapport.
+    lastPlayerActionWasBackfire: false,
+    // Journal des N dernières épitaphes (voir generateEpitaph()/recordEpitaph()), plus récente en
+    // premier, plafonné à NECROLOGIE_MAX_ENTRIES. Persistant en save (aucun système de lecture dédié
+    // pour l'instant, préparé pour un futur "journal" consultable). Absent d'une sauvegarde antérieure :
+    // retombe sur [] via Object.assign.
+    necrologie: [],
+    // Anomalies actives sur l'étage EN COURS (voir anomalies.js/rollAndApplyFloorAnomalies()) :
+    // definitions complètes du catalogue (0, 1 ou 2 entrées selon la tranche d'étage), affichées en
+    // permanence dans l'UI (voir updateAnomalyStatusUI()). Vide sur les étages 1-2 (jamais d'anomalie),
+    // et par défaut sur une sauvegarde antérieure à cette feature.
+    activeAnomalies: [],
+    // Effets RÉSOLUS (un seul objet plat) des anomalies actives ci-dessus — voir
+    // createNeutralAnomalyEffects()/appliquerAnomalie() dans anomalies.js. Neutre par défaut : aucune
+    // anomalie ne change jamais le comportement du jeu par rapport à avant ce système.
+    anomalyEffects: null,
+    // Delta {atk, hp} appliqué directement par choosePactBlessing() (anomalie PACTE_DU_CRAWLER),
+    // annulé au tout début du prochain advanceToNextFloor() — voir CLAUDE.md.
+    pactBlessingDelta: null,
+    // Choix forcé de bénédiction (PACTE_DU_CRAWLER) en attente — inclus dans isActionBlocked().
+    pactChoicePending: false,
+    // Tirage anticipé des anomalies du PROCHAIN étage (voir getUpcomingAnomalyAnnouncement()), pour
+    // que rollAndApplyFloorAnomalies() applique exactement ce qui a été annoncé sur l'écran d'escalier
+    // plutôt que de retirer au hasard. Purement transitoire, jamais utile hors de cette fenêtre.
+    pendingNextFloorAnomalies: null
 };
+// anomalyEffects initialisé après coup (dépend de anomalies.js, chargé juste avant app.js — voir
+// index.html) plutôt qu'en dur dans le littéral ci-dessus, pour ne dépendre que d'un seul endroit
+// (createNeutralAnomalyEffects()) si sa forme change un jour.
+gameState.anomalyEffects = createNeutralAnomalyEffects();
 
 // Identifiant de version affiché sur l'écran de départ (voir #start-screen-overlay dans index.html) :
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 19, label: "Carte Urbaine : grille + diagonales, caméra pannable, déclutter" };
+const APP_VERSION = { pr: 20, label: "Nettoyer les sauvegardes + écran d'escalier + nécrologie + anomalies d'étage" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -359,11 +411,25 @@ const ui = {
     gameOverFloor: document.getElementById('game-over-floor'),
     gameOverLevel: document.getElementById('game-over-level'),
     gameOverDistrict: document.getElementById('game-over-district'),
+    gameOverEpitaph: document.getElementById('game-over-epitaph'),
     btnRestart: document.getElementById('btn-restart'),
     winOverlay: document.getElementById('win-overlay'),
     winFloor: document.getElementById('win-floor'),
     winLevel: document.getElementById('win-level'),
     btnWinRestart: document.getElementById('btn-win-restart'),
+    floorTransitionOverlay: document.getElementById('floor-transition-overlay'),
+    floorTransitionTitle: document.getElementById('floor-transition-title'),
+    floorTransitionMobs: document.getElementById('floor-transition-mobs'),
+    floorTransitionDamage: document.getElementById('floor-transition-damage'),
+    floorTransitionItems: document.getElementById('floor-transition-items'),
+    floorTransitionXp: document.getElementById('floor-transition-xp'),
+    floorTransitionAnomaly: document.getElementById('floor-transition-anomaly'),
+    floorTransitionAnomalyText: document.getElementById('floor-transition-anomaly-text'),
+    btnFloorTransitionContinue: document.getElementById('btn-floor-transition-continue'),
+    anomalyStatusBar: document.getElementById('anomaly-status-bar'),
+    pactChoiceOverlay: document.getElementById('pact-choice-overlay'),
+    btnPactAtk: document.getElementById('btn-pact-atk'),
+    btnPactHp: document.getElementById('btn-pact-hp'),
     combatZone: document.getElementById('combat-zone'),
     knownLocationsSection: document.getElementById('known-locations-section'),
     knownLocationsContainer: document.getElementById('known-locations'),
@@ -424,6 +490,16 @@ const ui = {
     startSavesHint: document.getElementById('start-saves-hint'),
     versionLabel: document.getElementById('version-label'),
     btnStartConfirm: document.getElementById('btn-start-confirm'),
+    btnOpenManageSaves: document.getElementById('btn-open-manage-saves'),
+    manageSavesOverlay: document.getElementById('manage-saves-overlay'),
+    manageSavesList: document.getElementById('manage-saves-list'),
+    manageSavesConfirm: document.getElementById('manage-saves-confirm'),
+    manageSavesConfirmText: document.getElementById('manage-saves-confirm-text'),
+    btnManageSavesConfirmYes: document.getElementById('btn-manage-saves-confirm-yes'),
+    btnManageSavesConfirmNo: document.getElementById('btn-manage-saves-confirm-no'),
+    btnManageSavesDeleteAll: document.getElementById('btn-manage-saves-delete-all'),
+    btnManageSavesRestoreBackup: document.getElementById('btn-manage-saves-restore-backup'),
+    btnManageSavesClose: document.getElementById('btn-manage-saves-close'),
     giftRevealOverlay: document.getElementById('gift-reveal-overlay'),
     giftRevealIcon: document.getElementById('gift-reveal-icon'),
     giftRevealTitle: document.getElementById('gift-reveal-title'),
@@ -481,6 +557,7 @@ function saveKeyForName(name) {
 // en pleine action, ce qui serait bien plus fragile (nombreux points d'appel à traquer).
 function saveGame() {
     if (!gameState.saveEnabled || !gameState.playerName) return;
+    gameState.lastSavedAt = Date.now();
     try {
         localStorage.setItem(saveKeyForName(gameState.playerName), JSON.stringify(gameState));
     } catch (e) {
@@ -518,7 +595,15 @@ function restoreSaveForName(name) {
         return false; // Sauvegarde corrompue : on ignore plutôt que de planter
     }
 
+    // Migration douce : une sauvegarde antérieure au système d'anomalies (Tâche 4) n'a pas
+    // baseMaxHp — son maxHp EST alors la vraie base (aucun multiplicateur d'anomalie n'a jamais pu
+    // s'y appliquer). anomalyEffects/activeAnomalies n'ont pas besoin de migration explicite : Object.assign
+    // ne touche pas les clés absentes de `saved`, qui gardent donc leurs valeurs neutres déjà posées à
+    // l'initialisation de gameState.
+    const needsBaseMaxHpMigration = saved.baseMaxHp === undefined;
+
     Object.assign(gameState, saved);
+    if (needsBaseMaxHpMigration) gameState.baseMaxHp = saved.maxHp || gameState.maxHp;
 
     // Nettoyage de l'état transitoire/bloquant
     gameState.inCombat = false;
@@ -537,6 +622,9 @@ function restoreSaveForName(name) {
     gameState.lairChoicePending = false;
     gameState.pendingLairId = null;
     gameState.pendingLairDive = null;
+    gameState.floorTransitionPending = false;
+    gameState.pactChoicePending = false;
+    gameState.pendingNextFloorAnomalies = null;
 
     gameState.saveEnabled = true; // Réactive l'autosave après une restauration réussie
     return true;
@@ -564,6 +652,209 @@ function listSavedCrawlerNames() {
     return names;
 }
 
+// Variante détaillée de listSavedCrawlerNames() pour l'écran "Nettoyer les sauvegardes"
+// (openManageSaves()) : nom, clé localStorage, étage atteint et horodatage de dernière sauvegarde.
+// `floor`/`savedAt` retombent sur des valeurs neutres pour une entrée corrompue ou antérieure à
+// l'ajout de `lastSavedAt` (migration douce, jamais une erreur qui casserait toute la liste).
+function listSavedCrawlersDetailed() {
+    const entries = [];
+    try {
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key || !key.startsWith(SAVE_KEY_PREFIX)) continue;
+            try {
+                const saved = JSON.parse(localStorage.getItem(key));
+                if (saved && saved.playerName) {
+                    entries.push({ name: saved.playerName, key, floor: saved.currentFloor || 1, savedAt: saved.lastSavedAt || null });
+                }
+            } catch (e) {
+                // Entrée corrompue : ignorée plutôt que de faire échouer toute la liste
+            }
+        }
+    } catch (e) {
+        // localStorage indisponible : liste vide, pas d'erreur
+    }
+    return entries;
+}
+
+// Formatage d'affichage d'un horodatage de sauvegarde (voir listSavedCrawlersDetailed()) — "date
+// inconnue" pour une sauvegarde antérieure à lastSavedAt, ou si l'environnement ne sait pas formater
+// de date localisée (jamais une exception qui casserait l'écran de gestion des sauvegardes).
+function formatSaveTimestamp(ts) {
+    if (!ts) return "date inconnue";
+    try {
+        return new Date(ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+        return "date inconnue";
+    }
+}
+
+// Rafraîchit l'indice de sauvegardes existantes sur l'écran de départ (voir listSavedCrawlerNames()) —
+// extrait en fonction pour pouvoir être rappelé après une suppression/restauration depuis l'écran
+// "Nettoyer les sauvegardes", en plus de l'appel initial au chargement du jeu.
+function refreshStartSavesHint() {
+    if (!ui.startSavesHint) return;
+    const savedNames = listSavedCrawlerNames();
+    ui.startSavesHint.classList.toggle('hidden', savedNames.length === 0);
+    ui.startSavesHint.innerText = savedNames.length ? `Sauvegardes disponibles : ${savedNames.join(', ')}` : '';
+}
+
+// ==========================================
+// GESTION DES SAUVEGARDES (écran de départ -> "Nettoyer les sauvegardes")
+// ==========================================
+// Slot de backup UNIQUE (pas un historique) : écrasé à chaque nettoyage (suppression individuelle ou
+// totale), toujours au format { savedAt, entries: [{key, data}] } où `data` est le JSON brut de la
+// sauvegarde (round-trip exact, sans re-sérialiser gameState). `pendingSaveDeletion` retient l'action
+// en attente de confirmation ({ mode: 'single', name } ou { mode: 'all' }) — jamais de suppression
+// sans passer par cet état, la confirmation est donc structurellement obligatoire.
+const SAVE_BACKUP_KEY = 'crawler-save-backup';
+let pendingSaveDeletion = null;
+
+// Ouvre l'écran de gestion des sauvegardes depuis l'écran de départ.
+function openManageSaves() {
+    pendingSaveDeletion = null;
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.add('hidden');
+    updateManageSavesUI();
+    if (ui.manageSavesOverlay) ui.manageSavesOverlay.classList.remove('hidden');
+}
+
+function closeManageSaves() {
+    pendingSaveDeletion = null;
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.add('hidden');
+    if (ui.manageSavesOverlay) ui.manageSavesOverlay.classList.add('hidden');
+}
+
+// Reconstruit la liste des sauvegardes + la visibilité du bouton "Restaurer le backup" (masqué tant
+// qu'aucun backup n'existe).
+function updateManageSavesUI() {
+    if (!ui.manageSavesList) return;
+    const entries = listSavedCrawlersDetailed();
+
+    ui.manageSavesList.innerHTML = "";
+    if (entries.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = "text-[10px] text-gray-600 italic text-center py-2";
+        empty.innerText = "Aucune sauvegarde sur cet appareil.";
+        ui.manageSavesList.appendChild(empty);
+    }
+    entries.forEach(entry => {
+        const row = document.createElement('div');
+        row.className = "flex justify-between items-center gap-2 px-2 py-1.5 bg-gray-950/80 border border-gray-800 rounded";
+        row.innerHTML = `
+            <div class="flex flex-col overflow-hidden text-left">
+                <span class="text-gray-200 font-bold text-[11px] truncate">${entry.name}</span>
+                <span class="text-gray-600 text-[9px]">Étage ${entry.floor} · ${formatSaveTimestamp(entry.savedAt)}</span>
+            </div>
+        `;
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = "shrink-0 text-red-500 hover:text-red-300 text-sm px-1 transition-colors";
+        deleteBtn.innerText = "🗑️";
+        deleteBtn.addEventListener('click', () => requestDeleteSave(entry.name));
+        row.appendChild(deleteBtn);
+        ui.manageSavesList.appendChild(row);
+    });
+
+    if (ui.btnManageSavesRestoreBackup) {
+        let hasBackup = false;
+        try { hasBackup = localStorage.getItem(SAVE_BACKUP_KEY) !== null; } catch (e) { /* indisponible */ }
+        ui.btnManageSavesRestoreBackup.classList.toggle('hidden', !hasBackup);
+    }
+}
+
+// Demande confirmation avant de supprimer UNE sauvegarde (bouton 🗑️ d'une ligne).
+function requestDeleteSave(name) {
+    pendingSaveDeletion = { mode: 'single', name };
+    if (ui.manageSavesConfirmText) {
+        ui.manageSavesConfirmText.innerText = `Supprimer définitivement la sauvegarde de "${name}" ? Cette action est irréversible (un backup sera conservé, voir "Restaurer le dernier backup").`;
+    }
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.remove('hidden');
+}
+
+// Demande confirmation avant de supprimer TOUTES les sauvegardes (bouton "Tout supprimer").
+function requestDeleteAllSaves() {
+    pendingSaveDeletion = { mode: 'all' };
+    if (ui.manageSavesConfirmText) {
+        ui.manageSavesConfirmText.innerText = "Supprimer DÉFINITIVEMENT toutes les sauvegardes de cet appareil ? Cette action est irréversible (un backup sera conservé, voir \"Restaurer le dernier backup\").";
+    }
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.remove('hidden');
+}
+
+function cancelSaveDeletion() {
+    pendingSaveDeletion = null;
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.add('hidden');
+}
+
+// Exécute la suppression (individuelle ou totale) demandée, après confirmation explicite. Sauvegarde
+// d'abord TOUTES les entrées concernées dans le slot de backup unique (écrase un backup précédent —
+// "écrasé à chaque nettoyage"), puis les retire réellement de localStorage.
+function confirmSaveDeletion() {
+    if (!pendingSaveDeletion) return;
+    const allEntries = listSavedCrawlersDetailed();
+    const toDelete = pendingSaveDeletion.mode === 'all'
+        ? allEntries
+        : allEntries.filter(e => e.name === pendingSaveDeletion.name);
+
+    if (toDelete.length > 0) {
+        try {
+            const backup = {
+                savedAt: Date.now(),
+                entries: toDelete.map(e => ({ key: e.key, data: localStorage.getItem(e.key) }))
+            };
+            localStorage.setItem(SAVE_BACKUP_KEY, JSON.stringify(backup));
+            toDelete.forEach(e => localStorage.removeItem(e.key));
+            logEvent(
+                pendingSaveDeletion.mode === 'all'
+                    ? `🧹 ${toDelete.length} sauvegarde(s) supprimée(s) (backup conservé).`
+                    : `🧹 Sauvegarde de "${pendingSaveDeletion.name}" supprimée (backup conservé).`,
+                "info"
+            );
+        } catch (e) {
+            logEvent("Échec de la suppression (stockage indisponible).", "danger");
+        }
+    }
+
+    pendingSaveDeletion = null;
+    if (ui.manageSavesConfirm) ui.manageSavesConfirm.classList.add('hidden');
+    updateManageSavesUI();
+    refreshStartSavesHint();
+}
+
+// Restaure le backup unique (voir confirmSaveDeletion()) : réécrit chaque entrée à sa clé d'origine,
+// écrasant une éventuelle sauvegarde du même nom recréée depuis. N'efface pas le backup lui-même
+// (restaurable plusieurs fois de suite sans repasser par une suppression).
+function restoreSavesBackup() {
+    let raw;
+    try {
+        raw = localStorage.getItem(SAVE_BACKUP_KEY);
+    } catch (e) {
+        return;
+    }
+    if (!raw) return;
+
+    let backup;
+    try {
+        backup = JSON.parse(raw);
+    } catch (e) {
+        return; // Backup corrompu : on ignore plutôt que de planter
+    }
+    if (!backup || !Array.isArray(backup.entries)) return;
+
+    let restoredCount = 0;
+    backup.entries.forEach(entry => {
+        if (!entry || !entry.key || entry.data === undefined) return;
+        try {
+            localStorage.setItem(entry.key, entry.data);
+            restoredCount++;
+        } catch (e) {
+            // Une entrée en échec ne doit pas bloquer les suivantes
+        }
+    });
+
+    logEvent(`♻️ ${restoredCount} sauvegarde(s) restaurée(s) depuis le backup.`, "success");
+    updateManageSavesUI();
+    refreshStartSavesHint();
+}
+
 function updateUI() {
     applyScreenStateEffects();
     ui.playerName.innerText = gameState.playerName;
@@ -578,6 +869,7 @@ function updateUI() {
 
     // Le libellé d'étage sur la carte active reste toujours synchronisé
     ui.cardFloorLabel.innerText = `Étage ${gameState.currentFloor}`;
+    updateAnomalyStatusUI();
 
     // Icônes de statut du joueur
     let playerIcons = "";
@@ -1187,10 +1479,10 @@ function useConsumable(index) {
 
     const healAmount = item.heal || 0;
     const manaAmount = item.mana || 0;
-    gameState.hp = Math.min(gameState.maxHp, gameState.hp + healAmount);
+    const actualHeal = applyPlayerHeal(healAmount);
     gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaAmount);
     const parts = [];
-    if (healAmount > 0) parts.push(`${healAmount} PV`);
+    if (actualHeal > 0) parts.push(`${actualHeal} PV`);
     if (manaAmount > 0) parts.push(`${manaAmount} Mana`);
     logEvent(`Vous consommez [${item.name}]${parts.length ? ` et récupérez ${parts.join(" et ")}` : ""}.`, "success");
 
@@ -1238,13 +1530,17 @@ const MANA_REGEN_PER_HOUR = 12;
 
 function applyTimeElapsedRegen(hours) {
     if (!hours || hours <= 0) return;
-    if (gameState.hp < gameState.maxHp) {
+    // REPAS_DE_FAMILLE (anomalies.js) : plus aucune régénération passive de PV hors salle sécurisée —
+    // cette fonction n'est justement appelée que HORS salle sécurisée (le soin complet à l'entrée d'une
+    // salle sécurisée, voir enterRoom(), est un chemin totalement séparé).
+    if (!gameState.anomalyEffects.regenOutsideSafehouseZero && gameState.hp < gameState.maxHp) {
         const hpRatio = gameState.maxHp > 0 ? gameState.hp / gameState.maxHp : 0;
         const tier = HP_REGEN_TIERS.find(t => hpRatio < t.belowRatio);
-        gameState.hp = Math.min(gameState.maxHp, gameState.hp + tier.perHour * hours);
+        applyPlayerHeal(tier.perHour * hours);
     }
     if (gameState.equipment.spell && gameState.mana < gameState.maxMana) {
-        gameState.mana = Math.min(gameState.maxMana, gameState.mana + MANA_REGEN_PER_HOUR * hours);
+        const manaMult = gameState.anomalyEffects.manaRegenMult || 1; // SECHERESSE (anomalies.js)
+        gameState.mana = Math.min(gameState.maxMana, gameState.mana + MANA_REGEN_PER_HOUR * hours * manaMult);
     }
 }
 
@@ -1287,11 +1583,11 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         const trap = pick(flavorText.trap);
         const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
-        gameState.hp = Math.max(0, gameState.hp - dmg);
+        applyPlayerDamage(dmg);
         setCardHeader('⚠️', 'Piège', 'Danger');
         logEvent(`${trap.text} (-${dmg} PV)`, "danger");
         if (gameState.hp <= 0) {
-            gameOver();
+            gameOver(false, 'trap');
             return;
         }
         return;
@@ -1315,9 +1611,9 @@ function resolveCardEvent() {
     cumulative += config.chances.minorFind;
     if (d100 < cumulative) {
         const heal = Math.floor(Math.random() * 8) + 5; // 5 à 12 PV
-        gameState.hp = Math.min(gameState.hp + heal, gameState.maxHp);
+        const actualHeal = applyPlayerHeal(heal);
         setCardHeader('🎒', 'Petite Trouvaille', 'Butin');
-        logEvent(`${pick(flavorText.minorFind)} (+${heal} PV)`, "success");
+        logEvent(`${pick(flavorText.minorFind)} (+${actualHeal} PV)`, "success");
         return;
     }
 
@@ -1325,7 +1621,7 @@ function resolveCardEvent() {
     cumulative += config.chances.goldFind;
     if (d100 < cumulative) {
         const baseGold = Math.floor(Math.random() * 16) + 5; // 5 à 20 PO
-        const gold = Math.round(baseGold * (1 + gameState.currentFloor * 0.15)); // Proportionnel à l'étage
+        const gold = Math.round(baseGold * (1 + gameState.currentFloor * 0.15) * (gameState.anomalyEffects.goldGainMult || 1)); // Proportionnel à l'étage, ECONOMIE_AUSTERE (anomalies.js)
         gameState.gold += gold;
         setCardHeader('💰', 'Pièces d\'Or', 'Butin');
         logEvent(`${pick(flavorText.goldFind)} (+${gold} PO)`, "success");
@@ -1388,13 +1684,20 @@ function getStealthChance() {
     if (gameState.equipment.weapon && gameState.equipment.weapon.mechanics && gameState.equipment.weapon.mechanics.includes('stealth')) chance += 15;
     if (gameState.equipment.ranged && gameState.equipment.ranged.mechanics && gameState.equipment.ranged.mechanics.includes('stealth')) chance += 15;
     if (gameState.equipment.armor && gameState.equipment.armor.mechanics && gameState.equipment.armor.mechanics.includes('stealth')) chance += 15;
-    return Math.min(60, chance);
+    // NOCTURNE (anomalies.js) : détection des mobs accrue (pénalité sur la chance de base) mais
+    // plafond relevé d'autant — récompense un fort investissement en Furtivité, punit un faible.
+    chance -= gameState.anomalyEffects.detectionBonus || 0;
+    return Math.max(0, Math.min(60 + (gameState.anomalyEffects.stealthCapBonus || 0), chance));
 }
 
 // Point d'entrée d'une rencontre aléatoire : tente d'abord la furtivité avant de basculer sur un
 // combat classique si le monstre repère le joueur.
 function handleStealthEncounter() {
-    const enemy = generateMob(gameState.currentDistrict);
+    // LABYRINTHE (anomalies.js) : mobs rencontrés dans le quartier qui garde l'escalier ont plus de
+    // chances d'être élite ("escalier mieux gardé") — n'affecte aucun autre quartier de l'étage.
+    const inStairsQuadrant = gameState.floorMap && gameState.floorMap.currentQuadrant === gameState.floorMap.stairsQuadrant;
+    const eliteBonus = (gameState.anomalyEffects.guardedStairsBoost && inStairsQuadrant) ? 25 : 0;
+    const enemy = generateMob(gameState.currentDistrict, eliteBonus);
     const undetected = Math.random() * 100 < getStealthChance();
 
     if (!undetected) {
@@ -1421,7 +1724,7 @@ function attemptStealthEvasion() {
     gameState.pendingStealthEncounter = null;
     if (!enemy) { updateUI(); return; }
 
-    const evadeChance = Math.min(70, 40 + (gameState.skills.stealth.level - 1) * 8);
+    const evadeChance = Math.min(70 + (gameState.anomalyEffects.stealthCapBonus || 0), 40 + (gameState.skills.stealth.level - 1) * 8); // NOCTURNE (anomalies.js)
     if (Math.random() * 100 < evadeChance) {
         setCardHeader('🥷', 'Évitement Réussi', 'Furtivité');
         logEvent(`Vous évitez [${enemy.name}] sans un bruit.`, "success");
@@ -1459,7 +1762,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending;
 }
 
 // Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
@@ -1765,13 +2068,33 @@ function updateCompanionUI() {
     ui.companionLeaveBar.style.background = hpColor(1 - leavePct); // Vert = fidèle, rouge = risque de départ élevé
 }
 
-function nextFloor() {
+// Fait effectivement passer à l'étage suivant (génération incluse) — dispatché depuis l'écran
+// d'escalier (voir triggerFloorTransition()/continueFromFloorTransition() plus bas), sauf pour
+// devJumpToUrbanFloor() (raccourci DEV, saute délibérément l'écran).
+function advanceToNextFloor() {
     gameState.currentFloor += 1;
     gameState.cardsDrawnThisFloor = 0;
     gameState.timeLeft = gameState.maxTime; // Réinitialisation du temps
     gameState.knownLocations = []; // Les lieux repérés à l'étage précédent ne sont plus accessibles
     gameState.floorMap = null;
     gameState.urbanMap = null;
+    // Tally du nouvel étage repart à zéro — celui qui vient de se terminer a déjà été affiché sur
+    // l'écran d'escalier (voir triggerFloorTransition()) avant cet appel.
+    gameState.floorStats = { mobsKilled: 0, damageTaken: 0, itemsFound: 0, xpGained: 0 };
+
+    // Réversion de l'éventuelle bénédiction du Pacte du Crawler (PACTE_DU_CRAWLER, voir
+    // choosePactBlessing()) DE L'ÉTAGE PRÉCÉDENT, avant même de tirer les anomalies du nouvel étage.
+    if (gameState.pactBlessingDelta) {
+        gameState.atk = Math.max(1, gameState.atk - gameState.pactBlessingDelta.atk);
+        gameState.baseMaxHp -= gameState.pactBlessingDelta.hp;
+        gameState.pactBlessingDelta = null;
+    }
+
+    // Anomalies du nouvel étage : AVANT la génération de la carte (extraRoomsPct de LABYRINTHE doit
+    // influencer generateFloorMap()/generateQuadrant()) — voir rollAndApplyFloorAnomalies().
+    rollAndApplyFloorAnomalies(gameState.currentFloor);
+    recomputeMaxHp(); // Applique l'éventuel playerMaxHpMult du nouvel étage (PEAU_DE_VERRE)
+
     // Multiple de 3 (voir config.urbanFloors) : étage urbain (réseau villes/routes) plutôt que le
     // donjon classique à 4 quartiers.
     if (gameState.currentFloor % 3 === 0) {
@@ -1779,10 +2102,299 @@ function nextFloor() {
     } else {
         generateFloorMap(); // Nouvelle zone circulaire à 4 quartiers pour ce nouvel étage
     }
+
     logEvent(`--- DÉBUT DE L'ÉTAGE ${gameState.currentFloor} ---`, "info");
+    if (gameState.activeAnomalies.length > 0) {
+        logEvent(`⚠️ Anomalie(s) active(s) : ${gameState.activeAnomalies.map(a => `${a.icon} ${a.name}`).join(', ')}.`, "danger");
+    }
     updateKnownLocationsUI();
     updateUrbanMapUI();
+    updateAnomalyStatusUI();
+
+    // PACTE_DU_CRAWLER : choix forcé à l'entrée de l'étage, résolu AVANT de rendre la main au joueur
+    // (isActionBlocked() le bloque comme n'importe quel autre choix en attente).
+    if (gameState.anomalyEffects.forcedPactChoice) {
+        triggerPactChoice();
+    }
+
     updateUI();
+}
+
+// Titres sarcastiques de l'écran d'escalier (voir triggerFloorTransition()) — {{floor}} remplacé par
+// l'étage qui vient d'être franchi. Tirage aléatoire à chaque transition.
+const FLOOR_TRANSITION_TITLES = [
+    "Vous avez survécu à l'étage {{floor}}. Vos parents seraient... perplexes.",
+    "Étage {{floor}} terminé. Statistiquement, vous auriez dû mourir.",
+    "Bravo, l'étage {{floor}} est derrière vous. L'audience est presque déçue.",
+    "Étage {{floor}} : terminé. Le service des paris est en pleine confusion.",
+    "Vous quittez l'étage {{floor}} sur vos deux jambes. Un exploit que même vous n'expliquez pas.",
+    "L'étage {{floor}} vous laisse partir. Les producteurs notent ça pour plus tard.",
+    "Étage {{floor}} : survécu. Le sponsor retire discrètement sa clause d'assurance-vie.",
+    "Fin de l'étage {{floor}}. Le Donjon prend des notes sur ce qui a raté."
+];
+
+// Annonce de l'anomalie du PROCHAIN étage sur l'écran d'escalier : tire réellement les anomalies de
+// `nextFloor` (rollFloorAnomalies(), anomalies.js) et les MÉMORISE (gameState.pendingNextFloorAnomalies)
+// pour que rollAndApplyFloorAnomalies() (appelé par advanceToNextFloor() au clic sur "Continuer")
+// applique exactement ce qui vient d'être annoncé, jamais un second tirage indépendant. Retourne
+// { name, description } ou null (rien à annoncer) : triggerFloorTransition() gère déjà les deux cas.
+function getUpcomingAnomalyAnnouncement(nextFloor) {
+    const rolled = rollFloorAnomalies(nextFloor);
+    gameState.pendingNextFloorAnomalies = { floor: nextFloor, anomalies: rolled };
+    if (rolled.length === 0) return null;
+    return {
+        name: rolled.map(a => `${a.icon} ${a.name}`).join(' + '),
+        description: rolled.map(a => a.description).join(' ')
+    };
+}
+
+// Affiche l'écran d'escalier (félicitations) : résumé du tally de l'étage qui vient de se terminer
+// (gameState.floorStats, encore intact — advanceToNextFloor() le remet à zéro APRÈS, voir le bouton
+// "Continuer") et annonce de l'anomalie du prochain étage. gameState.floorTransitionPending (inclus
+// dans isActionBlocked(), comme un choix de boss/marchand/repaire) plutôt que gameState.inCombat :
+// cette dernière collisionnerait avec la logique générique "combat sans ennemi -> on referme" que
+// plusieurs endroits appliquent (dont l'auto-résolveur de tests/long_playthrough.js), qui reste vraie
+// pour un vrai combat terminé mais pas pour cet écran, qui doit rester ouvert jusqu'au clic explicite
+// sur "Continuer".
+function triggerFloorTransition() {
+    const completedFloor = gameState.currentFloor;
+    const stats = gameState.floorStats;
+    gameState.floorTransitionPending = true;
+    ui.combatZone.classList.add('hidden');
+
+    if (ui.floorTransitionTitle) {
+        ui.floorTransitionTitle.innerText = pick(FLOOR_TRANSITION_TITLES).replace('{{floor}}', completedFloor);
+    }
+    if (ui.floorTransitionMobs) ui.floorTransitionMobs.innerText = stats.mobsKilled;
+    if (ui.floorTransitionDamage) ui.floorTransitionDamage.innerText = stats.damageTaken;
+    if (ui.floorTransitionItems) ui.floorTransitionItems.innerText = stats.itemsFound;
+    if (ui.floorTransitionXp) ui.floorTransitionXp.innerText = stats.xpGained;
+
+    const nextFloorNumber = completedFloor + 1;
+    const announcement = getUpcomingAnomalyAnnouncement(nextFloorNumber);
+    if (ui.floorTransitionAnomaly) {
+        ui.floorTransitionAnomaly.classList.toggle('hidden', !announcement);
+        if (announcement && ui.floorTransitionAnomalyText) {
+            ui.floorTransitionAnomalyText.innerText = `L'étage ${nextFloorNumber} vous est présenté par... ${announcement.name}. ${announcement.description} Bon courage.`;
+        }
+    }
+
+    if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.remove('hidden');
+    updateUI();
+}
+
+// Bouton "Continuer" de l'écran d'escalier : referme l'écran et fait effectivement passer à l'étage
+// suivant (voir advanceToNextFloor()).
+function continueFromFloorTransition() {
+    if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
+    gameState.floorTransitionPending = false;
+    advanceToNextFloor();
+}
+
+// ==========================================
+// ANOMALIES D'ÉTAGE : UI (badge permanent + choix forcé PACTE_DU_CRAWLER)
+// ==========================================
+
+// Affiche en permanence le(s) badge(s) icône+nom des anomalies actives (voir gameState.activeAnomalies,
+// posé par rollAndApplyFloorAnomalies()) dans l'UI de l'étage — description complète accessible via le
+// `title` (infobulle native du navigateur, "inspection"), sans construire de modale dédiée.
+function updateAnomalyStatusUI() {
+    if (!ui.anomalyStatusBar) return;
+    const active = gameState.activeAnomalies || [];
+    if (active.length === 0) {
+        ui.anomalyStatusBar.classList.add('hidden');
+        ui.anomalyStatusBar.innerHTML = '';
+        return;
+    }
+    ui.anomalyStatusBar.classList.remove('hidden');
+    ui.anomalyStatusBar.innerHTML = active.map(a =>
+        `<span title="${a.name} — ${a.description}" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-950/60 border border-purple-700 text-purple-300 text-[10px] font-bold uppercase tracking-widest cursor-help">${a.icon} ${a.name}</span>`
+    ).join('');
+}
+
+// PACTE_DU_CRAWLER : choix forcé à l'entrée de l'étage (voir advanceToNextFloor()). Bloque via
+// gameState.pactChoicePending (inclus dans isActionBlocked()), comme un choix de boss/marchand/repaire.
+function triggerPactChoice() {
+    gameState.pactChoicePending = true;
+    if (ui.pactChoiceOverlay) ui.pactChoiceOverlay.classList.remove('hidden');
+    logEvent("🤝 Le Pacte du Crawler vous est proposé : bénédiction ATQ, ou bénédiction PV ?", "danger");
+}
+
+// Chiffres non fournis par la consigne d'origine (voir anomalies.js) : bonus/malus de départ,
+// à ajuster par playtest réel comme le reste des chiffres d'équilibrage du jeu.
+const PACT_BLESSING_ATK_BONUS = 4;
+const PACT_BLESSING_ATK_HP_PENALTY = 15;
+const PACT_BLESSING_HP_BONUS = 30;
+const PACT_BLESSING_HP_ATK_PENALTY = 3;
+
+// Résout le choix du Pacte : applique directement le delta {atk, hp} (mémorisé dans
+// gameState.pactBlessingDelta pour être annulé au tout début du PROCHAIN advanceToNextFloor(), voir
+// ce fichier) — jamais un multiplicateur permanent, contrairement à PEAU_DE_VERRE.
+function choosePactBlessing(choice) {
+    if (!gameState.pactChoicePending) return;
+    const atkDelta = choice === 'atk' ? PACT_BLESSING_ATK_BONUS : -PACT_BLESSING_HP_ATK_PENALTY;
+    const hpDelta = choice === 'atk' ? -PACT_BLESSING_ATK_HP_PENALTY : PACT_BLESSING_HP_BONUS;
+
+    gameState.atk = Math.max(1, gameState.atk + atkDelta);
+    gameState.baseMaxHp = Math.max(1, gameState.baseMaxHp + hpDelta);
+    recomputeMaxHp();
+    gameState.pactBlessingDelta = { atk: atkDelta, hp: hpDelta };
+
+    gameState.pactChoicePending = false;
+    if (ui.pactChoiceOverlay) ui.pactChoiceOverlay.classList.add('hidden');
+    logEvent(
+        choice === 'atk'
+            ? `Bénédiction ATQ acceptée : +${atkDelta} ATQ, ${hpDelta} PV max.`
+            : `Bénédiction PV acceptée : +${hpDelta} PV max, ${atkDelta} ATQ.`,
+        "success"
+    );
+    updateUI();
+}
+
+// ==========================================
+// NÉCROLOGIE (épitaphes sarcastiques)
+// ==========================================
+// gameState.necrologie ne garde que les NECROLOGIE_MAX_ENTRIES dernières entrées (plus récente en
+// premier) — voir recordEpitaph().
+const NECROLOGIE_MAX_ENTRIES = 20;
+// Écart (niveau joueur - "niveau" du mob, voir getMobLevelEquivalent()) à partir duquel un mob tueur
+// est jugé "très inférieur" et déclenche l'épitaphe dédiée EPITAPH_TEMPLATES.mobFaible.
+const NECROLOGIE_WEAK_MOB_DELTA = 5;
+// Nombre de fuites réussies ce run à partir duquel la mention spéciale est ajoutée (voir
+// gameState.fleesThisRun, incrémenté par attemptFlee()).
+const NECROLOGIE_FLEE_THRESHOLD = 3;
+
+// Libellés humains de la cause de mort, utilisés pour le placeholder {{cause}} des templates.
+const DEATH_CAUSE_LABELS = {
+    combat: "au combat",
+    backfire: "par un sort qui a mal tourné",
+    trap: "dans un piège",
+    bleed: "d'une hémorragie",
+    timeout: "faute de temps"
+};
+
+// Pool de templates par cause de mort, tirage aléatoire (voir pick()). {{mob}}/{{etage}}/
+// {{deltaNiveau}}/{{cause}} remplacés par generateEpitaph() ; mobFaible et backfire sont des pools
+// DÉDIÉS qui remplacent le pool "combat" par défaut quand leur règle spéciale s'applique (voir
+// generateEpitaph()), jamais combinés entre eux.
+const EPITAPH_TEMPLATES = {
+    combat: [
+        "Ici repose {{crawler}}, terrassé(e) par [{{mob}}] à l'étage {{etage}}. Le Donjon salue un adversaire digne de ce nom.",
+        "[{{mob}}] a eu le dernier mot, à l'étage {{etage}}. Les paris étaient pourtant favorables.",
+        "Vaincu(e) par [{{mob}}] à l'étage {{etage}}. Une fin honorable, si on ignore les précédentes tentatives.",
+        "Fin de partie : [{{mob}}] a gagné, à l'étage {{etage}}. Applaudissements timides du public.",
+        "[{{mob}}] : 1. Crawler : 0. Étage {{etage}}. Le classement ne ment jamais.",
+        "L'étage {{etage}} garde son secret : comment [{{mob}}] a-t-il fait, exactement ?"
+    ],
+    trap: [
+        "Mort(e) bêtement dans un piège, à l'étage {{etage}}. Le Donjon n'a même pas eu besoin d'un monstre.",
+        "Un mécanisme centenaire a eu raison du crawler à l'étage {{etage}}. L'ironie n'échappe à personne.",
+        "L'étage {{etage}} avait posé un piège. Le crawler avait posé un pied dedans.",
+        "Piège fatal à l'étage {{etage}}. Le Donjon note : « toujours aussi efficace »."
+    ],
+    bleed: [
+        "Vidé(e) de son sang à l'étage {{etage}}, lentement, sûrement, sans un mot.",
+        "L'hémorragie a eu le dernier mot à l'étage {{etage}}. Un bandage aurait peut-être aidé.",
+        "Mort(e) de ses blessures à l'étage {{etage}}. Le sang, lui, ne ment jamais sur l'issue."
+    ],
+    timeout: [
+        "Le temps s'est écoulé à l'étage {{etage}}, et le Donjon n'attend personne.",
+        "Plus de temps, plus de chance : le Donjon s'est refermé sur l'étage {{etage}}.",
+        "Le chronomètre a gagné à l'étage {{etage}}. Il gagne toujours, en fin de compte."
+    ],
+    mobFaible: [
+        "Terrassé(e) par [{{mob}}], un adversaire {{deltaNiveau}} niveaux en dessous, à l'étage {{etage}}. Le Donjon en rit encore.",
+        "[{{mob}}], largement plus faible, a quand même eu raison du crawler à l'étage {{etage}}. Statistiquement improbable. Historiquement vrai.",
+        "Vaincu(e) par plus faible que soi ([{{mob}}], étage {{etage}}). Une leçon d'humilité, post-mortem.",
+        "[{{mob}}] n'aurait jamais dû gagner. Il a gagné quand même, à l'étage {{etage}}."
+    ],
+    backfire: [
+        "Un sort mal maîtrisé, une explosion, un silence : fin de partie à l'étage {{etage}}.",
+        "Le sort est parti de travers, et le crawler avec, à l'étage {{etage}}. La magie est une maîtresse cruelle.",
+        "Tué(e) par son propre sortilège à l'étage {{etage}}. Le grimoire n'assume aucune responsabilité.",
+        "Backfire fatal à l'étage {{etage}} : la magie a repris ce qu'elle avait prêté."
+    ]
+};
+
+// Mention ajoutée en fin d'épitaphe si gameState.fleesThisRun >= NECROLOGIE_FLEE_THRESHOLD.
+const EPITAPH_FLEE_MENTIONS = [
+    "Après {{fuites}} fuites ce run, la chance a fini par lui tourner le dos.",
+    "{{fuites}} fuites au compteur. Celle-ci, la dernière, n'a pas eu lieu.",
+    "Après avoir fui {{fuites}} fois, le Donjon a fini par le rattraper."
+];
+
+// Mention ajoutée en fin d'épitaphe si un objet équipé porte jokeItem: true (voir items.js).
+const EPITAPH_RIDICULOUS_ITEM_MENTIONS = [
+    "Il est mort en brandissant fièrement : {{objetRidicule}}.",
+    "Équipé jusqu'au bout de {{objetRidicule}}. Un choix qui restera dans les annales.",
+    "{{objetRidicule}} l'a accompagné jusqu'à la fin. On ne peut pas dire qu'il ait été bien conseillé."
+];
+
+// "Niveau" équivalent d'un mob : aucun champ de niveau explicite n'existe sur les mobs (voir
+// generateMob()/generator.js, qui les met à l'échelle par ÉTAGE, pas par niveau) — l'étage courant
+// est le proxy le plus direct et cohérent avec le reste du moteur de scaling.
+function getMobLevelEquivalent() {
+    return Math.max(1, gameState.currentFloor);
+}
+
+// Objet équipé le plus "ridicule" au moment de la mort (voir jokeItem dans items.js) : les parchemins
+// ne portent jamais ce flag, seuls weapon/ranged/armor sont scrutés.
+function findRidiculousEquippedItem() {
+    const slots = [gameState.equipment.weapon, gameState.equipment.ranged, gameState.equipment.armor];
+    return slots.find(item => item && item.jokeItem) || null;
+}
+
+// Construit l'épitaphe sarcastique pour le décès en cours, à partir du contexte réel (cause, mob
+// tueur éventuel). Fonction pure hors lecture de gameState/Math.random — appelée uniquement par
+// gameOver().
+function generateEpitaph(deathContext) {
+    const { cause, enemyName } = deathContext;
+    const floor = gameState.currentFloor;
+    const fleesThisRun = gameState.fleesThisRun || 0;
+    const ridiculousItem = findRidiculousEquippedItem();
+
+    let pool = EPITAPH_TEMPLATES[cause] || EPITAPH_TEMPLATES.combat;
+    let deltaNiveau = null;
+    if (cause === 'combat' || cause === 'backfire') {
+        const mobLevel = getMobLevelEquivalent();
+        deltaNiveau = gameState.level - mobLevel;
+        if (cause === 'combat' && deltaNiveau >= NECROLOGIE_WEAK_MOB_DELTA) {
+            pool = EPITAPH_TEMPLATES.mobFaible; // Règle spéciale : mob très inférieur -> épitaphe dédiée
+        } else if (cause === 'backfire') {
+            pool = EPITAPH_TEMPLATES.backfire; // Règle spéciale : mort par backfire -> épitaphe dédiée
+        }
+    }
+
+    let text = pick(pool)
+        .replace(/\{\{mob\}\}/g, enemyName || "un adversaire anonyme")
+        .replace(/\{\{etage\}\}/g, floor)
+        .replace(/\{\{deltaNiveau\}\}/g, deltaNiveau !== null ? Math.abs(deltaNiveau) : "")
+        .replace(/\{\{cause\}\}/g, DEATH_CAUSE_LABELS[cause] || "on ne sait comment")
+        .replace(/\{\{crawler\}\}/g, gameState.playerName || "le crawler");
+
+    if (fleesThisRun >= NECROLOGIE_FLEE_THRESHOLD) {
+        text += " " + pick(EPITAPH_FLEE_MENTIONS).replace(/\{\{fuites\}\}/g, fleesThisRun);
+    }
+    if (ridiculousItem) {
+        text += " " + pick(EPITAPH_RIDICULOUS_ITEM_MENTIONS).replace(/\{\{objetRidicule\}\}/g, ridiculousItem.name);
+    }
+    return text;
+}
+
+// Enregistre l'épitaphe dans le journal persistant (gameState.necrologie), plus récente en premier,
+// plafonné à NECROLOGIE_MAX_ENTRIES. Aucun écran de lecture dédié pour l'instant : préparé pour un
+// futur journal consultable, persistant en save via le mécanisme d'autosauvegarde existant.
+function recordEpitaph(text, deathContext) {
+    if (!Array.isArray(gameState.necrologie)) gameState.necrologie = [];
+    gameState.necrologie.unshift({
+        text,
+        floor: gameState.currentFloor,
+        cause: deathContext.cause,
+        date: Date.now()
+    });
+    if (gameState.necrologie.length > NECROLOGIE_MAX_ENTRIES) {
+        gameState.necrologie.length = NECROLOGIE_MAX_ENTRIES;
+    }
 }
 
 // Score de puissance (0 à 1) utilisé pour pondérer la rareté du loot obtenu (voir generateItem()
@@ -1806,6 +2418,7 @@ function addLoot(powerScore = 0) {
     const item = generateItem(powerScore);
     if (item.category === 'scrolls') {
         gameState.spellbook.push(item);
+        gameState.floorStats.itemsFound += 1;
         logEvent(`Sort appris : [${formatItemDisplayName(item)}] !`, "loot");
         updateSpellbookUI();
         return;
@@ -1814,6 +2427,7 @@ function addLoot(powerScore = 0) {
     const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
     if (isConsumable || equipmentCount < gameState.maxInventory) {
         gameState.inventory.push(item);
+        gameState.floorStats.itemsFound += 1;
         logEvent(`Objet obtenu : [${formatItemDisplayName(item)}] !`, "loot");
         updateInventoryUI();
     } else {
@@ -1821,12 +2435,48 @@ function addLoot(powerScore = 0) {
     }
 }
 
+// Point de passage UNIQUE pour toute perte de PV du joueur (piège, saignement, riposte ennemie...) —
+// clampe à 0 et alimente le tally de l'étage en cours (gameState.floorStats.damageTaken, voir écran
+// d'escalier). Remplace les mutations directes de gameState.hp dispersées dans le code de combat/
+// exploration, pour ne jamais avoir à retrouver tous ces points d'appel séparément (ex : un futur
+// hook d'anomalie qui multiplierait les dégâts subis n'aurait qu'ICI à s'accrocher).
+function applyPlayerDamage(amount) {
+    if (!amount || amount <= 0) return;
+    gameState.hp = Math.max(0, gameState.hp - amount);
+    gameState.floorStats.damageTaken += amount;
+}
+
+// Point de passage UNIQUE pour tout gain de PV du joueur (potion, trouvaille, régénération passive,
+// mécanique d'arme/armure, compagnon Médecin...) — clampe à gameState.maxHp et applique
+// gameState.anomalyEffects.healingMult (voir PEAU_DE_VERRE dans anomalies.js). Renvoie le soin
+// RÉELLEMENT appliqué (après multiplicateur et clamp), pour que les messages de log restent honnêtes
+// même quand l'anomalie change le montant affiché.
+function applyPlayerHeal(amount) {
+    if (!amount || amount <= 0) return 0;
+    const mult = gameState.anomalyEffects.healingMult || 1;
+    const before = gameState.hp;
+    gameState.hp = Math.min(gameState.maxHp, gameState.hp + amount * mult);
+    return Math.round(gameState.hp - before);
+}
+
+// Recalcule gameState.maxHp à partir de la vraie progression (gameState.baseMaxHp, faite avancer
+// uniquement par gainXp()) × le multiplicateur de l'anomalie active (PEAU_DE_VERRE) — jamais l'inverse.
+// Appelé après tout changement de l'un des deux (montée de niveau, changement d'étage). Clampe
+// gameState.hp au nouveau maximum s'il le dépasse (jamais de PV "en trop" affichés).
+function recomputeMaxHp() {
+    const mult = gameState.anomalyEffects.playerMaxHpMult || 1;
+    gameState.maxHp = Math.max(1, Math.round(gameState.baseMaxHp * mult));
+    if (gameState.hp > gameState.maxHp) gameState.hp = gameState.maxHp;
+}
+
 // ==========================================
 // SYSTÈME DE NIVEAU ET D'EXPÉRIENCE
 // ==========================================
 function gainXp(amount) {
     if (!amount || amount <= 0) return;
+    amount = Math.round(amount * (gameState.anomalyEffects.xpMult || 1)); // MOB_ENRAGE (anomalies.js)
     gameState.xp += amount;
+    gameState.floorStats.xpGained += amount;
     logEvent(`+${amount} XP`, "success");
 
     // On utilise une boucle "while" pour gérer le cas (rare) d'un gain d'XP
@@ -1843,7 +2493,8 @@ function gainXp(amount) {
         const hpGain = 15;
         const atkGain = 2 + Math.floor(gameState.level / 4);
         const defGain = 1 + Math.floor(gameState.level / 5);
-        gameState.maxHp += hpGain;
+        gameState.baseMaxHp += hpGain;
+        recomputeMaxHp(); // Applique aussi l'éventuel multiplicateur d'anomalie (PEAU_DE_VERRE) courant
         gameState.hp = gameState.maxHp; // Montée de niveau = soin complet (récompense marquante)
         gameState.atk += atkGain;
         gameState.def += defGain;
@@ -1860,6 +2511,7 @@ function gainXp(amount) {
 function gainSkillXp(skillKey, amount) {
     const skill = gameState.skills[skillKey];
     if (!skill || !amount) return;
+    amount += gameState.anomalyEffects.skillXpPerActionBonus || 0; // TEMPO_CREE (anomalies.js)
 
     skill.xp += amount;
     while (skill.xp >= skill.xpToNext) {
@@ -1916,7 +2568,8 @@ function pickDeepRoom(roomsById, roomIds, entryId) {
 // Génère le réseau de pièces d'un seul quartier (arbre principal + quelques ruelles annexes) et
 // y place sa salle de boss ainsi que ses salles sécurisées.
 function generateQuadrant(quadrantIndex, districtName, roomsById) {
-    const roomCount = 10 + Math.floor(Math.random() * 5); // 10 à 14 pièces
+    // LABYRINTHE (anomalies.js) : +50% de pièces par quartier (donc sur l'étage entier, 4 quartiers).
+    const roomCount = Math.round((10 + Math.floor(Math.random() * 5)) * (1 + (gameState.anomalyEffects.extraRoomsPct || 0))); // 10 à 14 pièces de base
     const roomIds = [];
     const entryId = `q${quadrantIndex}_r0`;
     roomsById[entryId] = { id: entryId, quadrant: quadrantIndex, type: 'normal', visited: false, neighbors: [] };
@@ -2000,6 +2653,15 @@ function generateFloorMap() {
     };
     roomsById[quadrants[0].entryRoomId].visited = true;
     gameState.currentDistrict = quadrants[0].district;
+
+    // CAFET_ASSOMBRIE (anomalies.js) : une pièce normale au hasard (jamais l'entrée, un boss ou une
+    // salle sécurisée) cache un piège sévère + un trésor nettement supérieur — voir enterRoom().
+    if (gameState.anomalyEffects.cafetRoom) {
+        const candidates = Object.values(roomsById).filter(r => r.type === 'normal' && r.id !== quadrants[0].entryRoomId);
+        if (candidates.length > 0) {
+            candidates[Math.floor(Math.random() * candidates.length)].cafetRoom = true;
+        }
+    }
 }
 
 // Distance pondérée (Dijkstra) entre deux pièces du graphe de l'étage, tous quartiers confondus
@@ -2964,7 +3626,7 @@ function arriveAtCity() {
             winGame();
         } else {
             logEvent("La voie est libre !", "success");
-            nextFloor();
+            triggerFloorTransition();
         }
         return;
     }
@@ -3088,9 +3750,13 @@ const TRAINER_COST_PER_LEVEL = 20; // Coût = ce montant × le niveau ACTUEL de 
 // du loot (voir getLootPowerScore()). Chaque objet reçoit un prix d'achat dérivé de sa baseValue.
 function generateShopStock(specialty) {
     const stock = [];
+    // ECONOMIE_AUSTERE (anomalies.js) : remise fixe sur le prix d'achat, appliquée une fois à la
+    // génération du stock (jamais régénéré, voir commentaire ci-dessus) — cohérent avec le fait que le
+    // stock appartient à l'anomalie de CET étage précis.
+    const discount = 1 - (gameState.anomalyEffects.shopDiscountPct || 0);
     for (let i = 0; i < 3; i++) {
         const item = generateItem(getLootPowerScore(null), specialty);
-        item.price = Math.max(1, Math.round((item.baseValue || 1) * SHOP_MARKUP));
+        item.price = Math.max(1, Math.round((item.baseValue || 1) * SHOP_MARKUP * discount));
         stock.push(item);
     }
     return stock;
@@ -3371,19 +4037,23 @@ function enterRoom(room) {
         const hasSpell = !!gameState.equipment.spell;
         const missingHp = gameState.maxHp - gameState.hp;
         const missingMana = hasSpell ? (gameState.maxMana - gameState.mana) : 0;
+        // REPAS_DE_FAMILLE (anomalies.js) : le séjour devient gratuit en temps — restCost reste
+        // calculé pour le message de log, simplement pas déduit de gameState.timeLeft plus bas.
+        const freeMeals = gameState.anomalyEffects.freeSafehouseMeals;
         const restCost = Math.ceil(missingHp / 10) + Math.ceil(missingMana / 12);
 
-        gameState.hp = gameState.maxHp;
+        applyPlayerHeal(missingHp); // Toujours clampé à gameState.maxHp, quel que soit healingMult
         if (hasSpell) gameState.mana = gameState.maxMana;
 
         setCardHeader(safehouse.icon, safehouse.name, 'Repos');
         if (restCost > 0) {
-            gameState.timeLeft = Math.max(0, gameState.timeLeft - restCost);
+            if (!freeMeals) gameState.timeLeft = Math.max(0, gameState.timeLeft - restCost);
             const restored = hasSpell ? "PV et mana entièrement restaurés" : "PV entièrement restaurés";
+            const costNote = freeMeals ? "repas offerts par la maison, aucun temps perdu" : `-${restCost}H`;
             logEvent(
                 firstVisit
-                    ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc} Vous vous reposez longuement, ${restored} (-${restCost}H).`
-                    : `Vous retrouvez ${safehouse.name} et vous reposez à nouveau, ${restored} (-${restCost}H).`,
+                    ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc} Vous vous reposez longuement, ${restored} (${costNote}).`
+                    : `Vous retrouvez ${safehouse.name} et vous reposez à nouveau, ${restored} (${costNote}).`,
                 "success"
             );
         } else {
@@ -3404,11 +4074,32 @@ function enterRoom(room) {
 
     // Pièce normale
     if (firstVisit) {
+        if (room.cafetRoom) {
+            triggerCafetRoom(room);
+            return;
+        }
         resolveCardEvent();
     } else {
         setCardHeader('🌑', 'Chemin Connu', 'Exploration');
         logEvent("Vous retraversez un couloir déjà exploré, rien de neuf.", "normal");
     }
+}
+
+// CAFET_ASSOMBRIE (anomalies.js) : déclenché UNE fois, à la première visite de la pièce taguée
+// room.cafetRoom (voir generateFloorMap()) — remplace l'événement aléatoire normal de cette pièce par
+// un piège sévère suivi d'un trésor nettement supérieur à la normale (powerScore maximal). Réutilise
+// exactement applyPlayerDamage()/gameOver()/addLoot(), aucune nouvelle formule de dégâts ou de loot.
+function triggerCafetRoom(room) {
+    const trapDmg = Math.floor(Math.random() * 12) + 10; // 10 à 21 PV : nettement au-dessus d'un piège normal (~5-15)
+    applyPlayerDamage(trapDmg);
+    setCardHeader('🕯️', 'Cafétéria Assombrie', 'Danger');
+    logEvent(`Un piège vicieux se déclenche dans l'obscurité de la cafétéria abandonnée ! (-${trapDmg} PV)`, "danger");
+    if (gameState.hp <= 0) {
+        gameOver(false, 'trap');
+        return;
+    }
+    addLoot(1); // Trésor nettement supérieur à la normale : score de puissance maximal (voir getRarityWeights())
+    logEvent("Malgré le piège, un trésor bien caché récompense votre prudence.", "success");
 }
 
 // Présente le choix "combattre maintenant / repérer et partir" pour une salle de boss (celle qui
@@ -3605,6 +4296,13 @@ function initiateCombat(forcedEnemy = null) {
     }
     renderCombatMobPanel();
     updateUI();
+
+    // TEMPO_CREE (anomalies.js) : les mobs frappent en premier à l'ouverture du combat — réutilise
+    // exactement la riposte normale (enemyCounterAttack()/resolveEnemyCounterAttack()), jamais une
+    // nouvelle formule de dégâts, simplement DÉCALÉE plus tôt dans le déroulé du combat.
+    if (enemy && gameState.anomalyEffects.mobsActFirst) {
+        enemyCounterAttack();
+    }
 }
 
 // ==========================================
@@ -3747,7 +4445,10 @@ function rollDamage(attackerAtk, defenderDef, options = {}) {
     const effectiveDef = Math.max(0, defenderDef * (1 - defReduction));
     const mitigation = effectiveAtk / (effectiveAtk + effectiveDef);
     const variance = 1 + (Math.random() * varianceRange * 2 - varianceRange);
-    const damage = effectiveAtk * mitigation * variance;
+    // Seul point de passage commun aux dégâts du joueur ET des mobs (voir performPlayerAttack()/
+    // resolveEnemyCounterAttack()) : anomalyEffects.allDamageMult (ADRENALINE) s'y applique donc
+    // symétriquement des deux côtés sans toucher au reste de la formule.
+    const damage = effectiveAtk * mitigation * variance * (gameState.anomalyEffects.allDamageMult || 1);
     return Math.max(1, Math.round(damage));
 }
 
@@ -3775,16 +4476,20 @@ function getEffectiveDef() {
 function tryPlayerAction() {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
 
+    // Reset avant toute chose : seul un backfire posé PENDANT cette action doit pouvoir être tenu
+    // responsable d'une mort ce même tour (voir attackMagic()/gameOver()).
+    gameState.lastPlayerActionWasBackfire = false;
+
     // Saignement en cours sur le joueur : tique avant son action
     if (gameState.status.bleed && gameState.status.bleed.rounds > 0) {
         const dmg = gameState.status.bleed.dmgPerRound;
-        gameState.hp -= dmg;
+        applyPlayerDamage(dmg);
         gameState.status.bleed.rounds -= 1;
         if (gameState.status.bleed.rounds <= 0) gameState.status.bleed = null;
         logEvent(`🩸 Votre état vous fait perdre ${dmg} PV.`, "danger");
         if (gameState.hp <= 0) {
             gameState.hp = 0;
-            gameOver();
+            gameOver(false, 'bleed');
             return false;
         }
     }
@@ -3930,15 +4635,15 @@ function resolveWeaponMechanicEffect(mechanicName, weapon, enemy) {
             break;
         case 'heal': {
             const healAmount = Math.max(3, Math.round((weapon.baseDmg || 5) * 0.4));
-            gameState.hp = Math.min(gameState.maxHp, gameState.hp + healAmount);
-            logEvent(`💚 Votre arme régénère vos blessures (+${healAmount} PV).`, "success");
+            const actualHeal = applyPlayerHeal(healAmount);
+            logEvent(`💚 Votre arme régénère vos blessures (+${actualHeal} PV).`, "success");
             break;
         }
         case 'lifesteal': {
             const baseAmount = gameState._lastPlayerDamage || weapon.baseDmg || 5;
             const stolen = Math.max(2, Math.round(baseAmount * 0.3));
-            gameState.hp = Math.min(gameState.maxHp, gameState.hp + stolen);
-            logEvent(`🧛 Vous volez ${stolen} PV à [${enemy.name}].`, "success");
+            const actualHeal = applyPlayerHeal(stolen);
+            logEvent(`🧛 Vous volez ${actualHeal} PV à [${enemy.name}].`, "success");
             break;
         }
         case 'drain':
@@ -4028,14 +4733,14 @@ function resolveArmorMechanicEffect(mechanicName, armor, attacker, incomingDamag
             break;
         case 'heal': {
             const healAmount = Math.max(3, Math.round((armor.baseArmor || 5) * 0.4));
-            gameState.hp = Math.min(gameState.maxHp, gameState.hp + healAmount);
-            logEvent(`💚 Votre armure régénère vos blessures (+${healAmount} PV).`, "success");
+            const actualHeal = applyPlayerHeal(healAmount);
+            logEvent(`💚 Votre armure régénère vos blessures (+${actualHeal} PV).`, "success");
             break;
         }
         case 'lifesteal': {
             const stolen = Math.max(2, Math.round((incomingDamage || 0) * 0.3));
-            gameState.hp = Math.min(gameState.maxHp, gameState.hp + stolen);
-            logEvent(`🧛 Votre armure vampirique siphonne ${stolen} PV sur le coup encaissé.`, "success");
+            const actualHeal = applyPlayerHeal(stolen);
+            logEvent(`🧛 Votre armure vampirique siphonne ${actualHeal} PV sur le coup encaissé.`, "success");
             break;
         }
         case 'drain':
@@ -4227,7 +4932,7 @@ function resolveEnemyCounterAttack() {
         }
     }
 
-    gameState.hp -= playerDamage;
+    applyPlayerDamage(playerDamage);
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
     const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
@@ -4252,7 +4957,7 @@ function resolveEnemyCounterAttack() {
 
     if (gameState.hp <= 0) {
         gameState.hp = 0;
-        setTimeout(() => gameOver(), COMBAT_BEAT_MS); // Laisse le temps au dé/impact de se jouer
+        setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); // Laisse le temps au dé/impact de se jouer
         return;
     }
 
@@ -4260,8 +4965,8 @@ function resolveEnemyCounterAttack() {
     // restaurer un peu de mana au passage si un sort est équipé.
     if (gameState.companion && gameState.companion.specialty.type === 'medic' && Math.random() * 100 < 25) {
         const heal = 8 + Math.floor(Math.random() * 8); // 8 à 15 PV
-        gameState.hp = Math.min(gameState.maxHp, gameState.hp + heal);
-        logEvent(`${gameState.companion.name} vous soigne rapidement ! (+${heal} PV)`, "success");
+        const actualHeal = applyPlayerHeal(heal);
+        logEvent(`${gameState.companion.name} vous soigne rapidement ! (+${actualHeal} PV)`, "success");
         if (gameState.equipment.spell && gameState.mana < gameState.maxMana) {
             const manaGain = 6 + Math.floor(Math.random() * 6); // 6 à 11 Mana
             gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaGain);
@@ -4486,12 +5191,13 @@ function attackMagic() {
     gameState.mana -= spell.manaCost;
 
     const skill = gameState.skills.magic;
-    const backfireChance = Math.max(8, 15 - 1.5 * (skill.level - 1)); // 15% de base, plancher 8% (un sort chaotique garde toujours un risque)
-    const atkMultiplier = 1.25 + 0.02 * (skill.level - 1);
+    const backfireChance = Math.max(8, 15 - 1.5 * (skill.level - 1)) + (gameState.anomalyEffects.backfireBonusPct || 0); // 15% de base, plancher 8% (un sort chaotique garde toujours un risque) + ZONE_MAGIQUE (anomalies.js)
+    const atkMultiplier = (1.25 + 0.02 * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
 
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
         logEvent(`[${spell.spellName}] part de travers et fait un flop retentissant. Aucun dégât (mana quand même dépensé).`, "danger");
+        gameState.lastPlayerActionWasBackfire = true; // Voir gameOver()/generateEpitaph() : attribution du décès si la riposte qui suit est fatale
         resolveEnemyReaction(); // Un mob de mêlée hors de portée ne peut pas punir ce tour perdu, mais tente de se rapprocher
         gainSkillXp('magic', SKILL_XP_PER_USE); // On apprend même de ses échecs
         return;
@@ -4530,6 +5236,7 @@ function attemptFlee() {
         gameState.pendingStairAfterCombat = false; // La fuite ne compte pas comme une victoire sur le gardien
         gameState.pendingBossRoomId = null; // Le boss reste vivant, la salle n'est pas marquée vaincue
         gameState.pendingSneakAttack = false; // Ne doit pas se reporter sur un combat futur
+        gameState.fleesThisRun = (gameState.fleesThisRun || 0) + 1; // Voir generateEpitaph() : mention spéciale à 3+ fuites
         gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
         setCardHeader('🏃', 'Fuite Réussie', 'Exploration');
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
@@ -4551,6 +5258,7 @@ function attemptFlee() {
 function winCombat() {
     const defeatedEnemy = gameState.currentEnemy;
     const wasBoss = defeatedEnemy && defeatedEnemy.isBoss;
+    if (defeatedEnemy) gameState.floorStats.mobsKilled += 1;
 
     // Combat terminé : on sort de l'état "inCombat" avant les logs de résultat (XP/loot/victoire)
     // pour qu'ils s'affichent normalement sur la carte, comme n'importe quel autre événement (voir
@@ -4654,7 +5362,7 @@ function winCombat() {
     if (gameState.pendingStairAfterCombat) {
         gameState.pendingStairAfterCombat = false;
         logEvent("La voie vers l'escalier est libre !", "success");
-        nextFloor(); // nextFloor() appelle déjà updateUI()
+        triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
         return;
     }
     // Équivalent urbain : victoire sur le gardien de l'escalier (étage suivant) ou de la Sortie
@@ -4667,7 +5375,7 @@ function winCombat() {
             winGame(); // winGame() appelle déjà updateUI()
         } else {
             logEvent("La voie vers l'escalier est libre !", "success");
-            nextFloor(); // nextFloor() appelle déjà updateUI()
+            triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
         }
         return;
     }
@@ -4909,24 +5617,50 @@ function devJumpToUrbanFloor() {
     gameState.pendingBossEncounter = null;
     gameState.pendingUrbanBossEncounter = null;
     gameState.pendingUrbanTravel = null;
+    gameState.floorTransitionPending = false;
+    gameState.pactChoicePending = false;
     ui.combatZone.classList.add('hidden');
     ui.bossChoiceZone.classList.add('hidden');
     ui.stealthChoiceZone.classList.add('hidden');
     ui.companionChoiceFriendly.classList.add('hidden');
     ui.companionChoiceHostile.classList.add('hidden');
+    if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
+    if (ui.pactChoiceOverlay) ui.pactChoiceOverlay.classList.add('hidden');
 
-    gameState.currentFloor = 2; // nextFloor() incrémente : atterrit bien sur l'étage 3 (urbain)
-    nextFloor();
+    gameState.currentFloor = 2; // advanceToNextFloor() incrémente : atterrit bien sur l'étage 3 (urbain)
+    advanceToNextFloor(); // Raccourci DEV : saute délibérément l'écran d'escalier
     logEvent("🛠️ DEV : saut direct à l'étage 3 (urbain).", "info");
 }
 
-function gameOver(timeout = false) {
+// `killer` précise la cause du décès quand timeout est faux : 'trap', 'bleed', un objet ennemi
+// (riposte de combat — voir resolveEnemyCounterAttack()), ou omis (filet de sécurité). Sert
+// uniquement à generateEpitaph() : n'affecte aucune autre logique de fin de partie.
+function gameOver(timeout = false, killer = null) {
     gameState.inCombat = true; // Bloque toute action supplémentaire
     ui.combatZone.classList.add('hidden'); // Cache la zone de combat
 
     const reason = timeout
         ? "Le temps est écoulé. Le donjon s'effondre sur vous..."
         : "Vos signes vitaux sont à zéro. Fin de transmission.";
+
+    let cause = 'timeout';
+    let enemyName = null;
+    if (!timeout) {
+        if (killer === 'trap') {
+            cause = 'trap';
+        } else if (killer === 'bleed') {
+            cause = 'bleed';
+        } else if (killer && typeof killer === 'object') {
+            // Un backfire de sort ce même tour rend la riposte qui suit responsable de la mort (voir
+            // attackMagic()/tryPlayerAction() pour la pose/le reset de ce drapeau).
+            cause = gameState.lastPlayerActionWasBackfire ? 'backfire' : 'combat';
+            enemyName = killer.name;
+        } else {
+            cause = 'combat'; // Filet de sécurité si jamais appelé sans tueur précisé
+        }
+    }
+    const epitaph = generateEpitaph({ cause, enemyName });
+    recordEpitaph(epitaph, { cause });
 
     logEvent(reason, "danger");
     logEvent("--- GAME OVER ---", "danger");
@@ -4937,6 +5671,7 @@ function gameOver(timeout = false) {
     ui.gameOverFloor.innerText = gameState.currentFloor;
     ui.gameOverLevel.innerText = gameState.level;
     ui.gameOverDistrict.innerText = gameState.currentDistrict;
+    if (ui.gameOverEpitaph) ui.gameOverEpitaph.innerText = epitaph;
     ui.gameOverOverlay.classList.remove('hidden');
 
     updateUI();
@@ -4990,10 +5725,23 @@ if (ui.urbanTravelOverlay) {
 ui.btnRestart.addEventListener('click', resetGame);
 ui.btnWinRestart.addEventListener('click', resetGame);
 
+// Bouton "Continuer" de l'écran d'escalier (voir continueFromFloorTransition())
+if (ui.btnFloorTransitionContinue) ui.btnFloorTransitionContinue.addEventListener('click', continueFromFloorTransition);
+if (ui.btnPactAtk) ui.btnPactAtk.addEventListener('click', () => choosePactBlessing('atk'));
+if (ui.btnPactHp) ui.btnPactHp.addEventListener('click', () => choosePactBlessing('hp'));
+
 // Écran de départ : nom du crawler (bouton ou touche Entrée), puis révélation du cadeau de bienvenue
 ui.btnStartConfirm.addEventListener('click', confirmPlayerName);
 ui.startNameInput.addEventListener('keydown', (e) => { if (e && e.key === 'Enter') confirmPlayerName(); });
 ui.btnGiftContinue.addEventListener('click', dismissGiftReveal);
+
+// Écran "Nettoyer les sauvegardes" (voir openManageSaves() dans app.js)
+if (ui.btnOpenManageSaves) ui.btnOpenManageSaves.addEventListener('click', openManageSaves);
+if (ui.btnManageSavesClose) ui.btnManageSavesClose.addEventListener('click', closeManageSaves);
+if (ui.btnManageSavesDeleteAll) ui.btnManageSavesDeleteAll.addEventListener('click', requestDeleteAllSaves);
+if (ui.btnManageSavesConfirmYes) ui.btnManageSavesConfirmYes.addEventListener('click', confirmSaveDeletion);
+if (ui.btnManageSavesConfirmNo) ui.btnManageSavesConfirmNo.addEventListener('click', cancelSaveDeletion);
+if (ui.btnManageSavesRestoreBackup) ui.btnManageSavesRestoreBackup.addEventListener('click', restoreSavesBackup);
 
 // Clics sur les boutons de combat
 ui.btnAttackWeapon.addEventListener('click', attackWeapon);
@@ -5043,11 +5791,7 @@ updateKnownLocationsUI();
 updateCompanionUI();
 
 // Indice de sauvegardes existantes sur l'écran de départ (voir listSavedCrawlerNames())
-if (ui.startSavesHint) {
-    const savedNames = listSavedCrawlerNames();
-    ui.startSavesHint.classList.toggle('hidden', savedNames.length === 0);
-    ui.startSavesHint.innerText = savedNames.length ? `Sauvegardes disponibles : ${savedNames.join(', ')}` : '';
-}
+refreshStartSavesHint();
 
 // Version affichée sur l'écran de départ (voir APP_VERSION)
 if (ui.versionLabel) {
