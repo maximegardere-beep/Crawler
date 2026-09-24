@@ -16,6 +16,21 @@ function resetTransientState() {
     gameState.inCombat = false;
     gameState.currentEnemy = null;
     gameState.combatDistance = 0;
+    // Anomalies AVANT tout calcul de PV max : gameState.maxHp est DÉRIVÉ (voir recomputeMaxHp()) de
+    // baseMaxHp × anomalyEffects.playerMaxHpMult — sans ce reset ici, un test antérieur ayant tiré/
+    // appliqué une anomalie (PEAU_DE_VERRE notamment) fausserait silencieusement tous les tests
+    // suivants qui ne s'y attendent pas (chance de furtivité, dégâts, etc. lisent tous
+    // gameState.anomalyEffects directement).
+    gameState.baseMaxHp = 100;
+    gameState.atk = 10;
+    gameState.def = 5;
+    gameState.anomalyEffects = createNeutralAnomalyEffects();
+    gameState.activeAnomalies = [];
+    gameState.pendingNextFloorAnomalies = null;
+    gameState.pactChoicePending = false;
+    gameState.pactBlessingDelta = null;
+    if (ui.pactChoiceOverlay) ui.pactChoiceOverlay.classList.add('hidden');
+    recomputeMaxHp();
     gameState.hp = gameState.maxHp;
     gameState.timeLeft = gameState.maxTime; // Jamais de temps épuisé résiduel entre deux tests sans rapport
     gameState.level = 1;
@@ -1085,6 +1100,33 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(gameState.saveEnabled === true, "restoreSaveForName() : réactive l'autosauvegarde");
 }
 
+// restoreSaveForName() : migration douce d'une sauvegarde ANTÉRIEURE au système d'anomalies
+// (Tâche 4) — pas de baseMaxHp dans le JSON brut : son maxHp d'alors devient la vraie base, jamais
+// silencieusement retombé sur 100 (ce qui léserait un personnage déjà bien monté en niveau).
+{
+    resetTransientState();
+    const rawOldSave = {
+        playerName: "Ancien Crawler",
+        currentFloor: 6,
+        level: 12,
+        hp: 200,
+        maxHp: 250, // Ancienne sauvegarde : maxHp EST la base, aucun système d'anomalies n'existait
+        atk: 30,
+        def: 15
+        // baseMaxHp, anomalyEffects, activeAnomalies : absents, comme toute sauvegarde pré-Tâche-4
+    };
+    localStorage.setItem(saveKeyForName("Ancien Crawler"), JSON.stringify(rawOldSave));
+
+    resetTransientState();
+    const ok = restoreSaveForName("ancien crawler");
+    assert(ok === true, "restoreSaveForName() : restaure bien une sauvegarde brute sans baseMaxHp");
+    assert(gameState.baseMaxHp === 250, "restoreSaveForName() : migration douce -> baseMaxHp reprend l'ancien maxHp (250), jamais le défaut 100");
+    assert(gameState.maxHp === 250, "restoreSaveForName() : maxHp reste cohérent (aucune anomalie active à la restauration)");
+    assert(gameState.activeAnomalies.length === 0 && gameState.anomalyEffects.allDamageMult === 1,
+        "restoreSaveForName() : anomalyEffects/activeAnomalies retombent sur leurs valeurs neutres, jamais undefined");
+    assert(gameState.pactChoicePending === false, "restoreSaveForName() : ne restaure jamais sur un Pacte du Crawler en attente");
+}
+
 // restoreSaveForName() : échec propre pour un nom sans sauvegarde, sans toucher au gameState.
 {
     resetTransientState();
@@ -1322,9 +1364,19 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     gameState.inventory = []; // Ne pas polluer l'inventaire pour les tests suivants (resetTransientState() ne le touche pas)
 }
 
-// getUpcomingAnomalyAnnouncement() : stub tant qu'aucun système d'anomalies n'est branché (Tâche 4).
+// getUpcomingAnomalyAnnouncement() : tire réellement l'anomalie du PROCHAIN étage (voir anomalies.js)
+// et la mémorise (gameState.pendingNextFloorAnomalies) pour rollAndApplyFloorAnomalies() — couverture
+// complète du tirage/stacking/incompatibilités dans la section "Anomalies d'étage" plus bas.
 {
-    assert(getUpcomingAnomalyAnnouncement(3) === null, "getUpcomingAnomalyAnnouncement() : renvoie null tant que le système d'anomalies n'existe pas");
+    assert(getUpcomingAnomalyAnnouncement(1) === null, "getUpcomingAnomalyAnnouncement() : aucune anomalie annoncée pour l'étage 1 (tuto)");
+    assert(getUpcomingAnomalyAnnouncement(2) === null, "getUpcomingAnomalyAnnouncement() : aucune anomalie annoncée pour l'étage 2 (tuto)");
+
+    const announcement = getUpcomingAnomalyAnnouncement(4);
+    assert(announcement !== null && typeof announcement.name === 'string' && typeof announcement.description === 'string',
+        "getUpcomingAnomalyAnnouncement() : renvoie {name, description} dès qu'une anomalie est tirée (étage 4)");
+    assert(gameState.pendingNextFloorAnomalies && gameState.pendingNextFloorAnomalies.floor === 4 && gameState.pendingNextFloorAnomalies.anomalies.length === 1,
+        "getUpcomingAnomalyAnnouncement() : mémorise le tirage exact pour rollAndApplyFloorAnomalies()");
+    gameState.pendingNextFloorAnomalies = null;
 }
 
 // triggerFloorTransition() : affiche l'écran avec le résumé de l'étage QUI VIENT DE SE TERMINER
@@ -1333,7 +1385,7 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 // "combat sans ennemi" ailleurs dans le code (voir commentaire dans app.js).
 {
     resetTransientState();
-    gameState.currentFloor = 4;
+    gameState.currentFloor = 1; // Prochain étage = 2 (tuto) : jamais d'anomalie, voir rollFloorAnomalies()
     gameState.floorStats = { mobsKilled: 3, damageTaken: 12, itemsFound: 2, xpGained: 80 };
 
     triggerFloorTransition();
@@ -1341,12 +1393,28 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(isActionBlocked() === true, "triggerFloorTransition() : isActionBlocked() vrai tant que l'écran est affiché");
     assert(gameState.inCombat === false, "triggerFloorTransition() : n'utilise PAS gameState.inCombat pour bloquer");
     assert(ui.floorTransitionOverlay.classList.contains('hidden') === false, "triggerFloorTransition() : affiche l'overlay");
-    assert(ui.floorTransitionTitle.innerText.includes("4"), "triggerFloorTransition() : le titre mentionne l'étage qui vient de se terminer (4)");
+    assert(ui.floorTransitionTitle.innerText.includes("1"), "triggerFloorTransition() : le titre mentionne l'étage qui vient de se terminer (1)");
     assert(String(ui.floorTransitionMobs.innerText) === "3" && String(ui.floorTransitionDamage.innerText) === "12"
         && String(ui.floorTransitionItems.innerText) === "2" && String(ui.floorTransitionXp.innerText) === "80",
         "triggerFloorTransition() : affiche le tally exact de l'étage qui vient de se terminer");
     assert(ui.floorTransitionAnomaly.classList.contains('hidden') === true,
-        "triggerFloorTransition() : le bloc anomalie reste masqué (getUpcomingAnomalyAnnouncement() renvoie null pour l'instant)");
+        "triggerFloorTransition() : le bloc anomalie reste masqué quand getUpcomingAnomalyAnnouncement() renvoie null (étage 2, tuto)");
+}
+
+// triggerFloorTransition() : le bloc anomalie s'affiche et se remplit dès qu'une anomalie est
+// annoncée pour le prochain étage (voir getUpcomingAnomalyAnnouncement()).
+{
+    resetTransientState();
+    gameState.currentFloor = 3; // Prochain étage = 4 : anomalie garantie (pool restreint non vide)
+    gameState.floorStats = { mobsKilled: 0, damageTaken: 0, itemsFound: 0, xpGained: 0 };
+
+    triggerFloorTransition();
+    assert(ui.floorTransitionAnomaly.classList.contains('hidden') === false,
+        "triggerFloorTransition() : affiche le bloc anomalie dès qu'une anomalie est annoncée");
+    assert(ui.floorTransitionAnomalyText.innerText.includes("Bon courage"),
+        "triggerFloorTransition() : le texte d'annonce suit le gabarit attendu");
+    continueFromFloorTransition();
+    assert(gameState.activeAnomalies.length === 1, "continueFromFloorTransition() : applique exactement l'anomalie annoncée sur l'écran d'escalier");
 }
 
 // continueFromFloorTransition() : referme l'écran, débloque, et fait RÉELLEMENT avancer l'étage
@@ -1558,6 +1626,219 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     attemptFlee();
     Math.random = originalRandom;
     assert(gameState.fleesThisRun === 0, "attemptFlee() : n'incrémente pas fleesThisRun sur une fuite ratée");
+}
+
+// ===================================================================
+// Anomalies d'étage (anomalies.js) : tirage par tranche, incompatibilités, stacking des effets,
+// hook appliquerAnomalie(), et câblage dans app.js (dégâts, PV max, furtivité, XP, PACTE_DU_CRAWLER).
+// ===================================================================
+
+// rollFloorAnomalies() : règles d'intensité par tranche d'étage.
+{
+    for (const floor of [1, 2]) {
+        assert(rollFloorAnomalies(floor).length === 0, `rollFloorAnomalies(${floor}) : aucune anomalie sur les étages tuto`);
+    }
+    for (let i = 0; i < 30; i++) {
+        const rolled = rollFloorAnomalies(3 + (i % 4)); // étages 3 à 6
+        assert(rolled.length === 1, "rollFloorAnomalies() : exactement 1 anomalie sur les étages 3-6");
+        assert(rolled[0].intensiteMin <= 3, "rollFloorAnomalies() : étages 3-6 -> uniquement le pool restreint (intensiteMin <= 3)");
+    }
+    for (let i = 0; i < 30; i++) {
+        const rolled = rollFloorAnomalies(7 + (i % 5)); // étages 7 à 11
+        assert(rolled.length === 1, "rollFloorAnomalies() : exactement 1 anomalie sur les étages 7-11");
+    }
+    let sawFullPoolAnomaly = false;
+    for (let i = 0; i < 60; i++) {
+        const rolled = rollFloorAnomalies(12);
+        if (rolled.some(a => a.intensiteMin > 3)) sawFullPoolAnomaly = true;
+    }
+    assert(sawFullPoolAnomaly, "rollFloorAnomalies() : étages 7-11 -> pool complet (pas seulement intensiteMin <= 3), constaté sur 60 tirages");
+}
+
+// rollFloorAnomalies() : étages 12+ -> 2 anomalies, toujours compatibles, jamais 2 bonus purs.
+{
+    for (let i = 0; i < 60; i++) {
+        const rolled = rollFloorAnomalies(12 + (i % 6));
+        assert(rolled.length === 1 || rolled.length === 2, "rollFloorAnomalies() : étages 12+ -> 1 (repli) ou 2 anomalies, jamais plus");
+        if (rolled.length === 2) {
+            assert(anomaliesAreCompatible(rolled[0], rolled[1]), "rollFloorAnomalies() : la paire tirée est toujours compatible (table d'incompatibilités)");
+            const atLeastOneNonPositif = rolled.some(a => a.tags.includes('negatif') || a.tags.includes('mixte'));
+            assert(atLeastOneNonPositif, "rollFloorAnomalies() : au moins une des deux anomalies n'est pas purement positive");
+        }
+    }
+}
+
+// anomaliesAreCompatible() : les deux paires explicitement interdites par la consigne le sont bien,
+// dans les deux sens.
+{
+    const secheresse = findAnomalyById('SECHERESSE');
+    const zoneMagique = findAnomalyById('ZONE_MAGIQUE');
+    const peauDeVerre = findAnomalyById('PEAU_DE_VERRE');
+    const adrenaline = findAnomalyById('ADRENALINE');
+    assert(anomaliesAreCompatible(secheresse, zoneMagique) === false, "anomaliesAreCompatible() : SECHERESSE + ZONE_MAGIQUE interdit");
+    assert(anomaliesAreCompatible(zoneMagique, secheresse) === false, "anomaliesAreCompatible() : interdiction symétrique (ZONE_MAGIQUE + SECHERESSE)");
+    assert(anomaliesAreCompatible(peauDeVerre, adrenaline) === false, "anomaliesAreCompatible() : PEAU_DE_VERRE + ADRENALINE interdit");
+    assert(anomaliesAreCompatible(adrenaline, peauDeVerre) === false, "anomaliesAreCompatible() : interdiction symétrique (ADRENALINE + PEAU_DE_VERRE)");
+    assert(anomaliesAreCompatible(secheresse, adrenaline) === true, "anomaliesAreCompatible() : une paire non listée reste compatible");
+    assert(anomaliesAreCompatible(secheresse, secheresse) === false, "anomaliesAreCompatible() : une anomalie n'est jamais compatible avec elle-même");
+}
+
+// computeAnomalyEffects() : stacking multiplicatif sur une même stat (2 anomalies ATK-mult -> produit
+// des deux), additif sur les bonus en points, fonction PURE (hors gameState).
+{
+    const doubleAdrenaline = computeAnomalyEffects([
+        { effects: { allDamageMult: 1.4 } },
+        { effects: { allDamageMult: 1.2 } }
+    ]);
+    assert(Math.abs(doubleAdrenaline.allDamageMult - 1.68) < 1e-9, "computeAnomalyEffects() : stacking multiplicatif exact (1.4 × 1.2 = 1.68)");
+
+    const stackedPoints = computeAnomalyEffects([
+        { effects: { stealthCapBonus: 10, detectionBonus: 10 } },
+        { effects: { stealthCapBonus: 5 } }
+    ]);
+    assert(stackedPoints.stealthCapBonus === 15, "computeAnomalyEffects() : stacking additif sur les bonus en points");
+    assert(stackedPoints.detectionBonus === 10, "computeAnomalyEffects() : un champ non partagé n'est pas affecté par l'autre anomalie");
+
+    const neutral = computeAnomalyEffects([]);
+    assert(neutral.allDamageMult === 1 && neutral.playerMaxHpMult === 1 && neutral.forcedPactChoice === false,
+        "computeAnomalyEffects() : une liste vide renvoie des effets strictement neutres");
+}
+
+// appliquerAnomalie() : hook UNIQUE, mute bien gameState.anomalyEffects (jamais un objet séparé).
+{
+    resetTransientState();
+    const mobEnrage = findAnomalyById('MOB_ENRAGE');
+    appliquerAnomalie(5, mobEnrage);
+    assert(gameState.anomalyEffects.mobAtkMult === 1.15, "appliquerAnomalie() : applique l'effet ATQ de MOB_ENRAGE sur gameState.anomalyEffects");
+    assert(gameState.anomalyEffects.xpMult === 1.3, "appliquerAnomalie() : applique l'effet XP de MOB_ENRAGE sur gameState.anomalyEffects");
+}
+
+// Intégration : rollDamage() applique allDamageMult (ADRENALINE) symétriquement joueur/mobs.
+{
+    resetTransientState();
+    const before = rollDamage(100, 20, { varianceRange: 0 });
+    gameState.anomalyEffects.allDamageMult = 1.4;
+    const after = rollDamage(100, 20, { varianceRange: 0 });
+    assert(Math.abs(after - before * 1.4) <= 1, "rollDamage() : ADRENALINE (allDamageMult) multiplie bien le résultat final");
+}
+
+// Intégration : gainXp() applique xpMult (MOB_ENRAGE).
+{
+    resetTransientState();
+    gameState.anomalyEffects.xpMult = 1.3;
+    gainXp(100);
+    assert(gameState.xp + (gameState.level > 1 ? gameState.xpToNextLevel : 0) >= 129, "gainXp() : xpMult multiplie bien le montant gagné (100 -> 130)");
+}
+
+// Intégration : recomputeMaxHp() (PEAU_DE_VERRE) — PV max dérivé de baseMaxHp, jamais l'inverse.
+{
+    resetTransientState();
+    gameState.baseMaxHp = 100;
+    gameState.hp = 100;
+    gameState.anomalyEffects.playerMaxHpMult = 0.7;
+    recomputeMaxHp();
+    assert(gameState.maxHp === 70, "recomputeMaxHp() : applique playerMaxHpMult à baseMaxHp (100 -> 70)");
+    assert(gameState.hp === 70, "recomputeMaxHp() : clampe gameState.hp au nouveau maximum s'il le dépasse");
+
+    gameState.anomalyEffects.playerMaxHpMult = 1;
+    recomputeMaxHp();
+    assert(gameState.maxHp === 100, "recomputeMaxHp() : revient à la vraie base une fois l'anomalie retombée à neutre");
+}
+
+// Intégration : applyPlayerHeal() (PEAU_DE_VERRE : healingMult) — soin réellement appliqué renvoyé,
+// toujours clampé à gameState.maxHp.
+{
+    resetTransientState();
+    gameState.hp = 50;
+    gameState.anomalyEffects.healingMult = 1.5;
+    const healed = applyPlayerHeal(20);
+    assert(healed === 30, "applyPlayerHeal() : applique healingMult (20 × 1.5 = 30)");
+    assert(gameState.hp === 80, "applyPlayerHeal() : PV effectivement augmentés du montant boosté");
+
+    gameState.hp = gameState.maxHp - 5;
+    const clamped = applyPlayerHeal(50);
+    assert(clamped === 5, "applyPlayerHeal() : le soin RENVOYÉ reste clampé à gameState.maxHp, jamais le montant brut boosté");
+}
+
+// Intégration : getStealthChance()/attemptStealthEvasion() (NOCTURNE : stealthCapBonus/detectionBonus).
+{
+    resetTransientState();
+    gameState.skills.stealth.level = 20; // Sature largement le plafond de base (60%)
+    const baseline = getStealthChance();
+    assert(baseline === 60, "getStealthChance() : plafonne à 60% sans anomalie");
+
+    gameState.anomalyEffects.stealthCapBonus = 10;
+    gameState.anomalyEffects.detectionBonus = 10;
+    const withNocturne = getStealthChance();
+    assert(withNocturne === 70, "getStealthChance() (NOCTURNE) : à compétence saturée, le plafond relevé (+10) domine malgré la pénalité de détection");
+
+    gameState.skills.stealth.level = 1; // Chance de base faible : la pénalité de détection doit mordre
+    const lowSkillPenalized = getStealthChance();
+    const withoutAnomaly = (() => { gameState.anomalyEffects.stealthCapBonus = 0; gameState.anomalyEffects.detectionBonus = 0; return getStealthChance(); })();
+    assert(lowSkillPenalized === withoutAnomaly - 10, "getStealthChance() (NOCTURNE) : pénalise bien un faible investissement en Furtivité");
+}
+
+// Intégration : gainSkillXp() (TEMPO_CREE : skillXpPerActionBonus).
+{
+    resetTransientState();
+    gameState.skills.weapon.xp = 0;
+    gainSkillXp('weapon', 3);
+    const withoutBonus = gameState.skills.weapon.xp;
+
+    resetTransientState();
+    gameState.skills.weapon.xp = 0;
+    gameState.anomalyEffects.skillXpPerActionBonus = 1;
+    gainSkillXp('weapon', 3);
+    assert(gameState.skills.weapon.xp === withoutBonus + 1, "gainSkillXp() (TEMPO_CREE) : +1 XP de compétence supplémentaire par action");
+}
+
+// PACTE_DU_CRAWLER : choix forcé, delta appliqué directement puis annulé au tout début du PROCHAIN
+// advanceToNextFloor() — jamais un multiplicateur permanent.
+{
+    resetTransientState();
+    gameState.currentFloor = 1;
+    gameState.atk = 10;
+    gameState.baseMaxHp = 100;
+    recomputeMaxHp();
+    triggerPactChoice();
+    assert(gameState.pactChoicePending === true, "triggerPactChoice() : pose le flag dédié");
+    assert(isActionBlocked() === true, "triggerPactChoice() : isActionBlocked() vrai tant que le choix est en attente");
+
+    choosePactBlessing('atk');
+    assert(gameState.pactChoicePending === false, "choosePactBlessing() : referme le choix");
+    assert(gameState.atk === 10 + PACT_BLESSING_ATK_BONUS, "choosePactBlessing('atk') : applique le bonus d'ATQ");
+    assert(gameState.baseMaxHp === 100 - PACT_BLESSING_ATK_HP_PENALTY, "choosePactBlessing('atk') : applique le malus de PV max");
+    assert(gameState.pactBlessingDelta.atk === PACT_BLESSING_ATK_BONUS && gameState.pactBlessingDelta.hp === -PACT_BLESSING_ATK_HP_PENALTY,
+        "choosePactBlessing('atk') : mémorise le delta exact pour la réversion");
+
+    // La réversion se fait au tout début du PROCHAIN advanceToNextFloor(), avant même le tirage des
+    // nouvelles anomalies de cet étage (étage 2, tuto -> generateFloorMap() classique).
+    advanceToNextFloor();
+    assert(gameState.atk === 10, "advanceToNextFloor() : annule le bonus d'ATQ du Pacte de l'étage précédent");
+    assert(gameState.baseMaxHp === 100, "advanceToNextFloor() : annule le malus de PV max du Pacte de l'étage précédent");
+    assert(gameState.pactBlessingDelta === null, "advanceToNextFloor() : le delta est consommé, jamais réappliqué deux fois");
+}
+
+// CAFET_ASSOMBRIE : une pièce taguée room.cafetRoom déclenche piège + trésor à la première visite,
+// jamais aux visites suivantes (déjà consommé par enterRoom()/triggerCafetRoom()).
+{
+    resetTransientState();
+    gameState.currentFloor = 1;
+    generateFloorMap();
+    const room = Object.values(gameState.floorMap.roomsById).find(r => r.type === 'normal' && !r.visited);
+    room.cafetRoom = true;
+    gameState.floorMap.currentRoomId = room.id;
+    gameState.inventory = [];
+
+    const hpBefore = gameState.hp;
+    enterRoom(room);
+    assert(gameState.hp < hpBefore, "triggerCafetRoom() : inflige bien des dégâts de piège à la première visite");
+    assert(room.visited === true, "enterRoom() : marque la pièce visitée comme n'importe quelle autre pièce");
+
+    const hpAfterFirst = gameState.hp;
+    enterRoom(room); // Deuxième visite : chemin connu normal, plus de piège
+    assert(gameState.hp === hpAfterFirst, "enterRoom() : ne redéclenche jamais le piège de CAFET_ASSOMBRIE à une visite ultérieure");
+    gameState.inventory = [];
 }
 
 // ===================================================================

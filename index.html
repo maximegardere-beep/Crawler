@@ -277,6 +277,9 @@
                 Étage <span id="floor-level" class="text-blue-400 font-bold">1</span> ·
                 <span id="district-name" class="text-blue-400 font-bold">Chargement...</span>
             </p>
+            <!-- Badge(s) permanent(s) des anomalies actives sur l'étage (voir updateAnomalyStatusUI() dans
+                 app.js) : icône+nom toujours visibles, description complète via l'infobulle (title). -->
+            <div id="anomaly-status-bar" class="hidden flex flex-wrap gap-1.5 pl-6 pt-1"></div>
         </header>
 
         <!-- 2. Temps Restant (Barre de progression) -->
@@ -489,6 +492,21 @@
                 </button>
                 <button id="btn-decline-lair" class="px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
                     🚶 Poursuivre
+                </button>
+            </div>
+        </div>
+
+        <!-- Choix forcé de l'anomalie PACTE_DU_CRAWLER (voir triggerPactChoice()/choosePactBlessing()
+             dans app.js et anomalies.js) : à l'entrée d'un étage où cette anomalie est active. -->
+        <div id="pact-choice-overlay" class="hidden p-4 bg-purple-950/20 border border-purple-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-purple-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Pacte du Crawler</span>
+            <p class="text-xs text-gray-400 mb-3 text-center">Un choix s'impose : bénédiction ATQ, ou bénédiction PV ? L'autre stat sera nerfée en échange.</p>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-pact-atk" class="px-3 py-3 bg-gray-900 border border-red-700/80 hover:border-red-400 hover:bg-red-900/30 rounded text-xs text-red-300 uppercase tracking-wider transition-all">
+                    ⚔️ Bénédiction ATQ
+                </button>
+                <button id="btn-pact-hp" class="px-3 py-3 bg-gray-900 border border-emerald-700/80 hover:border-emerald-400 hover:bg-emerald-900/30 rounded text-xs text-emerald-300 uppercase tracking-wider transition-all">
+                    ❤️ Bénédiction PV
                 </button>
             </div>
         </div>
@@ -824,12 +842,13 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=56"></script>
-    <script src="items.js?v=56"></script>
-    <script src="spells.js?v=56"></script>
-    <script src="districts.js?v=56"></script>
-    <script src="safehouses.js?v=56"></script>
-    <script src="generator.js?v=56"></script>
-    <script src="app.js?v=56"></script>
+    <script src="bestiary.js?v=57"></script>
+    <script src="items.js?v=57"></script>
+    <script src="spells.js?v=57"></script>
+    <script src="districts.js?v=57"></script>
+    <script src="safehouses.js?v=57"></script>
+    <script src="generator.js?v=57"></script>
+    <script src="anomalies.js?v=57"></script>
+    <script src="app.js?v=57"></script>
 </body>
 </html>

@@ -48,7 +48,11 @@ function applyFloorScaling(mob, floor) {
  * @param {string} districtName - Le nom du quartier actuel
  * @returns {object} - L'objet du monstre final généré
  */
-function generateMob(districtName) {
+// `eliteBonus` (points de pourcentage, défaut 0) : décale les seuils du jet de modificateurs
+// ci-dessous — voir LABYRINTHE dans anomalies.js (mobs rencontrés dans le quartier de l'escalier
+// plus susceptibles d'être élite quand cette anomalie est active), passé par app.js au moment de
+// l'encounter, jamais lu ici directement depuis gameState.
+function generateMob(districtName, eliteBonus = 0) {
     // 1. Récupération du quartier et d'un nom de monstre autorisé dans ce quartier
     const district = districts[districtName];
     if (!district || !district.mobNames || district.mobNames.length === 0) {
@@ -70,6 +74,13 @@ function generateMob(districtName) {
     // 1bis. Mise à l'échelle selon l'étage courant (voir section 0), avant tout modificateur
     applyFloorScaling(finalMob, typeof gameState !== 'undefined' ? gameState.currentFloor : 1);
 
+    // 1ter. MOB_ENRAGE (anomalies.js) : multiplicateur d'ATQ de l'anomalie active sur l'étage, au même
+    // titre que le scaling par étage — fait donc partie de la "puissance de référence" ci-dessous, pas
+    // de threatMultiplier (qui ne mesure que la puissance apportée par les modificateurs).
+    if (typeof gameState !== 'undefined' && gameState.anomalyEffects && gameState.anomalyEffects.mobAtkMult !== 1) {
+        finalMob.atk = Math.max(1, Math.round(finalMob.atk * gameState.anomalyEffects.mobAtkMult));
+    }
+
     // Puissance de référence (ATQ x PV) juste après le scaling d'étage mais AVANT tout
     // modificateur : sert à isoler la part de puissance apportée par les seuls modificateurs
     // (voir finalMob.threatMultiplier plus bas), indépendamment de la profondeur de l'étage.
@@ -79,10 +90,10 @@ function generateMob(districtName) {
     // 2. Jet de dés pour le nombre de modificateurs (Ex: 15% pour 2, 35% pour 1 (total 50%), 50% pour 0)
     const roll = Math.random() * 100;
     let modifierCount = 0;
-    
-    if (roll <= 15) {
-        modifierCount = 2; // 15% de chance d'avoir 2 adjectifs (Mob d'élite)
-    } else if (roll <= 50) {
+
+    if (roll <= 15 + eliteBonus) {
+        modifierCount = 2; // 15% de chance d'avoir 2 adjectifs (Mob d'élite), +eliteBonus
+    } else if (roll <= 50 + eliteBonus) {
         modifierCount = 1; // 35% de chance d'avoir 1 adjectif (Mob spécial)
     }
 
@@ -188,6 +199,13 @@ function generateBoss(districtName) {
     // multipliée par la profondeur actuelle.
     applyFloorScaling(boss, typeof gameState !== 'undefined' ? gameState.currentFloor : 1);
 
+    // MOB_ENRAGE (anomalies.js) : même multiplicateur d'ATQ que les mobs normaux de l'étage, au même
+    // titre que le scaling par étage ci-dessus — n'est PAS un "modificateur aléatoire" (stats fixes du
+    // boss inchangées sinon), donc ne contredit pas le commentaire ci-dessous.
+    if (typeof gameState !== 'undefined' && gameState.anomalyEffects && gameState.anomalyEffects.mobAtkMult !== 1) {
+        boss.atk = Math.max(1, Math.round(boss.atk * gameState.anomalyEffects.mobAtkMult));
+    }
+
     boss.isGenerated = true;
     boss.modifiersApplied = []; // Pas de modificateurs aléatoires sur un boss : liste vide pour l'UI
     return boss;
@@ -245,7 +263,25 @@ function generateItem(powerScore = 0, forcedCategory = null) {
     // exactement comme le reste de l'équipement. `forcedCategory` (optionnel) impose la catégorie au
     // lieu de la tirer — utilisé par le stock d'un marchand spécialisé (voir generateShopStock()).
     const categories = [...Object.keys(baseItems), 'scrolls'];
-    const categoryName = forcedCategory || categories[Math.floor(Math.random() * categories.length)];
+    // SECHERESSE (anomalies.js) : double la chance de tirer un consommable (potion) — tirage pondéré
+    // uniquement dans ce cas précis, sinon comportement inchangé (même appel Math.random() qu'avant
+    // ce système pour le chemin sans anomalie, voir tests).
+    const potionMult = (typeof gameState !== 'undefined' && gameState.anomalyEffects) ? (gameState.anomalyEffects.potionDropMult || 1) : 1;
+    let categoryName = forcedCategory;
+    if (!categoryName) {
+        if (potionMult !== 1 && categories.includes('consumables')) {
+            const weights = categories.map(c => c === 'consumables' ? potionMult : 1);
+            const total = weights.reduce((sum, w) => sum + w, 0);
+            let roll = Math.random() * total;
+            categoryName = categories[categories.length - 1];
+            for (let i = 0; i < categories.length; i++) {
+                if (roll < weights[i]) { categoryName = categories[i]; break; }
+                roll -= weights[i];
+            }
+        } else {
+            categoryName = categories[Math.floor(Math.random() * categories.length)];
+        }
+    }
     if (categoryName === 'scrolls') {
         return generateSpellScroll(powerScore);
     }

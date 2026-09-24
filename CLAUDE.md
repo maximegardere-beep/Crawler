@@ -12,6 +12,7 @@ Tailwind CDN, **aucun build step**.
 - `districts.js` — quartiers (référencent les monstres par nom)
 - `safehouses.js` — types de salles sécurisées (narratif seul pour l'instant)
 - `generator.js` — génération procédurale (mobs, objets, parchemins de sorts, boss, compagnons)
+- `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
 - `tests/` — voir plus bas
 
 ## Architecture (résumé)
@@ -101,6 +102,65 @@ Tailwind CDN, **aucun build step**.
   `gameState.necrologie` (plus récente en premier, plafonné à `NECROLOGIE_MAX_ENTRIES` — persistant en
   save via l'autosauvegarde existante, aucun écran de lecture dédié pour l'instant). Affichée pleine
   largeur sur `#game-over-epitaph` (écran Game Over).
+- **Anomalies d'étage** (`anomalies.js`, module autonome au même titre que `districts.js`/
+  `safehouses.js`, chargé juste avant `app.js`) : catalogue de 12 anomalies (`ANOMALY_CATALOG`, 4
+  catégories : combat/ressources/exploration/mixtes) tirées à la génération de chaque étage
+  (`rollAndApplyFloorAnomalies()`, appelée par `advanceToNextFloor()` AVANT `generateFloorMap()`/
+  `generateUrbanFloorMap()`, pour que les effets structurels comme LABYRINTHE influencent la
+  génération elle-même). Règles d'intensité (`rollFloorAnomalies(floor)`) : étages 1-2 aucune, 3-6 une
+  seule tirée dans le pool restreint (`intensiteMin <= 3`), 7-11 une seule dans le pool complet, 12+
+  DEUX anomalies compatibles (table `ANOMALY_INCOMPATIBILITIES`, ex. SECHERESSE+ZONE_MAGIQUE et
+  PEAU_DE_VERRE+ADRENALINE interdits ; au moins une des deux doit être `negatif`/`mixte`, jamais un
+  double bonus ; jusqu'à 20 tentatives puis repli sur une seule anomalie simple du pool complet).
+  L'écran d'escalier (`getUpcomingAnomalyAnnouncement()`) TIRE RÉELLEMENT l'anomalie du PROCHAIN étage
+  et la mémorise (`gameState.pendingNextFloorAnomalies`) pour que `rollAndApplyFloorAnomalies()` (au
+  clic sur "Continuer") applique EXACTEMENT ce qui vient d'être annoncé, jamais un second tirage
+  indépendant — `devJumpToUrbanFloor()` (DEV, saute l'écran) retombe alors sur un tirage à la volée,
+  seul cas où `pendingNextFloorAnomalies` est absent pour l'étage ciblé.
+  **Hook d'application UNIQUE** : `appliquerAnomalie(etage, anomalie)` (anomalies.js) fusionne les
+  `effects` d'UNE anomalie dans `gameState.anomalyEffects` (objet plat, `createNeutralAnomalyEffects()`
+  = valeurs neutres, jamais de comportement changé sans anomalie active) — multiplicatif sur les
+  multiplicateurs (deux anomalies ATQ ×1.4 et ×1.2 → ×1.68), additif sur les bonus en points, OR sur
+  les drapeaux. `computeAnomalyEffects(list)` est l'équivalent PUR (hors `gameState`, testable
+  indépendamment, même logique que `computeThreatMultiplier()` dans `generator.js`). Chaque système de
+  jeu lit `gameState.anomalyEffects.xyz` à SON point d'usage plutôt que de dupliquer une logique par
+  anomalie : `rollDamage()` (`allDamageMult`, ADRENALINE, symétrique joueur/mobs), `recomputeMaxHp()`
+  (`playerMaxHpMult`, PEAU_DE_VERRE — voir `gameState.baseMaxHp` ci-dessous), `applyPlayerHeal()`
+  (`healingMult`, PEAU_DE_VERRE), `gainXp()` (`xpMult`, MOB_ENRAGE), `generateMob()`/`generateBoss()`
+  (`mobAtkMult`, MOB_ENRAGE, appliqué comme le scaling par étage), `applyTimeElapsedRegen()`
+  (`manaRegenMult` SECHERESSE, `regenOutsideSafehouseZero` REPAS_DE_FAMILLE — régén PV passive à zéro,
+  cette fonction n'étant justement appelée que HORS salle sécurisée), `enterRoom()` (salle sécurisée :
+  `freeSafehouseMeals` REPAS_DE_FAMILLE, séjour sans coût en temps), `generateItem()` (`potionDropMult`
+  SECHERESSE, tirage pondéré de la catégorie `consumables`), `generateShopStock()` (`shopDiscountPct`
+  ECONOMIE_AUSTERE), le gain d'or exploré (`goldGainMult` ECONOMIE_AUSTERE), `getStealthChance()`/
+  `attemptStealthEvasion()` (`stealthCapBonus`/`detectionBonus` NOCTURNE — plafond relevé ET pénalité
+  sur la chance de base, calcul indépendant : un fort investissement en Furtivité profite du plafond
+  relevé, un faible subit surtout la pénalité), `attackMagic()` (`spellMult`/`backfireBonusPct`
+  ZONE_MAGIQUE), `generateQuadrant()` (`extraRoomsPct` LABYRINTHE, +50% pièces par quartier),
+  `handleStealthEncounter()` (`guardedStairsBoost` LABYRINTHE, `eliteBonus` passé à `generateMob()`
+  UNIQUEMENT dans le quartier qui garde l'escalier — décale les seuils du jet de modificateurs sans
+  toucher au système de boss lui-même), `initiateCombat()` (`mobsActFirst` TEMPO_CREE, frappe
+  d'ouverture réutilisant `enemyCounterAttack()` tel quel, seulement DÉCALÉE plus tôt), `gainSkillXp()`
+  (`skillXpPerActionBonus` TEMPO_CREE, +1 XP compétence par action), `enterRoom()`/`triggerCafetRoom()`
+  (`cafetRoom` CAFET_ASSOMBRIE — une pièce normale taguée à la génération, piège sévère + trésor
+  `addLoot(1)` à la toute première visite, jamais revisité ensuite).
+  **PACTE_DU_CRAWLER** (`forcedPactChoice`) est le seul cas à choix bloquant : `triggerPactChoice()`
+  (`gameState.pactChoicePending`, inclus dans `isActionBlocked()`) à l'entrée de l'étage,
+  `choosePactBlessing('atk'|'hp')` applique DIRECTEMENT un delta `{atk, hp}` (jamais un multiplicateur
+  permanent, contrairement à PEAU_DE_VERRE) mémorisé dans `gameState.pactBlessingDelta` et annulé au
+  tout début du PROCHAIN `advanceToNextFloor()`, avant même le tirage des nouvelles anomalies de cet
+  étage. `gameState.baseMaxHp` (vraie progression, avancée uniquement par `gainXp()`) est la SOURCE DE
+  VÉRITÉ des PV max ; `gameState.maxHp` (dérivé, lu partout ailleurs dans le jeu comme avant) n'est
+  recalculé QUE par `recomputeMaxHp()` — appelé après toute montée de niveau, tout changement d'étage,
+  et toute résolution du Pacte. Une sauvegarde antérieure à cette fonctionnalité n'a pas `baseMaxHp` :
+  `restoreSaveForName()` le fait migrer depuis l'ancien `maxHp` (qui ÉTAIT la vraie base, aucun système
+  d'anomalies n'existant alors), jamais un retour silencieux à 100.
+  **Affichage** : badge(s) permanent(s) icône+nom (`updateAnomalyStatusUI()`, `#anomaly-status-bar`
+  dans le header), description complète via l'infobulle native du navigateur (`title`, "inspection").
+  Chiffres non fournis par la consigne d'origine (poids de tirage égaux, `intensiteMin` par anomalie,
+  piège/trésor de CAFET_ASSOMBRIE, bonus/malus de PACTE_DU_CRAWLER) : valeurs de départ raisonnables
+  posées dans `anomalies.js`/`app.js`, à ajuster par playtest réel comme le reste des chiffres
+  d'équilibrage du jeu (voir Backlog).
 - **Magie** : un seul sort équipé à la fois (`gameState.equipment.spell`), plus de simple attaque
   magique inconditionnelle. Répertoire de base dans `spellCatalog` (`spells.js`), deux catégories —
   corps à corps ou à distance (`spellCategory`) — qui font se comporter le bouton Magie exactement
@@ -290,7 +350,7 @@ Tailwind CDN, **aucun build step**.
 
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
-  charge les 7 fichiers sources dans l'ordre.
+  charge les 8 fichiers sources dans l'ordre.
 - **Rapide** (`node tests/regression.test.js`, quelques secondes) : à lancer avant CHAQUE push.
   Couvre Sprint, mécaniques d'armure, icône élite, abandon de compagnon, badges, villes spécialisées
   (marchand/professeur), repaires sur les routes. Ajouter une section ici pour toute nouvelle feature
@@ -302,7 +362,7 @@ Tailwind CDN, **aucun build step**.
   compagnon, génération d'étage). Pas nécessaire pour un ajout de contenu isolé (item, quartier, texte).
   Son auto-résolveur doit connaître TOUT état bloquant existant (`xyzChoicePending`) : en oublier un
   fige la simulation dessus jusqu'à épuisement du temps imparti (voir `shopChoicePending`/
-  `lairChoicePending`/`floorTransitionPending`, ajoutés après coup).
+  `lairChoicePending`/`floorTransitionPending`/`pactChoicePending`, ajoutés après coup).
 - Les deux n'affichent que les échecs + un résumé final (pas une ligne par test réussi).
 
 ## Backlog
