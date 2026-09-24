@@ -8,6 +8,7 @@
 // Pour un changement touchant la boucle de jeu elle-même (combat/distance/compagnon/génération
 // d'étage), lancer aussi long_playthrough.js une fois.
 const { counts } = require('./regression/_helpers.js');
+require('./regression/meta-reset.js');
 require('./regression/combat.js');
 require('./regression/items.js');
 require('./regression/misc.js');

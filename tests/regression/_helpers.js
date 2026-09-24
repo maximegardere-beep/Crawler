@@ -35,6 +35,18 @@ function resetTransientState() {
     gameState.hp = gameState.maxHp;
     gameState.timeLeft = gameState.maxTime; // Jamais de temps épuisé résiduel entre deux tests sans rapport
     gameState.level = 1;
+    // xp/xpToNextLevel AVEC level : un test qui fait progresser l'XP sans forcément déclencher de
+    // montée de niveau (ou partiellement) laissait ces deux-là dériver de leur défaut (0/50) — repéré
+    // par le test méta (tests/regression/meta-reset.js), qui compare le jeu de clés de gameState à
+    // resetTransientState() pour détecter précisément ce genre d'oubli.
+    gameState.xp = 0;
+    gameState.xpToNextLevel = 50;
+    gameState.skills = {
+        weapon: { level: 1, xp: 0, xpToNext: 30 },
+        unarmed: { level: 1, xp: 0, xpToNext: 30 },
+        magic: { level: 1, xp: 0, xpToNext: 30 },
+        stealth: { level: 1, xp: 0, xpToNext: 30 }
+    };
     gameState.equipment = { weapon: null, armor: null, ranged: null, spell: null };
     gameState.mana = gameState.maxMana;
     gameState.spellbook = [];
@@ -43,9 +55,12 @@ function resetTransientState() {
     gameState.bossChoicePending = false;
     gameState.stealthChoicePending = false;
     gameState.pendingStealthEncounter = null;
+    gameState.pendingSneakAttack = false; // Même repéré par le test méta que xp/xpToNextLevel ci-dessus
     gameState.companionChoicePending = false;
+    gameState.pendingCompanionCandidate = null; // Idem
     gameState.pendingBossEncounter = null;
     gameState.pendingBossRoomId = null;
+    gameState.pendingStairAfterCombat = false; // Idem
     gameState.pendingTravel = null;
     gameState.urbanMap = null;
     gameState.pendingUrbanTravel = null;

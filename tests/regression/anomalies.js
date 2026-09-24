@@ -98,9 +98,10 @@ const { assert, resetTransientState } = require('./_helpers.js');
 // Intégration : gainXp() applique xpMult (MOB_ENRAGE).
 {
     resetTransientState();
+    gameState.xpToNextLevel = 999999; // Empêche toute montée de niveau : isole le seul calcul de xpMult
     gameState.anomalyEffects.xpMult = 1.3;
     gainXp(100);
-    assert(gameState.xp + (gameState.level > 1 ? gameState.xpToNextLevel : 0) >= 129, "gainXp() : xpMult multiplie bien le montant gagné (100 -> 130)");
+    assert(gameState.xp === 130, "gainXp() : xpMult multiplie bien le montant gagné (100 -> 130)");
 }
 
 // Intégration : recomputeMaxHp() (PEAU_DE_VERRE) — PV max dérivé de baseMaxHp, jamais l'inverse.

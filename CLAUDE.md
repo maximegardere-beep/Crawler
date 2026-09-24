@@ -356,9 +356,10 @@ Tailwind CDN, **aucun build step**.
 - **Rapide** (`npm test`, quelques secondes) : à lancer avant CHAQUE push. `tests/regression.test.js`
   est un AGRÉGATEUR (depuis la Tâche 2 du chantier "fiabilisation" — l'ancien fichier monolithique
   faisait ~172 Ko) : il ne fait que `require()` chaque module de `tests/regression/*.js`, regroupés
-  par domaine (`combat.js`, `items.js`, `misc.js`, `magic.js`, `saves.js`, `floor-transition.js`,
-  `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`, `urban-map.js`, `urban-shops.js`,
-  `urban-lairs.js`), dans l'ordre où chacun apparaît en tête de liste dans `regression.test.js` — cet
+  par domaine (`meta-reset.js`, `combat.js`, `items.js`, `misc.js`, `magic.js`, `saves.js`,
+  `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`), dans l'ordre où chacun apparaît en tête de
+  liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests
   restent malgré tout indépendants : chaque section démarre par `resetTransientState()`).
@@ -370,7 +371,25 @@ Tailwind CDN, **aucun build step**.
   dans `tests/regression/`, puis l'ajouter à la liste de `require()` de l'agrégateur.
   `resetTransientState()` (dans `_helpers.js`) doit rester à jour : tout nouvel état
   bloquant/transitoire (`xyzChoicePending`, `pendingXyz...`) doit y être remis à zéro, sinon un échec
-  aléatoire (dû à un test antérieur non lié) peut fuiter sur des tests bien plus loin dans la suite.
+  aléatoire (dû à un test antérieur non lié) peut fuiter sur des tests bien plus loin dans la suite —
+  voir `tests/regression/meta-reset.js` ci-dessous, qui détecte cette classe de bug AUTOMATIQUEMENT.
+- **Règle : tout nouveau champ transitoire de `gameState` doit être ajouté à `resetTransientState()`
+  ET répertorié dans `KNOWN_GAMESTATE_KEYS`** (`tests/regression/meta-reset.js`, Tâche 3 du chantier
+  "fiabilisation"). Ce test méta détecte AUTOMATIQUEMENT (sans liste à maintenir à la main pour cette
+  partie) deux classes de fuite d'état, responsables de plusieurs échecs flaky lointains par le passé
+  (`timeLeft` oublié, champs d'anomalies, un cas `travelToCity`) : (1) tout champ nommé `*ChoicePending`
+  ou `pending*` est délibérément "sali" (valeur truthy) puis vérifié falsy juste après
+  `resetTransientState()` — cette convention de nommage est déjà strictement respectée par tout état
+  bloquant/transitoire existant ; (2) toute clé de `gameState` LUE par `isActionBlocked()` doit être
+  explicitement AFFECTÉE dans le corps de `resetTransientState()` (comparaison directe des deux sources
+  via `.toString()`), pour qu'un nouveau `xyzChoicePending` ajouté à l'un des deux sans l'autre échoue
+  immédiatement plutôt que de fuiter silencieusement. `KNOWN_GAMESTATE_KEYS` (liste blanche EXPLICITE,
+  celle-ci À MAINTENIR À LA MAIN) complète ces deux mécanismes pour toute clé de `gameState` qui
+  n'entre dans aucun des deux (ex. `xp`/`xpToNextLevel`/`skills`, repérés et corrigés en écrivant ce
+  test — non-transitoires au sens "blocage", mais tout de même remis à un niveau de base par
+  `resetTransientState()` pour l'isolation des tests) : une clé absente de `gameState` mais présente
+  dans la liste (ou l'inverse) fait échouer ce test, forçant une décision consciente à chaque nouveau
+  champ plutôt qu'un oubli silencieux.
 - **Lourd** (`npm run test:long`, simulation ~200 pas sur plusieurs étages) : à lancer UNE fois,
   seulement si le changement touche la boucle de jeu elle-même (combat, distance, compagnon,
   génération d'étage). Pas nécessaire pour un ajout de contenu isolé (item, quartier, texte).
