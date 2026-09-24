@@ -73,6 +73,29 @@ Tailwind CDN, **aucun build step**.
   joueur) et `minMitigation` (la défense ne peut jamais faire tomber la mitigation sous cette fraction
   des dégâts bruts — 35%). Les mobs élites (`isEliteMob()`) reçoivent en plus
   `config.mobDamageScaling.eliteDamageMult` (×1.65) sur leur ATQ effective avant `rollDamage()`.
+- **Rework des boss** (chantier "rework combat", Chantier 2 — voir `NOTES_COMBAT.md` pour le détail
+  des valeurs) : un boss n'est plus "un mob avec plus de PV" — son pattern d'attaque change par palier
+  de PV (`getBossPhase()`, 100-66%/66-33%/<33%), via `performBossCounterAttack()` (app.js), un chemin
+  de riposte totalement séparé du mob normal/élite (`resolveEnemyCounterAttack()` bascule dessus dès
+  `enemy.isBoss`, avant tout calcul lié au Chantier 1 — aucun recouvrement). Phase 1 : attaque de base
+  + chance de télégraphier une attaque lourde (`enemy.status.telegraph`, tour d'annonce SANS dégât,
+  tour d'exécution à `telegraphHeavyMult`). Phase 2 : reprend le télégraphe (chance réduite) + frappe
+  multiple (2-3 coups/tour, `executeBossStrike()` réutilisé en boucle — voir plus bas pour le plancher
+  de pression), harcèlement à distance (stub minimal, pont vers un futur Chantier 3 "enrage distance"
+  pas encore implémenté) et buff de défense télégraphié ("il se hérisse",
+  `enemy.status.defBuffed`, DEF boss effective ×`defBuffMult` pendant `defBuffRounds` tours — lu
+  symétriquement aux réductions ébloui/corrodé existantes dans `performPlayerAttack()`). Phase 3
+  ("folie") : plus de télégraphe, dégâts fixes `phase3.atkMult` (+40%) et DEF effective fixe
+  `phase3.defMult` (-30%, `enemy.status.frenzied`) — la défense réduite EST la fenêtre
+  risque/récompense de cette phase. Toutes les valeurs dans `config.bossPhases`. **Piège identifié et
+  corrigé pendant ce chantier** : le plancher de pression du Chantier 1 (`pressureFloorFrac`, pensé
+  "par ATTAQUE" = par tour) se multipliait par le nombre de coups sur un multi-coups sans correctif —
+  `executeBossStrike(enemy, atk, label, pressureFloorOverride)` accepte désormais un plancher réparti
+  explicitement entre les frappes d'un même tour, pour que la SOMME reste le plancher standard d'un
+  tour de boss. Récompenses de boss (déjà en place avant le reste du chantier 2) :
+  `config.bossRewards.minRarityKey` plombe la rareté du loot aléatoire garanti, et
+  `awardBossSignatureItem()` attache en plus un objet signature légendaire unique par boss
+  (`bestiary.js`, `districtBosses.*.signatureItem`, cloné frais à chaque victoire).
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF

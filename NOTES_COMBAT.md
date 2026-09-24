@@ -50,7 +50,65 @@ périmètre de ce chantier qui porte sur la formule de dégâts, pas sur la sél
 
 ## Chantier 2 — Rework des boss
 
-_À compléter._
+Un boss n'est plus "un mob avec plus de PV" : son pattern d'attaque change par palier de PV
+(`getBossPhase()`, app.js), via des états/contenus ajoutés au moteur de riposte existant
+(`performBossCounterAttack()`, appelée depuis `resolveEnemyCounterAttack()` dès `enemy.isBoss`,
+chemin totalement séparé du mob normal/élite pour ne rien changer au Chantier 1) — aucune nouvelle
+entité, aucune modélisation spatiale, comme demandé.
+
+**Phases** (`config.bossPhases`, valeurs de départ non issues d'un audit d'équilibrage — à ajuster
+par playtest comme le reste des chiffres du jeu) :
+- **Phase 1 (100-66% PV)** : attaque de base, avec `phase1TelegraphChance` (30%) de chance par tour
+  de télégraphier une attaque lourde à la place d'attaquer (`enemy.status.telegraph = {type:'heavy'}`
+  — le tour d'ANNONCE n'inflige AUCUN dégât, message narratif dédié). Le tour suivant, l'attaque
+  s'exécute avec `telegraphHeavyMult` (×1.8) sur l'ATQ du boss. C'est le "vrai choix" laissé au
+  joueur : défense, esquive (fuite/repositionnement), ou tenter de burst le boss avant l'impact.
+- **Phase 2 (66-33% PV)** : reprend le télégraphe lourd (chance réduite, `phase2TelegraphChance`
+  18%, la phase étant plus occupée par ses propres patterns) et ajoute trois patterns supplémentaires
+  (tirage exclusif) :
+  - **Frappe multiple** (`multiStrikeChance` 22%) : 2 ou 3 coups dans le même tour, dégâts par coup
+    réduits pour que le total reste lisible (`multiStrikeTotalMult` 1.3 réparti entre les coups).
+  - **Harcèlement à distance** (`rangedHarassChance` 15%, `rangedHarassMult` ×0.6) : mécanique
+    volontairement MINIMALE ici — un simple coup à dégâts réduits sans logique de distance propre —
+    posée comme point de pont pour le futur Chantier 3 ("enrage distance", pas encore implémenté).
+    Punit un joueur qui garderait ses distances sans que le Chantier 3 existe encore pour formaliser
+    "l'enrage" complet.
+  - **Buff de défense télégraphié** ("il se hérisse", `defBuffTelegraphChance` 15%) : même mécanique
+    de télégraphe que l'attaque lourde (tour d'annonce sans dégât), mais pose
+    `enemy.status.defBuffed` au lieu de frapper — DEF effective du boss ×`defBuffMult` (1.6) pendant
+    `defBuffRounds` (2) tours, lu symétriquement aux réductions ébloui/corrodé déjà existantes dans
+    `performPlayerAttack()`. "Frapper maintenant ou subir une garde relevée."
+- **Phase 3 (<33% PV, "phase de folie")** : plus de télégraphe (le boss cesse d'être tactique) —
+  dégâts fixes `phase3.atkMult` (+40%) et DEF effective fixe `phase3.defMult` (-30%, lue
+  symétriquement dans `performPlayerAttack()` via `enemy.status.frenzied`). La défense réduite EST la
+  fenêtre risque/récompense demandée par la consigne : le joueur encaisse plus par coup, mais peut
+  aussi faire tomber le boss bien plus vite tant qu'il tient le choc — pas de mécanique d'échange
+  séparée, cette lecture est documentée ici faute d'avoir été précisée davantage par la consigne
+  d'origine.
+
+**Bug de conception détecté et corrigé EN COURS DE CHANTIER** (pas un simple écart signalé — un vrai
+recouvrement entre deux mécaniques du même chantier, corrigé directement) : le plancher de pression du
+Chantier 1 (`pressureFloorFrac`, "≥10% des PV max joueur par ATTAQUE") suppose implicitement qu'une
+attaque = un tour de boss. Le multi-coups de phase 2 fractionne un tour en plusieurs frappes ; sans
+correctif, CHAQUE frappe redéclenchait indépendamment ce plancher ABSOLU, le multipliant par le nombre
+de coups (~10%/tour prévu -> ~30%/tour mesuré en test avec 3 frappes). Corrigé en répartissant le
+plancher entre les frappes du tour (`executeBossStrike(..., pressureFloorOverride)`) plutôt qu'en
+laissant chaque frappe le redéclencher : la SOMME sur le tour reste le plancher standard d'un tour de
+boss, cohérent avec l'intention du Chantier 1.
+
+**Récompenses de boss** (implémenté avant le reste du chantier 2, déjà en place) :
+`config.bossRewards.minRarityKey` ('epique') plancher la rareté du loot aléatoire garanti d'un boss
+(`rollRarity()`/`generateItem()`/`generateSpellScroll()`, plombé optionnellement via `addLoot()`) ;
+`awardBossSignatureItem()` attache en plus un objet signature LÉGENDAIRE unique par boss
+(`bestiary.js`, `districtBosses.*.signatureItem`, cloné frais à chaque victoire — jamais le même
+objet muté) — garanti à chaque victoire sur CE boss précis, pas un "une fois par partie".
+
+**Hors périmètre, non implémenté ici** : le compteur de kiting du boss "démarre à 1" (voir consigne
+du Chantier 3) — aucun champ de compteur de kiting n'existe encore nulle part dans le moteur, le
+Chantier 3 doit l'introduire en premier ; ce chantier 2 ne fait qu'y préparer un point de pont
+narratif (harcèlement à distance ci-dessus), sans rien câbler de réel dessus.
+
+## Chantier 3 — Enrage distance et engagement
 
 ## Chantier 3 — Enrage distance et engagement
 

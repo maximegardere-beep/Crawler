@@ -227,6 +227,52 @@ const config = {
         eliteDamageMult: 1.65
     },
 
+    // Chantier "rework combat", Chantier 2 (récompenses de boss) : rareté plancher garantie sur le
+    // loot d'un boss (voir winCombat()/rollRarity() dans generator.js) — Légendaire est réservé à
+    // l'objet signature garanti séparément (voir bestiary.js, districtBosses.*.signatureItem), donc
+    // Épique comme plancher pour le loot ALÉATOIRE laisse une vraie place à la Légendaire "en bonus".
+    bossRewards: {
+        minRarityKey: 'epique'
+    },
+
+    // Chantier "rework combat", Chantier 2 (rework des boss) : un boss n'est plus "un mob avec plus
+    // de PV" — son pattern d'attaque change par palier de PV (voir getBossPhase()/
+    // performBossCounterAttack() dans app.js), sans nouvelle entité ni modélisation spatiale.
+    // Uniquement du contenu + paramétrage + états sur le moteur de riposte existant. Valeurs de
+    // départ posées par ce chantier, non issues d'un audit d'équilibrage complet (voir
+    // NOTES_COMBAT.md) — à ajuster par playtest comme le reste des chiffres d'équilibrage du jeu.
+    bossPhases: {
+        // Phase 1 (100-66% PV) : chance par tour (hors télégraphe déjà en cours) de télégraphier une
+        // attaque lourde au lieu d'attaquer normalement ce tour-ci (le tour d'annonce n'inflige AUCUN
+        // dégât — c'est le "vrai choix" laissé au joueur : défense, esquive, burst). Phase 2 reprend
+        // la même mécanique avec une chance réduite (plus occupée par ses propres patterns).
+        phase1TelegraphChance: 0.30,
+        phase2TelegraphChance: 0.18,
+        // Multiplicateur appliqué à l'ATQ du boss au tour d'EXÉCUTION du télégraphe (après l'annonce).
+        telegraphHeavyMult: 1.8,
+        // Phase 2 : frappe multiple (2-3 coups dans le même tour, dégâts par coup réduits pour que le
+        // total reste lisible), harcèlement à distance (pont avec le futur Chantier 3 "enrage
+        // distance" — punit le joueur qui kite, mécanique volontairement minimale ici) et buff de
+        // défense télégraphié ("il se hérisse" — tour d'annonce sans dégât, buff actif ensuite).
+        // Chances mutuellement exclusives, tirées dans l'ordre indiqué ; le reliquat retombe sur le
+        // pattern de base (télégraphe lourd ou attaque normale, comme la phase 1).
+        multiStrikeChance: 0.22,
+        multiStrikeTotalMult: 1.3, // Dégâts TOTAUX du multi-coups (répartis également entre les coups)
+        rangedHarassChance: 0.15,
+        rangedHarassMult: 0.6,
+        defBuffTelegraphChance: 0.15,
+        defBuffRounds: 2,
+        defBuffMult: 1.6, // DEF effective du boss ×1.6 tant que le buff est actif (voir performPlayerAttack())
+        // Phase 3 (<33% PV) — "phase de folie" : dégâts fixes +40%, défense fixe -30%, plus de
+        // télégraphe (le boss ne "joue" plus tactique, il frappe en continu). La défense réduite crée
+        // la fenêtre risque/récompense demandée par la consigne : le joueur encaisse plus par coup,
+        // mais peut aussi faire tomber le boss bien plus vite tant qu'il tient le choc.
+        phase3: {
+            atkMult: 1.4,
+            defMult: 0.7
+        }
+    },
+
     // Paramètres du combat à distance (mobs marqués `ranged: true` dans bestiary.js). Voir
     // getCombatRangeContext()/resolveDistanceRound() dans app.js.
     rangedCombat: {
@@ -2440,8 +2486,10 @@ function getLootPowerScore(enemy) {
 // capacité limitée (gameState.maxInventory). Un parchemin de sort (catégorie 'scrolls') rejoint
 // gameState.spellbook (inventaire magique dédié) plutôt que gameState.inventory : lui non plus
 // n'est jamais limité, au même titre que les consommables (voir equipSpell()).
-function addLoot(powerScore = 0) {
-    const item = generateItem(powerScore);
+function addLoot(powerScore = 0, options = {}) {
+    // minRarityKey (chantier "rework combat" — loot garanti de rareté minimale sur un boss) : voir
+    // winCombat()/rollRarity() dans generator.js.
+    const item = generateItem(powerScore, null, options.minRarityKey || null);
     if (item.category === 'scrolls') {
         gameState.spellbook.push(item);
         gameState.floorStats.itemsFound += 1;
@@ -2458,6 +2506,35 @@ function addLoot(powerScore = 0) {
         updateInventoryUI();
     } else {
         logEvent("Vous trouvez un objet, mais votre réserve d'équipement est pleine !", "danger");
+    }
+}
+
+// Chantier "rework combat", Chantier 2 : objet signature garanti à la défaite d'un boss précis (voir
+// bestiary.js, districtBosses.*.signatureItem) — copie fraîche à chaque victoire (jamais partagée
+// avec le template), toujours Légendaire, en plus du loot aléatoire déjà garanti de rareté minimale
+// (voir config.bossRewards/winCombat()).
+function awardBossSignatureItem(boss) {
+    if (!boss || !boss.signatureItem) return;
+    const item = JSON.parse(JSON.stringify(boss.signatureItem));
+    const legendary = itemRarities[itemRarities.length - 1];
+    item.rarity = legendary.name;
+    item.rarityColor = legendary.color;
+
+    if (item.category === 'scrolls') {
+        gameState.spellbook.push(item);
+        gameState.floorStats.itemsFound += 1;
+        logEvent(`✨ Objet signature obtenu : [${formatItemDisplayName(item)}] !`, "loot");
+        updateSpellbookUI();
+        return;
+    }
+    const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
+    if (equipmentCount < gameState.maxInventory) {
+        gameState.inventory.push(item);
+        gameState.floorStats.itemsFound += 1;
+        logEvent(`✨ Objet signature obtenu : [${formatItemDisplayName(item)}] !`, "loot");
+        updateInventoryUI();
+    } else {
+        logEvent(`✨ ${boss.name} laissait tomber [${formatItemDisplayName(item)}], mais votre réserve d'équipement est pleine !`, "danger");
     }
 }
 
@@ -4288,7 +4365,9 @@ function initiateCombat(forcedEnemy = null) {
     // Statuts remis à zéro à chaque nouveau combat (des deux côtés)
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null };
     if (enemy) {
-        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null };
+        // telegraph/defBuffed/frenzied : uniquement lus/écrits côté boss (voir performBossCounterAttack()
+        // dans app.js, Chantier 2 du rework combat) — restent toujours neutres sur un mob normal/élite.
+        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, telegraph: null, defBuffed: null, frenzied: false };
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
     }
 
@@ -4613,11 +4692,26 @@ function performPlayerAttack(attackerAtk, options, label) {
         if (enemy.status.corroded.rounds <= 0) enemy.status.corroded = null;
     }
 
+    // Boss phase 2 "il se hérisse" (voir performBossCounterAttack()) : DEF effective AUGMENTÉE tant
+    // que le buff est actif — symétrique aux réductions ébloui/corrodé ci-dessus.
+    const enemyWasDefBuffed = enemy.status && enemy.status.defBuffed && enemy.status.defBuffed.rounds > 0;
+    if (enemyWasDefBuffed) {
+        effectiveEnemyDef = Math.round(effectiveEnemyDef * config.bossPhases.defBuffMult);
+        enemy.status.defBuffed.rounds -= 1;
+        if (enemy.status.defBuffed.rounds <= 0) enemy.status.defBuffed = null;
+    }
+    // Boss phase 3 ("folie", voir performBossCounterAttack()) : DEF effective RÉDUITE en continu,
+    // la fenêtre risque/récompense de cette phase (voir config.bossPhases.phase3).
+    const enemyIsFrenzied = enemy.status && enemy.status.frenzied;
+    if (enemyIsFrenzied) {
+        effectiveEnemyDef = Math.round(effectiveEnemyDef * config.bossPhases.phase3.defMult);
+    }
+
     const playerDamage = rollDamage(attackerAtk, effectiveEnemyDef, effectiveOptions);
     enemy.hp -= playerDamage;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
-    logEvent(`Vous attaquez ${label}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
+    logEvent(`Vous attaquez ${label}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée par la folie)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
 
     // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
     if (gameState.companion && gameState.companion.specialty.type === 'strike' && enemy.hp > 0) {
@@ -4898,6 +4992,151 @@ function enemyCounterAttack() {
     }, COMBAT_BEAT_MS);
 }
 
+// ==========================================
+// BOSS : PHASES, TÉLÉGRAPHES, PATTERNS (Chantier 2 du rework combat)
+// ==========================================
+// Un boss n'est plus "un mob avec plus de PV" : son comportement change par PALIER DE PV (phases),
+// via des patterns d'attaque et des états temporaires uniquement — aucune nouvelle entité, aucune
+// modélisation spatiale (voir config.bossPhases). Chemin totalement séparé du mob normal/élite
+// (resolveEnemyCounterAttack ci-dessous) : isEliteMob() exclut déjà les boss, donc aucun
+// recouvrement avec le scaling élite du Chantier 1.
+
+// Phase dérivée UNIQUEMENT du ratio de PV courant (aucun champ de niveau dédié sur les mobs, comme
+// le reste du moteur) : 100-66% phase 1, 66-33% phase 2, en dessous phase 3 ("folie").
+function getBossPhase(enemy) {
+    if (!enemy || !enemy.maxHp) return 1;
+    const frac = enemy.hp / enemy.maxHp;
+    if (frac > 2 / 3) return 1;
+    if (frac > 1 / 3) return 2;
+    return 3;
+}
+
+// Une seule frappe boss : réutilise rollDamage()/l'absorption de compagnon "Garde rapprochée"/
+// applyPlayerDamage() strictement comme resolveEnemyCounterAttack() (jamais réécrits) — la riposte
+// multi-coups de phase 2 n'est ainsi qu'une boucle de ce même bloc, pas une nouvelle formule de
+// dégâts. Renvoie les dégâts réellement encaissés par le joueur (après absorption compagnon).
+// `pressureFloorOverride` : le plancher de pression (config.mobDamageScaling.pressureFloorFrac,
+// Chantier 1) est pensé "au moins X% des PV max par ATTAQUE", où une attaque = UN TOUR de boss. Le
+// multi-coups de phase 2 fractionne un tour en plusieurs frappes ; sans ce paramètre, chaque frappe
+// re-déclencherait indépendamment le plancher ABSOLU, le multipliant par le nombre de coups (constaté
+// en test : un plancher pensé pour ~10%/tour grimpait à ~30%/tour avec 3 frappes). Omis (undefined),
+// la frappe utilise le plancher complet standard (cas normal : une frappe = un tour entier).
+function executeBossStrike(enemy, atk, label, pressureFloorOverride) {
+    const pressureFloor = pressureFloorOverride !== undefined
+        ? pressureFloorOverride
+        : gameState.maxHp * config.mobDamageScaling.pressureFloorFrac;
+    const dmg = rollDamage(atk, getEffectiveDef(), {
+        pressureFloor,
+        minMitigation: config.mobDamageScaling.minMitigation
+    });
+    let playerDamage = dmg;
+    let companionAbsorbNote = "";
+    if (gameState.companion && gameState.companion.specialty.type === 'guard' && gameState.companion.hp > 0) {
+        const interceptChance = 40;
+        if (Math.random() * 100 < interceptChance) {
+            const absorbPct = 0.3 + Math.random() * 0.3;
+            const absorbed = Math.min(gameState.companion.hp, Math.round(dmg * absorbPct));
+            playerDamage = dmg - absorbed;
+            gameState.companion.hp -= absorbed;
+            companionAbsorbNote = ` (${gameState.companion.name} encaisse ${absorbed} dégâts à votre place)`;
+        }
+    }
+    applyPlayerDamage(playerDamage);
+    animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
+    logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
+    if (gameState.companion && gameState.companion.hp <= 0) {
+        logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
+        gameState.companion = null;
+    }
+    return playerDamage;
+}
+
+// Riposte complète d'un boss : sélectionne et résout un pattern selon sa phase courante. Chaque
+// branche se termine par un `return` — un seul pattern par tour, jamais cumulés.
+function performBossCounterAttack(enemy) {
+    const phase = getBossPhase(enemy);
+    const bp = config.bossPhases;
+    let enemyAtk = enemy.atk;
+
+    // Phase 3 ("folie") : dégâts +40% fixes, pas de télégraphe — le boss cesse d'être tactique et
+    // frappe en continu. enemy.status.frenzied (lu par performPlayerAttack()) réduit symétriquement
+    // sa DEF effective : la fenêtre risque/récompense de cette phase (voir config.bossPhases.phase3).
+    if (phase === 3) {
+        enemy.status.frenzied = true;
+        enemy.status.telegraph = null; // un télégraphe en cours à l'entrée en phase 3 est abandonné
+        enemyAtk = Math.round(enemyAtk * bp.phase3.atkMult);
+        executeBossStrike(enemy, enemyAtk, `[${enemy.name}], pris de folie furieuse, vous`);
+        if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+        return;
+    }
+    enemy.status.frenzied = false;
+
+    // Exécution d'un télégraphe posé au tour précédent (annoncé, donc jamais une surprise)
+    if (enemy.status.telegraph) {
+        const tg = enemy.status.telegraph;
+        enemy.status.telegraph = null;
+        if (tg.type === 'heavy') {
+            const boosted = Math.round(enemyAtk * bp.telegraphHeavyMult);
+            executeBossStrike(enemy, boosted, `[${enemy.name}] abat son attaque annoncée et`);
+            if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+            return;
+        }
+        if (tg.type === 'defBuff') {
+            enemy.status.defBuffed = { rounds: bp.defBuffRounds };
+            logEvent(`[${enemy.name}] se hérisse : sa garde vient de monter, sans vous frapper ce tour-ci.`, "info");
+            return;
+        }
+    }
+
+    // Phase 2 : patterns supplémentaires (frappe multiple, harcèlement à distance, buff de défense
+    // télégraphié), en plus de la base de phase 1 ci-dessous. Chances mutuellement exclusives.
+    if (phase === 2) {
+        const roll = Math.random();
+        let threshold = bp.multiStrikeChance;
+        if (roll < threshold) {
+            const hits = 2 + (Math.random() < 0.5 ? 0 : 1); // 2 ou 3 coups
+            const perHitAtk = Math.round(enemyAtk * (bp.multiStrikeTotalMult / hits));
+            // Plancher de pression réparti entre les coups (voir le commentaire d'executeBossStrike) :
+            // la SOMME sur le tour reste le plancher standard, au lieu de le multiplier par `hits`.
+            const perHitPressureFloor = (gameState.maxHp * config.mobDamageScaling.pressureFloorFrac) / hits;
+            logEvent(`[${enemy.name}] enchaîne ${hits} frappes rapides !`, "danger");
+            for (let i = 0; i < hits; i++) {
+                if (gameState.hp <= 0) break;
+                executeBossStrike(enemy, perHitAtk, `Frappe ${i + 1}/${hits} :`, perHitPressureFloor);
+            }
+            if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+            return;
+        }
+        threshold += bp.rangedHarassChance;
+        if (roll < threshold) {
+            // Harcèlement à distance : mécanique volontairement minimale ici (pont avec le futur
+            // Chantier 3 "enrage distance", pas encore implémenté — voir NOTES_COMBAT.md).
+            const harassAtk = Math.round(enemyAtk * bp.rangedHarassMult);
+            executeBossStrike(enemy, harassAtk, `[${enemy.name}] vous harcèle à distance et`);
+            if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+            return;
+        }
+        threshold += bp.defBuffTelegraphChance;
+        if (roll < threshold) {
+            enemy.status.telegraph = { type: 'defBuff' };
+            logEvent(`[${enemy.name}] se raidit, une garde imminente se prépare...`, "info");
+            return;
+        }
+    }
+
+    // Phase 1 (et repli de phase 2) : chance de télégraphier une attaque lourde pour le tour
+    // suivant (annonce sans dégât), sinon attaque de base normale.
+    const heavyChance = phase === 1 ? bp.phase1TelegraphChance : bp.phase2TelegraphChance;
+    if (Math.random() < heavyChance) {
+        enemy.status.telegraph = { type: 'heavy' };
+        logEvent(`[${enemy.name}] prépare un coup dévastateur...`, "info");
+        return;
+    }
+
+    executeBossStrike(enemy, enemyAtk, `[${enemy.name}] vous`);
+    if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+}
+
 // Riposte de l'ennemi : tient compte de son propre saignement/étourdissement en cours,
 // de l'armure équipée du joueur, et peut infliger un effet de statut selon son trait élémentaire.
 function resolveEnemyCounterAttack() {
@@ -4924,6 +5163,14 @@ function resolveEnemyCounterAttack() {
         enemy.status.stunned = false;
         showDie(ui.combatEnemyDie, "😴");
         updateUI();
+        return;
+    }
+
+    // Boss : chemin de riposte totalement séparé (patterns par phase, voir performBossCounterAttack()
+    // ci-dessous, Chantier 2 du rework combat) — jamais mélangé au chemin mob normal/élite ci-dessous,
+    // pour ne rien changer au comportement déjà testé du Chantier 1 sur les mobs non-boss.
+    if (enemy.isBoss) {
+        performBossCounterAttack(enemy);
         return;
     }
 
@@ -5337,10 +5584,14 @@ function winCombat() {
 
     // Butin : garanti pour un boss (avec une chance de second objet), sinon la chance standard.
     // La rareté du loot est pondérée par la puissance du monstre vaincu (voir getLootPowerScore).
+    // Chantier "rework combat" (Chantier 2) : le loot d'un boss est en plus garanti au moins
+    // config.bossRewards.minRarityKey, et un objet signature UNIQUE à ce boss tombe systématiquement
+    // (voir awardBossSignatureItem()/bestiary.js).
     const lootPower = getLootPowerScore(defeatedEnemy);
     if (wasBoss) {
-        addLoot(lootPower);
-        if (Math.random() * 100 < 50) addLoot(lootPower); // 50% de chance d'un deuxième objet
+        addLoot(lootPower, { minRarityKey: config.bossRewards.minRarityKey });
+        if (Math.random() * 100 < 50) addLoot(lootPower, { minRarityKey: config.bossRewards.minRarityKey }); // 50% de chance d'un deuxième objet
+        awardBossSignatureItem(defeatedEnemy);
     } else if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
         addLoot(lootPower);
     }

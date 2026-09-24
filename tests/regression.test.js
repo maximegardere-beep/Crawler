@@ -11,6 +11,7 @@ const { counts } = require('./regression/_helpers.js');
 require('./regression/meta-reset.js');
 require('./regression/combat.js');
 require('./regression/combat-scaling.js');
+require('./regression/combat-boss.js');
 require('./regression/items.js');
 require('./regression/misc.js');
 require('./regression/magic.js');
