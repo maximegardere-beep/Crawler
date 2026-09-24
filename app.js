@@ -106,7 +106,7 @@ const gameState = {
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 18, label: "Économie urbaine : PO, marchand/professeur, repaires sur les routes" };
+const APP_VERSION = { pr: 19, label: "Carte Urbaine : grille + diagonales, caméra pannable, déclutter" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -369,6 +369,7 @@ const ui = {
     knownLocationsContainer: document.getElementById('known-locations'),
     urbanTravelOverlay: document.getElementById('urban-travel-overlay'),
     urbanMapSvg: document.getElementById('urban-map-svg'),
+    btnRecenterMap: document.getElementById('btn-recenter-map'),
     companionChoiceFriendly: document.getElementById('companion-choice-friendly'),
     companionChoiceHostile: document.getElementById('companion-choice-hostile'),
     btnRecruitFriendly: document.getElementById('btn-recruit-friendly'),
@@ -2137,13 +2138,39 @@ function computeGraphLayout(nodeIds, edges, existingPositions = {}) {
     return positions;
 }
 
-// Rendu SVG générique d'un graphe déjà disposé (voir computeGraphLayout()) dans un <svg> existant
-// (viewBox supposé "0 0 200 240", voir index.html) : `nodes` = [{id, label, icon, variant}],
-// `edges` = [{from, to, distance}] (distance optionnelle, affichée seulement sur les arêtes reliées
-// au nœud courant pour ne pas surcharger l'affichage), `positions` = {id:{x,y}} (0..1, fixes ou
-// calculées — voir computeGraphLayout()), `currentId` = nœud où l'on se trouve (mis en évidence,
-// jamais cliquable). `variant` ('guarded'/'goal'/'default') pilote la couleur des nœuds autres que
-// le courant. Deux familles de petits marqueurs, pour deux usages distincts :
+// Calcule/écrête les bornes par défaut du monde pannable à partir des positions fournies, quand
+// l'appelant n'en fournit pas lui-même (voir `worldBounds` de renderGraphMiniMap()) — une marge
+// généreuse autour de la boîte englobante de tous les nœuds plutôt qu'un cadre pile ajusté.
+function computeDefaultWorldBounds(positions, margin) {
+    const pts = Object.values(positions);
+    if (pts.length === 0) return { minX: -margin, maxX: margin, minY: -margin, maxY: margin };
+    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+    return {
+        minX: Math.min(...xs) - margin, maxX: Math.max(...xs) + margin,
+        minY: Math.min(...ys) - margin, maxY: Math.max(...ys) + margin,
+    };
+}
+
+// Écrête un centre de caméra pour que la fenêtre affichée (viewSize, centrée sur ce point) ne sorte
+// jamais des bornes du monde (worldBounds) — fonction pure, testable indépendamment de tout DOM/
+// événement pointeur. Si le monde est plus petit que la fenêtre (peu de nœuds connus), centre le
+// monde plutôt que d'écrêter sur un intervalle vide/inversé.
+function clampCameraToBounds(camera, viewSize, worldBounds) {
+    const halfW = viewSize.w / 2, halfH = viewSize.h / 2;
+    const minCx = worldBounds.minX + halfW, maxCx = worldBounds.maxX - halfW;
+    const minCy = worldBounds.minY + halfH, maxCy = worldBounds.maxY - halfH;
+    const x = minCx <= maxCx ? Math.min(maxCx, Math.max(minCx, camera.x)) : (worldBounds.minX + worldBounds.maxX) / 2;
+    const y = minCy <= maxCy ? Math.min(maxCy, Math.max(minCy, camera.y)) : (worldBounds.minY + worldBounds.maxY) / 2;
+    return { x, y };
+}
+
+// Rendu SVG générique d'un graphe déjà disposé dans un <svg> existant : `nodes` = [{id, label, icon,
+// variant}], `edges` = [{from, to, distance}] (distance optionnelle, affichée seulement sur les
+// arêtes reliées au nœud courant pour ne pas surcharger l'affichage), `positions` = {id:{x,y}} en
+// coordonnées MONDE (unités arbitraires, pas de normalisation 0..1 — voir computeGraphLayout() ou
+// une grille logique comme pour les étages urbains), `currentId` = nœud où l'on se trouve (mis en
+// évidence, jamais cliquable). `variant` ('guarded'/'goal'/'default') pilote la couleur des nœuds
+// autres que le courant. Trois familles de petits marqueurs, pour trois usages distincts :
 //   - `goalIcon` (sur un NŒUD) : décalé sur l'arête d'accès de ce nœud plutôt que dans son propre
 //     cercle (ex : un gardien "posté sur la route" plutôt que confondu avec la ville qu'il garde).
 //   - `badge` (sur un NŒUD) : petite icône accolée au cercle du nœud lui-même, pour un rôle qui ne
@@ -2151,47 +2178,64 @@ function computeGraphLayout(nodeIds, edges, existingPositions = {}) {
 //   - `marker` (sur une ARÊTE, `edges[i].marker = {icon, variant}`) : rendu au milieu de l'arête
 //     elle-même, pour un élément qui n'appartient à AUCUN des deux nœuds qu'elle relie (ex : un
 //     repaire sur une route).
-// `onNodeClick(id)` est appelé au clic sur n'importe quel autre nœud (y compris son propre goalIcon) —
-// aucune notion de "voisin direct" ici, sans connaissance du jeu : c'est à l'appelant de décider ce
-// qu'un clic déclenche. `focusId`/`viewSpan` (optionnels) centrent la vue (viewBox) sur un nœud
-// donné plutôt que d'afficher tout l'espace normalisé 0..1 — la "caméra" suit ainsi le nœud courant
-// pendant que le reste (positions, fond) ne bouge jamais, plutôt que de recalculer une disposition.
-// `background` (optionnel, {rects, lines} en coordonnées normalisées 0..1, lines avec cx/cy optionnel
-// pour une courbe) dessine une texture décorative sous les arêtes/nœuds — aucune connaissance du jeu
-// non plus, l'appelant fournit le motif.
+// `onNodeClick(id)` est appelé au clic sur n'importe quel autre nœud (y compris son propre goalIcon).
+//
+// Caméra (monde pannable) : `camera` ({x,y}, optionnel) fixe le centre de la fenêtre affichée ; sans
+// lui, retombe sur la position de `currentId` puis, à défaut, sur le centre de la boîte englobante de
+// tous les nœuds — c'est à l'APPELANT de mémoriser un `camera` explicite d'un rendu à l'autre (ce
+// module ne garde aucun état), typiquement seulement après que le joueur a fait glisser la carte
+// (`onCameraChange`, voir plus bas). `viewSize` ({w,h}, monde, défaut 200×240) fixe la taille de
+// cette fenêtre. `worldBounds` ({minX,maxX,minY,maxY}, optionnel) écrête le pan aux limites du monde
+// (voir clampCameraToBounds()) ; à défaut, calculé depuis l'étendue des nœuds (computeDefaultWorldBounds()).
+// `onCameraChange(newCamera)` (optionnel) : si fourni, le pan par glissement (souris ET tactile,
+// `pointerdown`/`pointermove`/`pointerup`) est activé sur `svgEl` — le viewBox est déplacé EN DIRECT
+// pendant le glissement (mutation légère d'un seul attribut, jamais un re-rendu complet du graphe/
+// fond, qui serait coûteux à chaque pointermove), et `onCameraChange` n'est appelé qu'UNE fois à la
+// fin du glissement, pour que l'appelant persiste la nouvelle position (elle serait sinon perdue au
+// prochain rendu complet, qui repart de `camera`/`currentId`). Un déplacement de moins de 5px au
+// relâchement reste un simple tap/clic : le nœud le plus proche du point relâché (par distance en
+// coordonnées MONDE, voir `clickableRegions`) navigue normalement — PAS via le `click` natif du
+// navigateur, constaté peu fiable une fois qu'un pointeur a été capturé pendant l'interaction (même
+// relâché ensuite) ; sans pan (`onCameraChange` absent), aucun pointeur n'est jamais capturé et le
+// `click` natif classique reste utilisé directement sur chaque nœud.
+// `background` (optionnel, {rects, lines} en coordonnées MONDE, lines avec cx/cy optionnel pour une
+// courbe) dessine une texture décorative sous les arêtes/nœuds — aucune connaissance du jeu non plus,
+// l'appelant fournit le motif.
 const GRAPH_MINIMAP_VARIANT_COLORS = {
     current: { fill: "#1d4ed8", stroke: "#93c5fd" },
     guarded: { fill: "#7f1d1d", stroke: "#f87171" },
     goal: { fill: "#78350f", stroke: "#fbbf24" },
     default: { fill: "#111827", stroke: "#4b5563" },
 };
-function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeClick, focusId, viewSpan, background }) {
+function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeClick, camera, viewSize, worldBounds, onCameraChange, background }) {
     if (!svgEl) return;
     svgEl.innerHTML = "";
-    const W = 200, H = 240;
-    const toPx = (p) => ({ x: p.x * W, y: p.y * H });
     const svgNS = "http://www.w3.org/2000/svg";
+    const view = viewSize || { w: 200, h: 240 };
 
-    // Caméra : par défaut la vue couvre tout le cadre normalisé (0..1) ; avec focusId, elle se
-    // recentre sur ce nœud (écrêtée pour ne jamais sortir du cadre) sur une fenêtre de taille
-    // viewSpan (fraction de 0..1, 1 = vue complète).
-    const focusPos = focusId && positions[focusId];
-    const span = Math.max(0.05, Math.min(1, viewSpan || 1));
-    if (focusPos) {
-        const half = span / 2;
-        const cx = Math.min(1 - half, Math.max(half, focusPos.x));
-        const cy = Math.min(1 - half, Math.max(half, focusPos.y));
-        svgEl.setAttribute("viewBox", `${(cx - half) * W} ${(cy - half) * H} ${span * W} ${span * H}`);
+    // Centre de caméra : explicite (`camera`) > centré sur `currentId` > centre de la boîte
+    // englobante de tous les nœuds positionnés > origine si aucun nœud.
+    let cx, cy;
+    if (camera) {
+        cx = camera.x; cy = camera.y;
+    } else if (currentId && positions[currentId]) {
+        cx = positions[currentId].x; cy = positions[currentId].y;
     } else {
-        svgEl.setAttribute("viewBox", `0 0 ${W} ${H}`);
+        const pts = Object.values(positions);
+        cx = pts.length ? pts.reduce((s, p) => s + p.x, 0) / pts.length : 0;
+        cy = pts.length ? pts.reduce((s, p) => s + p.y, 0) / pts.length : 0;
     }
+    const bounds = worldBounds || computeDefaultWorldBounds(positions, Math.max(view.w, view.h) * 0.5);
+    const clamped = clampCameraToBounds({ x: cx, y: cy }, view, bounds);
+    cx = clamped.x; cy = clamped.y;
+    svgEl.setAttribute("viewBox", `${cx - view.w / 2} ${cy - view.h / 2} ${view.w} ${view.h}`);
 
     if (background) {
         const bgGroup = document.createElementNS(svgNS, "g");
         (background.rects || []).forEach(r => {
             const rect = document.createElementNS(svgNS, "rect");
-            rect.setAttribute("x", r.x * W); rect.setAttribute("y", r.y * H);
-            rect.setAttribute("width", r.w * W); rect.setAttribute("height", r.h * H);
+            rect.setAttribute("x", r.x); rect.setAttribute("y", r.y);
+            rect.setAttribute("width", r.w); rect.setAttribute("height", r.h);
             rect.setAttribute("fill", "#1f2937");
             rect.setAttribute("opacity", r.opacity ?? 0.3);
             bgGroup.appendChild(rect);
@@ -2203,11 +2247,11 @@ function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeC
             const hasCurve = l.cx !== undefined && l.cy !== undefined;
             const el = document.createElementNS(svgNS, hasCurve ? "path" : "line");
             if (hasCurve) {
-                el.setAttribute("d", `M ${l.x1 * W} ${l.y1 * H} Q ${l.cx * W} ${l.cy * H} ${l.x2 * W} ${l.y2 * H}`);
+                el.setAttribute("d", `M ${l.x1} ${l.y1} Q ${l.cx} ${l.cy} ${l.x2} ${l.y2}`);
                 el.setAttribute("fill", "none");
             } else {
-                el.setAttribute("x1", l.x1 * W); el.setAttribute("y1", l.y1 * H);
-                el.setAttribute("x2", l.x2 * W); el.setAttribute("y2", l.y2 * H);
+                el.setAttribute("x1", l.x1); el.setAttribute("y1", l.y1);
+                el.setAttribute("x2", l.x2); el.setAttribute("y2", l.y2);
             }
             el.setAttribute("stroke", "#1f2937");
             el.setAttribute("stroke-width", "3");
@@ -2217,11 +2261,84 @@ function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeC
         svgEl.appendChild(bgGroup);
     }
 
+    // Zones cliquables (cercle du nœud + éventuel marqueur de gardien décalé), remplies au fil du
+    // rendu ci-dessous : { id, x, y, r } en coordonnées MONDE. En mode pan (onCameraChange fourni),
+    // le tap/clic est résolu par distance MONDE à la fin du glissement (voir endDrag()) plutôt que
+    // par le `click` natif du navigateur — constaté PEU FIABLE une fois qu'un pointeur a été capturé
+    // pendant l'interaction (même relâché ensuite), pas seulement en environnement de test. Sans pan,
+    // aucun pointeur n'est jamais capturé : le `click` natif classique reste utilisé directement.
+    const clickableRegions = [];
+    const handleNodeClick = (id) => { if (onNodeClick) onNodeClick(id); };
+
+    if (onCameraChange) {
+        const DRAG_THRESHOLD_PX = 5;
+        const HIT_SLACK_PX = 4; // tolérance au-delà du rayon visuel du cercle, confort tactile
+        // Caméra "vécue" : `cx`/`cy` restent figés à la position du rendu initial, mais RIEN ne
+        // garantit que l'appelant re-rendra entre deux glissements/taps successifs (onCameraChange ne
+        // force aucun re-rendu, volontairement — voir plus haut). Sans ce suivi mutable, un DEUXIÈME
+        // glissement démarrerait à tort depuis la position du rendu initial plutôt que là où le
+        // premier vient de le laisser visuellement (viewBox déjà déplacé en direct).
+        let liveCamera = { x: cx, y: cy };
+        let drag = null;
+        svgEl.style.touchAction = "none"; // évite le scroll tactile pendant le glissement
+        svgEl.style.cursor = "grab";
+        svgEl.addEventListener('pointerdown', (e) => {
+            const rect = svgEl.getBoundingClientRect ? svgEl.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+            drag = {
+                startX: e.clientX, startY: e.clientY, camX: liveCamera.x, camY: liveCamera.y, moved: false, lastCam: { ...liveCamera },
+                scaleX: rect.width > 0 ? view.w / rect.width : 1,
+                scaleY: rect.height > 0 ? view.h / rect.height : 1,
+                rectLeft: rect.left, rectTop: rect.top,
+                pointerId: e.pointerId,
+            };
+            if (svgEl.setPointerCapture) { try { svgEl.setPointerCapture(e.pointerId); } catch (err) { /* pointeur déjà relâché, sans conséquence */ } }
+        });
+        svgEl.addEventListener('pointermove', (e) => {
+            if (!drag) return;
+            const dxPx = e.clientX - drag.startX, dyPx = e.clientY - drag.startY;
+            if (!drag.moved && Math.hypot(dxPx, dyPx) <= DRAG_THRESHOLD_PX) return;
+            drag.moved = true;
+            svgEl.style.cursor = "grabbing";
+            const liveCam = clampCameraToBounds(
+                { x: drag.camX - dxPx * drag.scaleX, y: drag.camY - dyPx * drag.scaleY }, view, bounds
+            );
+            drag.lastCam = liveCam;
+            liveCamera = liveCam;
+            svgEl.setAttribute("viewBox", `${liveCam.x - view.w / 2} ${liveCam.y - view.h / 2} ${view.w} ${view.h}`);
+        });
+        const endDrag = (e) => {
+            if (!drag) return;
+            if (svgEl.releasePointerCapture && drag.pointerId !== undefined) {
+                try { svgEl.releasePointerCapture(drag.pointerId); } catch (err) { /* déjà relâché */ }
+            }
+            svgEl.style.cursor = "grab";
+            if (drag.moved) {
+                onCameraChange(drag.lastCam);
+            } else if (e && e.type === 'pointerup') {
+                // Pas un glissement, et un VRAI relâchement (pas une annulation/sortie de zone) :
+                // simple tap/clic — retrouve le nœud le plus proche du point relâché, en coordonnées
+                // MONDE (caméra inchangée puisque non déplacée cette fois).
+                const worldX = (drag.camX - view.w / 2) + (e.clientX - drag.rectLeft) * drag.scaleX;
+                const worldY = (drag.camY - view.h / 2) + (e.clientY - drag.rectTop) * drag.scaleY;
+                let best = null, bestDist = Infinity;
+                clickableRegions.forEach(region => {
+                    const d = Math.hypot(region.x - worldX, region.y - worldY);
+                    if (d <= region.r + HIT_SLACK_PX && d < bestDist) { best = region; bestDist = d; }
+                });
+                if (best) handleNodeClick(best.id);
+            }
+            drag = null;
+        };
+        svgEl.addEventListener('pointerup', endDrag);
+        svgEl.addEventListener('pointercancel', endDrag);
+        svgEl.addEventListener('pointerleave', endDrag);
+    }
+
     const edgesGroup = document.createElementNS(svgNS, "g");
     edges.forEach(e => {
         const from = positions[e.from], to = positions[e.to];
         if (!from || !to) return;
-        const a = toPx(from), b = toPx(to);
+        const a = from, b = to;
         const line = document.createElementNS(svgNS, "line");
         line.setAttribute("x1", a.x); line.setAttribute("y1", a.y);
         line.setAttribute("x2", b.x); line.setAttribute("y2", b.y);
@@ -2266,7 +2383,7 @@ function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeC
     nodes.forEach(node => {
         const pos = positions[node.id];
         if (!pos) return;
-        const p = toPx(pos);
+        const p = pos;
         const isCurrent = node.id === currentId;
         // La ville elle-même reste "normale" (couleur par défaut) même gardée : c'est le marqueur à
         // part (voir plus bas) qui porte la couleur guarded/goal, posté sur la route plutôt que
@@ -2278,7 +2395,11 @@ function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeC
         g.setAttribute("data-node-id", node.id); // Repère fiable pour retrouver ce nœud (tests, debug)
         if (!isCurrent) {
             g.style.cursor = "pointer";
-            g.addEventListener('click', () => { if (onNodeClick) onNodeClick(node.id); });
+            if (onCameraChange) {
+                clickableRegions.push({ id: node.id, x: p.x, y: p.y, r: 10 });
+            } else {
+                g.addEventListener('click', () => handleNodeClick(node.id));
+            }
         }
 
         const circle = document.createElementNS(svgNS, "circle");
@@ -2341,8 +2462,7 @@ function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeC
             const neighborPos = neighborId && positions[neighborId];
             let markerPos = p;
             if (neighborPos) {
-                const nPx = toPx(neighborPos);
-                const dx = p.x - nPx.x, dy = p.y - nPx.y;
+                const dx = p.x - neighborPos.x, dy = p.y - neighborPos.y;
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1;
                 markerPos = { x: p.x - (dx / dist) * MARKER_OFFSET_PX, y: p.y - (dy / dist) * MARKER_OFFSET_PX };
             }
@@ -2352,7 +2472,11 @@ function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeC
             marker.setAttribute("transform", `translate(${markerPos.x}, ${markerPos.y})`);
             if (!isCurrent) {
                 marker.style.cursor = "pointer";
-                marker.addEventListener('click', () => { if (onNodeClick) onNodeClick(node.id); });
+                if (onCameraChange) {
+                    clickableRegions.push({ id: node.id, x: markerPos.x, y: markerPos.y, r: 8 });
+                } else {
+                    marker.addEventListener('click', () => handleNodeClick(node.id));
+                }
             }
             const markerCircle = document.createElementNS(svgNS, "circle");
             markerCircle.setAttribute("r", "8");
@@ -2385,22 +2509,118 @@ const URBAN_CITY_NAMES = [
     "Banlieue Résidentielle", "Port Fluvial", "Terminus"
 ];
 
-// Gabarit FIXE de positions (coordonnées normalisées 0..1) représentant les quartiers possibles
-// d'une seule et même "grande ville", commun à toutes les parties/étages urbains : à chaque
-// génération, seuls `cityCount` de ces points sont TIRÉS et reliés (voir generateUrbanFloorMap()),
-// jamais recalculés/déplacés ensuite (contrairement à l'ancien layout "force-directed", qui faisait
-// bouger la position relative des nœuds à chaque rendu). Une poignée de points de plus que le
-// maximum de villes par étage (6 à 8, voir cityCount), pour varier la répartition/les distances
-// d'une partie à l'autre malgré un gabarit partagé. Disposition organique (pas une grille) : un
-// noyau central + plusieurs couronnes, pour évoquer un vrai plan de ville à l'écran.
-const URBAN_MAP_TEMPLATE_POINTS = [
-    { x: 0.50, y: 0.50 },
-    { x: 0.38, y: 0.40 }, { x: 0.63, y: 0.38 }, { x: 0.44, y: 0.63 }, { x: 0.59, y: 0.60 },
-    { x: 0.23, y: 0.27 }, { x: 0.78, y: 0.25 }, { x: 0.21, y: 0.73 }, { x: 0.80, y: 0.74 },
-    { x: 0.14, y: 0.50 }, { x: 0.86, y: 0.49 }, { x: 0.49, y: 0.14 }, { x: 0.51, y: 0.86 },
-    { x: 0.30, y: 0.11 }, { x: 0.71, y: 0.12 }, { x: 0.11, y: 0.30 }, { x: 0.89, y: 0.31 },
-    { x: 0.31, y: 0.89 }, { x: 0.70, y: 0.88 }, { x: 0.11, y: 0.69 }, { x: 0.88, y: 0.70 }
+// Grille logique (gx, gy entiers) : chaque ville occupe une cellule, deux villes ne peuvent être
+// reliées que si elles sont ADJACENTES sur la grille (8 directions : N/S/E/O + diagonales) — plus de
+// connexion longue distance façon étoile. GRID_CELL (unités "monde", voir renderGraphMiniMap()) fixe
+// l'espacement visuel entre deux cellules voisines.
+const URBAN_GRID_CELL = 70;
+const URBAN_GRID_NEIGHBOR_OFFSETS = [
+    [-1, -1], [0, -1], [1, -1],
+    [-1, 0], [1, 0],
+    [-1, 1], [0, 1], [1, 1]
 ];
+
+// Choisit `cityCount` cellules de grille formant une région CONNEXE par construction : croissance
+// aléatoire depuis une cellule de départ, chaque nouvelle cellule tirée adjacente à une cellule déjà
+// choisie (jamais de cellule isolée à relier après coup). Remplace l'ancien tirage dans un gabarit de
+// points fixes + arbre couvrant aléatoire — la connexité n'a plus besoin d'être "réparée", elle
+// découle directement de la façon dont la région est construite.
+function generateConnectedCityGrid(cityCount) {
+    const chosen = [{ gx: 0, gy: 0 }];
+    const chosenKeys = new Set(['0,0']);
+
+    while (chosen.length < cityCount) {
+        // Cellules candidates : tout voisin libre d'une cellule déjà choisie. Reconstruit à chaque
+        // itération (petits nombres ici, 6-9 villes) plutôt que maintenu incrémentalement — plus
+        // simple à lire, coût négligeable.
+        const candidates = [];
+        chosen.forEach(cell => {
+            URBAN_GRID_NEIGHBOR_OFFSETS.forEach(([dx, dy]) => {
+                const gx = cell.gx + dx, gy = cell.gy + dy;
+                const key = `${gx},${gy}`;
+                if (!chosenKeys.has(key)) candidates.push({ gx, gy, key });
+            });
+        });
+        // Cas limite en théorie impossible pour ce nombre de villes (une région connexe sur une
+        // grille 8-directions a toujours une cellule libre adjacente), mais on ne boucle jamais à
+        // l'infini si ça arrivait malgré tout.
+        if (candidates.length === 0) break;
+
+        const pickedIndex = Math.floor(Math.random() * candidates.length);
+        const picked = candidates[pickedIndex];
+        chosen.push({ gx: picked.gx, gy: picked.gy });
+        chosenKeys.add(picked.key);
+    }
+    return chosen;
+}
+
+// Toutes les paires de cellules adjacentes (8 directions) parmi celles choisies — devient les routes
+// du réseau. Une région issue de generateConnectedCityGrid() a presque toujours PLUS d'arêtes qu'un
+// arbre couvrant (plusieurs cellules choisies se touchent sans être "parent/enfant" dans la
+// croissance) : plusieurs itinéraires possibles ressortent naturellement, sans étape de bouclage
+// séparée comme l'ancienne génération.
+function computeGridAdjacencyPairs(cells) {
+    const pairs = [];
+    for (let i = 0; i < cells.length; i++) {
+        for (let j = i + 1; j < cells.length; j++) {
+            const dx = Math.abs(cells[i].gx - cells[j].gx);
+            const dy = Math.abs(cells[i].gy - cells[j].gy);
+            if (dx <= 1 && dy <= 1) pairs.push([i, j]);
+        }
+    }
+    return pairs;
+}
+
+// ==========================================
+// DÉCLUTTER ANTI-CHEVAUCHEMENT (générique, réutilisable comme computeGraphLayout() ci-dessus, mais
+// pour un usage différent : PAS un layout calculé depuis rien, une petite correction déterministe
+// d'un layout déjà bon (ici la grille) pour écarter les points trop proches sans le déformer).
+// ==========================================
+
+// Écarte les points d'un layout déjà posé (ex : positions de grille) qui se retrouveraient trop
+// proches les uns des autres — répulsion PURE (aucun ressort, aucune attraction centrale,
+// contrairement à computeGraphLayout()), déplacement total plafonné à `maxShift` depuis la position
+// de départ de chaque point pour ne jamais dénaturer la disposition logique sous-jacente. Aucun
+// Math.random() : entièrement déterministe, même entrée → même sortie, itérations pures — un rendu
+// répété des mêmes données donne toujours EXACTEMENT le même résultat (calculé une seule fois à la
+// génération, voir generateUrbanFloorMap()).
+function computeDeclutterLayout(basePositions, ids, { minDist = 48, iterations = 50, maxShift = 40 } = {}) {
+    const positions = {};
+    const totalShift = {};
+    ids.forEach(id => {
+        positions[id] = { x: basePositions[id].x, y: basePositions[id].y };
+        totalShift[id] = 0;
+    });
+
+    for (let iter = 0; iter < iterations; iter++) {
+        for (let i = 0; i < ids.length; i++) {
+            for (let j = i + 1; j < ids.length; j++) {
+                const a = ids[i], b = ids[j];
+                let dx = positions[a].x - positions[b].x;
+                let dy = positions[a].y - positions[b].y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
+                if (dist >= minDist) continue;
+
+                const overlap = (minDist - dist) / 2;
+                dx /= dist; dy /= dist;
+
+                // Chaque point ne bouge que si son budget maxShift le permet encore — un point déjà
+                // au bout de son budget reste immobile plutôt que de continuer à s'écarter sans fin.
+                if (totalShift[a] < maxShift) {
+                    const move = Math.min(overlap, maxShift - totalShift[a]);
+                    positions[a].x += dx * move; positions[a].y += dy * move;
+                    totalShift[a] += move;
+                }
+                if (totalShift[b] < maxShift) {
+                    const move = Math.min(overlap, maxShift - totalShift[b]);
+                    positions[b].x -= dx * move; positions[b].y -= dy * move;
+                    totalShift[b] += move;
+                }
+            }
+        }
+    }
+    return positions;
+}
 
 // PRNG déterministe minimal (mulberry32) : sert UNIQUEMENT à générer le fond de carte décoratif
 // (voir URBAN_MAP_BACKGROUND) toujours avec le même résultat — jamais Math.random() ici, sans quoi
@@ -2416,41 +2636,44 @@ function mulberry32(seed) {
     };
 }
 
+// Étendue fixe (unités monde) du fond décoratif — généreuse par rapport à l'étalement réel d'une
+// région de villes (8 cellules maximum, voir cityCount) pour qu'un pan un peu large révèle toujours
+// encore de la ville plutôt que du vide, sans dépendre de la carte effectivement générée cette partie
+// (voir URBAN_MAP_BACKGROUND ci-dessous : toujours la même, quelle que soit la sélection de villes).
+const URBAN_MAP_WORLD_EXTENT = URBAN_GRID_CELL * 6;
+
 // Fond de carte décoratif "grande ville" (pâtés de maisons + quelques avenues), générique en soi
-// (voir renderGraphMiniMap() : un simple bloc de rectangles/lignes normalisés 0..1, sans connaissance
-// du jeu) mais calculé UNE FOIS ici avec un seed fixe pour rester rigoureusement identique d'une
-// partie à l'autre — la même ville, seuls les quartiers accessibles diffèrent.
+// (voir renderGraphMiniMap() : un simple bloc de rectangles/lignes en coordonnées MONDE, sans
+// connaissance du jeu) mais calculé UNE FOIS ici avec un seed fixe pour rester rigoureusement
+// identique d'une partie à l'autre — la même ville, seuls les quartiers accessibles diffèrent. En
+// unités monde directement (plus de 0..1 normalisé, voir renderGraphMiniMap()) pour couvrir toute
+// l'étendue pannable, centré sur l'origine (0,0) comme la grille logique des villes.
 const URBAN_MAP_BACKGROUND = (() => {
     const rand = mulberry32(20260923);
     const rects = [];
     // Densité variable plutôt qu'un tirage uniforme : rayon biaisé vers le centre (exposant > 1)
     // pour un cœur de ville dense qui se clairsème vers la périphérie, plus crédible qu'une
     // répartition parfaitement homogène des pâtés de maisons.
-    for (let i = 0; i < 70; i++) {
+    for (let i = 0; i < 320; i++) {
         const angle = rand() * Math.PI * 2;
-        const radius = Math.pow(rand(), 1.7) * 0.62;
-        const cx = 0.5 + Math.cos(angle) * radius;
-        const cy = 0.5 + Math.sin(angle) * radius;
-        const w = 0.02 + rand() * 0.05;
-        const h = 0.02 + rand() * 0.05;
-        rects.push({
-            x: Math.min(1 - w, Math.max(0, cx - w / 2)),
-            y: Math.min(1 - h, Math.max(0, cy - h / 2)),
-            w, h,
-            opacity: 0.2 + rand() * 0.35
-        });
+        const radius = Math.pow(rand(), 1.7) * URBAN_MAP_WORLD_EXTENT;
+        const cx = Math.cos(angle) * radius;
+        const cy = Math.sin(angle) * radius;
+        const w = URBAN_GRID_CELL * (0.08 + rand() * 0.14);
+        const h = URBAN_GRID_CELL * (0.08 + rand() * 0.14);
+        rects.push({ x: cx - w / 2, y: cy - h / 2, w, h, opacity: 0.2 + rand() * 0.35 });
     }
     // Quelques grandes avenues traversantes, légèrement courbées (point de contrôle décalé
     // perpendiculairement) pour casser la rigidité de lignes parfaitement droites — voir le rendu
     // avec point de contrôle dans renderGraphMiniMap().
     const lines = [];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 8; i++) {
         const horizontal = i % 2 === 0;
-        const at = 0.15 + rand() * 0.7;
-        const bow = (rand() - 0.5) * 0.18;
+        const at = (rand() * 2 - 1) * URBAN_MAP_WORLD_EXTENT;
+        const bow = (rand() - 0.5) * URBAN_GRID_CELL * 1.5;
         lines.push(horizontal
-            ? { x1: 0, y1: at, x2: 1, y2: at, cx: 0.5, cy: at + bow }
-            : { x1: at, y1: 0, x2: at, y2: 1, cx: at + bow, cy: 0.5 });
+            ? { x1: -URBAN_MAP_WORLD_EXTENT, y1: at, x2: URBAN_MAP_WORLD_EXTENT, y2: at, cx: 0, cy: at + bow }
+            : { x1: at, y1: -URBAN_MAP_WORLD_EXTENT, x2: at, y2: URBAN_MAP_WORLD_EXTENT, cx: at + bow, cy: 0 });
     }
     return { rects, lines };
 })();
@@ -2473,11 +2696,11 @@ function revealCityNeighbors(citiesById, cityId) {
     });
 }
 
-// Génère le réseau villes/routes d'un étage urbain : arbre couvrant aléatoire (garantit la
-// connexité) puis quelques routes de bouclage supplémentaires, comme generateQuadrant() le fait déjà
-// pour les couloirs d'un quartier classique. Une ville (autre que celle de départ) porte l'escalier
-// — ou la Sortie à l'étage final (config.urbanFloors.finalFloor) — potentiellement gardée par un
-// boss du thème unique de l'étage.
+// Génère le réseau villes/routes d'un étage urbain : une région de grille connexe (voir
+// generateConnectedCityGrid()) — connexité garantie par construction, aucune réparation après coup —
+// avec une route entre chaque paire de cellules adjacentes (8 directions). Une ville (autre que
+// celle de départ) porte l'escalier — ou la Sortie à l'étage final (config.urbanFloors.finalFloor) —
+// potentiellement gardée par un boss du thème unique de l'étage.
 function generateUrbanFloorMap() {
     const floor = gameState.currentFloor;
     const isFinal = floor === config.urbanFloors.finalFloor;
@@ -2485,21 +2708,22 @@ function generateUrbanFloorMap() {
 
     const cityCount = 6 + Math.floor(floor / 9); // Légère croissance avec la profondeur
     const namePool = [...URBAN_CITY_NAMES];
-    // Points tirés sans répétition dans le gabarit fixe (voir URBAN_MAP_TEMPLATE_POINTS) : la
-    // position de chaque ville est donc fixée une fois pour toutes à la génération, jamais
-    // recalculée — seule la SÉLECTION (et donc la répartition/les distances) varie d'une partie à
-    // l'autre.
-    const pointPool = [...URBAN_MAP_TEMPLATE_POINTS];
+
+    // Région de grille CONNEXE par construction (voir generateConnectedCityGrid()) : plus de tirage
+    // dans un gabarit de points fixes + arbre couvrant, la connexité découle directement de la façon
+    // dont les cellules sont choisies. cells[0] devient toujours la ville de départ.
+    const cells = generateConnectedCityGrid(cityCount);
     const citiesById = {};
     const cityIds = [];
-    for (let i = 0; i < cityCount; i++) {
+    const basePositions = {};
+    cells.forEach((cell, i) => {
         const id = `city-${i}`;
         const nameIndex = Math.floor(Math.random() * namePool.length);
         const name = namePool.splice(nameIndex, 1)[0] || `Secteur ${i + 1}`;
-        const pointIndex = Math.floor(Math.random() * pointPool.length);
-        const point = pointPool.splice(pointIndex, 1)[0];
+        basePositions[id] = { x: cell.gx * URBAN_GRID_CELL, y: cell.gy * URBAN_GRID_CELL };
         citiesById[id] = {
-            id, name, x: point.x, y: point.y, visited: false, known: false, roads: [],
+            id, name, gx: cell.gx, gy: cell.gy, x: 0, y: 0, // x/y (affichage) posés après déclutter, voir plus bas
+            visited: false, known: false, roads: [],
             isStairs: false, isExit: false, guarded: false, bossInstance: null, defeated: false,
             // Ville spécialisée (marchand/professeur) : voir plus bas dans cette fonction et
             // triggerShopEncounter(). `stock` (marchand uniquement) est généré une seule fois, à la
@@ -2507,24 +2731,27 @@ function generateUrbanFloorMap() {
             role: null, specialty: null, stock: null
         };
         cityIds.push(id);
-    }
+    });
 
-    // Arbre couvrant aléatoire
-    const connectedIds = [cityIds[0]];
-    const remainingIds = cityIds.slice(1);
-    while (remainingIds.length > 0) {
-        const fromId = connectedIds[Math.floor(Math.random() * connectedIds.length)];
-        const toId = remainingIds.splice(Math.floor(Math.random() * remainingIds.length), 1)[0];
-        addCityRoad(citiesById, fromId, toId);
-        connectedIds.push(toId);
-    }
-    // Quelques routes de bouclage, pour offrir plusieurs itinéraires possibles
-    const extraRoads = 1 + Math.floor(Math.random() * 2);
-    for (let i = 0; i < extraRoads; i++) {
-        const a = cityIds[Math.floor(Math.random() * cityIds.length)];
-        const b = cityIds[Math.floor(Math.random() * cityIds.length)];
-        addCityRoad(citiesById, a, b);
-    }
+    // Position d'AFFICHAGE (voir CLAUDE.md, section Carte Urbaine) : la grille logique (gx/gy,
+    // gameplay — adjacence, jamais modifiée) sert de point de départ à computeDeclutterLayout(), qui
+    // écarte les points trop proches une seule fois ici, avant de figer city.x/y pour de bon (jamais
+    // recalculés ensuite). minDist (50) reste sous l'espacement minimal déjà garanti par la grille
+    // (70, une cellule) : sur une pure grille cette passe est un no-op, elle ne sert que si une
+    // future évolution de la génération rapprochait un jour deux villes davantage.
+    const displayPositions = computeDeclutterLayout(basePositions, cityIds, { minDist: 50, iterations: 50, maxShift: 40 });
+    cityIds.forEach(id => {
+        citiesById[id].x = displayPositions[id].x;
+        citiesById[id].y = displayPositions[id].y;
+    });
+
+    // Routes = toutes les paires de cellules ADJACENTES (8 directions) parmi celles choisies — pas
+    // de connexion longue distance façon étoile, et presque toujours plus d'un chemin possible entre
+    // deux villes (plusieurs cellules voisines se touchent sans lien de parenté direct dans la
+    // croissance de la région).
+    computeGridAdjacencyPairs(cells).forEach(([i, j]) => {
+        addCityRoad(citiesById, cityIds[i], cityIds[j]);
+    });
 
     // Ville de départ : toujours connue et déjà visitée
     const startId = cityIds[0];
@@ -2600,7 +2827,9 @@ function generateUrbanFloorMap() {
         if (roadBtoA) { roadBtoA.isLair = true; roadBtoA.lairId = lairId; }
     }
 
-    gameState.urbanMap = { theme, isFinalFloor: isFinal, citiesById, currentCityId: startId, lairsById };
+    // camera : null = caméra auto-centrée sur la ville courante (voir updateUrbanMapUI()) ; posé
+    // explicitement à la génération pour que le tout premier rendu de l'étage parte bien de là.
+    gameState.urbanMap = { theme, isFinalFloor: isFinal, citiesById, currentCityId: startId, lairsById, camera: null };
     // Thématique unique de l'étage : generateMob()/generateBoss() la reçoivent comme un nom de
     // quartier classique, sans aucune adaptation nécessaire de leur côté.
     gameState.currentDistrict = theme;
@@ -2719,6 +2948,7 @@ function arriveAtCity() {
     if (!city) return;
 
     urbanMap.currentCityId = city.id;
+    urbanMap.camera = null; // La caméra "suit" de nouveau la ville courante après un trajet (voir updateUrbanMapUI())
     const firstVisit = !city.visited;
     city.visited = true;
     city.known = true;
@@ -3067,25 +3297,51 @@ function buildUrbanMapGraphData(urbanMap) {
     return { nodes, edges, positions };
 }
 
-// Reconstruit la Carte Urbaine : dispose (computeGraphLayout(), en repartant de la disposition
-// précédente pour rester stable d'un rendu à l'autre) puis dessine (renderGraphMiniMap()) le réseau
-// de villes connues sous forme de mini-carte graphique. Un clic sur une ville connue (directement
-// reliée ou non : travelToCity() calcule lui-même le trajet le plus court) déclenche le voyage.
+// Fenêtre affichée par la Carte Urbaine (unités monde, voir URBAN_GRID_CELL) — de l'ordre de 3
+// cellules de large, pour toujours voir la ville courante ET ses voisines immédiates d'un coup d'œil.
+const URBAN_MAP_VIEW_SIZE = { w: 230, h: 260 };
+
+// Reconstruit la Carte Urbaine : positions déjà figées à la génération (voir generateUrbanFloorMap()/
+// computeDeclutterLayout()), buildUrbanMapGraphData() les lit directement sur chaque ville ; dessine
+// (renderGraphMiniMap()) le réseau de villes connues sous forme de mini-carte graphique pannable. Un
+// clic sur une ville connue (directement reliée ou non : travelToCity() calcule lui-même le trajet le
+// plus court) déclenche le voyage — sauf s'il suit un glissement de la carte (voir renderGraphMiniMap()).
+// gameState.urbanMap.camera : `null` = caméra auto-centrée sur la ville courante (comportement par
+// défaut, y compris juste après un trajet — voir arriveAtCity()) ; un objet {x,y} = position choisie
+// par le joueur en faisant glisser la carte (onCameraChange ci-dessous), qui prend le dessus jusqu'au
+// prochain trajet ou clic sur "Recentrer" (voir recenterUrbanMap()).
 function updateUrbanMapUI() {
     if (!ui.urbanMapSvg) return;
     const urbanMap = gameState.urbanMap;
     if (!urbanMap) { ui.urbanMapSvg.innerHTML = ""; return; }
 
-    // Positions FIXES (voir URBAN_MAP_TEMPLATE_POINTS/generateUrbanFloorMap()) : plus de layout à
-    // calculer ici, buildUrbanMapGraphData() les lit directement sur chaque ville.
     const { nodes, edges, positions } = buildUrbanMapGraphData(urbanMap);
+    // Marge >= la moitié du plus grand côté de la fenêtre affichée (voir URBAN_MAP_VIEW_SIZE) : sans
+    // ça, une ville de bord de zone connue (typiquement la ville de départ, tout juste après
+    // l'arrivée sur l'étage) ne pourrait jamais être parfaitement centrée, le clamping la tirerait
+    // systématiquement vers l'intérieur (voir clampCameraToBounds()) — un peu de marge en plus (une
+    // demi-cellule) pour pouvoir aussi regarder légèrement au-delà.
+    const worldBoundsMargin = Math.max(URBAN_MAP_VIEW_SIZE.w, URBAN_MAP_VIEW_SIZE.h) / 2 + URBAN_GRID_CELL * 0.5;
+    const worldBounds = computeDefaultWorldBounds(positions, worldBoundsMargin);
 
     renderGraphMiniMap(ui.urbanMapSvg, {
         nodes, edges, positions, currentId: urbanMap.currentCityId,
         onNodeClick: (cityId) => travelToCity(cityId),
-        focusId: urbanMap.currentCityId, viewSpan: 0.62, // Caméra centrée sur la ville courante
+        camera: urbanMap.camera || null,
+        viewSize: URBAN_MAP_VIEW_SIZE,
+        worldBounds,
+        onCameraChange: (newCamera) => { gameState.urbanMap.camera = newCamera; },
         background: URBAN_MAP_BACKGROUND,
     });
+}
+
+// Bouton "Recentrer" de la Carte Urbaine : efface l'éventuelle position choisie par le joueur en
+// faisant glisser la carte, pour que la caméra revienne se centrer sur la ville courante (voir
+// gameState.urbanMap.camera/updateUrbanMapUI()).
+function recenterUrbanMap() {
+    if (!gameState.urbanMap) return;
+    gameState.urbanMap.camera = null;
+    updateUrbanMapUI();
 }
 
 // Point d'entrée unique pour "arriver" dans une pièce, que ce soit en explorant normalement ou en
@@ -4770,6 +5026,9 @@ ui.btnLeaveShop.addEventListener('click', leaveShop);
 // Clics sur le choix "plonger/poursuivre" d'un repaire repéré sur la route
 ui.btnDiveLair.addEventListener('click', diveIntoLair);
 ui.btnDeclineLair.addEventListener('click', declineLair);
+
+// Bouton "Recentrer" de la Carte Urbaine (voir recenterUrbanMap())
+if (ui.btnRecenterMap) ui.btnRecenterMap.addEventListener('click', recenterUrbanMap);
 
 // Clic sur le kit de test (bouton discret)
 ui.btnDevTestKit.addEventListener('click', giveTestKit);

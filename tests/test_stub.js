@@ -26,8 +26,12 @@ function makeEl() {
         addEventListener(evt, fn) {
             (this._listeners[evt] = this._listeners[evt] || []).push(fn);
         },
-        dispatch(evt) {
-            (this._listeners[evt] || []).forEach(fn => fn());
+        dispatch(evt, eventObj) {
+            // `type` reflète toujours le nom de l'événement dispatché, comme un vrai Event du DOM —
+            // en priorité sur un éventuel `type` déjà fourni par l'appelant, pour rester fidèle à un
+            // vrai navigateur (un `pointerup` dispatché a TOUJOURS type === 'pointerup').
+            const finalEvent = Object.assign({}, eventObj || {}, { type: evt });
+            (this._listeners[evt] || []).forEach(fn => fn(finalEvent));
         },
         appendChild(child) { this._children.push(child); return child; },
         removeChild(child) { this._children = this._children.filter(c => c !== child); },
