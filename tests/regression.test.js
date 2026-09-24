@@ -1842,6 +1842,71 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 }
 
 // ===================================================================
+// Tâche 5 — Validation supplémentaire : régénération=0 gérée dans le code de soin existant (pas un
+// cas spécial dans l'anomalie elle-même), robustesse du tirage sur un grand nombre d'étages, et
+// migration douce d'une sauvegarde ANTÉRIEURE À TOUTES les Tâches 1-4 (aucun des nouveaux champs).
+// ===================================================================
+
+// REPAS_DE_FAMILLE : régénération PV passive à zéro hors salle sécurisée — le "cas spécial" vit dans
+// applyTimeElapsedRegen() (un simple garde-fou sur un flag lu depuis gameState.anomalyEffects), jamais
+// une branche dédiée dans anomalies.js : l'anomalie ne fait que poser le drapeau.
+{
+    resetTransientState();
+    gameState.hp = 10; // Largement sous le max : sans le drapeau, la régén tenterait de soigner
+    gameState.anomalyEffects.regenOutsideSafehouseZero = true;
+    applyTimeElapsedRegen(5); // 5h qui, normalement, régénéreraient des PV (voir HP_REGEN_TIERS)
+    assert(gameState.hp === 10, "applyTimeElapsedRegen() (REPAS_DE_FAMILLE) : aucune régénération PV hors salle sécurisée");
+
+    gameState.anomalyEffects.regenOutsideSafehouseZero = false;
+    applyTimeElapsedRegen(5);
+    assert(gameState.hp > 10, "applyTimeElapsedRegen() : la régénération normale reprend dès que le drapeau retombe");
+}
+
+// Robustesse : aucun tirage/application d'anomalie ne doit jamais planter ni boucler indéfiniment,
+// sur une large plage d'étages (tuto, pool restreint, pool complet, deux-anomalies).
+{
+    for (let floor = 1; floor <= 40; floor++) {
+        for (let i = 0; i < 10; i++) {
+            const rolled = rollFloorAnomalies(floor);
+            assert(Array.isArray(rolled) && rolled.length <= 2, `rollFloorAnomalies(${floor}) : renvoie toujours un tableau de 0 à 2 entrées`);
+            const fx = computeAnomalyEffects(rolled);
+            assert(fx && !Number.isNaN(fx.allDamageMult) && !Number.isNaN(fx.playerMaxHpMult),
+                `computeAnomalyEffects() : jamais de NaN pour un tirage de l'étage ${floor}`);
+        }
+    }
+}
+
+// Migration douce : une sauvegarde brute antérieure à TOUTES les Tâches 1-4 (aucun des champs
+// introduits par ce plan) doit rester chargeable normalement, avec des valeurs par défaut saines
+// partout — jamais un écran bloqué ni un champ undefined.
+{
+    resetTransientState();
+    const veryOldSave = {
+        playerName: "Fossile",
+        currentFloor: 4,
+        level: 3,
+        hp: 80,
+        maxHp: 100,
+        atk: 14,
+        def: 6
+        // Rien d'autre : ni lastSavedAt/floorStats (Tâche 2), ni fleesThisRun/necrologie (Tâche 3),
+        // ni baseMaxHp/anomalyEffects/activeAnomalies/pactChoicePending (Tâche 4).
+    };
+    localStorage.setItem(saveKeyForName("Fossile"), JSON.stringify(veryOldSave));
+
+    resetTransientState();
+    const ok = restoreSaveForName("fossile");
+    assert(ok === true, "restoreSaveForName() : charge une sauvegarde antérieure à toutes les Tâches 1-4");
+    assert(gameState.floorStats && gameState.floorStats.mobsKilled === 0, "Migration douce : floorStats retombe sur des zéros (Tâche 2)");
+    assert(gameState.fleesThisRun === 0 && Array.isArray(gameState.necrologie) && gameState.necrologie.length === 0,
+        "Migration douce : fleesThisRun/necrologie retombent sur leurs défauts (Tâche 3)");
+    assert(gameState.baseMaxHp === 100, "Migration douce : baseMaxHp migré depuis l'ancien maxHp (Tâche 4)");
+    assert(gameState.anomalyEffects.allDamageMult === 1 && gameState.activeAnomalies.length === 0,
+        "Migration douce : anomalyEffects/activeAnomalies neutres (Tâche 4)");
+    assert(isActionBlocked() === false, "Migration douce : le joueur atterrit toujours sur l'écran d'exploration normal, jamais bloqué");
+}
+
+// ===================================================================
 // Étages urbains (multiples de 3 — voir generateUrbanFloorMap()/travelToCity()/
 // triggerUrbanBossEncounter() dans app.js, config.urbanFloors).
 // ===================================================================
