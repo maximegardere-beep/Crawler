@@ -82,6 +82,25 @@ Tailwind CDN, **aucun build step**.
   l'anomalie du prochain étage via `getUpcomingAnomalyAnnouncement(nextFloor)` — stub renvoyant `null`
   tant qu'aucun système d'anomalies n'existe (chantier séparé), seul endroit à modifier pour le
   brancher réellement : le bloc d'annonce de l'écran est déjà conditionnel (masqué si `null`).
+- **Nécrologie** : `gameOver(timeout, killer)` dérive une `cause` (`'trap'`/`'bleed'`/`'combat'`/
+  `'backfire'`/`'timeout'`) du contexte réel de mort — `killer` vaut `'trap'`/`'bleed'` aux deux sites
+  correspondants, ou l'objet ennemi lui-même à la mort par riposte de combat
+  (`resolveEnemyCounterAttack()`) ; `gameState.lastPlayerActionWasBackfire` (posé par `attackMagic()`
+  au moment du flop, remis à faux en tout début de CHAQUE action par `tryPlayerAction()` — pour qu'un
+  backfire ne "contamine" jamais un décès plus tardif sans rapport) requalifie alors la cause en
+  `'backfire'`. `generateEpitaph(deathContext)` pioche un template dans `EPITAPH_TEMPLATES[cause]`
+  (`{{mob}}`/`{{etage}}`/`{{deltaNiveau}}`/`{{cause}}`/`{{crawler}}` remplacés) — deux pools DÉDIÉS
+  (`mobFaible`, `backfire`) remplacent le pool par défaut selon des règles spéciales : mob tueur "très
+  inférieur" (écart `NECROLOGIE_WEAK_MOB_DELTA` entre `gameState.level` et `getMobLevelEquivalent()` —
+  aucun champ de niveau explicite sur les mobs, l'étage courant sert de proxy, cohérent avec le reste
+  du scaling par étage), ou cause déjà `'backfire'`. Deux mentions additionnelles, indépendantes du
+  pool choisi et combinables entre elles : `gameState.fleesThisRun` (fuites RÉUSSIES depuis le début du
+  run, incrémenté par `attemptFlee()`, jamais remis à zéro en cours de run) à partir de
+  `NECROLOGIE_FLEE_THRESHOLD`, et le premier objet équipé (arme/distance/armure) portant
+  `jokeItem: true` (voir `items.js`) s'il y en a un. `recordEpitaph()` archive le texte dans
+  `gameState.necrologie` (plus récente en premier, plafonné à `NECROLOGIE_MAX_ENTRIES` — persistant en
+  save via l'autosauvegarde existante, aucun écran de lecture dédié pour l'instant). Affichée pleine
+  largeur sur `#game-over-epitaph` (écran Game Over).
 - **Magie** : un seul sort équipé à la fois (`gameState.equipment.spell`), plus de simple attaque
   magique inconditionnelle. Répertoire de base dans `spellCatalog` (`spells.js`), deux catégories —
   corps à corps ou à distance (`spellCategory`) — qui font se comporter le bouton Magie exactement

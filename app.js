@@ -110,14 +110,28 @@ const gameState = {
     // (triggerFloorTransition()) puis remis à zéro par advanceToNextFloor(). Absent d'une sauvegarde
     // antérieure : retombe sur des zéros via Object.assign (jamais undefined à l'affichage, voir
     // restoreSaveForName()).
-    floorStats: { mobsKilled: 0, damageTaken: 0, itemsFound: 0, xpGained: 0 }
+    floorStats: { mobsKilled: 0, damageTaken: 0, itemsFound: 0, xpGained: 0 },
+    // Nombre de fuites RÉUSSIES depuis le début du run (voir attemptFlee()) — jamais remis à zéro en
+    // cours de run, sert uniquement à la mention spéciale de generateEpitaph() ("mort en ayant fui 3+
+    // fois"). Absent d'une sauvegarde antérieure : retombe sur 0 via Object.assign.
+    fleesThisRun: 0,
+    // Vrai seulement pendant le tour où le sort du joueur vient de partir en flop (voir attackMagic()) :
+    // remis à faux au tout début de CHAQUE action joueur (tryPlayerAction()), pour que seul un décès
+    // survenant DANS ce même tour (riposte immédiate de l'ennemi) soit attribué au backfire par
+    // gameOver()/generateEpitaph(), jamais un décès plus tardif sans rapport.
+    lastPlayerActionWasBackfire: false,
+    // Journal des N dernières épitaphes (voir generateEpitaph()/recordEpitaph()), plus récente en
+    // premier, plafonné à NECROLOGIE_MAX_ENTRIES. Persistant en save (aucun système de lecture dédié
+    // pour l'instant, préparé pour un futur "journal" consultable). Absent d'une sauvegarde antérieure :
+    // retombe sur [] via Object.assign.
+    necrologie: []
 };
 
 // Identifiant de version affiché sur l'écran de départ (voir #start-screen-overlay dans index.html) :
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 20, label: "Nettoyer les sauvegardes + écran d'escalier (félicitations)" };
+const APP_VERSION = { pr: 20, label: "Nettoyer les sauvegardes + écran d'escalier + nécrologie sarcastique" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -370,6 +384,7 @@ const ui = {
     gameOverFloor: document.getElementById('game-over-floor'),
     gameOverLevel: document.getElementById('game-over-level'),
     gameOverDistrict: document.getElementById('game-over-district'),
+    gameOverEpitaph: document.getElementById('game-over-epitaph'),
     btnRestart: document.getElementById('btn-restart'),
     winOverlay: document.getElementById('win-overlay'),
     winFloor: document.getElementById('win-floor'),
@@ -1526,7 +1541,7 @@ function resolveCardEvent() {
         setCardHeader('⚠️', 'Piège', 'Danger');
         logEvent(`${trap.text} (-${dmg} PV)`, "danger");
         if (gameState.hp <= 0) {
-            gameOver();
+            gameOver(false, 'trap');
             return;
         }
         return;
@@ -2088,6 +2103,152 @@ function continueFromFloorTransition() {
     if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
     gameState.floorTransitionPending = false;
     advanceToNextFloor();
+}
+
+// ==========================================
+// NÉCROLOGIE (épitaphes sarcastiques)
+// ==========================================
+// gameState.necrologie ne garde que les NECROLOGIE_MAX_ENTRIES dernières entrées (plus récente en
+// premier) — voir recordEpitaph().
+const NECROLOGIE_MAX_ENTRIES = 20;
+// Écart (niveau joueur - "niveau" du mob, voir getMobLevelEquivalent()) à partir duquel un mob tueur
+// est jugé "très inférieur" et déclenche l'épitaphe dédiée EPITAPH_TEMPLATES.mobFaible.
+const NECROLOGIE_WEAK_MOB_DELTA = 5;
+// Nombre de fuites réussies ce run à partir duquel la mention spéciale est ajoutée (voir
+// gameState.fleesThisRun, incrémenté par attemptFlee()).
+const NECROLOGIE_FLEE_THRESHOLD = 3;
+
+// Libellés humains de la cause de mort, utilisés pour le placeholder {{cause}} des templates.
+const DEATH_CAUSE_LABELS = {
+    combat: "au combat",
+    backfire: "par un sort qui a mal tourné",
+    trap: "dans un piège",
+    bleed: "d'une hémorragie",
+    timeout: "faute de temps"
+};
+
+// Pool de templates par cause de mort, tirage aléatoire (voir pick()). {{mob}}/{{etage}}/
+// {{deltaNiveau}}/{{cause}} remplacés par generateEpitaph() ; mobFaible et backfire sont des pools
+// DÉDIÉS qui remplacent le pool "combat" par défaut quand leur règle spéciale s'applique (voir
+// generateEpitaph()), jamais combinés entre eux.
+const EPITAPH_TEMPLATES = {
+    combat: [
+        "Ici repose {{crawler}}, terrassé(e) par [{{mob}}] à l'étage {{etage}}. Le Donjon salue un adversaire digne de ce nom.",
+        "[{{mob}}] a eu le dernier mot, à l'étage {{etage}}. Les paris étaient pourtant favorables.",
+        "Vaincu(e) par [{{mob}}] à l'étage {{etage}}. Une fin honorable, si on ignore les précédentes tentatives.",
+        "Fin de partie : [{{mob}}] a gagné, à l'étage {{etage}}. Applaudissements timides du public.",
+        "[{{mob}}] : 1. Crawler : 0. Étage {{etage}}. Le classement ne ment jamais.",
+        "L'étage {{etage}} garde son secret : comment [{{mob}}] a-t-il fait, exactement ?"
+    ],
+    trap: [
+        "Mort(e) bêtement dans un piège, à l'étage {{etage}}. Le Donjon n'a même pas eu besoin d'un monstre.",
+        "Un mécanisme centenaire a eu raison du crawler à l'étage {{etage}}. L'ironie n'échappe à personne.",
+        "L'étage {{etage}} avait posé un piège. Le crawler avait posé un pied dedans.",
+        "Piège fatal à l'étage {{etage}}. Le Donjon note : « toujours aussi efficace »."
+    ],
+    bleed: [
+        "Vidé(e) de son sang à l'étage {{etage}}, lentement, sûrement, sans un mot.",
+        "L'hémorragie a eu le dernier mot à l'étage {{etage}}. Un bandage aurait peut-être aidé.",
+        "Mort(e) de ses blessures à l'étage {{etage}}. Le sang, lui, ne ment jamais sur l'issue."
+    ],
+    timeout: [
+        "Le temps s'est écoulé à l'étage {{etage}}, et le Donjon n'attend personne.",
+        "Plus de temps, plus de chance : le Donjon s'est refermé sur l'étage {{etage}}.",
+        "Le chronomètre a gagné à l'étage {{etage}}. Il gagne toujours, en fin de compte."
+    ],
+    mobFaible: [
+        "Terrassé(e) par [{{mob}}], un adversaire {{deltaNiveau}} niveaux en dessous, à l'étage {{etage}}. Le Donjon en rit encore.",
+        "[{{mob}}], largement plus faible, a quand même eu raison du crawler à l'étage {{etage}}. Statistiquement improbable. Historiquement vrai.",
+        "Vaincu(e) par plus faible que soi ([{{mob}}], étage {{etage}}). Une leçon d'humilité, post-mortem.",
+        "[{{mob}}] n'aurait jamais dû gagner. Il a gagné quand même, à l'étage {{etage}}."
+    ],
+    backfire: [
+        "Un sort mal maîtrisé, une explosion, un silence : fin de partie à l'étage {{etage}}.",
+        "Le sort est parti de travers, et le crawler avec, à l'étage {{etage}}. La magie est une maîtresse cruelle.",
+        "Tué(e) par son propre sortilège à l'étage {{etage}}. Le grimoire n'assume aucune responsabilité.",
+        "Backfire fatal à l'étage {{etage}} : la magie a repris ce qu'elle avait prêté."
+    ]
+};
+
+// Mention ajoutée en fin d'épitaphe si gameState.fleesThisRun >= NECROLOGIE_FLEE_THRESHOLD.
+const EPITAPH_FLEE_MENTIONS = [
+    "Après {{fuites}} fuites ce run, la chance a fini par lui tourner le dos.",
+    "{{fuites}} fuites au compteur. Celle-ci, la dernière, n'a pas eu lieu.",
+    "Après avoir fui {{fuites}} fois, le Donjon a fini par le rattraper."
+];
+
+// Mention ajoutée en fin d'épitaphe si un objet équipé porte jokeItem: true (voir items.js).
+const EPITAPH_RIDICULOUS_ITEM_MENTIONS = [
+    "Il est mort en brandissant fièrement : {{objetRidicule}}.",
+    "Équipé jusqu'au bout de {{objetRidicule}}. Un choix qui restera dans les annales.",
+    "{{objetRidicule}} l'a accompagné jusqu'à la fin. On ne peut pas dire qu'il ait été bien conseillé."
+];
+
+// "Niveau" équivalent d'un mob : aucun champ de niveau explicite n'existe sur les mobs (voir
+// generateMob()/generator.js, qui les met à l'échelle par ÉTAGE, pas par niveau) — l'étage courant
+// est le proxy le plus direct et cohérent avec le reste du moteur de scaling.
+function getMobLevelEquivalent() {
+    return Math.max(1, gameState.currentFloor);
+}
+
+// Objet équipé le plus "ridicule" au moment de la mort (voir jokeItem dans items.js) : les parchemins
+// ne portent jamais ce flag, seuls weapon/ranged/armor sont scrutés.
+function findRidiculousEquippedItem() {
+    const slots = [gameState.equipment.weapon, gameState.equipment.ranged, gameState.equipment.armor];
+    return slots.find(item => item && item.jokeItem) || null;
+}
+
+// Construit l'épitaphe sarcastique pour le décès en cours, à partir du contexte réel (cause, mob
+// tueur éventuel). Fonction pure hors lecture de gameState/Math.random — appelée uniquement par
+// gameOver().
+function generateEpitaph(deathContext) {
+    const { cause, enemyName } = deathContext;
+    const floor = gameState.currentFloor;
+    const fleesThisRun = gameState.fleesThisRun || 0;
+    const ridiculousItem = findRidiculousEquippedItem();
+
+    let pool = EPITAPH_TEMPLATES[cause] || EPITAPH_TEMPLATES.combat;
+    let deltaNiveau = null;
+    if (cause === 'combat' || cause === 'backfire') {
+        const mobLevel = getMobLevelEquivalent();
+        deltaNiveau = gameState.level - mobLevel;
+        if (cause === 'combat' && deltaNiveau >= NECROLOGIE_WEAK_MOB_DELTA) {
+            pool = EPITAPH_TEMPLATES.mobFaible; // Règle spéciale : mob très inférieur -> épitaphe dédiée
+        } else if (cause === 'backfire') {
+            pool = EPITAPH_TEMPLATES.backfire; // Règle spéciale : mort par backfire -> épitaphe dédiée
+        }
+    }
+
+    let text = pick(pool)
+        .replace(/\{\{mob\}\}/g, enemyName || "un adversaire anonyme")
+        .replace(/\{\{etage\}\}/g, floor)
+        .replace(/\{\{deltaNiveau\}\}/g, deltaNiveau !== null ? Math.abs(deltaNiveau) : "")
+        .replace(/\{\{cause\}\}/g, DEATH_CAUSE_LABELS[cause] || "on ne sait comment")
+        .replace(/\{\{crawler\}\}/g, gameState.playerName || "le crawler");
+
+    if (fleesThisRun >= NECROLOGIE_FLEE_THRESHOLD) {
+        text += " " + pick(EPITAPH_FLEE_MENTIONS).replace(/\{\{fuites\}\}/g, fleesThisRun);
+    }
+    if (ridiculousItem) {
+        text += " " + pick(EPITAPH_RIDICULOUS_ITEM_MENTIONS).replace(/\{\{objetRidicule\}\}/g, ridiculousItem.name);
+    }
+    return text;
+}
+
+// Enregistre l'épitaphe dans le journal persistant (gameState.necrologie), plus récente en premier,
+// plafonné à NECROLOGIE_MAX_ENTRIES. Aucun écran de lecture dédié pour l'instant : préparé pour un
+// futur journal consultable, persistant en save via le mécanisme d'autosauvegarde existant.
+function recordEpitaph(text, deathContext) {
+    if (!Array.isArray(gameState.necrologie)) gameState.necrologie = [];
+    gameState.necrologie.unshift({
+        text,
+        floor: gameState.currentFloor,
+        cause: deathContext.cause,
+        date: Date.now()
+    });
+    if (gameState.necrologie.length > NECROLOGIE_MAX_ENTRIES) {
+        gameState.necrologie.length = NECROLOGIE_MAX_ENTRIES;
+    }
 }
 
 // Score de puissance (0 à 1) utilisé pour pondérer la rareté du loot obtenu (voir generateItem()
@@ -4094,6 +4255,10 @@ function getEffectiveDef() {
 function tryPlayerAction() {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
 
+    // Reset avant toute chose : seul un backfire posé PENDANT cette action doit pouvoir être tenu
+    // responsable d'une mort ce même tour (voir attackMagic()/gameOver()).
+    gameState.lastPlayerActionWasBackfire = false;
+
     // Saignement en cours sur le joueur : tique avant son action
     if (gameState.status.bleed && gameState.status.bleed.rounds > 0) {
         const dmg = gameState.status.bleed.dmgPerRound;
@@ -4103,7 +4268,7 @@ function tryPlayerAction() {
         logEvent(`🩸 Votre état vous fait perdre ${dmg} PV.`, "danger");
         if (gameState.hp <= 0) {
             gameState.hp = 0;
-            gameOver();
+            gameOver(false, 'bleed');
             return false;
         }
     }
@@ -4571,7 +4736,7 @@ function resolveEnemyCounterAttack() {
 
     if (gameState.hp <= 0) {
         gameState.hp = 0;
-        setTimeout(() => gameOver(), COMBAT_BEAT_MS); // Laisse le temps au dé/impact de se jouer
+        setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); // Laisse le temps au dé/impact de se jouer
         return;
     }
 
@@ -4811,6 +4976,7 @@ function attackMagic() {
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
         logEvent(`[${spell.spellName}] part de travers et fait un flop retentissant. Aucun dégât (mana quand même dépensé).`, "danger");
+        gameState.lastPlayerActionWasBackfire = true; // Voir gameOver()/generateEpitaph() : attribution du décès si la riposte qui suit est fatale
         resolveEnemyReaction(); // Un mob de mêlée hors de portée ne peut pas punir ce tour perdu, mais tente de se rapprocher
         gainSkillXp('magic', SKILL_XP_PER_USE); // On apprend même de ses échecs
         return;
@@ -4849,6 +5015,7 @@ function attemptFlee() {
         gameState.pendingStairAfterCombat = false; // La fuite ne compte pas comme une victoire sur le gardien
         gameState.pendingBossRoomId = null; // Le boss reste vivant, la salle n'est pas marquée vaincue
         gameState.pendingSneakAttack = false; // Ne doit pas se reporter sur un combat futur
+        gameState.fleesThisRun = (gameState.fleesThisRun || 0) + 1; // Voir generateEpitaph() : mention spéciale à 3+ fuites
         gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
         setCardHeader('🏃', 'Fuite Réussie', 'Exploration');
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
@@ -5242,13 +5409,35 @@ function devJumpToUrbanFloor() {
     logEvent("🛠️ DEV : saut direct à l'étage 3 (urbain).", "info");
 }
 
-function gameOver(timeout = false) {
+// `killer` précise la cause du décès quand timeout est faux : 'trap', 'bleed', un objet ennemi
+// (riposte de combat — voir resolveEnemyCounterAttack()), ou omis (filet de sécurité). Sert
+// uniquement à generateEpitaph() : n'affecte aucune autre logique de fin de partie.
+function gameOver(timeout = false, killer = null) {
     gameState.inCombat = true; // Bloque toute action supplémentaire
     ui.combatZone.classList.add('hidden'); // Cache la zone de combat
 
     const reason = timeout
         ? "Le temps est écoulé. Le donjon s'effondre sur vous..."
         : "Vos signes vitaux sont à zéro. Fin de transmission.";
+
+    let cause = 'timeout';
+    let enemyName = null;
+    if (!timeout) {
+        if (killer === 'trap') {
+            cause = 'trap';
+        } else if (killer === 'bleed') {
+            cause = 'bleed';
+        } else if (killer && typeof killer === 'object') {
+            // Un backfire de sort ce même tour rend la riposte qui suit responsable de la mort (voir
+            // attackMagic()/tryPlayerAction() pour la pose/le reset de ce drapeau).
+            cause = gameState.lastPlayerActionWasBackfire ? 'backfire' : 'combat';
+            enemyName = killer.name;
+        } else {
+            cause = 'combat'; // Filet de sécurité si jamais appelé sans tueur précisé
+        }
+    }
+    const epitaph = generateEpitaph({ cause, enemyName });
+    recordEpitaph(epitaph, { cause });
 
     logEvent(reason, "danger");
     logEvent("--- GAME OVER ---", "danger");
@@ -5259,6 +5448,7 @@ function gameOver(timeout = false) {
     ui.gameOverFloor.innerText = gameState.currentFloor;
     ui.gameOverLevel.innerText = gameState.level;
     ui.gameOverDistrict.innerText = gameState.currentDistrict;
+    if (ui.gameOverEpitaph) ui.gameOverEpitaph.innerText = epitaph;
     ui.gameOverOverlay.classList.remove('hidden');
 
     updateUI();
