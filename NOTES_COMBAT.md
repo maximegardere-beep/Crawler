@@ -167,3 +167,30 @@ appeler `noteMobKitingRound()` ont nécessité d'ajuster plusieurs tests pré-ex
 (`tests/regression/combat.js`) dont les séquences `Math.random` fixes ne prévoyaient pas ce nouveau
 tirage — comportement attendu d'un nouveau point de consommation aléatoire dans un chemin de code déjà
 testé, pas un bug.
+
+## Labels et titres d'issue proposés (GitHub)
+
+**Constat** (vérifié via l'API GitHub avant de proposer quoi que ce soit) : ce dépôt n'a actuellement
+AUCUNE issue (ouverte ou fermée) et aucun label `équilibrage`/`balance` déjà créé — le renvoi de
+CLAUDE.md vers une « issue d'équilibrage "métrique d'élite" » (section Backlog) est une référence
+informelle à la terminologie du projet, pas à une issue GitHub réellement existante. Il n'y a donc pas
+de style d'issue GitHub préexistant à imiter au sens strict ; la proposition ci-dessous reprend plutôt
+la convention déjà utilisée dans les messages de commit de ce rework (`fix: scaling dégâts mobs`,
+`feat: rework boss 3 phases`, `feat: enrage distance et engagement`) et le vocabulaire du projet
+(« chantier », « équilibrage », voir CLAUDE.md). Non créées automatiquement — proposées ici pour
+validation, comme le veut la convention de travail n°5 du projet (« un correctif d'équilibrage se
+propose en liste, jamais appliqué directement »).
+
+- **Label proposé** : `équilibrage` (un seul label générique, réutilisable pour tout futur ajustement
+  de chiffres de jeu — cohérent avec le seul terme déjà utilisé dans CLAUDE.md/Backlog).
+- **Chantier 1** — titre : *« Équilibrage combat : scaling des dégâts mobs (plancher de pression,
+  cap de réduction) »*. Corps suggéré : reprendre tel quel le paragraphe "Écart signalé" de ce fichier
+  (critère d'acceptation 25-35% non atteint, mesuré 5-25%).
+- **Chantier 2** — titre : *« Équilibrage combat : rework des boss en 3 phases (télégraphes,
+  multi-coups, phase de folie) »*. Corps suggéré : le paragraphe "Bug de conception détecté et
+  corrigé" (plancher de pression réparti sur le multi-coups) + un rappel que les chiffres de
+  `config.bossPhases` sont des valeurs de départ non playtestées.
+- **Chantier 3** — titre : *« Équilibrage combat : enrage par distance et action Charger »*. Corps
+  suggéré : le paragraphe "Choix de conception documenté" (pourquoi la frappe d'entrée ne compte pas
+  comme fin d'enrage) + les valeurs de `config.distanceEnrage`/`config.engageAction` à ajuster par
+  playtest.
