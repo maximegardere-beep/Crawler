@@ -125,6 +125,11 @@ const gameState = {
     // survenant DANS ce même tour (riposte immédiate de l'ennemi) soit attribué au backfire par
     // gameOver()/generateEpitaph(), jamais un décès plus tardif sans rapport.
     lastPlayerActionWasBackfire: false,
+    // Vrai seulement pendant la riposte qui suit un "Charger" (attemptEngage(), Chantier 3 du rework
+    // combat) : DEF joueur divisée par 2 pour ce tour-ci uniquement (voir getEffectiveDef()), remis à
+    // faux au tout début de CHAQUE action joueur (tryPlayerAction()), même convention que
+    // lastPlayerActionWasBackfire ci-dessus.
+    engageDefHalved: false,
     // Journal des N dernières épitaphes (voir generateEpitaph()/recordEpitaph()), plus récente en
     // premier, plafonné à NECROLOGIE_MAX_ENTRIES. Persistant en save (aucun système de lecture dédié
     // pour l'instant, préparé pour un futur "journal" consultable). Absent d'une sauvegarde antérieure :
@@ -271,6 +276,29 @@ const config = {
             atkMult: 1.4,
             defMult: 0.7
         }
+    },
+
+    // Chantier "rework combat", Chantier 3 (enrage distance et engagement) : voir
+    // noteMobKitingRound()/triggerMobEnrage()/endMobEnrage() dans app.js. Un mob (boss inclus, voir
+    // config.bossPhases plus haut — le compteur d'un boss démarre à 1) accumule un tour de "kiting"
+    // chaque fois qu'il reste à distance sans pouvoir attaquer ; la probabilité d'enrage par tour
+    // grimpe avec ce compteur jusqu'au plafond `maxChance`. Valeurs de départ non issues d'un audit
+    // d'équilibrage complet (voir NOTES_COMBAT.md) — à ajuster par playtest.
+    distanceEnrage: {
+        baseChance: 0.15,      // Proba d'enrage au 1er tour de kiting (formule : min(base + parRound×tours, max))
+        chancePerRound: 0.15,
+        maxChance: 0.80,
+        atkMult: 1.40,         // Dégâts du mob +40% tant qu'il est enragé (rue initiale ET frappes suivantes)
+        defMult: 0.5,          // DEF effective du mob divisée par 2 tant qu'il est enragé (lu par performPlayerAttack())
+        cooldownRounds: 2,     // Tours de repos forcé après la fin d'un enrage, avant de pouvoir s'enrager de nouveau
+        meleeGluedDamageMult: 1.10 // Anti-abus : un mob TOUJOURS +10% dégâts à distance nulle (collé au corps à corps)
+    },
+
+    // Chantier "rework combat", Chantier 3 : action volontaire "Charger" (attemptEngage()) — ferme
+    // l'écart d'un coup et enchaîne immédiatement une attaque bonus, au prix d'une DEF joueur divisée
+    // par 2 le temps de la riposte qui suit (voir gameState.engageDefHalved/getEffectiveDef()).
+    engageAction: {
+        atkMultiplier: 1.25
     },
 
     // Paramètres du combat à distance (mobs marqués `ranged: true` dans bestiary.js). Voir
@@ -541,6 +569,7 @@ const ui = {
     btnAttackMagic: document.getElementById('btn-attack-magic'),
     btnSprint: document.getElementById('btn-sprint'),
     btnRetreat: document.getElementById('btn-retreat'),
+    btnEngage: document.getElementById('btn-engage'),
     btnFlee: document.getElementById('btn-flee'),
     combatDistanceWrapper: document.getElementById('combat-distance-wrapper'),
     combatDistanceFill: document.getElementById('combat-distance-fill'),
@@ -1121,6 +1150,15 @@ function updateUI() {
             ui.btnRetreat.disabled = !retreatUsable;
             ui.btnRetreat.classList.toggle('opacity-40', !retreatUsable);
             ui.btnRetreat.classList.toggle('pointer-events-none', !retreatUsable);
+        }
+        // Charger (attemptEngage(), Chantier 3) : même disponibilité que S'approcher (un écart à
+        // combler), alternative agressive qui enchaîne une attaque bonus au lieu d'un simple
+        // repositionnement.
+        if (ui.btnEngage) {
+            const engageUsable = !!gameState.currentEnemy && distance > 0;
+            ui.btnEngage.disabled = !engageUsable;
+            ui.btnEngage.classList.toggle('opacity-40', !engageUsable);
+            ui.btnEngage.classList.toggle('pointer-events-none', !engageUsable);
         }
         // Un mob "alerted" (échec de furtivité, voir attemptStealthEvasion()) ne laisse plus fuir.
         if (ui.btnFlee) {
@@ -4367,8 +4405,12 @@ function initiateCombat(forcedEnemy = null) {
     if (enemy) {
         // telegraph/defBuffed/frenzied : uniquement lus/écrits côté boss (voir performBossCounterAttack()
         // dans app.js, Chantier 2 du rework combat) — restent toujours neutres sur un mob normal/élite.
-        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, telegraph: null, defBuffed: null, frenzied: false };
+        // enraged/enrageCooldown : Chantier 3 (enrage distance), tous mobs confondus, boss inclus.
+        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, telegraph: null, defBuffed: null, frenzied: false, enraged: null, enrageCooldown: null };
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
+        // Compteur de tours de kiting (Chantier 3) : un boss démarre à 1 (s'enrage plus vite qu'un
+        // mob normal, voir NOTES_COMBAT.md Chantier 2) plutôt qu'à 0.
+        enemy.kitingRounds = mobKitingBaseline(enemy);
     }
 
     // Distance de combat initiale : dépend uniquement de la nature du mob (aucune notion de
@@ -4439,21 +4481,99 @@ function getCombatRangeContext() {
     return { distance, playerAdvantaged, mobNeedsDistance };
 }
 
+// ==========================================
+// ENRAGE PAR DISTANCE (Chantier 3 du rework combat)
+// ==========================================
+// Anti-kite générique, tous mobs confondus (boss inclus) : un mob accumule un "tour de kiting"
+// chaque fois qu'il reste à distance sans pouvoir attaquer (mêlée hors de portée OU mob à distance
+// collé au corps à corps), remis à sa base dès qu'il parvient à frapper. La probabilité d'enrage par
+// tour grimpe avec ce compteur (config.distanceEnrage) jusqu'à son plafond. Voir NOTES_COMBAT.md.
+
+// Base du compteur de kiting : un boss démarre à 1 (voir Chantier 2, "les boss s'enragent plus
+// vite"), un mob normal/élite à 0.
+function mobKitingBaseline(enemy) {
+    return (enemy && enemy.isBoss) ? 1 : 0;
+}
+
+// Remet le compteur de kiting à sa base : appelé dès que le mob attaque réellement (peu importe le
+// chemin emprunté — riposte normale, ruée classique, ruée d'enrage...), signe qu'il n'est plus "tenu
+// à distance".
+function resetMobKiting(enemy) {
+    if (!enemy) return;
+    enemy.kitingRounds = mobKitingBaseline(enemy);
+}
+
+// Un tour de plus où le mob est tenu à distance sans pouvoir agir. Renvoie true si ce tour a
+// déclenché une ruée d'enrage (le mob a alors DÉJÀ attaqué — l'appelant ne doit pas logguer son
+// propre message "reste hors de portée" par-dessus).
+function noteMobKitingRound(enemy) {
+    if (!enemy || !enemy.status) return false;
+    // Déjà enragé : pas de nouveau tirage, mais ce tour de plus compte contre la durée restante de
+    // l'enrage en cours (expire après 2-3 tours sans nouvelle frappe réussie entre-temps).
+    if (enemy.status.enraged) {
+        enemy.status.enraged.rounds -= 1;
+        if (enemy.status.enraged.rounds <= 0) endMobEnrage(enemy);
+        return false;
+    }
+    // Repos forcé après un enrage précédent : aucun nouveau tirage tant qu'il n'est pas écoulé.
+    if (enemy.status.enrageCooldown && enemy.status.enrageCooldown.rounds > 0) {
+        enemy.status.enrageCooldown.rounds -= 1;
+        if (enemy.status.enrageCooldown.rounds <= 0) enemy.status.enrageCooldown = null;
+        return false;
+    }
+    enemy.kitingRounds = (enemy.kitingRounds || mobKitingBaseline(enemy)) + 1;
+    const cfg = config.distanceEnrage;
+    const chance = Math.min(cfg.baseChance + cfg.chancePerRound * enemy.kitingRounds, cfg.maxChance);
+    if (Math.random() < chance) {
+        triggerMobEnrage(enemy);
+        return true;
+    }
+    return false;
+}
+
+// Le mob perd patience : comble l'écart d'un coup et place une frappe bonus IMMÉDIATE (dégâts
+// +config.distanceEnrage.atkMult, via executeBossStrike() — réutilisée telle quelle, générique à
+// tout mob boss ou non). Cette frappe d'entrée ne compte pas comme la "frappe qui met fin à l'état"
+// (voir noteMobKitingRound()/resolveEnemyCounterAttack()/performBossCounterAttack()) : l'état enragé
+// s'installe SEULEMENT APRÈS elle, pour laisser une vraie fenêtre de 2-3 tours où sa DEF réduite
+// reste exploitable par le joueur (et ses dégâts restent boostés) sur les tours suivants.
+function triggerMobEnrage(enemy) {
+    const cfg = config.distanceEnrage;
+    setCombatDistance(0);
+    logEvent(`💢 [${enemy.name}] perd patience et se rue sur vous, enragé !`, "danger");
+    const boostedAtk = Math.round(enemy.atk * cfg.atkMult);
+    executeBossStrike(enemy, boostedAtk, `[${enemy.name}], enragé,`);
+    resetMobKiting(enemy);
+    if (gameState.hp > 0) {
+        enemy.status.enraged = { rounds: 2 + Math.floor(Math.random() * 2) }; // 2 ou 3 tours
+    }
+}
+
+// Fin de l'état enragé (durée écoulée, ou le mob vient de placer une frappe pendant l'état) : repos
+// forcé ensuite, pour ne pas pouvoir s'enrager en boucle dès le tour suivant.
+function endMobEnrage(enemy) {
+    enemy.status.enraged = null;
+    enemy.status.enrageCooldown = { rounds: config.distanceEnrage.cooldownRounds };
+}
+
 // Riposte "sécurisée" : bloque la riposte, sans rien faire d'autre ce tour-ci, si le mob ne peut
 // actuellement pas toucher le joueur (mob de mêlée hors de portée, ou mob à distance collé au corps
 // à corps). Réservée aux actions qui résolvent DÉJÀ elles-mêmes une manche de distance ce tour
 // (Sprint, Reculer) : ajouter une tentative de repositionnement par-dessus doublerait leur propre
 // jet. Pour tout le reste (voir resolveEnemyReaction), la riposte bloquée doit plutôt laisser le mob
-// tenter de se repositionner, sans quoi il resterait figé indéfiniment.
+// tenter de se repositionner, sans quoi il resterait figé indéfiniment. Un tour bloqué ici est aussi
+// un tour de kiting (Chantier 3) : peut déclencher une ruée d'enrage à la place du simple blocage.
 function safeEnemyCounterAttack() {
     const enemy = gameState.currentEnemy;
     if (!enemy) { enemyCounterAttack(); return; }
     const ctx = getCombatRangeContext();
     if (ctx.playerAdvantaged) {
+        if (noteMobKitingRound(enemy)) return; // ruée d'enrage déclenchée : a déjà attaqué
         logEvent(`Trop loin : [${enemy.name}] ne peut pas riposter.`, "info");
         return;
     }
     if (ctx.mobNeedsDistance) {
+        if (noteMobKitingRound(enemy)) return;
         logEvent(`Trop près : [${enemy.name}] ne peut pas tirer au corps à corps.`, "info");
         return;
     }
@@ -4480,7 +4600,10 @@ function resolveEnemyReaction() {
             logEvent(`[${enemy.name}] se rue et comble l'écart d'un bond !`, "danger");
             enemyCounterAttack();
         } else if (gameState.combatDistance > 0) {
-            logEvent(`[${enemy.name}] tente de combler l'écart, mais reste hors de portée pour l'instant.`, "info");
+            // Tour de kiting (Chantier 3) : peut déclencher une ruée d'enrage à la place du simple blocage.
+            if (!noteMobKitingRound(enemy)) {
+                logEvent(`[${enemy.name}] tente de combler l'écart, mais reste hors de portée pour l'instant.`, "info");
+            }
         } else {
             logEvent(`[${enemy.name}] parvient à combler l'écart !`, "danger");
             enemyCounterAttack();
@@ -4493,7 +4616,7 @@ function resolveEnemyReaction() {
         if (gameState.combatDistance > 0) {
             logEvent(`[${enemy.name}] recule pour reprendre ses distances et ouvre le feu !`, "danger");
             enemyCounterAttack();
-        } else {
+        } else if (!noteMobKitingRound(enemy)) {
             logEvent(`[${enemy.name}] tente de reculer pour tirer, mais vous le collez au corps à corps.`, "info");
         }
         return;
@@ -4581,6 +4704,12 @@ function getEffectiveDef() {
     if (gameState.status.corroded && gameState.status.corroded.rounds > 0) {
         effectiveDef = Math.round(effectiveDef * 0.6);
     }
+    // "Charger" (Chantier 3, attemptEngage()) : DEF divisée par 2 pour la riposte qui suit une charge
+    // volontaire — consommé (remis à faux) au tout début de la PROCHAINE action, voir tryPlayerAction(),
+    // jamais ici (fonction pure, aussi appelée pour le simple affichage UI de la DEF).
+    if (gameState.engageDefHalved) {
+        effectiveDef = Math.round(effectiveDef * 0.5);
+    }
     return effectiveDef;
 }
 
@@ -4593,6 +4722,9 @@ function tryPlayerAction() {
     // Reset avant toute chose : seul un backfire posé PENDANT cette action doit pouvoir être tenu
     // responsable d'une mort ce même tour (voir attackMagic()/gameOver()).
     gameState.lastPlayerActionWasBackfire = false;
+    // Même convention pour "Charger" (Chantier 3, attemptEngage()) : la DEF divisée par 2 ne doit
+    // couvrir QUE la riposte qui suit la charge, jamais fuiter sur l'action suivante du joueur.
+    gameState.engageDefHalved = false;
 
     // Saignement en cours sur le joueur : tique avant son action
     if (gameState.status.bleed && gameState.status.bleed.rounds > 0) {
@@ -4706,12 +4838,25 @@ function performPlayerAttack(attackerAtk, options, label) {
     if (enemyIsFrenzied) {
         effectiveEnemyDef = Math.round(effectiveEnemyDef * config.bossPhases.phase3.defMult);
     }
+    // Enrage par distance (Chantier 3, tous mobs confondus, boss inclus) : DEF effective divisée par
+    // 2 tant que l'état est actif (voir noteMobKitingRound()/triggerMobEnrage()) — une vraie fenêtre
+    // de burst pour le joueur, en échange du fait qu'il vient d'encaisser (ou va encaisser) des coups
+    // boostés en retour.
+    const enemyIsEnragedForPlayer = enemy.status && enemy.status.enraged && enemy.status.enraged.rounds > 0;
+    if (enemyIsEnragedForPlayer) {
+        effectiveEnemyDef = Math.round(effectiveEnemyDef * config.distanceEnrage.defMult);
+    }
 
+    // "Charger" (Chantier 3, attemptEngage()) : bonus d'ATQ déjà passé via effectiveOptions.atkMultiplier
+    // par l'appelant ; en contrepartie, la DEF du JOUEUR est divisée par 2 pour la riposte qui suit —
+    // consommée au tout début de la PROCHAINE action (tryPlayerAction()), même convention que
+    // lastPlayerActionWasBackfire, jamais ici (getEffectiveDef() reste pure, aussi utilisée pour le
+    // simple affichage UI).
     const playerDamage = rollDamage(attackerAtk, effectiveEnemyDef, effectiveOptions);
     enemy.hp -= playerDamage;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
-    logEvent(`Vous attaquez ${label}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée par la folie)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
+    logEvent(`Vous attaquez ${label}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée par la folie)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée par l'enrage)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
 
     // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
     if (gameState.companion && gameState.companion.specialty.type === 'strike' && enemy.hp > 0) {
@@ -4973,7 +5118,7 @@ const COMBAT_BEAT_MS = 400;
 
 // Empêche de spammer les boutons de combat pendant la petite pause entre deux actions
 function setCombatInputLocked(locked) {
-    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnRetreat, ui.btnFlee].forEach(btn => {
+    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnRetreat, ui.btnEngage, ui.btnFlee].forEach(btn => {
         if (!btn) return;
         btn.disabled = locked;
         btn.classList.toggle('opacity-40', locked);
@@ -5053,10 +5198,43 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride) {
 
 // Riposte complète d'un boss : sélectionne et résout un pattern selon sa phase courante. Chaque
 // branche se termine par un `return` — un seul pattern par tour, jamais cumulés.
+// Enveloppe fine autour de performBossCounterAttackInner() : gère la fin de l'état enragé (Chantier
+// 3) sur UN SEUL point de sortie plutôt que de dupliquer la logique sur chacun des nombreux `return`
+// internes. "A-t-il placé un coup ce tour-ci ?" est détecté via le delta de floorStats.damageTaken —
+// point de passage UNIQUE de toute perte de PV joueur (voir applyPlayerDamage()), donc un signal
+// fiable même si l'attaque interne a pris un chemin qui NE frappe pas (télégraphe posé, buff de
+// défense) : dans ce cas, ce tour compte quand même contre la durée restante de l'enrage, comme un
+// tour de kiting normal — seul un coup RÉELLEMENT porté y met fin immédiatement (voir la consigne :
+// "dure 2-3 tours OU jusqu'à ce qu'il place un coup").
 function performBossCounterAttack(enemy) {
+    const wasEnraged = !!(enemy.status && enemy.status.enraged && enemy.status.enraged.rounds > 0);
+    const dmgBefore = gameState.floorStats.damageTaken;
+    performBossCounterAttackInner(enemy);
+    if (wasEnraged && enemy.status.enraged) {
+        if (gameState.floorStats.damageTaken > dmgBefore) {
+            endMobEnrage(enemy);
+        } else {
+            enemy.status.enraged.rounds -= 1;
+            if (enemy.status.enraged.rounds <= 0) endMobEnrage(enemy);
+        }
+    }
+}
+
+function performBossCounterAttackInner(enemy) {
     const phase = getBossPhase(enemy);
     const bp = config.bossPhases;
     let enemyAtk = enemy.atk;
+
+    // Anti-abus mêlée collée + enrage par distance (Chantier 3) : mêmes multiplicateurs que le mob
+    // normal/élite (resolveEnemyCounterAttack()), appliqués ICI UNE SEULE FOIS avant la sélection de
+    // pattern, donc reflétés dans TOUTES les branches ci-dessous (télégraphe, multi-coups,
+    // harcèlement, attaque de base, phase 3) sans dupliquer le multiplicateur à chaque point d'usage.
+    if (gameState.combatDistance <= 0) {
+        enemyAtk = Math.round(enemyAtk * config.distanceEnrage.meleeGluedDamageMult);
+    }
+    if (enemy.status.enraged && enemy.status.enraged.rounds > 0) {
+        enemyAtk = Math.round(enemyAtk * config.distanceEnrage.atkMult);
+    }
 
     // Phase 3 ("folie") : dégâts +40% fixes, pas de télégraphe — le boss cesse d'être tactique et
     // frappe en continu. enemy.status.frenzied (lu par performPlayerAttack()) réduit symétriquement
@@ -5166,6 +5344,10 @@ function resolveEnemyCounterAttack() {
         return;
     }
 
+    // Compteur de kiting (Chantier 3) : atteindre ce point signifie que le mob RÉUSSIT à agir ce
+    // tour-ci (quel que soit le chemin emprunté pour y arriver, boss ou non) — remise à sa base.
+    resetMobKiting(enemy);
+
     // Boss : chemin de riposte totalement séparé (patterns par phase, voir performBossCounterAttack()
     // ci-dessous, Chantier 2 du rework combat) — jamais mélangé au chemin mob normal/élite ci-dessous,
     // pour ne rien changer au comportement déjà testé du Chantier 1 sur les mobs non-boss.
@@ -5202,6 +5384,18 @@ function resolveEnemyCounterAttack() {
     // voir Chantier 2 du même rework).
     if (isEliteMob(enemy)) {
         enemyAtk = Math.round(enemyAtk * config.mobDamageScaling.eliteDamageMult);
+    }
+
+    // Anti-abus mêlée collée (Chantier 3) : un mob inflige toujours +10% de dégâts à écart nul, pour
+    // que rester collé au corps à corps ne devienne jamais une stratégie dominante à coût nul.
+    if (gameState.combatDistance <= 0) {
+        enemyAtk = Math.round(enemyAtk * config.distanceEnrage.meleeGluedDamageMult);
+    }
+    // Enrage par distance (Chantier 3) : dégâts +40% tant que l'état est actif (voir
+    // noteMobKitingRound()/triggerMobEnrage()).
+    const enemyWasEnraged = enemy.status && enemy.status.enraged && enemy.status.enraged.rounds > 0;
+    if (enemyWasEnraged) {
+        enemyAtk = Math.round(enemyAtk * config.distanceEnrage.atkMult);
     }
 
     const enemyDamage = rollDamage(enemyAtk, getEffectiveDef(), {
@@ -5248,6 +5442,12 @@ function resolveEnemyCounterAttack() {
     if (wasCorroded) {
         gameState.status.corroded.rounds -= 1;
         if (gameState.status.corroded.rounds <= 0) gameState.status.corroded = null;
+    }
+
+    // Enrage par distance (Chantier 3) : une frappe RÉUSSIE pendant l'état (celle-ci, pas la ruée
+    // d'entrée qui l'a déclenché — voir triggerMobEnrage()) met fin à l'état immédiatement.
+    if (enemyWasEnraged) {
+        endMobEnrage(enemy);
     }
 
     if (gameState.hp <= 0) {
@@ -5453,6 +5653,38 @@ function attemptRetreat() {
         logEvent(`[${enemy.name}] vous colle et vous empêche de vous éloigner.`, "danger");
     }
     safeEnemyCounterAttack();
+}
+
+// Charger : action volontaire et engagée (Chantier 3 du rework combat), alternative agressive à
+// S'approcher. Ferme l'écart D'UN COUP (sans jet opposé — le prix de cette prise de risque se paie
+// sur l'attaque qui suit, pas sur le rapprochement lui-même) et enchaîne IMMÉDIATEMENT une attaque
+// bonus (config.engageAction.atkMultiplier, +25%), au prix d'une DEF joueur divisée par 2 pour la
+// riposte qui suit (gameState.engageDefHalved, lu par getEffectiveDef() puis consommé par
+// tryPlayerAction() au début de la PROCHAINE action — voir ces deux fonctions). Réutilise
+// performPlayerAttack() tel quel, jamais une nouvelle formule de dégâts.
+function attemptEngage() {
+    const enemy = gameState.currentEnemy;
+    if (!gameState.inCombat || !enemy || gameState.combatDistance <= 0) {
+        logEvent("Rien à charger : déjà au corps à corps.", "info");
+        return;
+    }
+    if (!tryPlayerAction()) return;
+
+    setCombatDistance(0);
+    showDie(ui.combatPlayerDie, "⚔️");
+    logEvent(`⚔️ Vous chargez [${enemy.name}] sans retenue, garde grande ouverte !`, "info");
+
+    gameState.engageDefHalved = true;
+    const weapon = gameState.equipment.weapon;
+    const weaponBonus = weapon ? (weapon.baseDmg || 0) : 0;
+    const effectiveAtk = gameState.atk + weaponBonus;
+    const defReduction = weapon ? 0 : 0.35; // Pas d'arme équipée : mêmes mains nues qu'attackUnarmed()
+    const label = weapon ? "en chargeant à l'arme" : "en chargeant à mains nues";
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier: config.engageAction.atkMultiplier, defReduction }, label);
+    if (landed) {
+        gainSkillXp(weapon ? 'weapon' : 'unarmed', SKILL_XP_PER_USE);
+        if (weapon) applyWeaponMechanic(weapon);
+    }
 }
 
 // Magie : la plus puissante en moyenne, mais imprévisible, et peut totalement rater (thème
@@ -6049,6 +6281,7 @@ ui.btnAttackUnarmed.addEventListener('click', attackUnarmed);
 ui.btnAttackMagic.addEventListener('click', attackMagic);
 if (ui.btnSprint) ui.btnSprint.addEventListener('click', attemptSprint);
 if (ui.btnRetreat) ui.btnRetreat.addEventListener('click', attemptRetreat);
+if (ui.btnEngage) ui.btnEngage.addEventListener('click', attemptEngage);
 ui.btnFlee.addEventListener('click', attemptFlee);
 
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)

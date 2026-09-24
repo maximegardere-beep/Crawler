@@ -81,7 +81,10 @@ assert(gameState.combatDistance === 0, `L'écart finit par être comblé après 
     gameState.combatDistance = config.rangedCombat.maxDistance; // grand écart à combler
     const originalRandom = Math.random;
     let idx = 0;
-    const seq = [0, 0, 0.999]; // dés du joueur au plus bas (x2), dé du mob au plus haut -> échec net
+    // dés du joueur au plus bas (x2), dé du mob au plus haut -> échec net ; le 4e tirage (0.99) est le
+    // jet d'enrage (Chantier 3, noteMobKitingRound() dans safeEnemyCounterAttack()) — volontairement
+    // au-delà du seuil de proba pour ne pas interférer avec ce scénario, qui teste le blocage simple.
+    const seq = [0, 0, 0.999, 0.99];
     Math.random = () => seq[(idx++) % seq.length];
     ui.btnFlee.disabled = false;
     attemptSprint();
@@ -154,7 +157,12 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     assert(ctx.playerAdvantaged === true, "getCombatRangeContext() : joueur avantagé face à un mob de mêlée hors de portée");
 
     ui.btnAttackWeapon.disabled = false;
+    // Jet d'enrage (Chantier 3, noteMobKitingRound()) écarté volontairement : ce scénario teste le
+    // blocage simple, pas la ruée d'enrage (couverte séparément dans combat-enrage.js).
+    const originalRandom = Math.random;
+    Math.random = () => 0.99;
     safeEnemyCounterAttack();
+    Math.random = originalRandom;
     assert(ui.btnAttackWeapon.disabled === false, "safeEnemyCounterAttack() : aucune riposte déclenchée quand le mob de mêlée est hors de portée");
 }
 {
@@ -190,7 +198,12 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     assert(ctx.mobNeedsDistance === true, "getCombatRangeContext() : un mob à distance collé au contact doit reculer pour tirer");
 
     ui.btnAttackWeapon.disabled = false;
+    // Jet d'enrage (Chantier 3, noteMobKitingRound()) écarté volontairement : ce scénario teste le
+    // blocage simple, pas la ruée d'enrage (couverte séparément dans combat-enrage.js).
+    const originalRandom = Math.random;
+    Math.random = () => 0.99;
     safeEnemyCounterAttack();
+    Math.random = originalRandom;
     assert(ui.btnAttackWeapon.disabled === false, "safeEnemyCounterAttack() : aucune riposte déclenchée quand le mob à distance est au corps à corps");
 }
 {
@@ -272,8 +285,11 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     const originalRandom = Math.random;
     // Séquence par cast de Magie : [pas de backfire, variance de dégâts, dé joueur bas, dé mob un peu
     // plus haut] -> le mob gagne la manche de rapprochement d'une marge étroite (1, < rushMarginThreshold)
-    // déclenchée par resolveEnemyReaction() : pas de ruée, l'écart se comble progressivement.
-    const seq = [0.5, 0.5, 0.4, 0.55]; // playerRoll=3, mobRoll=4 (diff=-1)
+    // déclenchée par resolveEnemyReaction() : pas de ruée, l'écart se comble progressivement. Le 5e
+    // tirage (0.99) est le jet d'enrage (Chantier 3, noteMobKitingRound()) déclenché tant que l'écart
+    // n'est pas encore comblé après le premier cast — volontairement au-delà du seuil de proba pour ne
+    // pas interférer avec ce scénario, qui teste le rapprochement PROGRESSIF, pas l'enrage.
+    const seq = [0.5, 0.5, 0.4, 0.55, 0.99, 0.5, 0.5, 0.4, 0.55]; // playerRoll=3, mobRoll=4 (diff=-1) à chaque manche
     let idx = 0;
     Math.random = () => seq[(idx++) % seq.length];
 

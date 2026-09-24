@@ -35,7 +35,11 @@ assert(getBossPhase(null) === 1, "getBossPhase() : enemy absent -> repli phase 1
     resolveEnemyCounterAttack();
     Math.random = originalRandom;
 
-    const expected = Math.round(boss.atk * config.bossPhases.telegraphHeavyMult); // DEF joueur nulle -> mitigation 1
+    // Écart nul par défaut (resetTransientState()) : l'anti-abus mêlée collée du Chantier 3
+    // (config.distanceEnrage.meleeGluedDamageMult) s'applique aussi, AVANT le multiplicateur de
+    // télégraphe (voir performBossCounterAttackInner()) — DEF joueur nulle -> mitigation 1.
+    const gluedAtk = Math.round(boss.atk * config.distanceEnrage.meleeGluedDamageMult);
+    const expected = Math.round(gluedAtk * config.bossPhases.telegraphHeavyMult);
     assert(gameState.hp === 1000 - expected, `Télégraphe lourd exécuté : dégâts boostés (x${config.bossPhases.telegraphHeavyMult}) infligés (attendu ${expected}, obtenu ${1000 - gameState.hp})`);
     assert(boss.status.telegraph === null, "Télégraphe lourd : consommé après exécution (jamais répété)");
 }
@@ -98,7 +102,10 @@ assert(getBossPhase(null) === 1, "getBossPhase() : enemy absent -> repli phase 1
     resolveEnemyCounterAttack();
     Math.random = originalRandom;
 
-    const expected = Math.round(boss.atk * config.bossPhases.phase3.atkMult);
+    // Écart nul par défaut : l'anti-abus mêlée collée (Chantier 3) s'applique aussi, AVANT le
+    // multiplicateur de phase 3 (voir performBossCounterAttackInner()).
+    const gluedAtk3 = Math.round(boss.atk * config.distanceEnrage.meleeGluedDamageMult);
+    const expected = Math.round(gluedAtk3 * config.bossPhases.phase3.atkMult);
     assert(gameState.hp === 1000 - expected, `Phase 3 : dégâts boostés de +${Math.round((config.bossPhases.phase3.atkMult - 1) * 100)}% (attendu ${expected}, obtenu ${1000 - gameState.hp})`);
     assert(boss.status.frenzied === true, "Phase 3 : pose enemy.status.frenzied");
 }
@@ -143,6 +150,9 @@ assert(getBossPhase(null) === 1, "getBossPhase() : enemy absent -> repli phase 1
     Math.random = originalRandom;
 
     const totalDealt = 1000 - gameState.hp;
-    const expectedTotal = Math.round(boss.atk * (config.bossPhases.multiStrikeTotalMult / 3)) * 3;
+    // Écart nul par défaut : l'anti-abus mêlée collée (Chantier 3) s'applique aussi, sur l'ATQ de
+    // base AVANT la répartition multi-coups (voir performBossCounterAttackInner()).
+    const gluedAtkMulti = Math.round(boss.atk * config.distanceEnrage.meleeGluedDamageMult);
+    const expectedTotal = Math.round(gluedAtkMulti * (config.bossPhases.multiStrikeTotalMult / 3)) * 3;
     assert(totalDealt === expectedTotal, `Multi-coups phase 2 : dégâts totaux cohérents avec multiStrikeTotalMult répartis sur 3 frappes (attendu ~${expectedTotal}, obtenu ${totalDealt})`);
 }

@@ -112,4 +112,58 @@ narratif (harcèlement à distance ci-dessus), sans rien câbler de réel dessus
 
 ## Chantier 3 — Enrage distance et engagement
 
-_À compléter._
+Anti-kite générique, tous mobs confondus (boss inclus) : `config.distanceEnrage` (app.js). Un mob
+accumule un "tour de kiting" (`enemy.kitingRounds`) chaque fois qu'il reste à distance sans pouvoir
+attaquer (mêlée hors de portée OU mob à distance collé au corps à corps — voir
+`noteMobKitingRound()`), remis à sa base dès qu'il parvient à frapper (`resetMobKiting()`, appelé au
+tout début de `resolveEnemyCounterAttack()`, avant même le branchement boss/non-boss). Un boss
+démarre à 1 (voir Chantier 2, "les boss s'enragent plus vite") plutôt qu'à 0.
+
+**Probabilité d'enrage** : `min(baseChance + chancePerRound × kitingRounds, maxChance)` =
+`min(0.15 + 0.15×tours, 0.80)`, exactement la formule de la consigne. Testée à la fois en isolation
+(`combat-enrage.js`) et via `noteMobKitingRound()` avec un `Math.random()` contrôlé.
+
+**Déclenchement** (`triggerMobEnrage()`) : le mob comble l'écart d'un coup (ruée, `setCombatDistance(0)`)
+et place une frappe bonus IMMÉDIATE (`config.distanceEnrage.atkMult`, +40%, via `executeBossStrike()`
+réutilisée telle quelle — générique à tout mob boss ou non). **Choix de conception documenté** : cette
+frappe d'entrée ne compte volontairement PAS comme "il place un coup" pour la sortie anticipée de
+l'état — l'état enragé (`enemy.status.enraged`, 2-3 tours) s'installe SEULEMENT APRÈS elle, pour
+laisser une vraie fenêtre où sa DEF réduite (`defMult`, ÷2, lue par `performPlayerAttack()`) reste
+exploitable par le joueur et ses dégâts restent boostés sur les tours suivants — sans ce choix, la
+consigne ("dure 2-3 tours OU jusqu'à ce qu'il place un coup") se serait auto-contredite : la ruée
+d'entrée porte TOUJOURS un coup, donc l'état se serait terminé instantanément à chaque fois si elle
+avait compté, rendant la durée de 2-3 tours inatteignable en pratique.
+
+**Fin de l'enrage** : une frappe RÉELLEMENT réussie pendant l'état (détectée pour un boss via le delta
+de `gameState.floorStats.damageTaken` — point de passage unique de toute perte de PV joueur, voir
+`applyPlayerDamage()` — car `performBossCounterAttackInner()` a plusieurs points de sortie et certains
+ne portent aucun coup) y met fin immédiatement (`endMobEnrage()`), sinon la durée décroît d'un tour à
+chaque tour de kiting supplémentaire (`noteMobKitingRound()`) jusqu'à expiration. Un cooldown
+(`cooldownRounds`, 2 tours) suit systématiquement la fin d'un enrage, empêchant un nouveau tirage
+immédiat.
+
+**Anti-abus mêlée collée** : `meleeGluedDamageMult` (+10%) appliqué à TOUT mob (boss inclus, voir
+`performBossCounterAttackInner()`) dès que `gameState.combatDistance <= 0`, pour que rester collé au
+corps à corps ne devienne jamais une stratégie strictement dominante à coût nul face à l'anti-kite.
+
+**"Charger" (`attemptEngage()`)** : nouvelle action joueur (bouton dédié, `#btn-engage`), alternative
+agressive à S'approcher. Ferme l'écart D'UN COUP sans jet opposé (contrairement à S'approcher) et
+enchaîne IMMÉDIATEMENT une attaque avec `config.engageAction.atkMultiplier` (+25%), réutilisant
+`performPlayerAttack()` tel quel. Prix : `gameState.engageDefHalved` divise la DEF effective du joueur
+par 2 (`getEffectiveDef()`) pour la riposte qui suit — consommé au tout début de la PROCHAINE action
+(`tryPlayerAction()`), même convention que `gameState.lastPlayerActionWasBackfire`.
+
+**Valeurs appliquées** (non issues d'un audit d'équilibrage complet, à ajuster par playtest comme le
+reste des chiffres du jeu) : `baseChance` 0.15, `chancePerRound` 0.15, `maxChance` 0.80 (fournies par
+la consigne), `atkMult` 1.40 (fourni), `defMult` 0.5 (fourni), `cooldownRounds` 2 (chiffre non fourni
+par la consigne d'origine, valeur de départ raisonnable posée ici), `meleeGluedDamageMult` 1.10
+(fourni), `engageAction.atkMultiplier` 1.25 (fourni).
+
+**Non implémenté, hors périmètre** : la mécanique de "harcèlement à distance" du boss (Chantier 2,
+`config.bossPhases.rangedHarassChance`/`rangedHarassMult`) reste le stub minimal posé à l'époque — ce
+chantier ne l'a pas retouchée ni fusionnée avec le système d'enrage générique ci-dessus (les deux
+coexistent, indépendants). Les rewrites de `resolveEnemyReaction()`/`safeEnemyCounterAttack()` pour
+appeler `noteMobKitingRound()` ont nécessité d'ajuster plusieurs tests pré-existants
+(`tests/regression/combat.js`) dont les séquences `Math.random` fixes ne prévoyaient pas ce nouveau
+tirage — comportement attendu d'un nouveau point de consommation aléatoire dans un chemin de code déjà
+testé, pas un bug.

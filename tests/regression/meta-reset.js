@@ -28,7 +28,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
 const KNOWN_GAMESTATE_KEYS = [
     'activeAnomalies', 'anomalyEffects', 'atk', 'baseMaxHp', 'bossChoicePending',
     'cardsDrawnThisFloor', 'combatDistance', 'companion', 'companionChoicePending',
-    'currentDistrict', 'currentEnemy', 'currentFloor', 'def', 'equipment', 'fleesThisRun',
+    'currentDistrict', 'currentEnemy', 'currentFloor', 'def', 'engageDefHalved', 'equipment', 'fleesThisRun',
     'floorMap', 'floorStats', 'floorTransitionPending', 'gold', 'hasWon', 'hp', 'inCombat',
     'inventory', 'knownLocations', 'lairChoicePending', 'lastPlayerActionWasBackfire',
     'lastSavedAt', 'level', 'mana', 'maxHp', 'maxInventory', 'maxMana', 'maxTime', 'necrologie',

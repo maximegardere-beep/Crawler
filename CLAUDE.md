@@ -96,6 +96,27 @@ Tailwind CDN, **aucun build step**.
   `config.bossRewards.minRarityKey` plombe la rareté du loot aléatoire garanti, et
   `awardBossSignatureItem()` attache en plus un objet signature légendaire unique par boss
   (`bestiary.js`, `districtBosses.*.signatureItem`, cloné frais à chaque victoire).
+- **Enrage distance et engagement** (chantier "rework combat", Chantier 3 — voir `NOTES_COMBAT.md`
+  pour le détail des valeurs) : anti-kite générique, tous mobs confondus (boss inclus).
+  `enemy.kitingRounds` (base 1 pour un boss, 0 sinon — `mobKitingBaseline()`) s'incrémente à chaque
+  tour où le mob reste à distance sans pouvoir attaquer (`noteMobKitingRound()`, appelée depuis
+  `resolveEnemyReaction()`/`safeEnemyCounterAttack()`), remis à sa base dès qu'il frappe
+  (`resetMobKiting()`, au tout début de `resolveEnemyCounterAttack()`). Probabilité d'enrage par tour :
+  `min(0.15 + 0.15×kitingRounds, 0.80)`. Déclenché (`triggerMobEnrage()`), le mob comble l'écart d'un
+  coup et place une frappe bonus immédiate (`config.distanceEnrage.atkMult`, +40%, via
+  `executeBossStrike()` réutilisée telle quelle) ; cette frappe d'entrée ne compte volontairement PAS
+  comme "il place un coup" pour la sortie anticipée — l'état `enemy.status.enraged` (2-3 tours,
+  `defMult` ÷2 sur sa DEF effective, lu par `performPlayerAttack()`) s'installe SEULEMENT APRÈS elle,
+  pour laisser une vraie fenêtre de burst au joueur (sans ce choix, la durée 2-3 tours aurait été
+  inatteignable, la ruée portant toujours un coup). Une frappe RÉELLEMENT réussie pendant l'état y met
+  fin immédiatement (`endMobEnrage()`, détecté pour un boss via le delta de
+  `gameState.floorStats.damageTaken`), suivi d'un cooldown (`cooldownRounds`). Anti-abus mêlée collée :
+  `meleeGluedDamageMult` (+10%) sur tout mob dès `gameState.combatDistance <= 0`. Nouvelle action
+  joueur "Charger" (`attemptEngage()`, bouton `#btn-engage`) : ferme l'écart d'un coup sans jet opposé
+  et enchaîne une attaque à `config.engageAction.atkMultiplier` (+25%), au prix de
+  `gameState.engageDefHalved` (DEF joueur ÷2 pour la riposte qui suit, lu par `getEffectiveDef()`,
+  consommé au tout début de la PROCHAINE action par `tryPlayerAction()` — même convention que
+  `lastPlayerActionWasBackfire`).
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
@@ -408,7 +429,8 @@ Tailwind CDN, **aucun build step**.
 - **Rapide** (`npm test`, quelques secondes) : à lancer avant CHAQUE push. `tests/regression.test.js`
   est un AGRÉGATEUR (depuis la Tâche 2 du chantier "fiabilisation" — l'ancien fichier monolithique
   faisait ~172 Ko) : il ne fait que `require()` chaque module de `tests/regression/*.js`, regroupés
-  par domaine (`meta-reset.js`, `combat.js`, `items.js`, `misc.js`, `magic.js`, `saves.js`,
+  par domaine (`meta-reset.js`, `combat.js`, `combat-scaling.js`, `combat-boss.js`,
+  `combat-enrage.js`, `items.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
   `urban-map.js`, `urban-shops.js`, `urban-lairs.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet

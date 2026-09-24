@@ -80,6 +80,7 @@ function resetTransientState() {
     if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
     gameState.fleesThisRun = 0;
     gameState.lastPlayerActionWasBackfire = false;
+    gameState.engageDefHalved = false;
     gameState.necrologie = [];
     if (ui.gameOverOverlay) ui.gameOverOverlay.classList.add('hidden');
 }
