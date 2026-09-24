@@ -64,6 +64,24 @@ Tailwind CDN, **aucun build step**.
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
   `1 + floor(niveau/5)` (croissants avec le niveau ATTEINT, pour rester au niveau des mobs en fin de run).
+- **Écran d'escalier** (`triggerFloorTransition()`/`continueFromFloorTransition()`) : affiché à la
+  place d'un passage direct à l'étage suivant, dès qu'un gardien tombe (`winCombat()`, classique ET
+  urbain) ou qu'une ville-escalier non gardée est atteinte (`arriveAtCity()`). Titre sarcastique tiré
+  au sort (`FLOOR_TRANSITION_TITLES`) + résumé du tally de l'étage qui vient de se terminer
+  (`gameState.floorStats` : `mobsKilled`/`damageTaken`/`itemsFound`/`xpGained`), alimenté au fil de la
+  partie par des hooks UNIQUES — `winCombat()`, `gainXp()`, `addLoot()` (seulement si l'objet est
+  effectivement conservé, pas sur "réserve pleine"), `applyPlayerDamage()` (point de passage UNIQUE
+  pour toute perte de PV : piège, saignement, riposte ennemie — remplace toute mutation directe de
+  `gameState.hp`, pour qu'un futur hook d'anomalie n'ait qu'ICI à s'accrocher). Bloque via
+  `gameState.floorTransitionPending` (inclus dans `isActionBlocked()`) — JAMAIS `gameState.inCombat`,
+  qui collisionnerait avec la logique générique "combat sans ennemi -> on referme" présente ailleurs
+  (dont l'auto-résolveur de `tests/long_playthrough.js`, qui doit connaître ce flag comme tout autre
+  état bloquant, voir Tests plus bas). `advanceToNextFloor()` (l'ancien `nextFloor()`, renommé) ne fait
+  effectivement avancer l'étage — génération incluse, tally remis à zéro — qu'au clic sur "Continuer" ;
+  `devJumpToUrbanFloor()` (DEV) l'appelle directement, sautant délibérément l'écran. Annonce de
+  l'anomalie du prochain étage via `getUpcomingAnomalyAnnouncement(nextFloor)` — stub renvoyant `null`
+  tant qu'aucun système d'anomalies n'existe (chantier séparé), seul endroit à modifier pour le
+  brancher réellement : le bloc d'annonce de l'écran est déjà conditionnel (masqué si `null`).
 - **Magie** : un seul sort équipé à la fois (`gameState.equipment.spell`), plus de simple attaque
   magique inconditionnelle. Répertoire de base dans `spellCatalog` (`spells.js`), deux catégories —
   corps à corps ou à distance (`spellCategory`) — qui font se comporter le bouton Magie exactement
@@ -265,7 +283,7 @@ Tailwind CDN, **aucun build step**.
   compagnon, génération d'étage). Pas nécessaire pour un ajout de contenu isolé (item, quartier, texte).
   Son auto-résolveur doit connaître TOUT état bloquant existant (`xyzChoicePending`) : en oublier un
   fige la simulation dessus jusqu'à épuisement du temps imparti (voir `shopChoicePending`/
-  `lairChoicePending`, ajoutés après coup).
+  `lairChoicePending`/`floorTransitionPending`, ajoutés après coup).
 - Les deux n'affichent que les échecs + un résumé final (pas une ligne par test réussi).
 
 ## Backlog

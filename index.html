@@ -795,13 +795,40 @@
         </div>
     </div>
 
+    <!-- Écran d'escalier (félicitations) : affiché avant de générer l'étage suivant, voir
+         triggerFloorTransition()/continueFromFloorTransition() dans app.js. Résumé du tally de
+         l'étage qui vient de se terminer (gameState.floorStats) + annonce de l'anomalie du prochain
+         étage (bloc masqué tant qu'aucun système d'anomalies n'est branché, voir
+         getUpcomingAnomalyAnnouncement()). -->
+    <div id="floor-transition-overlay" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
+        <div class="bg-gray-900 border-2 border-blue-700 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(29,78,216,0.5)]">
+            <div class="text-4xl mb-2">🪜</div>
+            <p id="floor-transition-title" class="text-sm text-blue-300 font-bold mb-4 leading-snug">-</p>
+
+            <div class="text-xs text-gray-400 space-y-1.5 mb-4 text-left bg-gray-950 rounded p-3 border border-gray-800">
+                <div class="flex justify-between"><span>💀 Mobs tués</span><span id="floor-transition-mobs" class="text-gray-100 font-bold">0</span></div>
+                <div class="flex justify-between"><span>🩸 Dégâts subis</span><span id="floor-transition-damage" class="text-gray-100 font-bold">0</span></div>
+                <div class="flex justify-between"><span>🎁 Objets trouvés</span><span id="floor-transition-items" class="text-gray-100 font-bold">0</span></div>
+                <div class="flex justify-between"><span>⭐ XP gagnée</span><span id="floor-transition-xp" class="text-gray-100 font-bold">0</span></div>
+            </div>
+
+            <div id="floor-transition-anomaly" class="hidden mb-4 p-3 bg-purple-950/30 border border-purple-800/50 rounded-lg text-left">
+                <p id="floor-transition-anomaly-text" class="text-[11px] text-purple-300 leading-snug">-</p>
+            </div>
+
+            <button id="btn-floor-transition-continue" class="w-full py-3 bg-blue-900/40 border-2 border-blue-600 rounded-lg text-blue-300 font-bold uppercase tracking-widest hover:bg-blue-800/50 active:scale-95 transition-all">
+                Continuer
+            </button>
+        </div>
+    </div>
+
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=54"></script>
-    <script src="items.js?v=54"></script>
-    <script src="spells.js?v=54"></script>
-    <script src="districts.js?v=54"></script>
-    <script src="safehouses.js?v=54"></script>
-    <script src="generator.js?v=54"></script>
-    <script src="app.js?v=54"></script>
+    <script src="bestiary.js?v=55"></script>
+    <script src="items.js?v=55"></script>
+    <script src="spells.js?v=55"></script>
+    <script src="districts.js?v=55"></script>
+    <script src="safehouses.js?v=55"></script>
+    <script src="generator.js?v=55"></script>
+    <script src="app.js?v=55"></script>
 </body>
 </html>

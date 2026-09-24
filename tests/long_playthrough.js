@@ -14,7 +14,7 @@ function assert(cond, msg) { if (!cond) { failures++; console.error("FAIL:", msg
 let steps = 0, floorsCleared = 0, combatsWon = 0, bossesEncountered = 0;
 let stealthEncounters = 0, companionEncounters = 0, eliteMobsSeen = 0, armorMechanicProcs = 0;
 let urbanFloorsSeen = 0, cityTravels = 0, winTriggered = false;
-let shopEncounters = 0, lairEncounters = 0;
+let shopEncounters = 0, lairEncounters = 0, floorTransitionsSeen = 0;
 const seenErrors = [];
 
 gameState.equipment.armor = { name: "Plastron d'Essai", baseArmor: 12, category: 'armors', mechanics: ['bleed', 'heal', 'adrenaline', 'stealth'] };
@@ -62,6 +62,12 @@ try {
             // comme n'importe quel autre combat (winCombat() relance le suivant tout seul).
             lairEncounters++;
             if (steps % 2 === 0) diveIntoLair(); else declineLair();
+        } else if (gameState.floorTransitionPending) {
+            // Écran d'escalier (voir triggerFloorTransition()) : flag DÉDIÉ, jamais gameState.inCombat
+            // (qui collisionnerait avec la branche générique ci-dessous) — sans cette branche, la
+            // simulation resterait bloquée sur cet écran jusqu'à épuisement du temps imparti.
+            floorTransitionsSeen++;
+            continueFromFloorTransition();
         } else if (gameState.inCombat) {
             const enemy = gameState.currentEnemy;
             if (enemy && isEliteMob(enemy)) eliteMobsSeen++;
@@ -148,7 +154,7 @@ try {
     gameState.bossChoicePending = false;
     gameState.pendingUrbanBossEncounter = null;
     gameState.hasWon = false;
-    nextFloor(); // Génère l'étage final
+    advanceToNextFloor(); // Génère l'étage final
     assert(gameState.urbanMap && gameState.urbanMap.isFinalFloor, "L'étage final doit générer un urbanMap marqué isFinalFloor");
     assert(Object.values(gameState.urbanMap.citiesById).some(c => c.isExit && c.guarded), "La Sortie de l'étage final doit toujours être gardée");
 
@@ -162,6 +168,8 @@ try {
             leaveShop(); // Étage final : on ne s'attarde pas en boutique, priorité à la Sortie
         } else if (gameState.lairChoicePending) {
             declineLair(); // Idem : on ne dévie jamais vers un repaire quand la Sortie est en vue
+        } else if (gameState.floorTransitionPending) {
+            continueFromFloorTransition(); // Idem : jamais bloqué sur l'écran d'escalier
         } else if (gameState.inCombat) {
             if (gameState.currentEnemy) {
                 gameState.currentEnemy.hp = -9999;
@@ -185,7 +193,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon, ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon, ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");
@@ -194,6 +202,7 @@ assert(floorsCleared >= 2, "Au moins l'étage 2 doit être atteint");
 assert(combatsWon > 0, "Au moins un combat normal gagné");
 assert(bossesEncountered > 0, "Au moins un boss rencontré");
 assert(urbanFloorsSeen > 0, "Au moins un étage urbain (étage 3, 6...) doit avoir été traversé sur 6 étages");
+assert(floorTransitionsSeen > 0, "Au moins un écran d'escalier doit avoir été traversé (la simulation ne doit jamais s'y bloquer)");
 
 console.log(failures === 0 ? "OK — tous les invariants tiennent." : `${failures} échec(s) d'invariant.`);
 process.exit(failures === 0 ? 0 : 1);

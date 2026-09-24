@@ -44,6 +44,9 @@ function resetTransientState() {
     gameState.lairChoicePending = false;
     gameState.pendingLairId = null;
     gameState.pendingLairDive = null;
+    gameState.floorTransitionPending = false;
+    gameState.floorStats = { mobsKilled: 0, damageTaken: 0, itemsFound: 0, xpGained: 0 };
+    if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
 }
 
 // ===================================================================
@@ -1260,6 +1263,124 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 }
 
 // ===================================================================
+// Écran d'escalier (félicitations) : applyPlayerDamage()/gainXp()/addLoot()/winCombat() alimentent
+// gameState.floorStats, triggerFloorTransition()/continueFromFloorTransition() dans app.js.
+// ===================================================================
+
+// applyPlayerDamage() : point de passage unique pour toute perte de PV — clampe à 0, alimente
+// floorStats.damageTaken, aucun effet pour un montant nul/négatif.
+{
+    resetTransientState();
+    gameState.hp = 50;
+    applyPlayerDamage(20);
+    assert(gameState.hp === 30, "applyPlayerDamage() : réduit bien les PV du montant donné");
+    assert(gameState.floorStats.damageTaken === 20, "applyPlayerDamage() : alimente floorStats.damageTaken");
+
+    applyPlayerDamage(1000);
+    assert(gameState.hp === 0, "applyPlayerDamage() : clampe à 0, jamais négatif");
+    assert(gameState.floorStats.damageTaken === 1020, "applyPlayerDamage() : cumule bien plusieurs appels");
+
+    const before = gameState.floorStats.damageTaken;
+    applyPlayerDamage(0);
+    applyPlayerDamage(-5);
+    assert(gameState.floorStats.damageTaken === before, "applyPlayerDamage() : aucun effet pour un montant nul ou négatif");
+}
+
+// gainXp()/addLoot()/winCombat() : alimentent bien gameState.floorStats (xpGained/itemsFound/mobsKilled).
+{
+    resetTransientState();
+    gainXp(30);
+    assert(gameState.floorStats.xpGained === 30, "gainXp() : alimente floorStats.xpGained");
+
+    resetTransientState();
+    addLoot(0.5);
+    assert(gameState.floorStats.itemsFound === 1, "addLoot() : alimente floorStats.itemsFound (objet effectivement conservé)");
+
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Cobaye Tally", hp: -9999, maxHp: 30, atk: 5, def: 2, xpReward: 10, status: {} };
+    winCombat();
+    assert(gameState.floorStats.mobsKilled === 1, "winCombat() : alimente floorStats.mobsKilled");
+    continueFromFloorTransition(); // Reprend la main normalement (l'écran d'escalier n'est PAS testé ici)
+}
+
+// addLoot() : réserve d'équipement pleine -> l'objet n'est pas conservé, ne compte donc pas dans le tally.
+{
+    resetTransientState();
+    gameState.inventory = [];
+    for (let i = 0; i < gameState.maxInventory; i++) gameState.inventory.push({ name: `Filler ${i}`, category: 'weapons' });
+
+    const originalRandom = Math.random;
+    Math.random = () => 0; // categories[0] = 'weapons' (voir generator.js) : jamais un consommable, toujours limité
+    addLoot(0);
+    Math.random = originalRandom;
+    assert(gameState.floorStats.itemsFound === 0, "addLoot() : réserve pleine -> objet non conservé, jamais compté dans le tally");
+    gameState.inventory = []; // Ne pas polluer l'inventaire pour les tests suivants (resetTransientState() ne le touche pas)
+}
+
+// getUpcomingAnomalyAnnouncement() : stub tant qu'aucun système d'anomalies n'est branché (Tâche 4).
+{
+    assert(getUpcomingAnomalyAnnouncement(3) === null, "getUpcomingAnomalyAnnouncement() : renvoie null tant que le système d'anomalies n'existe pas");
+}
+
+// triggerFloorTransition() : affiche l'écran avec le résumé de l'étage QUI VIENT DE SE TERMINER
+// (avant qu'advanceToNextFloor() ne remette floorStats à zéro), bloque via floorTransitionPending
+// (isActionBlocked()) — jamais gameState.inCombat, qui collisionnerait avec la logique générique
+// "combat sans ennemi" ailleurs dans le code (voir commentaire dans app.js).
+{
+    resetTransientState();
+    gameState.currentFloor = 4;
+    gameState.floorStats = { mobsKilled: 3, damageTaken: 12, itemsFound: 2, xpGained: 80 };
+
+    triggerFloorTransition();
+    assert(gameState.floorTransitionPending === true, "triggerFloorTransition() : pose le flag dédié");
+    assert(isActionBlocked() === true, "triggerFloorTransition() : isActionBlocked() vrai tant que l'écran est affiché");
+    assert(gameState.inCombat === false, "triggerFloorTransition() : n'utilise PAS gameState.inCombat pour bloquer");
+    assert(ui.floorTransitionOverlay.classList.contains('hidden') === false, "triggerFloorTransition() : affiche l'overlay");
+    assert(ui.floorTransitionTitle.innerText.includes("4"), "triggerFloorTransition() : le titre mentionne l'étage qui vient de se terminer (4)");
+    assert(String(ui.floorTransitionMobs.innerText) === "3" && String(ui.floorTransitionDamage.innerText) === "12"
+        && String(ui.floorTransitionItems.innerText) === "2" && String(ui.floorTransitionXp.innerText) === "80",
+        "triggerFloorTransition() : affiche le tally exact de l'étage qui vient de se terminer");
+    assert(ui.floorTransitionAnomaly.classList.contains('hidden') === true,
+        "triggerFloorTransition() : le bloc anomalie reste masqué (getUpcomingAnomalyAnnouncement() renvoie null pour l'instant)");
+}
+
+// continueFromFloorTransition() : referme l'écran, débloque, et fait RÉELLEMENT avancer l'étage
+// (advanceToNextFloor()) — jamais l'inverse (l'étage n'avance jamais avant le clic explicite).
+{
+    resetTransientState();
+    gameState.currentFloor = 4;
+    gameState.floorStats = { mobsKilled: 3, damageTaken: 12, itemsFound: 2, xpGained: 80 };
+    triggerFloorTransition();
+
+    continueFromFloorTransition();
+    assert(gameState.currentFloor === 5, "continueFromFloorTransition() : fait bien passer à l'étage suivant");
+    assert(gameState.floorTransitionPending === false, "continueFromFloorTransition() : referme le flag de blocage");
+    assert(isActionBlocked() === false, "continueFromFloorTransition() : isActionBlocked() redevient false");
+    assert(ui.floorTransitionOverlay.classList.contains('hidden') === true, "continueFromFloorTransition() : masque l'overlay");
+    assert(gameState.floorStats.mobsKilled === 0 && gameState.floorStats.damageTaken === 0
+        && gameState.floorStats.itemsFound === 0 && gameState.floorStats.xpGained === 0,
+        "continueFromFloorTransition() (via advanceToNextFloor()) : le tally repart à zéro pour le nouvel étage");
+}
+
+// winCombat() : une victoire sur un gardien d'escalier (classique ou urbain) affiche l'écran
+// d'escalier AVANT de faire avancer l'étage — jamais d'avance synchrone directe.
+{
+    resetTransientState();
+    gameState.currentFloor = 1;
+    gameState.pendingStairAfterCombat = true;
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Gardien Test", hp: -9999, maxHp: 50, atk: 5, def: 2, xpReward: 20, status: {}, isBoss: true };
+
+    winCombat();
+    assert(gameState.currentFloor === 1, "winCombat() (gardien) : n'avance PAS l'étage directement");
+    assert(gameState.floorTransitionPending === true, "winCombat() (gardien) : affiche l'écran d'escalier à la place");
+
+    continueFromFloorTransition();
+    assert(gameState.currentFloor === 2, "continueFromFloorTransition() : fait avancer l'étage après coup");
+}
+
+// ===================================================================
 // Étages urbains (multiples de 3 — voir generateUrbanFloorMap()/travelToCity()/
 // triggerUrbanBossEncounter() dans app.js, config.urbanFloors).
 // ===================================================================
@@ -1334,8 +1455,9 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 // applyTimeElapsedRegen()) vers une ville connue atteignable.
 {
     // Le voisin ciblé doit être une ville "normale" (ni escalier ni Sortie) : y arriver quand elle
-    // n'est pas gardée déclenche nextFloor() (voir arriveAtCity()), qui réinitialise timeLeft à
-    // maxTime et invaliderait à tort l'assertion "consomme du temps" ci-dessous. Il faut aussi une
+    // n'est pas gardée déclenche triggerFloorTransition() (voir arriveAtCity()), qui affiche l'écran
+    // d'escalier plutôt que d'avancer directement — sans lien avec l'assertion "consomme du temps"
+    // ci-dessous, mais évité quand même pour rester sur le cas nominal testé ici. Il faut aussi une
     // ville pas encore connue pour le premier test (bloqué) — sur un petit réseau (6 villes), la ville
     // de départ peut parfois se retrouver reliée directement à TOUTES les autres (aucune ville
     // inconnue restante) : on retente simplement dans ce cas plutôt que de planter sur .find()...id.
@@ -1393,8 +1515,13 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     const floorBefore = gameState.currentFloor;
     gameState.currentEnemy.hp = -9999;
     winCombat();
-    assert(gameState.currentFloor === floorBefore + 1, "winCombat() : défaite du gardien de l'escalier urbain ouvre bien l'étage suivant");
-    assert(stairsCity.defeated === true, "winCombat() : marque la ville gardienne vaincue");
+    assert(gameState.currentFloor === floorBefore, "winCombat() : n'avance pas encore l'étage, l'écran d'escalier s'affiche d'abord (voir triggerFloorTransition())");
+    assert(ui.floorTransitionOverlay.classList.contains('hidden') === false, "winCombat() : affiche bien l'écran d'escalier");
+    assert(stairsCity.defeated === true, "winCombat() : marque déjà la ville gardienne vaincue à ce stade");
+
+    continueFromFloorTransition();
+    assert(gameState.currentFloor === floorBefore + 1, "continueFromFloorTransition() : fait bien passer à l'étage suivant");
+    assert(ui.floorTransitionOverlay.classList.contains('hidden') === true, "continueFromFloorTransition() : referme l'écran d'escalier");
 }
 
 // Gardien de la Sortie (étage final) : la victoire déclenche winGame(), jamais nextFloor().
@@ -1415,18 +1542,18 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(gameState.currentFloor === floorBefore, "winCombat() : la victoire n'avance jamais vers un étage au-delà de l'étage final");
 }
 
-// nextFloor() : bascule correctement entre étage classique et étage urbain selon le multiple de 3,
-// jamais les deux structures définies en même temps.
+// advanceToNextFloor() : bascule correctement entre étage classique et étage urbain selon le
+// multiple de 3, jamais les deux structures définies en même temps.
 {
     resetTransientState();
     gameState.currentFloor = 1; // Le prochain (2) reste classique
-    nextFloor();
-    assert(gameState.floorMap !== null && gameState.urbanMap === null, "nextFloor() : étage 2 reste un donjon classique");
+    advanceToNextFloor();
+    assert(gameState.floorMap !== null && gameState.urbanMap === null, "advanceToNextFloor() : étage 2 reste un donjon classique");
 
     resetTransientState();
     gameState.currentFloor = 2; // Le prochain (3) est urbain
-    nextFloor();
-    assert(gameState.urbanMap !== null && gameState.floorMap === null, "nextFloor() : étage 3 devient un étage urbain");
+    advanceToNextFloor();
+    assert(gameState.urbanMap !== null && gameState.floorMap === null, "advanceToNextFloor() : étage 3 devient un étage urbain");
 }
 
 // UI : "Lieux connus"/overlay "Carte Urbaine" mutuellement exclusifs, invite "Touchez la carte"
@@ -2102,6 +2229,7 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     resetTransientState();
     gameState.currentFloor = 3;
     generateUrbanFloorMap();
+    gameState.inventory = []; // resetTransientState() ne touche pas l'inventaire : jamais implicite ici
     const city = { id: 'test-merchant-2', name: 'Testburg', role: 'merchant', specialty: 'weapons', stock: null };
     gameState.urbanMap.citiesById[city.id] = city;
     gameState.pendingShopCityId = city.id;

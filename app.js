@@ -92,6 +92,7 @@ const gameState = {
     lairChoicePending: false, // Un repaire vient d'être repéré sur la route empruntée : choix plonger/poursuivre
     pendingLairId: null, // Repaire (gameState.urbanMap.lairsById) dont le choix est actuellement affiché
     pendingLairDive: null, // { lairId, combatsLeft, stage: 'trash'|'boss' } pendant une plongée en cours (voir winCombat())
+    floorTransitionPending: false, // L'écran d'escalier (félicitations) est affiché, voir triggerFloorTransition()
     hasWon: false, // Vrai une fois la Sortie de l'étage final franchie (voir winGame())
     companion: null, // Compagnon actuellement recruté (ou null)
     pendingCompanionCandidate: null, // Candidat en attente de décision (recruter/laisser/fuir/attaquer)
@@ -103,14 +104,20 @@ const gameState = {
     // Horodatage (epoch ms) de la dernière sauvegarde réussie, posé par saveGame() — sert uniquement
     // d'affichage dans l'écran "Nettoyer les sauvegardes" (openManageSaves()). Absent sur une
     // sauvegarde antérieure à cette feature : traité comme "date inconnue", jamais une erreur.
-    lastSavedAt: null
+    lastSavedAt: null,
+    // Tally de l'étage EN COURS (mobs tués, dégâts subis, objets trouvés, XP gagnés) — voir
+    // applyPlayerDamage()/winCombat()/gainXp()/addLoot(). Affiché sur l'écran d'escalier
+    // (triggerFloorTransition()) puis remis à zéro par advanceToNextFloor(). Absent d'une sauvegarde
+    // antérieure : retombe sur des zéros via Object.assign (jamais undefined à l'affichage, voir
+    // restoreSaveForName()).
+    floorStats: { mobsKilled: 0, damageTaken: 0, itemsFound: 0, xpGained: 0 }
 };
 
 // Identifiant de version affiché sur l'écran de départ (voir #start-screen-overlay dans index.html) :
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 20, label: "Nettoyer les sauvegardes : liste, suppression confirmée, backup" };
+const APP_VERSION = { pr: 20, label: "Nettoyer les sauvegardes + écran d'escalier (félicitations)" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -368,6 +375,15 @@ const ui = {
     winFloor: document.getElementById('win-floor'),
     winLevel: document.getElementById('win-level'),
     btnWinRestart: document.getElementById('btn-win-restart'),
+    floorTransitionOverlay: document.getElementById('floor-transition-overlay'),
+    floorTransitionTitle: document.getElementById('floor-transition-title'),
+    floorTransitionMobs: document.getElementById('floor-transition-mobs'),
+    floorTransitionDamage: document.getElementById('floor-transition-damage'),
+    floorTransitionItems: document.getElementById('floor-transition-items'),
+    floorTransitionXp: document.getElementById('floor-transition-xp'),
+    floorTransitionAnomaly: document.getElementById('floor-transition-anomaly'),
+    floorTransitionAnomalyText: document.getElementById('floor-transition-anomaly-text'),
+    btnFloorTransitionContinue: document.getElementById('btn-floor-transition-continue'),
     combatZone: document.getElementById('combat-zone'),
     knownLocationsSection: document.getElementById('known-locations-section'),
     knownLocationsContainer: document.getElementById('known-locations'),
@@ -552,6 +568,7 @@ function restoreSaveForName(name) {
     gameState.lairChoicePending = false;
     gameState.pendingLairId = null;
     gameState.pendingLairDive = null;
+    gameState.floorTransitionPending = false;
 
     gameState.saveEnabled = true; // Réactive l'autosave après une restauration réussie
     return true;
@@ -1505,7 +1522,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         const trap = pick(flavorText.trap);
         const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
-        gameState.hp = Math.max(0, gameState.hp - dmg);
+        applyPlayerDamage(dmg);
         setCardHeader('⚠️', 'Piège', 'Danger');
         logEvent(`${trap.text} (-${dmg} PV)`, "danger");
         if (gameState.hp <= 0) {
@@ -1677,7 +1694,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending;
 }
 
 // Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
@@ -1983,13 +2000,19 @@ function updateCompanionUI() {
     ui.companionLeaveBar.style.background = hpColor(1 - leavePct); // Vert = fidèle, rouge = risque de départ élevé
 }
 
-function nextFloor() {
+// Fait effectivement passer à l'étage suivant (génération incluse) — dispatché depuis l'écran
+// d'escalier (voir triggerFloorTransition()/continueFromFloorTransition() plus bas), sauf pour
+// devJumpToUrbanFloor() (raccourci DEV, saute délibérément l'écran).
+function advanceToNextFloor() {
     gameState.currentFloor += 1;
     gameState.cardsDrawnThisFloor = 0;
     gameState.timeLeft = gameState.maxTime; // Réinitialisation du temps
     gameState.knownLocations = []; // Les lieux repérés à l'étage précédent ne sont plus accessibles
     gameState.floorMap = null;
     gameState.urbanMap = null;
+    // Tally du nouvel étage repart à zéro — celui qui vient de se terminer a déjà été affiché sur
+    // l'écran d'escalier (voir triggerFloorTransition()) avant cet appel.
+    gameState.floorStats = { mobsKilled: 0, damageTaken: 0, itemsFound: 0, xpGained: 0 };
     // Multiple de 3 (voir config.urbanFloors) : étage urbain (réseau villes/routes) plutôt que le
     // donjon classique à 4 quartiers.
     if (gameState.currentFloor % 3 === 0) {
@@ -2001,6 +2024,70 @@ function nextFloor() {
     updateKnownLocationsUI();
     updateUrbanMapUI();
     updateUI();
+}
+
+// Titres sarcastiques de l'écran d'escalier (voir triggerFloorTransition()) — {{floor}} remplacé par
+// l'étage qui vient d'être franchi. Tirage aléatoire à chaque transition.
+const FLOOR_TRANSITION_TITLES = [
+    "Vous avez survécu à l'étage {{floor}}. Vos parents seraient... perplexes.",
+    "Étage {{floor}} terminé. Statistiquement, vous auriez dû mourir.",
+    "Bravo, l'étage {{floor}} est derrière vous. L'audience est presque déçue.",
+    "Étage {{floor}} : terminé. Le service des paris est en pleine confusion.",
+    "Vous quittez l'étage {{floor}} sur vos deux jambes. Un exploit que même vous n'expliquez pas.",
+    "L'étage {{floor}} vous laisse partir. Les producteurs notent ça pour plus tard.",
+    "Étage {{floor}} : survécu. Le sponsor retire discrètement sa clause d'assurance-vie.",
+    "Fin de l'étage {{floor}}. Le Donjon prend des notes sur ce qui a raté."
+];
+
+// Hook UNIQUE pour l'annonce de l'anomalie du PROCHAIN étage sur l'écran d'escalier — stub pour
+// l'instant (aucun système d'anomalies encore branché), remplacé par le vrai tirage quand celui-ci
+// existera. Retourne { name, description } ou null (rien à annoncer) : triggerFloorTransition() gère
+// déjà les deux cas, ce hook est le SEUL endroit à changer pour brancher le système réel.
+function getUpcomingAnomalyAnnouncement(nextFloor) {
+    return null;
+}
+
+// Affiche l'écran d'escalier (félicitations) : résumé du tally de l'étage qui vient de se terminer
+// (gameState.floorStats, encore intact — advanceToNextFloor() le remet à zéro APRÈS, voir le bouton
+// "Continuer") et annonce de l'anomalie du prochain étage. gameState.floorTransitionPending (inclus
+// dans isActionBlocked(), comme un choix de boss/marchand/repaire) plutôt que gameState.inCombat :
+// cette dernière collisionnerait avec la logique générique "combat sans ennemi -> on referme" que
+// plusieurs endroits appliquent (dont l'auto-résolveur de tests/long_playthrough.js), qui reste vraie
+// pour un vrai combat terminé mais pas pour cet écran, qui doit rester ouvert jusqu'au clic explicite
+// sur "Continuer".
+function triggerFloorTransition() {
+    const completedFloor = gameState.currentFloor;
+    const stats = gameState.floorStats;
+    gameState.floorTransitionPending = true;
+    ui.combatZone.classList.add('hidden');
+
+    if (ui.floorTransitionTitle) {
+        ui.floorTransitionTitle.innerText = pick(FLOOR_TRANSITION_TITLES).replace('{{floor}}', completedFloor);
+    }
+    if (ui.floorTransitionMobs) ui.floorTransitionMobs.innerText = stats.mobsKilled;
+    if (ui.floorTransitionDamage) ui.floorTransitionDamage.innerText = stats.damageTaken;
+    if (ui.floorTransitionItems) ui.floorTransitionItems.innerText = stats.itemsFound;
+    if (ui.floorTransitionXp) ui.floorTransitionXp.innerText = stats.xpGained;
+
+    const nextFloorNumber = completedFloor + 1;
+    const announcement = getUpcomingAnomalyAnnouncement(nextFloorNumber);
+    if (ui.floorTransitionAnomaly) {
+        ui.floorTransitionAnomaly.classList.toggle('hidden', !announcement);
+        if (announcement && ui.floorTransitionAnomalyText) {
+            ui.floorTransitionAnomalyText.innerText = `L'étage ${nextFloorNumber} vous est présenté par... ${announcement.name}. ${announcement.description} Bon courage.`;
+        }
+    }
+
+    if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.remove('hidden');
+    updateUI();
+}
+
+// Bouton "Continuer" de l'écran d'escalier : referme l'écran et fait effectivement passer à l'étage
+// suivant (voir advanceToNextFloor()).
+function continueFromFloorTransition() {
+    if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
+    gameState.floorTransitionPending = false;
+    advanceToNextFloor();
 }
 
 // Score de puissance (0 à 1) utilisé pour pondérer la rareté du loot obtenu (voir generateItem()
@@ -2024,6 +2111,7 @@ function addLoot(powerScore = 0) {
     const item = generateItem(powerScore);
     if (item.category === 'scrolls') {
         gameState.spellbook.push(item);
+        gameState.floorStats.itemsFound += 1;
         logEvent(`Sort appris : [${formatItemDisplayName(item)}] !`, "loot");
         updateSpellbookUI();
         return;
@@ -2032,11 +2120,23 @@ function addLoot(powerScore = 0) {
     const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
     if (isConsumable || equipmentCount < gameState.maxInventory) {
         gameState.inventory.push(item);
+        gameState.floorStats.itemsFound += 1;
         logEvent(`Objet obtenu : [${formatItemDisplayName(item)}] !`, "loot");
         updateInventoryUI();
     } else {
         logEvent("Vous trouvez un objet, mais votre réserve d'équipement est pleine !", "danger");
     }
+}
+
+// Point de passage UNIQUE pour toute perte de PV du joueur (piège, saignement, riposte ennemie...) —
+// clampe à 0 et alimente le tally de l'étage en cours (gameState.floorStats.damageTaken, voir écran
+// d'escalier). Remplace les mutations directes de gameState.hp dispersées dans le code de combat/
+// exploration, pour ne jamais avoir à retrouver tous ces points d'appel séparément (ex : un futur
+// hook d'anomalie qui multiplierait les dégâts subis n'aurait qu'ICI à s'accrocher).
+function applyPlayerDamage(amount) {
+    if (!amount || amount <= 0) return;
+    gameState.hp = Math.max(0, gameState.hp - amount);
+    gameState.floorStats.damageTaken += amount;
 }
 
 // ==========================================
@@ -2045,6 +2145,7 @@ function addLoot(powerScore = 0) {
 function gainXp(amount) {
     if (!amount || amount <= 0) return;
     gameState.xp += amount;
+    gameState.floorStats.xpGained += amount;
     logEvent(`+${amount} XP`, "success");
 
     // On utilise une boucle "while" pour gérer le cas (rare) d'un gain d'XP
@@ -3182,7 +3283,7 @@ function arriveAtCity() {
             winGame();
         } else {
             logEvent("La voie est libre !", "success");
-            nextFloor();
+            triggerFloorTransition();
         }
         return;
     }
@@ -3996,7 +4097,7 @@ function tryPlayerAction() {
     // Saignement en cours sur le joueur : tique avant son action
     if (gameState.status.bleed && gameState.status.bleed.rounds > 0) {
         const dmg = gameState.status.bleed.dmgPerRound;
-        gameState.hp -= dmg;
+        applyPlayerDamage(dmg);
         gameState.status.bleed.rounds -= 1;
         if (gameState.status.bleed.rounds <= 0) gameState.status.bleed = null;
         logEvent(`🩸 Votre état vous fait perdre ${dmg} PV.`, "danger");
@@ -4445,7 +4546,7 @@ function resolveEnemyCounterAttack() {
         }
     }
 
-    gameState.hp -= playerDamage;
+    applyPlayerDamage(playerDamage);
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
     const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
@@ -4769,6 +4870,7 @@ function attemptFlee() {
 function winCombat() {
     const defeatedEnemy = gameState.currentEnemy;
     const wasBoss = defeatedEnemy && defeatedEnemy.isBoss;
+    if (defeatedEnemy) gameState.floorStats.mobsKilled += 1;
 
     // Combat terminé : on sort de l'état "inCombat" avant les logs de résultat (XP/loot/victoire)
     // pour qu'ils s'affichent normalement sur la carte, comme n'importe quel autre événement (voir
@@ -4872,7 +4974,7 @@ function winCombat() {
     if (gameState.pendingStairAfterCombat) {
         gameState.pendingStairAfterCombat = false;
         logEvent("La voie vers l'escalier est libre !", "success");
-        nextFloor(); // nextFloor() appelle déjà updateUI()
+        triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
         return;
     }
     // Équivalent urbain : victoire sur le gardien de l'escalier (étage suivant) ou de la Sortie
@@ -4885,7 +4987,7 @@ function winCombat() {
             winGame(); // winGame() appelle déjà updateUI()
         } else {
             logEvent("La voie vers l'escalier est libre !", "success");
-            nextFloor(); // nextFloor() appelle déjà updateUI()
+            triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
         }
         return;
     }
@@ -5127,14 +5229,16 @@ function devJumpToUrbanFloor() {
     gameState.pendingBossEncounter = null;
     gameState.pendingUrbanBossEncounter = null;
     gameState.pendingUrbanTravel = null;
+    gameState.floorTransitionPending = false;
     ui.combatZone.classList.add('hidden');
     ui.bossChoiceZone.classList.add('hidden');
     ui.stealthChoiceZone.classList.add('hidden');
     ui.companionChoiceFriendly.classList.add('hidden');
     ui.companionChoiceHostile.classList.add('hidden');
+    if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
 
-    gameState.currentFloor = 2; // nextFloor() incrémente : atterrit bien sur l'étage 3 (urbain)
-    nextFloor();
+    gameState.currentFloor = 2; // advanceToNextFloor() incrémente : atterrit bien sur l'étage 3 (urbain)
+    advanceToNextFloor(); // Raccourci DEV : saute délibérément l'écran d'escalier
     logEvent("🛠️ DEV : saut direct à l'étage 3 (urbain).", "info");
 }
 
@@ -5207,6 +5311,9 @@ if (ui.urbanTravelOverlay) {
 // Bouton de redémarrage sur l'écran Game Over
 ui.btnRestart.addEventListener('click', resetGame);
 ui.btnWinRestart.addEventListener('click', resetGame);
+
+// Bouton "Continuer" de l'écran d'escalier (voir continueFromFloorTransition())
+if (ui.btnFloorTransitionContinue) ui.btnFloorTransitionContinue.addEventListener('click', continueFromFloorTransition);
 
 // Écran de départ : nom du crawler (bouton ou touche Entrée), puis révélation du cadeau de bienvenue
 ui.btnStartConfirm.addEventListener('click', confirmPlayerName);
