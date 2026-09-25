@@ -145,7 +145,26 @@ juste rendue visible pour la première fois.
 
 ## Chantier 4 — Hiérarchie visuelle des impacts
 
-_À compléter._
+`screenShake()` (secousse `<main id="game-main">`, translate ±2-3px sur 6 étapes/250ms) +
+`screenImpactFlash()` (flash bref sur `#screen-fx-overlay`, nouvelle classe `.fx-impact-flash`
+distincte des `fx-*` de statut joueur déjà en place) réunis dans `triggerHeavyImpact()`, appelée aux 4
+moments EXACTS demandés — 3 via le flag `heavy` déjà posé au Chantier 3 (`executeBossStrike()` :
+télégraphe exécuté, ruée d'enrage, chaque frappe de phase 3 — un seul point d'accroche, pas 3 sites
+séparés) et le 4ᵉ directement dans `gameOver()` (mort du joueur, timeout inclus — la consigne ne
+distingue pas les deux).
+
+**Compromis assumé, documenté en CSS** : `.fx-impact-flash` partage `#screen-fx-overlay` avec les
+classes de statut joueur déjà présentes (`fx-low-hp`, `fx-burn`...), qui ciblent elles aussi
+`box-shadow`. La propriété `animation` étant unique par élément (pas de fusion possible entre deux
+classes qui la déclarent chacune), un pulse de statut en cours est visuellement MIS EN PAUSE pendant
+le bref flash (~300ms) plutôt que combiné — jamais perdu, il reprend normalement dès que la classe de
+flash est retirée. Jugé un compromis acceptable pour un effet aussi court plutôt que de fusionner deux
+`box-shadow` différents dans une seule keyframe combinatoire.
+
+`prefers-reduced-motion: reduce` désactive `screen-shake` (`animation: none`) mais PAS
+`fx-impact-flash`, conformément à la consigne explicite ("pas de shake, garde le flash") — un bref
+changement d'opacité/couleur n'est pas le type de mouvement spatial visé par cette préférence,
+contrairement à une translation de tout l'écran.
 
 ## Chantier 10 — Bannière de changement de phase boss
 

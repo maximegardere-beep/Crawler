@@ -201,6 +201,45 @@
             }
         }
 
+        /* Hiérarchie visuelle des impacts (chantier "lisibilité combat", Chantier 4) : réservées aux
+           coups qui doivent se distinguer d'une frappe normale EN UNE MICROSECONDE — télégraphe
+           exécuté, ruée d'enrage, chaque frappe de phase 3 (les 3 déclenchées via le flag `heavy` déjà
+           posé au Chantier 3, voir executeBossStrike()) et la mort du joueur (gameOver()). JAMAIS pour
+           une frappe normale/un multi-coups/un harcèlement, qui resteraient noyés si tout tremblait. */
+        @keyframes screenShakeKf {
+            0%   { transform: translate(0, 0); }
+            15%  { transform: translate(-3px, 2px); }
+            30%  { transform: translate(3px, -2px); }
+            45%  { transform: translate(-2px, 2px); }
+            60%  { transform: translate(2px, -1px); }
+            75%  { transform: translate(-1px, 1px); }
+            100% { transform: translate(0, 0); }
+        }
+        .screen-shake {
+            animation: screenShakeKf 0.25s ease-in-out;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            /* Consigne explicite : pas de secousse sous reduced-motion, mais le flash reste (un bref
+               changement d'opacité/couleur n'est pas le type de mouvement visé par cette préférence,
+               contrairement à une translation de tout l'écran). */
+            .screen-shake {
+                animation: none;
+            }
+        }
+        /* Partage #screen-fx-overlay avec les classes de statut joueur déjà en place (fx-low-hp...) :
+           les deux ciblent box-shadow, donc `animation` (propriété unique) ne peut refléter qu'UNE
+           des deux à la fois — pendant le bref flash (~300ms), un pulse de statut en cours est mis en
+           pause visuellement, jamais perdu (il reprend normalement dès que la classe est retirée,
+           voir screenImpactFlash() dans app.js). Compromis jugé acceptable pour un effet aussi bref. */
+        @keyframes fxImpactFlash {
+            0%   { box-shadow: inset 0 0 0 0 rgba(239,68,68,0); }
+            20%  { box-shadow: inset 0 0 90px 25px rgba(239,68,68,0.55); }
+            100% { box-shadow: inset 0 0 0 0 rgba(239,68,68,0); }
+        }
+        .fx-impact-flash {
+            animation: fxImpactFlash 0.3s ease-out;
+        }
+
         /* --- Anneau de vie circulaire --- */
         .hp-ring-wrapper {
             position: relative;
@@ -288,7 +327,9 @@
 <body class="bg-gray-950 text-gray-200 min-h-screen flex justify-center items-center py-6 px-4 selection:bg-blue-900 selection:text-white">
 
     <!-- Conteneur principal du jeu -->
-    <main class="w-full max-w-2xl bg-gray-900 border border-blue-900/60 shadow-[0_0_40px_rgba(30,58,138,0.2)] rounded-xl p-4 flex flex-col gap-3 relative">
+    <!-- Chantier "lisibilité combat" (Chantier 4) : cible de screenShake() (app.js) sur les coups
+         marquants (télégraphe exécuté, ruée d'enrage, chaque frappe de phase 3, mort du joueur). -->
+    <main id="game-main" class="w-full max-w-2xl bg-gray-900 border border-blue-900/60 shadow-[0_0_40px_rgba(30,58,138,0.2)] rounded-xl p-4 flex flex-col gap-3 relative">
 
         <!-- Overlay d'ambiance : reflète les états critiques du joueur (PV bas, saignement/brûlure,
              confusion, aveuglement, corrosion, peur...) par une teinte/animation en surimpression,
@@ -945,13 +986,13 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=65"></script>
-    <script src="items.js?v=65"></script>
-    <script src="spells.js?v=65"></script>
-    <script src="districts.js?v=65"></script>
-    <script src="safehouses.js?v=65"></script>
-    <script src="generator.js?v=65"></script>
-    <script src="anomalies.js?v=65"></script>
-    <script src="app.js?v=65"></script>
+    <script src="bestiary.js?v=66"></script>
+    <script src="items.js?v=66"></script>
+    <script src="spells.js?v=66"></script>
+    <script src="districts.js?v=66"></script>
+    <script src="safehouses.js?v=66"></script>
+    <script src="generator.js?v=66"></script>
+    <script src="anomalies.js?v=66"></script>
+    <script src="app.js?v=66"></script>
 </body>
 </html>

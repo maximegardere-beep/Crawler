@@ -478,6 +478,7 @@ const ui = {
     cardTitle: document.getElementById('card-title'),
     cardBody: document.getElementById('card-body'),
     screenFxOverlay: document.getElementById('screen-fx-overlay'),
+    gameMain: document.getElementById('game-main'),
     fullLog: document.getElementById('full-log'),
     playerLevel: document.getElementById('player-level'),
     xpBar: document.getElementById('xp-bar'),
@@ -1286,6 +1287,36 @@ function triggerHaptic(pattern = 'light') {
     } catch (e) {
         // Certains navigateurs peuvent lever une exception si l'appel est bloqué (ex: onglet en arrière-plan)
     }
+}
+
+// Hiérarchie visuelle des impacts (chantier "lisibilité combat", Chantier 4) : secousse de l'écran,
+// réservée aux moments qui doivent se distinguer d'un coup normal EN UNE MICROSECONDE (voir
+// triggerHeavyImpact() ci-dessous pour la liste exacte). JAMAIS pour une frappe normale.
+function screenShake() {
+    if (!ui.gameMain) return;
+    ui.gameMain.classList.remove('screen-shake');
+    void ui.gameMain.offsetWidth; // force le navigateur à relire le style pour pouvoir rejouer l'animation
+    ui.gameMain.classList.add('screen-shake');
+}
+
+// Flash bref sur #screen-fx-overlay, même occasions que screenShake() — voir le commentaire CSS de
+// .fx-impact-flash (index.html) pour le compromis assumé avec les classes de statut joueur déjà en
+// place sur ce même nœud.
+function screenImpactFlash() {
+    if (!ui.screenFxOverlay) return;
+    ui.screenFxOverlay.classList.remove('fx-impact-flash');
+    void ui.screenFxOverlay.offsetWidth;
+    ui.screenFxOverlay.classList.add('fx-impact-flash');
+}
+
+// Point d'appel UNIQUE pour les deux effets ci-dessus : exécution d'un télégraphe heavy, ruée
+// d'enrage et chaque frappe de phase 3 (les 3 via le flag `heavy` d'executeBossStrike(), déjà posé au
+// Chantier 3) et la mort du joueur (gameOver()). Sous prefers-reduced-motion, screenShake() devient un
+// no-op visuel (animation désactivée en CSS) mais screenImpactFlash() continue de jouer, comme demandé
+// explicitement par la consigne.
+function triggerHeavyImpact() {
+    screenShake();
+    screenImpactFlash();
 }
 
 // Anime un dé de dégâts qui "vole" vers le compteur de PV de sa cible, façon petit coup de poing.
@@ -5368,6 +5399,7 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
     applyPlayerDamage(playerDamage);
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
     showFloatingDamage(ui.combatSidePlayer, playerDamage, { toPlayer: true, heavy }); // `heavy` : télégraphe exécuté/ruée d'enrage/phase 3, voir les appelants
+    if (heavy) triggerHeavyImpact(); // Chantier 4 : même flag, mêmes 3 occasions — voir triggerHeavyImpact()
     logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
     if (gameState.companion && gameState.companion.hp <= 0) {
         logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
@@ -6409,6 +6441,7 @@ function devJumpToUrbanFloor() {
 function gameOver(timeout = false, killer = null) {
     gameState.inCombat = true; // Bloque toute action supplémentaire
     ui.combatZone.classList.add('hidden'); // Cache la zone de combat
+    triggerHeavyImpact(); // Chantier 4 : la mort du joueur est l'un des 4 moments à hiérarchie forte
 
     const reason = timeout
         ? "Le temps est écoulé. Le donjon s'effondre sur vous..."
