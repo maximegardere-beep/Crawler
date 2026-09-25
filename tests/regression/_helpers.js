@@ -42,6 +42,12 @@ function resetTransientState() {
     if (ui.pactChoiceOverlay) ui.pactChoiceOverlay.classList.add('hidden');
     recomputeMaxHp();
     gameState.hp = gameState.maxHp;
+    // Chantier E ("QoL/équilibrage") : maxTime dépend désormais de currentFloor (voir
+    // advanceToNextFloor()), mais resetTransientState() ne touche jamais currentFloor lui-même (déjà
+    // le cas avant ce chantier — chaque test qui en a besoin le fixe explicitement) ; on retombe donc
+    // sur la base fixe de config.floorTimeBudget.base pour l'isolation des tests, un test qui a
+    // vraiment besoin du scaling par étage appelle advanceToNextFloor() lui-même.
+    gameState.maxTime = config.floorTimeBudget.base;
     gameState.timeLeft = gameState.maxTime; // Jamais de temps épuisé résiduel entre deux tests sans rapport
     gameState.level = 1;
     // xp/xpToNextLevel AVEC level : un test qui fait progresser l'XP sans forcément déclencher de

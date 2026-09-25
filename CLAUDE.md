@@ -202,6 +202,14 @@ Tailwind CDN, **aucun build step**.
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
   `1 + floor(niveau/5)` (croissants avec le niveau ATTEINT, pour rester au niveau des mobs en fin de run).
+- **Budget temps par étage** (chantier "QoL/équilibrage", Chantier E — voir `NOTES_QOL_EQUILIBRAGE.md`) :
+  `gameState.maxTime` n'est plus un plafond fixe (100H) mais `config.floorTimeBudget.base +
+  perFloor × (étage - 1)` (130 + 5H/étage), recalculé par `advanceToNextFloor()` à chaque changement
+  d'étage (`gameState.timeLeft` remis à ce nouveau maximum, comme avant) — objectif : réduire les
+  morts "sans avoir vu l'escalier" sur les étages tardifs (mobs/distances plus coûteux), sans
+  supprimer la pression du temps ni la mort par épuisement, toujours possible. Alerte visuelle
+  discrète (`#stair-alert-banner`, pulse `prefers-reduced-motion`-safe) affichée par `updateUI()` dès
+  `timeLeft/maxTime <= 25%`, jamais en combat.
 - **Écran d'escalier** (`triggerFloorTransition()`/`continueFromFloorTransition()`) : affiché à la
   place d'un passage direct à l'étage suivant, dès qu'un gardien tombe (`winCombat()`, classique ET
   urbain) ou qu'une ville-escalier non gardée est atteinte (`arriveAtCity()`). Titre sarcastique tiré

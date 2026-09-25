@@ -139,6 +139,21 @@
             }
         }
 
+        /* Alerte escalier (chantier "QoL/équilibrage", Chantier E) : même esprit que le pulse de
+           télégraphe ci-dessus — désactivé sous prefers-reduced-motion (la couleur/bordure suffit). */
+        @keyframes stairAlertPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.35); }
+            50%      { box-shadow: 0 0 12px 2px rgba(220,38,38,0.55); }
+        }
+        .stair-alert-pulse {
+            animation: stairAlertPulse 1.4s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .stair-alert-pulse {
+                animation: none;
+            }
+        }
+
         /* Chiffres de dégâts flottants (chantier "lisibilité combat", Chantier 3) : un chiffre par
            impact, monte et s'estompe au-dessus de la cible touchée (#combat-side-enemy/-player, voir
            leur "relative" ajouté ci-dessus pour servir de repère). Généré par showFloatingDamage()
@@ -413,6 +428,11 @@
             </div>
             <div class="w-full bg-gray-950 rounded-full h-4 border border-gray-800 overflow-hidden relative">
                 <div id="time-bar" class="bg-blue-600 h-full rounded-full shadow-[0_0_15px_rgba(37,99,235,1)] transition-all duration-500" style="width: 100%"></div>
+            </div>
+            <!-- Alerte escalier (chantier "QoL/équilibrage", Chantier E) : affichée par updateUI() dès
+                 timeLeft/maxTime <= 25%, jamais en combat. -->
+            <div id="stair-alert-banner" class="hidden px-3 py-1.5 rounded-lg border-2 border-red-600 bg-red-950/40 text-center text-xs font-bold text-red-300 uppercase tracking-wide stair-alert-pulse">
+                ⏳ Trouvez l'escalier !
             </div>
         </section>
 
@@ -1013,13 +1033,13 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=75"></script>
-    <script src="items.js?v=75"></script>
-    <script src="spells.js?v=75"></script>
-    <script src="districts.js?v=75"></script>
-    <script src="safehouses.js?v=75"></script>
-    <script src="generator.js?v=75"></script>
-    <script src="anomalies.js?v=75"></script>
-    <script src="app.js?v=75"></script>
+    <script src="bestiary.js?v=76"></script>
+    <script src="items.js?v=76"></script>
+    <script src="spells.js?v=76"></script>
+    <script src="districts.js?v=76"></script>
+    <script src="safehouses.js?v=76"></script>
+    <script src="generator.js?v=76"></script>
+    <script src="anomalies.js?v=76"></script>
+    <script src="app.js?v=76"></script>
 </body>
 </html>

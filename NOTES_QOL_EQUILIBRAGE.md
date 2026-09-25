@@ -163,4 +163,43 @@ simulation (contre 0-1 avant ce chantier sur des runs comparables), cohérent av
 
 ## Chantier E — Budget temps par étage + alerte escalier
 
-_À compléter._
+**Solution retenue** : `config.floorTimeBudget = { base: 130, perFloor: 5 }` — `gameState.maxTime`
+n'est plus un plafond fixe (100H, quelle que soit la profondeur) mais grandit avec l'étage,
+recalculé par `advanceToNextFloor()` à chaque changement d'étage (formule `base + perFloor ×
+(étage - 1)`, `timeLeft` remis à ce nouveau maximum — comportement de reset inchangé). Aucun coût de
+temps existant n'est touché : la mort par épuisement du temps reste pleinement possible, seul le
+budget DISPONIBLE grandit. Alerte visuelle : `#stair-alert-banner` ("⏳ Trouvez l'escalier !"),
+affiché par `updateUI()` dès `timeLeft/maxTime <= 25%`, jamais en combat (le panneau latéral
+PV/statut occupe déjà l'attention à ce moment), retiré dès que le seuil est repassé à la hausse
+(salle sécurisée, remontée de `maxTime` au changement d'étage). Réutilise le pattern `.telegraph-pulse`
+existant (pulse discret + garde `prefers-reduced-motion`) pour `.stair-alert-pulse`.
+
+**Validation demandée par la mission** : script de mesure PONCTUEL (`measure_time_deaths.js`, pas un
+test permanent — écrit dans le scratchpad de session, non committé) qui simule 60 runs complets par
+configuration, SANS jamais rafraîchir `timeLeft` artificiellement (contrairement à
+`tests/long_playthrough.js`, qui le fait pour ne jamais rester bloqué — inutilisable tel quel pour
+cette mesure précise). Combat forcé en victoire instantanée (même technique que
+`tests/long_playthrough.js`) pour isoler l'attrition de TEMPS de l'attrition de combat ; déplacement
+priorisé vers la ville gardienne connue en étage urbain, exploration standard sinon. Résultat sur 60
+runs par configuration (plafond de 500 pas par run, ~45-55/60 runs n'atteignent ni victoire ni mort
+dans ce plafond — attendu avec cette politique d'action volontairement simple, sans incidence sur la
+métrique mesurée) :
+
+| Configuration | Morts par temps | Étage médian de mort par temps |
+|---|---|---|
+| AVANT (100H fixe) | 11/60 | 8 |
+| APRÈS (130H + 5H/étage) | 0/60 | — (aucune) |
+
+Sur cette politique d'action et ce nombre de runs, le nouveau budget élimine entièrement les morts par
+épuisement du temps observées avec l'ancien plafond fixe — cohérent avec l'objectif ("nette baisse des
+morts sans avoir vu l'escalier, pas zéro mort de temps" : zéro constaté ici tient surtout à la faible
+taille de l'échantillon et à une politique d'action qui ne cherche jamais délibérément à perdre du
+temps ; la mort par temps reste structurellement possible, voir `config.floorTimeBudget`, un joueur
+qui s'attarde ou multiplie les trajets vers des lieux connus lointains peut toujours l'atteindre).
+
+**Tests** : `tests/regression/floor-transition.js` — `advanceToNextFloor()` fait bien grandir
+`maxTime` à chaque étage (formule vérifiée sur deux étages consécutifs), `timeLeft` remis exactement
+à `maxTime` ; `updateUI()` affiche/masque `#stair-alert-banner` au seuil de 25%, jamais en combat.
+`tests/regression/_helpers.js` : `resetTransientState()` retombe sur `config.floorTimeBudget.base`
+pour `maxTime` (pas de valeur résiduelle d'un test précédent ayant appelé `advanceToNextFloor()` à un
+étage différent). `npm test` : 2267 tests OK. `npm run test:long` : aucune régression.

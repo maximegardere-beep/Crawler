@@ -31,8 +31,10 @@ const gameState = {
         magic: { level: 1, xp: 0, xpToNext: 30 },
         stealth: { level: 1, xp: 0, xpToNext: 30 }
     },
+    // Valeurs réelles (config.floorTimeBudget.base) posées juste après la déclaration de `config`
+    // plus bas dans ce fichier, même contrainte d'ordre que gameState.maxInventory (Chantier B).
     timeLeft: 100,
-    maxTime: 100, // Temps alloué pour un niveau
+    maxTime: 100, // Temps alloué pour l'étage courant
     currentFloor: 1,
     // Reflète toujours le quartier (quadrant) où se trouve actuellement le joueur ; posé par
     // generateFloorMap() à chaque étage, puis mis à jour à chaque changement de quadrant.
@@ -417,6 +419,11 @@ const config = {
 // déclaration de config (gameState est déclaré AVANT config plus haut dans ce fichier, donc son
 // littéral ne peut pas référencer config.inventory.maxEquipment directement).
 gameState.maxInventory = config.inventory.maxEquipment;
+// Budget temps du tout premier étage (Chantier E, "QoL/équilibrage") : même contrainte d'ordre —
+// advanceToNextFloor() recalcule ensuite maxTime à chaque changement d'étage (formule composée avec
+// la profondeur), cette ligne ne pose que la valeur de DÉPART, avant tout advanceToNextFloor().
+gameState.maxTime = config.floorTimeBudget.base;
+gameState.timeLeft = gameState.maxTime;
 
 // Un mob non-boss est "élite" si ses modificateurs (voir threatMultiplier dans generateMob())
 // dépassent le seuil de config.eliteThreatMultiplier. Les boss ont déjà leur propre signal (👑) :
@@ -542,6 +549,7 @@ const ui = {
     skillStealthBar: document.getElementById('skill-stealth-bar'),
     timeText: document.getElementById('time-text'),
     timeBar: document.getElementById('time-bar'),
+    stairAlertBanner: document.getElementById('stair-alert-banner'),
     inventoryCount: document.getElementById('inventory-count'),
     consumableQuickbar: document.getElementById('consumable-quickbar'),
     inventoryEquipmentCards: document.getElementById('inventory-equipment-cards'),
@@ -1104,6 +1112,14 @@ function updateUI() {
     } else {
         ui.timeBar.classList.replace('bg-red-600', 'bg-blue-600');
         ui.timeBar.style.boxShadow = "0 0 15px rgba(37, 99, 235, 1)";
+    }
+
+    // Alerte escalier (chantier "QoL/équilibrage", Chantier E — voir NOTES_QOL_EQUILIBRAGE.md) :
+    // bandeau discret sous la barre de temps dès que timeLeft/maxTime <= 25%, jamais en combat (le
+    // panneau latéral PV/statut prend toute la place utile à ce moment-là, et le temps n'y est de
+    // toute façon pas la ressource sur laquelle agir dans l'instant).
+    if (ui.stairAlertBanner) {
+        ui.stairAlertBanner.classList.toggle('hidden', timePercentage > 25 || gameState.inCombat);
     }
 
     // Gestion de l'affichage du combat : rétrécissement de la carte, panneaux latéraux PV/statut
@@ -2335,6 +2351,11 @@ function updateCompanionUI() {
 function advanceToNextFloor() {
     gameState.currentFloor += 1;
     gameState.cardsDrawnThisFloor = 0;
+    // Budget temps croissant par étage (chantier "QoL/équilibrage", Chantier E — voir
+    // NOTES_QOL_EQUILIBRAGE.md) : plus de plafond fixe, config.floorTimeBudget.base +
+    // perFloor × profondeur, pour réduire les morts "sans avoir vu l'escalier" sur les étages
+    // tardifs (mobs/distances plus coûteux) sans supprimer la pression du temps.
+    gameState.maxTime = config.floorTimeBudget.base + config.floorTimeBudget.perFloor * (gameState.currentFloor - 1);
     gameState.timeLeft = gameState.maxTime; // Réinitialisation du temps
     gameState.knownLocations = []; // Les lieux repérés à l'étage précédent ne sont plus accessibles
     gameState.floorMap = null;
