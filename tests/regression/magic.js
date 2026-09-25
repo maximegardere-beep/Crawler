@@ -22,6 +22,10 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(scroll.name === "Parchemin : Toucher Électrique", "generateSpellScroll() : nom d'affichage préfixé");
     assert(scroll.rarity === "Commun", "generateSpellScroll() : rareté Commun avec un jet à 0");
     assert(scroll.baseDmg === 9 && scroll.manaCost === 12, "generateSpellScroll() : stats de base inchangées au palier Commun (statMult ~1.0)");
+    // Chantier "QoL/équilibrage" (Chantier D) : baseValue posé sur le baseDmg NON scalé du sort de
+    // base (9 pour Toucher Électrique), jamais affecté par la rareté — même convention que baseValue
+    // sur les objets classiques (items.js).
+    assert(scroll.baseValue === Math.round(9 * 1.6), "generateSpellScroll() : baseValue dérivé du baseDmg non scalé (Chantier D)");
 
     const seq = [0, 0.999, 0.5];
     let idx = 0;
@@ -30,6 +34,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     Math.random = originalRandom;
     assert(scroll.rarity === "Légendaire", "generateSpellScroll() : rareté Légendaire avec un jet au plus haut");
     assert(scroll.baseDmg > 9 && scroll.manaCost > 12, "generateSpellScroll() : un sort plus rare inflige plus ET coûte plus de mana");
+    assert(scroll.baseValue === Math.round(9 * 1.6), "generateSpellScroll() : baseValue NE grimpe PAS avec la rareté (même convention que les objets classiques)");
 }
 
 // equipSpell() : équipe depuis le grimoire, renvoie l'ancien sort équipé dedans, initialise le mana

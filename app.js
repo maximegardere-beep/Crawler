@@ -613,6 +613,7 @@ const ui = {
     shopTrainerContent: document.getElementById('shop-trainer-content'),
     shopStockList: document.getElementById('shop-stock-list'),
     shopSellList: document.getElementById('shop-sell-list'),
+    shopSellSpellsList: document.getElementById('shop-sell-spells-list'),
     shopTrainerInfo: document.getElementById('shop-trainer-info'),
     btnTrainSkill: document.getElementById('btn-train-skill'),
     btnLeaveShop: document.getElementById('btn-leave-shop'),
@@ -1735,9 +1736,10 @@ function useConsumable(index) {
 }
 
 // Ratio de revente : un objet de l'inventaire (équipement non équipé ou consommable) se vend à une
-// fraction de sa valeur de base — jamais l'équipement actuellement porté (gameState.equipment),
-// jamais un sort (le grimoire n'a pas de valeur marchande). Réservé à l'interaction boutique (voir
-// triggerShopEncounter()) : pas de vente "de rue" hors ville spécialisée.
+// fraction de sa valeur de base — jamais l'équipement actuellement porté (gameState.equipment). Un
+// parchemin du grimoire se vend au même ratio (voir sellSpell() ci-dessous), jamais celui équipé
+// (gameState.equipment.spell), qui ne fait justement jamais partie de gameState.spellbook. Réservé à
+// l'interaction boutique (voir triggerShopEncounter()) : pas de vente "de rue" hors ville spécialisée.
 const SELL_VALUE_RATIO = 0.4;
 function sellItem(index) {
     const item = gameState.inventory[index];
@@ -1749,6 +1751,22 @@ function sellItem(index) {
     logEvent(`Vous vendez [${formatItemDisplayName(item)}] pour ${price} PO.`, "success");
     updateUI();
     updateInventoryUI();
+}
+
+// Vente d'un parchemin du grimoire (chantier "QoL/équilibrage", Chantier D) — pendant de sellItem()
+// pour gameState.spellbook plutôt que gameState.inventory, même ratio/logique. L'équipé
+// (gameState.equipment.spell) n'est structurellement jamais dans ce tableau (voir equipSpell()), donc
+// rien de plus à vérifier ici pour l'exclure.
+function sellSpell(index) {
+    const spell = gameState.spellbook[index];
+    if (!spell) return;
+
+    const price = Math.max(1, Math.round((spell.baseValue || 0) * SELL_VALUE_RATIO));
+    gameState.gold += price;
+    gameState.spellbook.splice(index, 1);
+    logEvent(`Vous vendez [${formatItemDisplayName(spell)}] pour ${price} PO.`, "success");
+    updateUI();
+    updateSpellbookUI();
 }
 
 // ==========================================
@@ -3707,12 +3725,37 @@ function generateUrbanFloorMap() {
         target.guarded = Math.random() * 100 < guardChance;
     }
 
-    // Villes spécialisées (marchand/professeur) : chaque ville normale (jamais le départ, jamais
-    // l'escalier/la Sortie — pour ne pas cumuler un gardien ET un PNJ sur la même ville) a une
-    // chance de devenir un point de vente ou de formation. Le marchand vend une catégorie d'objet
-    // (voir generateShopStock()) ; le professeur forme UNE des 4 compétences réelles du joueur
-    // (gameState.skills) — pas de "compétence armure", contrairement aux objets.
-    candidateIds.filter(id => id !== target.id).forEach(id => {
+    // Villes spécialisées (marchand/professeur) : GARANTIES (chantier "QoL/équilibrage", Chantier D)
+    // — une ville normale (jamais le départ, jamais l'escalier/la Sortie, pour ne pas cumuler un
+    // gardien ET un PNJ) devient TOUJOURS marchand, une autre TOUJOURS professeur, tirées sans remise
+    // parmi les candidates restantes. Avant ce chantier, les deux étaient purement probabilistes
+    // (specializedCityChance par ville) : un étage urbain pouvait n'avoir ni l'un ni l'autre. Le
+    // marchand vend une catégorie d'objet (voir generateShopStock()) ; le professeur forme UNE des 4
+    // compétences réelles du joueur (gameState.skills) — pas de "compétence armure", contrairement
+    // aux objets.
+    const specialCandidateIds = candidateIds.filter(id => id !== target.id);
+    const shuffledSpecialCandidates = [...specialCandidateIds];
+    for (let i = shuffledSpecialCandidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledSpecialCandidates[i], shuffledSpecialCandidates[j]] = [shuffledSpecialCandidates[j], shuffledSpecialCandidates[i]];
+    }
+    // cityCount (6 + profondeur/9) laisse toujours au moins 2 candidates hors départ/cible en
+    // pratique sur cette plage de valeurs — pas de garde spécifique pour le cas contraire, qui
+    // n'est jamais atteint avec la config actuelle (voir NOTES_QOL_EQUILIBRAGE.md).
+    const guaranteedMerchantId = shuffledSpecialCandidates[0];
+    const guaranteedTrainerId = shuffledSpecialCandidates[1];
+    if (guaranteedMerchantId) {
+        citiesById[guaranteedMerchantId].role = 'merchant';
+        citiesById[guaranteedMerchantId].specialty = pick(['weapons', 'ranged', 'armors', 'scrolls']);
+    }
+    if (guaranteedTrainerId) {
+        citiesById[guaranteedTrainerId].role = 'trainer';
+        citiesById[guaranteedTrainerId].specialty = pick(['weapon', 'unarmed', 'magic', 'stealth']);
+    }
+
+    // Villes spécialisées SUPPLÉMENTAIRES, au-delà de la garantie ci-dessus : chance indépendante par
+    // ville candidate restante, comportement inchangé de ce chantier.
+    specialCandidateIds.filter(id => id !== guaranteedMerchantId && id !== guaranteedTrainerId).forEach(id => {
         if (Math.random() * 100 >= config.urbanFloors.specializedCityChance) return;
         const city = citiesById[id];
         if (Math.random() < 0.5) {
@@ -4170,6 +4213,26 @@ function updateShopUI() {
             row.innerHTML = `<span class="truncate">${formatItemDisplayName(item)}</span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
             row.addEventListener('click', () => { sellItem(index); updateShopUI(); });
             ui.shopSellList.appendChild(row);
+        });
+
+        // Vente de parchemins (chantier "QoL/équilibrage", Chantier D) : même présentation que la
+        // vente d'inventaire ci-dessus, mais sur gameState.spellbook via sellSpell() — l'équipé
+        // (gameState.equipment.spell) n'y figure structurellement jamais (voir equipSpell()).
+        ui.shopSellSpellsList.innerHTML = "";
+        const sellableSpells = gameState.spellbook;
+        if (sellableSpells.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = "text-[10px] text-gray-600 italic";
+            empty.innerText = "Aucun parchemin à vendre pour l'instant.";
+            ui.shopSellSpellsList.appendChild(empty);
+        }
+        sellableSpells.forEach((spell, index) => {
+            const price = Math.max(1, Math.round((spell.baseValue || 0) * SELL_VALUE_RATIO));
+            const row = document.createElement('button');
+            row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
+            row.innerHTML = `<span class="truncate">${formatItemDisplayName(spell)}</span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
+            row.addEventListener('click', () => { sellSpell(index); updateShopUI(); });
+            ui.shopSellSpellsList.appendChild(row);
         });
     } else {
         const skill = gameState.skills[city.specialty];

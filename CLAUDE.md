@@ -405,20 +405,31 @@ Tailwind CDN, **aucun build step**.
   `sellItem(index)` (`SELL_VALUE_RATIO = 0.4` × `item.baseValue`, objet retiré de l'inventaire).
   Dépensée exclusivement dans les villes spécialisées (marchand/professeur, voir ci-dessous) — pas
   d'autre sink pour l'instant.
-- **Villes spécialisées (marchand/professeur)** : à la génération d'un étage urbain, chaque ville
-  normale (ni départ, ni escalier/Sortie) a `config.urbanFloors.specializedCityChance` (18%) de
-  devenir marchand OU professeur (50/50), tiré indépendamment par ville. Un marchand vend une
-  catégorie d'objet (`city.specialty` ∈ armes/armes à distance/armures/parchemins) ; un professeur
-  forme UNE des 4 compétences réelles du joueur (`gameState.skills`, pas de "compétence armure" —
-  contrairement aux objets, une compétence n'a que 4 valeurs possibles). `triggerShopEncounter(city)`
-  (dispatché depuis `arriveAtCity()`, avant la résolution générique "ville sûre") ouvre `#shop-zone`
-  et pose `gameState.shopChoicePending` (inclus dans `isActionBlocked()`, comme un choix de boss).
-  `generateShopStock(specialty)` tire 3 objets une seule fois par partie (`city.stock`, jamais
-  régénéré), prix = `item.baseValue × SHOP_MARKUP` (2.5) ; `buyShopItem()`/`sellItem()` sont les deux
-  faces du même `SELL_VALUE_RATIO`/`SHOP_MARKUP`, volontairement asymétriques (acheter coûte plus cher
-  que vendre ne rapporte). `trainSkill()` paie `TRAINER_COST_PER_LEVEL` (20) × le niveau ACTUEL de la
-  compétence pour l'amener exactement au niveau suivant (`gainSkillXp(specialty, xpToNext - xp)`) —
-  "payer pour s'entraîner" plutôt que le grind combat habituel, jamais un raccourci gratuit.
+- **Villes spécialisées (marchand/professeur)** : à la génération d'un étage urbain, **une ville
+  normale est TOUJOURS marchand, une autre TOUJOURS professeur** (ni départ, ni escalier/Sortie —
+  chantier "QoL/équilibrage", Chantier D, voir `NOTES_QOL_EQUILIBRAGE.md` : avant ce chantier les deux
+  étaient purement probabilistes et un étage urbain pouvait n'avoir ni l'un ni l'autre). Les deux
+  villes garanties sont tirées sans remise (mélange Fisher-Yates) parmi les candidates restantes ;
+  `config.urbanFloors.specializedCityChance` (18%) ne gouverne plus que les éventuelles villes
+  spécialisées SUPPLÉMENTAIRES, tirée indépendamment par ville candidate restante (comportement
+  probabiliste inchangé pour celles-là). Un marchand vend une catégorie d'objet (`city.specialty` ∈
+  armes/armes à distance/armures/parchemins) ; un professeur forme UNE des 4 compétences réelles du
+  joueur (`gameState.skills`, pas de "compétence armure" — contrairement aux objets, une compétence
+  n'a que 4 valeurs possibles). `triggerShopEncounter(city)` (dispatché depuis `arriveAtCity()`, avant
+  la résolution générique "ville sûre") ouvre `#shop-zone` et pose `gameState.shopChoicePending`
+  (inclus dans `isActionBlocked()`, comme un choix de boss). `generateShopStock(specialty)` tire 3
+  objets une seule fois par partie (`city.stock`, jamais régénéré), prix = `item.baseValue ×
+  SHOP_MARKUP` (2.5) ; `buyShopItem()`/`sellItem()` sont les deux faces du même
+  `SELL_VALUE_RATIO`/`SHOP_MARKUP`, volontairement asymétriques (acheter coûte plus cher que vendre ne
+  rapporte). `sellSpell()` est le pendant de `sellItem()` pour `gameState.spellbook` (Chantier D,
+  section boutique dédiée `#shop-sell-spells-list`) — les parchemins (`generateSpellScroll()`) posent
+  désormais `baseValue` (dérivé du `baseDmg` NON scalé du sort de base, jamais affecté par la rareté —
+  même convention que `baseValue` sur les objets classiques dans `items.js`), corrigeant au passage un
+  bug préexistant où un marchand de parchemins vendait systématiquement à 2-3 PO (repli `baseValue ||
+  1` dans `generateShopStock()`, faute de `baseValue` réel). `trainSkill()` paie
+  `TRAINER_COST_PER_LEVEL` (20) × le niveau ACTUEL de la compétence pour l'amener exactement au niveau
+  suivant (`gainSkillXp(specialty, xpToNext - xp)`) — "payer pour s'entraîner" plutôt que le grind
+  combat habituel, jamais un raccourci gratuit.
 - **Repaires sur les routes** : `config.urbanFloors.lairRoadsPerFloor` (1, 2 à l'étage final) routes
   du réseau urbain sont désignées "repaire" à la génération (`generateUrbanFloorMap()`), tirées parmi
   toutes les paires ville-ville reliées, `isLair`/`lairId` posés sur LES DEUX sens de la route (comme

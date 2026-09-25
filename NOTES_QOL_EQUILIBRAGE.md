@@ -70,7 +70,51 @@ _À compléter._
 
 ## Chantier D — Économie : marchand/professeur garantis + vente des parchemins
 
-_À compléter._
+**Problème 1** : `specializedCityChance` (18%) tiré indépendamment par ville normale d'un étage
+urbain — purement probabiliste, un étage urbain pouvait donc n'avoir ni marchand ni professeur.
+
+**Problème 2 (trouvé en explorant le code, pas dans l'énoncé d'origine)** : `generateSpellScroll()`
+ne posait jamais de `baseValue` sur les parchemins. Deux conséquences : (a) `sellItem()` ne pouvait
+pas vendre un parchemin (il n'était de toute façon jamais dans `gameState.inventory`, mais même le
+prix aurait été 0) ; (b) `generateShopStock()` calculait déjà `item.price = (item.baseValue || 1) ×
+SHOP_MARKUP`, donc un marchand de parchemins vendait tout son stock à 2-3 PO quelle que soit la
+rareté — un bug actif avant même ce chantier, corrigé ici en même temps que la vente.
+
+**Solution retenue** :
+- `generateUrbanFloorMap()` : mélange Fisher-Yates des villes candidates (hors départ, hors
+  escalier/Sortie), les 2 premières deviennent respectivement marchand et professeur garantis, avec
+  spécialité tirée dans les mêmes pools qu'avant. `specializedCityChance` continue de s'appliquer,
+  indépendamment, aux candidates restantes — comportement strictement inchangé pour celles-là.
+  `cityCount` (6 à 8 sur la plage d'étages urbains 3-18) laisse toujours ≥ 2 candidates hors
+  départ/cible en pratique : pas de garde spécifique pour un cas <2, jamais atteint avec la config
+  actuelle.
+- `generateSpellScroll()` (+ les deux variantes à rareté forcée, cadeau de bienvenue et kit de test) :
+  `baseValue = round(baseDmg_NON_SCALÉ × 1.6)` — dérivé du `baseDmg` de base du sort AVANT le
+  `statMult` de la rareté, exactement comme `baseValue` sur les armes/armures classiques (`items.js`),
+  qui n'est jamais non plus affecté par `statMult` dans `generateItem()`. Ratio 1.6 choisi dans la
+  fourchette observée `baseValue/baseDmg` (~1.5-2) des objets existants.
+- `sellSpell(index)` : nouvelle fonction pendante de `sellItem()`, opère sur `gameState.spellbook`
+  plutôt que `gameState.inventory` (tableaux distincts, comme `buyShopItem()` les traite déjà
+  séparément) — même `SELL_VALUE_RATIO`, même structure. L'équipé (`gameState.equipment.spell`) n'est
+  structurellement jamais dans `spellbook` (voir `equipSpell()`), donc rien à exclure explicitement.
+  Nouvelle section boutique `#shop-sell-spells-list` (`updateShopUI()`), même présentation que la
+  liste de vente d'inventaire existante.
+
+**Écart au texte de la mission** : la mission suggérait d'étendre `sellItem()` lui-même pour
+"accepter aussi le grimoire". J'ai préféré une fonction dédiée (`sellSpell()`) plutôt qu'un paramètre
+supplémentaire sur `sellItem()` — les deux tableaux (`inventory`/`spellbook`) sont déjà traités
+séparément partout ailleurs dans le code (`buyShopItem()`, `addLoot()`, `updateInventoryUI()`/
+`updateSpellbookUI()`), donc une fonction séparée reste cohérente avec cette convention existante et
+évite un paramètre booléen peu lisible sur `sellItem()`. Comportement final identique à ce que
+demandait la mission.
+
+**Tests** : `urban-shops.js` — au moins un marchand ET un professeur garantis sur 20 générations
+successives (renforce le test existant de non-collision, qui reste inchangé) ; `generateShopStock('scrolls')`
+pose un prix réel (> le repli à 1 PO) ; nouveau bloc `sellSpell()` (crédit PO, retrait du grimoire,
+inventaire jamais touché). `magic.js` — `generateSpellScroll()` pose `baseValue` correct au palier
+Commun ET ne le fait PAS grimper au palier Légendaire (non-régression du "jamais scalé par la
+rareté"). `npm test` : 2259 tests OK. `npm run test:long` : 2 boutiques rencontrées sur la dernière
+simulation (contre 0-1 avant ce chantier sur des runs comparables), cohérent avec la garantie.
 
 ## Chantier E — Budget temps par étage + alerte escalier
 
