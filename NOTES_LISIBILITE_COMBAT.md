@@ -168,7 +168,43 @@ contrairement à une translation de tout l'écran.
 
 ## Chantier 10 — Bannière de changement de phase boss
 
-_À compléter._
+Détection dans `performBossCounterAttackInner(enemy, onDone)` : `enemy.lastKnownPhase` (posé au
+Chantier 6, à l'entrée en combat, à la phase de DÉPART — jamais de fausse annonce au tour 1) est
+comparé à la phase du tour courant AVANT toute sélection de pattern, puis mis à jour dans TOUS LES
+CAS (`phaseJustIncreased = phase > enemy.lastKnownPhase; enemy.lastKnownPhase = phase;`). Le step de
+bannière n'est prépendu qu'en cas de montée — jamais en repli (un boss ne redescend jamais de phase,
+mais le code ne suppose rien de plus que "monté par rapport au dernier tour connu").
+
+`runPattern(patternSteps)` (closure locale à `performBossCounterAttackInner`, capture `onDone` et
+`phaseJustIncreased`) remplace les 7 appels directs à `runCombatBeats([...], onDone)` de la fonction —
+centralise le préfixe de bannière en UN SEUL endroit plutôt que de le dupliquer sur chaque branche de
+pattern (phase 3, télégraphe exécuté ×2, multi-coups, harcèlement à distance, télégraphe posé ×2, base
+phase 1/repli phase 2). Le step de bannière utilise `rhythm.beatHeavyEvent` comme délai (moment fort,
+cohérent avec le traitement du télégraphe au Chantier 1/6).
+
+`announceBossPhaseChange(enemy, phase)` : affiche `#phase-transition-banner` (texte spécifique par
+phase — seules les phases 2 et 3 existent comme cibles, la phase 1 est l'état de départ et ne
+déclenche jamais ce step) puis la masque via un VRAI `setTimeout(..., 900)` — délibérément PAS un
+step de `runCombatBeats` : la bannière doit disparaître sur son propre délai mur-horloge, indépendant
+du rythme des beats suivants (qui peuvent s'enchaîner bien avant ses 900ms, en particulier en
+phase 3 où le rythme redevient très rapide). Aucun `Math.random()` dans cette fonction (leçon du
+Chantier 3) : le texte ne dépend que de `phase`, jamais d'un tirage.
+
+Badge permanent `#boss-phase-badge` (à côté du nom de l'ennemi, jamais confondu avec la bannière
+transitoire) : mis à jour à chaque `updateUI()` plutôt que dans `performBossCounterAttackInner` —
+visible dès que `gameState.currentEnemy.isBoss && getBossPhase(...) >= 2`, masqué en phase 1 et sur
+tout mob non-boss. Cohabite avec `#enemy-name` dans un conteneur flex commun ; `#enemy-name` est
+passé de `<div>` stylé à `<span>` non stylé dans un wrapper `<div>` qui porte les classes — l'héritage
+CSS (`color`/`font-weight`/`font-size`/`text-align`) préserve l'apparence sans dupliquer les classes.
+
+Vérifié fonctionnellement (script ad-hoc, hors suite de tests) : phase 1→2 déclenche la bannière
+"change de comportement" et affiche "Phase 2" ; 2→3 déclenche "entre en folie furieuse" et affiche
+"Phase 3" ; un mob normal ne montre jamais le badge ; la bannière se masque bien après son délai de
+900ms (testé avec un vrai `setTimeout`, hors stub synchrone des tests). Aucune régression sur
+`npm test` (10 runs consécutifs) ni `npm run test:long` — `enemy.lastKnownPhase` étant `undefined`
+sur les enemies construits directement par les tests (sans passer par `initiateCombat()`),
+`phase > undefined` vaut `false` en JS, donc `phaseJustIncreased` reste correctement faux sans
+exception ni bannière parasite.
 
 ## Chantier 7 — Découpler le verrou d'input du beat
 

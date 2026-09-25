@@ -577,6 +577,8 @@ const ui = {
     companionCombatHp: document.getElementById('companion-combat-hp'),
     enemyName: document.getElementById('enemy-name'),
     telegraphBanner: document.getElementById('telegraph-banner'),
+    phaseTransitionBanner: document.getElementById('phase-transition-banner'),
+    bossPhaseBadge: document.getElementById('boss-phase-badge'),
     btnAttackWeapon: document.getElementById('btn-attack-weapon'),
     btnAttackRanged: document.getElementById('btn-attack-ranged'),
     btnAttackUnarmed: document.getElementById('btn-attack-unarmed'),
@@ -1096,6 +1098,19 @@ function updateUI() {
             setHpRing(ui.combatEnemyHpRing, ui.combatEnemyHp, gameState.currentEnemy.hp, gameState.currentEnemy.maxHp);
 
             renderEnemyStatusBadges(gameState.currentEnemy);
+
+            // Badge de phase permanent (chantier "lisibilité combat", Chantier 10) : discret,
+            // visible dès la phase 2 seulement (jamais en phase 1 ni sur un mob normal/élite —
+            // la bannière de transition suffit pour l'ANNONCE, ce badge est le rappel permanent).
+            if (ui.bossPhaseBadge) {
+                const phase = gameState.currentEnemy.isBoss ? getBossPhase(gameState.currentEnemy) : 1;
+                if (gameState.currentEnemy.isBoss && phase >= 2) {
+                    ui.bossPhaseBadge.innerText = `Phase ${phase}`;
+                    ui.bossPhaseBadge.classList.remove('hidden');
+                } else {
+                    ui.bossPhaseBadge.classList.add('hidden');
+                }
+            }
         }
         renderDistanceTension(gameState.currentEnemy);
         updateTelegraphBanner();
@@ -4540,6 +4555,26 @@ function updateTelegraphBanner() {
     ui.telegraphBanner.classList.remove('hidden');
 }
 
+// Bannière de changement de phase boss (chantier "lisibilité combat", Chantier 10) : transitoire
+// (~900ms), prépendue au pattern du tour par runPattern() dans performBossCounterAttackInner()
+// UNIQUEMENT quand la phase vient de monter (jamais en entrant en phase 1). Minutée par un VRAI
+// setTimeout (comme #dev-banner ou tout autre toast ponctuel) plutôt qu'un step de runCombatBeats :
+// elle doit disparaître toute seule après son délai propre, indépendamment du rythme des beats
+// suivants (qui peuvent s'enchaîner bien avant ou bien après ses 900ms). Aucun Math.random() ici
+// (leçon du Chantier 3) : le texte dépend uniquement de `phase`.
+function announceBossPhaseChange(enemy, phase) {
+    if (!ui.phaseTransitionBanner) return;
+    const messages = {
+        2: `😤 ${enemy.name} change de comportement — nouveaux patterns !`,
+        3: `🤪 ${enemy.name} entre en folie furieuse — frappez sans relâche !`
+    };
+    ui.phaseTransitionBanner.innerText = messages[phase] || `${enemy.name} change de phase.`;
+    ui.phaseTransitionBanner.classList.remove('hidden');
+    setTimeout(() => {
+        ui.phaseTransitionBanner.classList.add('hidden');
+    }, 900);
+}
+
 function initiateCombat(forcedEnemy = null) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
     gameState.currentEnemy = enemy;
@@ -5468,6 +5503,21 @@ function performBossCounterAttackInner(enemy, onDone) {
         if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
     };
 
+    // Changement de phase (chantier "lisibilité combat", Chantier 10) : détecté ICI, une seule fois
+    // par tour, sur la phase déjà calculée ci-dessus — enemy.lastKnownPhase (posé au Chantier 6, à
+    // l'entrée en combat) est mis à jour DANS TOUS LES CAS, mais un step de bannière n'est prépendu au
+    // pattern du tour QUE si la phase vient de MONTER (jamais en phase 1 : rien à annoncer en y
+    // entrant, c'est l'état de départ). runPattern() (au lieu d'appeler runCombatBeats() directement)
+    // centralise ce préfixe pour ne pas le dupliquer sur les 7 points de sortie de cette fonction.
+    const phaseJustIncreased = phase > enemy.lastKnownPhase;
+    enemy.lastKnownPhase = phase;
+    const runPattern = (patternSteps) => {
+        const steps = phaseJustIncreased
+            ? [{ run: () => announceBossPhaseChange(enemy, phase), delay: rhythm.beatHeavyEvent }, ...patternSteps]
+            : patternSteps;
+        runCombatBeats(steps, onDone);
+    };
+
     // Phase 3 ("folie") : dégâts +40% fixes, pas de télégraphe — le boss cesse d'être tactique et
     // frappe en continu. enemy.status.frenzied (lu par performPlayerAttack()) réduit symétriquement
     // sa DEF effective : la fenêtre risque/récompense de cette phase (voir config.bossPhases.phase3).
@@ -5475,9 +5525,9 @@ function performBossCounterAttackInner(enemy, onDone) {
         enemy.status.frenzied = true;
         enemy.status.telegraph = null; // un télégraphe en cours à l'entrée en phase 3 est abandonné
         enemyAtk = Math.round(enemyAtk * bp.phase3.atkMult);
-        runCombatBeats([
+        runPattern([
             { run: () => strikeAndCheckDeath(enemyAtk, `[${enemy.name}], pris de folie furieuse, vous`, undefined, true), delay: rhythm.beatHeavyEvent }
-        ], onDone);
+        ]);
         return;
     }
     enemy.status.frenzied = false;
@@ -5488,19 +5538,19 @@ function performBossCounterAttackInner(enemy, onDone) {
         enemy.status.telegraph = null;
         if (tg.type === 'heavy') {
             const boosted = Math.round(enemyAtk * bp.telegraphHeavyMult);
-            runCombatBeats([
+            runPattern([
                 { run: () => strikeAndCheckDeath(boosted, `[${enemy.name}] abat son attaque annoncée et`, undefined, true), delay: rhythm.beatHeavyEvent }
-            ], onDone);
+            ]);
             return;
         }
         if (tg.type === 'defBuff') {
-            runCombatBeats([{
+            runPattern([{
                 run: () => {
                     enemy.status.defBuffed = { rounds: bp.defBuffRounds };
                     logEvent(`[${enemy.name}] se hérisse : sa garde vient de monter, sans vous frapper ce tour-ci.`, "info");
                 },
                 delay: rhythm.beatHeavyEvent
-            }], onDone);
+            }]);
             return;
         }
     }
@@ -5526,7 +5576,7 @@ function performBossCounterAttackInner(enemy, onDone) {
                     delay: i === 0 ? rhythm.beatActionToRiposte : rhythm.beatMultiHit
                 });
             }
-            runCombatBeats(steps, onDone);
+            runPattern(steps);
             return;
         }
         threshold += bp.rangedHarassChance;
@@ -5534,20 +5584,20 @@ function performBossCounterAttackInner(enemy, onDone) {
             // Harcèlement à distance : mécanique volontairement minimale ici (pont avec le futur
             // Chantier 3 "enrage distance", pas encore implémenté — voir NOTES_COMBAT.md).
             const harassAtk = Math.round(enemyAtk * bp.rangedHarassMult);
-            runCombatBeats([
+            runPattern([
                 { run: () => strikeAndCheckDeath(harassAtk, `[${enemy.name}] vous harcèle à distance et`), delay: rhythm.beatActionToRiposte }
-            ], onDone);
+            ]);
             return;
         }
         threshold += bp.defBuffTelegraphChance;
         if (roll < threshold) {
-            runCombatBeats([{
+            runPattern([{
                 run: () => {
                     enemy.status.telegraph = { type: 'defBuff' };
                     logEvent(`[${enemy.name}] se raidit, une garde imminente se prépare...`, "info");
                 },
                 delay: rhythm.beatHeavyEvent
-            }], onDone);
+            }]);
             return;
         }
     }
@@ -5556,19 +5606,19 @@ function performBossCounterAttackInner(enemy, onDone) {
     // suivant (annonce sans dégât), sinon attaque de base normale.
     const heavyChance = phase === 1 ? bp.phase1TelegraphChance : bp.phase2TelegraphChance;
     if (Math.random() < heavyChance) {
-        runCombatBeats([{
+        runPattern([{
             run: () => {
                 enemy.status.telegraph = { type: 'heavy' };
                 logEvent(`[${enemy.name}] prépare un coup dévastateur...`, "info");
             },
             delay: rhythm.beatHeavyEvent
-        }], onDone);
+        }]);
         return;
     }
 
-    runCombatBeats([
+    runPattern([
         { run: () => strikeAndCheckDeath(enemyAtk, `[${enemy.name}] vous`), delay: rhythm.beatActionToRiposte }
-    ], onDone);
+    ]);
 }
 
 // Riposte de l'ennemi : tient compte de son propre saignement/étourdissement en cours, de l'armure

@@ -135,8 +135,21 @@ Tailwind CDN, **aucun build step**.
   `performBossCounterAttackInner()`/`triggerMobEnrage()` prennent désormais un `onDone` appelé une
   fois toute la séquence visuelle jouée (déverrouille les boutons via `setCombatInputLocked(false)`) —
   les FORMULES de dégâts restent strictement inchangées, seul leur RYTHME d'affichage change.
-  `enemy.lastKnownPhase` (initialisé dans `initiateCombat()`) est posé mais pas encore exploité, en
-  préparation d'un futur système d'annonce de changement de phase.
+  `enemy.lastKnownPhase` (initialisé dans `initiateCombat()`) alimente désormais la bannière de
+  changement de phase (voir juste en dessous, même chantier).
+- **Bannière de changement de phase boss** (chantier "lisibilité combat", même contexte que le
+  séquenceur ci-dessus — voir `NOTES_LISIBILITE_COMBAT.md`) : `performBossCounterAttackInner()`
+  compare la phase du tour courant à `enemy.lastKnownPhase` AVANT toute sélection de pattern
+  (`phaseJustIncreased = phase > enemy.lastKnownPhase`), met à jour ce dernier dans tous les cas, puis
+  passe par une closure locale `runPattern(patternSteps)` (au lieu d'appeler `runCombatBeats()`
+  directement, sur les 7 branches de pattern de la fonction) qui prépend un step d'annonce
+  UNIQUEMENT si la phase vient de monter — jamais à l'entrée en phase 1 (état de départ, rien à
+  annoncer). `announceBossPhaseChange(enemy, phase)` affiche `#phase-transition-banner` (texte
+  différent phase 2/phase 3) puis la masque via un VRAI `setTimeout(900ms)` indépendant du rythme des
+  beats (pas un step de `runCombatBeats`, pour ne pas coupler sa durée d'affichage au tempo qui peut
+  s'accélérer juste après, en phase 3 notamment). Badge permanent `#boss-phase-badge` (à côté du nom,
+  mis à jour à chaque `updateUI()`, visible dès phase ≥ 2 sur un boss uniquement) complète la bannière
+  transitoire par un rappel permanent de l'état en cours.
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF

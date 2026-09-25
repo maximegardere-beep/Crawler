@@ -525,10 +525,21 @@
             <div id="full-log" class="mt-2 h-28 overflow-y-auto bg-gray-950 border border-gray-800 rounded p-2 flex flex-col gap-1"></div>
         </details>
 
+        <!-- Bannière de changement de phase boss (chantier "lisibilité combat", Chantier 10) :
+             transitoire (~900ms, minutée en JS, indépendante du rythme des beats), au-dessus de la
+             zone de combat — distincte de la bannière de télégraphe (violet/rose plutôt qu'orange).
+             Affichée/masquée par announceBossPhaseChange() dans app.js. -->
+        <div id="phase-transition-banner" class="hidden mb-2 px-3 py-2 rounded-lg border-2 border-fuchsia-500 bg-fuchsia-950/50 text-center text-xs font-bold text-fuchsia-300 uppercase tracking-wide"></div>
+
         <!-- 4. Zone de Combat (visible uniquement pendant un affrontement, juste sous la carte) -->
         <div id="combat-zone" class="hidden p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
             <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Zone de Combat</span>
-            <div class="text-center text-sm text-red-300 mb-3 font-bold" id="enemy-name">-</div>
+            <div class="text-center text-sm text-red-300 mb-3 font-bold flex items-center justify-center gap-2">
+                <span id="enemy-name">-</span>
+                <!-- Badge de phase permanent (discret) : visible uniquement à partir de la phase 2 d'un
+                     boss (jamais en phase 1, ni sur un mob normal/élite) — voir updateUI() dans app.js. -->
+                <span id="boss-phase-badge" class="hidden px-1.5 py-0.5 rounded bg-fuchsia-950 border border-fuchsia-600 text-fuchsia-300 text-[9px] normal-case tracking-normal"></span>
+            </div>
 
             <!-- Bannière de télégraphe (chantier "lisibilité combat", Chantier 1) : affichée EN
                  PERMANENCE tant que enemy.status.telegraph est actif (pas seulement au tour d'annonce),
@@ -986,13 +997,13 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=66"></script>
-    <script src="items.js?v=66"></script>
-    <script src="spells.js?v=66"></script>
-    <script src="districts.js?v=66"></script>
-    <script src="safehouses.js?v=66"></script>
-    <script src="generator.js?v=66"></script>
-    <script src="anomalies.js?v=66"></script>
-    <script src="app.js?v=66"></script>
+    <script src="bestiary.js?v=67"></script>
+    <script src="items.js?v=67"></script>
+    <script src="spells.js?v=67"></script>
+    <script src="districts.js?v=67"></script>
+    <script src="safehouses.js?v=67"></script>
+    <script src="generator.js?v=67"></script>
+    <script src="anomalies.js?v=67"></script>
+    <script src="app.js?v=67"></script>
 </body>
 </html>
