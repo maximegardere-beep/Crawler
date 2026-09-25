@@ -5068,7 +5068,11 @@ function performPlayerAttack(attackerAtk, options, label) {
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
     showFloatingDamage(ui.combatSideEnemy, playerDamage, { toPlayer: false }); // dégâts infligés par le joueur : jamais "heavy" (réservé aux coups marquants du mob/boss)
-    logEvent(`Vous attaquez ${label}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée par la folie)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée par l'enrage)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
+    // Ligne raccourcie (chantier "lisibilité combat", Chantier 8) : retire le remplissage "et
+    // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
+    // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
+    // pure redite de ce que les badges du Chantier 2 montrent déjà sans rapport avec CE coup précis).
+    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
 
     // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
     if (gameState.companion && gameState.companion.specialty.type === 'strike' && enemy.hp > 0) {
@@ -5438,7 +5442,12 @@ function getBossPhase(enemy) {
 // re-déclencherait indépendamment le plancher ABSOLU, le multipliant par le nombre de coups (constaté
 // en test : un plancher pensé pour ~10%/tour grimpait à ~30%/tour avec 3 frappes). Omis (undefined),
 // la frappe utilise le plancher complet standard (cas normal : une frappe = un tour entier).
-function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = false) {
+// `silent` (chantier "lisibilité combat", Chantier 8) : réservé au multi-coups — supprime la ligne de
+// log INDIVIDUELLE de ce coup (mais jamais l'application des dégâts/l'animation/l'effondrement d'un
+// compagnon, qui reste toujours annoncé) pour que l'appelant puisse construire UNE seule ligne de
+// résumé après la rafale plutôt que N lignes quasi identiques. Renvoie toujours playerDamage, silent
+// ou non, pour que ce résumé puisse être construit à partir des montants réellement encaissés.
+function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = false, silent = false) {
     const pressureFloor = pressureFloorOverride !== undefined
         ? pressureFloorOverride
         : gameState.maxHp * config.mobDamageScaling.pressureFloorFrac;
@@ -5462,7 +5471,7 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
     showFloatingDamage(ui.combatSidePlayer, playerDamage, { toPlayer: true, heavy }); // `heavy` : télégraphe exécuté/ruée d'enrage/phase 3, voir les appelants
     if (heavy) triggerHeavyImpact(); // Chantier 4 : même flag, mêmes 3 occasions — voir triggerHeavyImpact()
-    logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
+    if (!silent) logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
     if (gameState.companion && gameState.companion.hp <= 0) {
         logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
         gameState.companion = null;
@@ -5524,10 +5533,13 @@ function performBossCounterAttackInner(enemy, onDone) {
     }
 
     // Un coup qui vide les PV du joueur programme gameOver() — jamais un beat de plus après la mort,
-    // qui n'a rien à attendre. Petit helper pour ne pas dupliquer ce garde-fou à chaque step.
-    const strikeAndCheckDeath = (atk, label, pressureFloorOverride, heavy = false) => {
-        executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy);
+    // qui n'a rien à attendre. Petit helper pour ne pas dupliquer ce garde-fou à chaque step. Renvoie
+    // les dégâts réellement encaissés (Chantier 8) : le multi-coups en a besoin pour construire sa
+    // ligne de résumé consolidée à partir des montants silencieux de chaque frappe.
+    const strikeAndCheckDeath = (atk, label, pressureFloorOverride, heavy = false, silent = false) => {
+        const dealt = executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy, silent);
         if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+        return dealt;
     };
 
     // Changement de phase (chantier "lisibilité combat", Chantier 10) : détecté ICI, une seule fois
@@ -5596,10 +5608,22 @@ function performBossCounterAttackInner(enemy, onDone) {
             logEvent(`[${enemy.name}] enchaîne ${hits} frappes rapides !`, "danger");
             // beatMultiHit entre chaque frappe (première frappe au rythme standard, comme n'importe
             // quelle riposte) — un décès en cours de rafale arrête la file (voir strikeAndCheckDeath).
+            // Chaque frappe individuelle reste SILENCIEUSE (Chantier 8, lisibilité combat) : au lieu de
+            // N lignes de log quasi identiques, UNE seule ligne de résumé après la dernière frappe qui
+            // atteint réellement sa cible (jamais si le joueur meurt en cours de rafale — l'écran Game
+            // Over prend le relais, un résumé de plus n'apporterait rien).
+            const dealtAmounts = [];
             const steps = [];
             for (let i = 0; i < hits; i++) {
                 steps.push({
-                    run: () => { if (gameState.hp > 0) strikeAndCheckDeath(perHitAtk, `Frappe ${i + 1}/${hits} :`, perHitPressureFloor); },
+                    run: () => {
+                        if (gameState.hp <= 0) return;
+                        dealtAmounts.push(strikeAndCheckDeath(perHitAtk, `Frappe ${i + 1}/${hits} :`, perHitPressureFloor, false, true));
+                        if (i === hits - 1 && gameState.hp > 0) {
+                            const total = dealtAmounts.reduce((sum, d) => sum + d, 0);
+                            logEvent(`💥 ${dealtAmounts.length} frappes vous touchent : ${dealtAmounts.join(' + ')} = ${total} dégâts au total.`, "danger");
+                        }
+                    },
                     delay: i === 0 ? rhythm.beatActionToRiposte : rhythm.beatMultiHit
                 });
             }
@@ -5775,7 +5799,9 @@ function resolveNonBossCounterAttack(enemy) {
     const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
         : "";
-    logEvent(`[${enemy.name}]${enemySlowedNote} vous inflige ${playerDamage} dégâts${wasBlinded ? " (vous étiez ébloui)" : ""}${wasCorroded ? " (armure corrodée)" : ""}${guardNote}${companionAbsorbNote}.`, "danger");
+    // Note d'état déplacée après les dégâts plutôt qu'entre le nom et "vous inflige" (chantier
+    // "lisibilité combat", Chantier 8) : lecture plus naturelle, aucune info retirée.
+    logEvent(`[${enemy.name}] vous inflige ${playerDamage} dégâts${enemySlowedNote}${wasBlinded ? " (vous étiez ébloui)" : ""}${wasCorroded ? " (armure corrodée)" : ""}${guardNote}${companionAbsorbNote}.`, "danger");
 
     // Le compagnon tombe s'il vient d'encaisser le coup de trop : il quitte le groupe.
     if (gameState.companion && gameState.companion.hp <= 0) {

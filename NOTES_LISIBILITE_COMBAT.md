@@ -314,4 +314,35 @@ existants.
 
 ## Chantier 8 — Réduire la charge textuelle des logs
 
-_À compléter._
+**Multi-coups consolidé** (le changement à plus fort impact de ce chantier) : chaque frappe
+individuelle du pattern multi-coups (phase 2 boss) est désormais SILENCIEUSE
+(`executeBossStrike(..., silent: true)`, nouveau paramètre qui supprime uniquement la ligne de log de
+CE coup — jamais l'application des dégâts/l'animation/l'effondrement d'un compagnon, toujours
+annoncé). `strikeAndCheckDeath()` renvoie maintenant les dégâts réellement encaissés (après
+absorption compagnon), accumulés dans `dealtAmounts[]` par la boucle du pattern ; une seule ligne de
+résumé ("💥 N frappes vous touchent : A + B + C = total dégâts au total.") est loguée après la
+DERNIÈRE frappe qui atteint réellement sa cible — jamais si le joueur meurt en cours de rafale (l'écran
+Game Over prend le relais, un résumé de plus n'apporterait rien). Passe de jusqu'à 4 lignes (1 annonce
++ 3 frappes) à 2 (annonce + résumé) pour un 3-coups. Vérifié avec un script dédié (mob boss forcé en
+phase 2, tirages répétés jusqu'à tomber sur la branche multi-coups) : `["[Boss] enchaîne 3 frappes
+rapides !", "💥 3 frappes vous touchent : 63 + 63 + 63 = 189 dégâts au total."]` — exactement 2 lignes.
+
+**Lignes d'attaque standard raccourcies** : "Vous attaquez X et infligez Y dégâts à Z" →
+"Vous attaquez X : Y dégâts à Z" (retire le remplissage "et infligez ... à", 2 mots économisés à
+chaque attaque du joueur, la plus fréquente ligne de tout le journal). Côté mob, la note d'état de
+l'ennemi (ralenti/apeuré) est déplacée de juste après son nom vers juste après les dégâts, pour une
+lecture plus naturelle ("[Goule] vous inflige 8 dégâts (ralenti)." plutôt que "[Goule] (ralenti) vous
+inflige 8 dégâts.") — aucune information retirée dans les deux cas.
+
+**Mentions d'état ennemi NON retirées, décision explicite** : la consigne demandait de retirer les
+mentions "maintenant redondantes avec les badges du Chantier 2... sauf celles qui expliquent le calcul
+du coup en cours". Audit des mentions actuelles (ébloui/corrodé/garde hérissée/folie/enrage sur la
+ligne d'attaque du joueur) : TOUTES modifient `effectiveEnemyDef` de CE coup précis — aucune n'est
+une simple redite sans rapport avec le calcul en cours, donc aucune ne correspondait au cas "à
+retirer" de la consigne. Rien de plus n'a donc été retiré ici (au-delà du raccourcissement de
+formulation ci-dessus) : les badges du Chantier 2 et ces mentions de log jouent des rôles différents
+et complémentaires (badge = état PERSISTANT visible en permanence, mention de log = explication du
+calcul de CE coup précis), pas un doublon à éliminer.
+
+`npm test` (10+ runs consécutifs, 0 échec) et `npm run test:long` restent verts, confirmant l'audit
+EXPLORE initial : aucun test n'inspecte le texte exact des logs.

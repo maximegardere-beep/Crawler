@@ -173,6 +173,17 @@ Tailwind CDN, **aucun build step**.
   (qui bulle aussi jusqu'à `#combat-zone`) pré-skipperait systématiquement son propre tour. Les beats
   de mort/fin de combat (hors du tableau `steps`, voir `strikeAndCheckDeath()`) restent
   structurellement insensibles au skip, sans qu'aucun step existant ait besoin de `skippable: false`.
+- **Logs de combat allégés** (chantier "lisibilité combat", Chantier 8, dernier de la série — voir
+  `NOTES_LISIBILITE_COMBAT.md`) : `executeBossStrike(..., silent)` (nouveau 6ᵉ paramètre) supprime la
+  ligne de log INDIVIDUELLE d'un coup (jamais les dégâts/l'animation/l'effondrement d'un compagnon,
+  toujours appliqués) — utilisé UNIQUEMENT par le pattern multi-coups (phase 2 boss), qui accumule les
+  montants réellement encaissés (`strikeAndCheckDeath()` les renvoie désormais) et n'affiche qu'UNE
+  ligne de résumé après la dernière frappe qui atteint sa cible (jamais si le joueur meurt en cours de
+  rafale). Lignes d'attaque standard (joueur et mob) raccourcies (retire le remplissage "et infligez
+  ... à", déplace la note d'état du mob après les dégâts) sans retirer d'information : audit des
+  mentions d'état ennemi existantes (ébloui/corrodé/garde hérissée/folie/enrage) — toutes expliquent le
+  calcul du coup en cours (DEF ennemie modifiée), aucune n'est une simple redite des badges du
+  Chantier 2, donc aucune n'a été retirée.
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
