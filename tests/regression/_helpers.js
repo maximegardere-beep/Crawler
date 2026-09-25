@@ -7,6 +7,15 @@ require('../test_stub.js');
 const { loadGame } = require('../load_game.js');
 loadGame();
 
+// Chantier "lisibilité combat" : le séquenceur de tour (runCombatBeats() dans app.js) espace ses
+// étapes via setTimeout plutôt que Promise/async-await (voir NOTES_COMBAT.md — une vraie Promise
+// diffère TOUJOURS sa continuation en microtâche, même résolue en synchrone, ce qu'aucun stub ne
+// peut contourner). Avec ce stub, TOUTE la chaîne de beats se déroule en synchrone sous Node, donc
+// les tests qui appellent une fonction de riposte directement (combat-boss.js, combat-enrage.js...)
+// et lisent gameState.hp juste après continuent de fonctionner sans aucune modification — même
+// stub que tests/long_playthrough.js (voir son commentaire), repris ici pour la suite rapide.
+global.setTimeout = (fn) => fn();
+
 const counts = { failures: 0, passed: 0 };
 function assert(cond, msg) {
     if (!cond) { counts.failures++; console.error("FAIL:", msg); }

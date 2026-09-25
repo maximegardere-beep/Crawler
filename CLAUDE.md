@@ -117,6 +117,26 @@ Tailwind CDN, **aucun build step**.
   `gameState.engageDefHalved` (DEF joueur ÷2 pour la riposte qui suit, lu par `getEffectiveDef()`,
   consommé au tout début de la PROCHAINE action par `tryPlayerAction()` — même convention que
   `lastPlayerActionWasBackfire`).
+- **Séquenceur de tour en beats** (chantier "lisibilité combat" — voir `NOTES_LISIBILITE_COMBAT.md`
+  pour le détail des choix) : remplace l'ancien modèle "tout s'affiche en 0ms puis un verrou fixe de
+  400ms" par une file d'étapes espacées dans le temps, `runCombatBeats(steps, onDone)` (app.js) —
+  `steps` est un tableau de `{run, delay, skippable}` joué par callbacks `setTimeout` CHAÎNÉS,
+  jamais de Promise/async-await (une vraie Promise diffère toujours sa continuation en microtâche,
+  même résolue en synchrone — incompatible avec les 113+ sites d'appel synchrones de
+  `tests/regression/*.js`/`tests/long_playthrough.js`). `tests/regression/_helpers.js` stub
+  `global.setTimeout` (copie du stub déjà présent dans `tests/long_playthrough.js`) pour que toute la
+  chaîne de beats se déroule en synchrone sous Node — aucun test existant n'a eu besoin d'être réécrit
+  pour ça. Durées centralisées dans `config.combatRhythm` (`beatActionToRiposte` 280ms,
+  `beatHeavyEvent` 550ms pour télégraphe posé/exécuté, ruée d'enrage et chaque frappe de phase 3,
+  `beatMultiHit` 90ms entre les frappes d'un multi-coups après la première, `beatEmptyEvent` 0ms —
+  jamais consommé par le séquenceur lui-même : les événements vides — riposte bloquée, repositionnement
+  raté — court-circuitent AVANT d'y entrer, dans `safeEnemyCounterAttack()`/`resolveEnemyReaction()`).
+  `enemyCounterAttack()`/`resolveEnemyCounterAttack()`/`performBossCounterAttack()`/
+  `performBossCounterAttackInner()`/`triggerMobEnrage()` prennent désormais un `onDone` appelé une
+  fois toute la séquence visuelle jouée (déverrouille les boutons via `setCombatInputLocked(false)`) —
+  les FORMULES de dégâts restent strictement inchangées, seul leur RYTHME d'affichage change.
+  `enemy.lastKnownPhase` (initialisé dans `initiateCombat()`) est posé mais pas encore exploité, en
+  préparation d'un futur système d'annonce de changement de phase.
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF

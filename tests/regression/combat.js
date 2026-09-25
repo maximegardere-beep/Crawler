@@ -172,9 +172,13 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     gameState.combatDistance = 0; // rattrapé au corps à corps : plus aucun avantage
     assert(getCombatRangeContext().playerAdvantaged === false, "getCombatRangeContext() : plus d'avantage une fois rattrapé au corps à corps");
 
-    ui.btnAttackWeapon.disabled = false;
+    // Témoin de riposte : PV avant/après plutôt que le verrouillage des boutons (chantier "lisibilité
+    // combat" — sous le stub global.setTimeout de _helpers.js, toute la séquence de beats se déroule
+    // en synchrone, donc les boutons sont déjà reverrouillés PUIS déverrouillés avant que cette ligne
+    // ne s'exécute ; seul l'effet final — des PV perdus — reste observable après coup).
+    const hpBefore = gameState.hp;
     safeEnemyCounterAttack();
-    assert(ui.btnAttackWeapon.disabled === true, "safeEnemyCounterAttack() : la riposte se déclenche normalement au contact (verrouillage immédiat des boutons)");
+    assert(gameState.hp < hpBefore, "safeEnemyCounterAttack() : la riposte se déclenche normalement au contact");
 }
 {
     resetTransientState();
@@ -213,9 +217,9 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     gameState.combatDistance = config.rangedCombat.initialDistance; // a repris ses distances
     assert(getCombatRangeContext().mobNeedsDistance === false, "getCombatRangeContext() : plus besoin de reculer une fois la distance reprise");
 
-    ui.btnAttackWeapon.disabled = false;
+    const hpBefore = gameState.hp;
     safeEnemyCounterAttack();
-    assert(ui.btnAttackWeapon.disabled === true, "safeEnemyCounterAttack() : la riposte à distance se déclenche normalement une fois l'écart repris");
+    assert(gameState.hp < hpBefore, "safeEnemyCounterAttack() : la riposte à distance se déclenche normalement une fois l'écart repris");
 }
 {
     resetTransientState();
@@ -238,12 +242,12 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     let idx = 0;
     const seq = [0, 0.999]; // dé du joueur au plus bas, dé du mob au plus haut -> le mob l'emporte et recule
     Math.random = () => seq[(idx++) % seq.length];
-    ui.btnFlee.disabled = false;
+    const hpBefore = gameState.hp;
     resolveEnemyReaction();
     Math.random = originalRandom;
 
     assert(gameState.combatDistance > 0, "resolveEnemyReaction() : le mob à distance parvient à reculer");
-    assert(ui.btnFlee.disabled === true, "resolveEnemyReaction() : une fois reculé, le mob à distance tire immédiatement");
+    assert(gameState.hp < hpBefore, "resolveEnemyReaction() : une fois reculé, le mob à distance tire immédiatement");
 }
 {
     // Même scénario, mais le joueur colle le mob et l'empêche de reculer : aucune riposte ce tour.
@@ -293,21 +297,22 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     let idx = 0;
     Math.random = () => seq[(idx++) % seq.length];
 
-    // enemyCounterAttack() verrouille les boutons de combat de façon SYNCHRONE avant de différer
-    // les dégâts eux-mêmes (setTimeout) : ce verrouillage sert de témoin fiable "une vraie riposte
-    // a bien été déclenchée ce tour-ci", sans dépendre du délai (voir setCombatInputLocked()).
-    // btnFlee (et non btnAttackWeapon) : updateUI() grise/dégrise lui-même btnAttackWeapon selon
-    // l'écart courant, indépendamment de toute riposte — un témoin pollué par ce même effet de bord
-    // que resolveEnemyReaction() déclenche volontairement (rafraîchir la barre après un rapprochement).
+    // Témoin qu'une riposte a bien eu lieu : des PV perdus (gameState.hp), plutôt que le verrouillage
+    // des boutons. Depuis le séquenceur de beats (chantier "lisibilité combat"), le stub
+    // global.setTimeout de _helpers.js déroule toute la chaîne en synchrone — les boutons sont donc
+    // déjà reverrouillés PUIS déverrouillés avant que l'assertion ne s'exécute, ce qui rendrait ce
+    // witness toujours faux. btnFlee reste utilisé pour l'assertion "pas encore de riposte" ci-dessous
+    // (aucun effet de bord de updateUI() dessus, contrairement à btnAttackWeapon qui dépend de l'écart).
     ui.btnFlee.disabled = false;
     attackMagic();
     assert(gameState.combatDistance === 1, "resolveEnemyReaction() : un mob de mêlée hors de portée avance quand même vers le joueur");
     assert(ui.btnFlee.disabled === false, "resolveEnemyReaction() : tant que l'écart tient, le mob de mêlée ne peut pas riposter");
 
+    const hpBefore = gameState.hp;
     attackMagic(); // Doit combler l'écart restant (2 - 1 - 1 = 0) et enfin riposter pour de vrai
     Math.random = originalRandom;
     assert(gameState.combatDistance === 0, "resolveEnemyReaction() : le mob finit par combler l'écart");
-    assert(ui.btnFlee.disabled === true, "resolveEnemyReaction() : une fois l'écart comblé, la riposte se déclenche normalement");
+    assert(gameState.hp < hpBefore, "resolveEnemyReaction() : une fois l'écart comblé, la riposte se déclenche normalement");
 }
 {
     // attemptRetreat() : si le jet réussit (écart rouvert), la riposte ne doit plus porter.
