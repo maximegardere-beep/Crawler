@@ -575,6 +575,7 @@ const ui = {
     companionCombatHpRing: document.getElementById('companion-combat-hp-ring'),
     companionCombatHp: document.getElementById('companion-combat-hp'),
     enemyName: document.getElementById('enemy-name'),
+    telegraphBanner: document.getElementById('telegraph-banner'),
     btnAttackWeapon: document.getElementById('btn-attack-weapon'),
     btnAttackRanged: document.getElementById('btn-attack-ranged'),
     btnAttackUnarmed: document.getElementById('btn-attack-unarmed'),
@@ -1104,6 +1105,7 @@ function updateUI() {
             }
             ui.combatEnemyStatus.innerText = enemyIcons || "—";
         }
+        updateTelegraphBanner();
 
         // --- Distance de combat : verrouille/déverrouille Arme, Tir et Mains nues selon l'écart
         // actuel (0 = corps à corps possible, >0 = seul le Tir porte). La barre est TOUJOURS
@@ -4392,6 +4394,27 @@ function renderCombatMobPanel() {
             }
         });
     }
+}
+
+// Bannière de télégraphe (chantier "lisibilité combat", Chantier 1) : affichée EN PERMANENCE tant
+// que enemy.status.telegraph est actif (pas seulement au tour d'annonce, contrairement au log qui ne
+// mentionne l'annonce qu'une fois) — c'est elle qui porte l'information de façon fiable, sans avoir à
+// déplier le journal de combat. Appelée depuis updateUI() à chaque rendu, seule fonction à toucher
+// #telegraph-banner (jamais de mutation DOM dispersée ailleurs).
+function updateTelegraphBanner() {
+    if (!ui.telegraphBanner) return;
+    const enemy = gameState.currentEnemy;
+    const telegraph = enemy && enemy.status && enemy.status.telegraph;
+    if (!telegraph) {
+        ui.telegraphBanner.classList.add('hidden');
+        return;
+    }
+    const messages = {
+        heavy: '⚠️ Coup dévastateur imminent — défendez-vous ou esquivez !',
+        defBuff: '🛡️ Garde imminente — frappez maintenant !'
+    };
+    ui.telegraphBanner.innerText = messages[telegraph.type] || '⚠️ Une attaque se prépare...';
+    ui.telegraphBanner.classList.remove('hidden');
 }
 
 function initiateCombat(forcedEnemy = null) {

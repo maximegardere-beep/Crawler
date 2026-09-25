@@ -75,7 +75,15 @@ witness de test l'était devenu.
 
 ## Chantier 1 — Bannière de télégraphe
 
-_À compléter._
+`#telegraph-banner` (index.html, sous `#enemy-name` dans `#combat-zone`) + `updateTelegraphBanner()`
+(app.js, appelée depuis `updateUI()`). Affichée EN PERMANENCE tant que `enemy.status.telegraph` est
+actif (pas seulement au tour d'annonce) : `type: 'heavy'` → "⚠️ Coup dévastateur imminent —
+défendez-vous ou esquivez !", `type: 'defBuff'` → "🛡️ Garde imminente — frappez maintenant !". Pulse
+CSS discret (`telegraphPulse`, 1.1s) désactivé sous `prefers-reduced-motion: reduce` (bordure/couleur
+seules restent le signal). Masquée automatiquement quand `enemy.status.telegraph` redevient `null`
+(exécution, entrée en phase 3, fin de combat) — aucun état supplémentaire à gérer, `updateUI()` relit
+l'état réel à chaque rendu. Pas de dépendance au séquenceur de beats (Chantier 6) : l'affichage est
+continu, pas lié au timing d'un événement précis.
 
 ## Chantier 2 — Badges d'état ennemi
 
