@@ -1306,6 +1306,35 @@ function animateDieHit(dieEl, direction, value, ringEl, valueEl, newHpValue, max
     }, 180);
 }
 
+// Décalage horizontal (±8px) des chiffres flottants, pour que deux chiffres quasi simultanés (un
+// multi-coups par exemple) ne se superposent pas exactement. Volontairement PAS Math.random() :
+// cette fonction est appelée à chaque point de dégâts réel, donc consommer le flux aléatoire partagé
+// y désynchroniserait les séquences Math.random fixes de nombreux tests existants
+// (tests/regression/*.js) qui n'ont rien à voir avec cet effet purement cosmétique. Un compteur qui
+// boucle sur un petit jeu de décalages est tout aussi efficace visuellement et ne touche à rien.
+const FLOATING_DAMAGE_OFFSETS = [-7, 6, -3, 8, -8, 3, -5, 7];
+let floatingDamageOffsetIndex = 0;
+
+// Chiffre de dégâts flottant (chantier "lisibilité combat", Chantier 3) : un chiffre par impact,
+// monte et s'estompe au-dessus du panneau touché (#combat-side-enemy/#combat-side-player, voir leur
+// `position: relative` dans index.html — le chiffre s'y ajoute EN PLUS du dé qui vole déjà,
+// jamais à sa place). `toPlayer` distingue les dégâts SUBIS par le joueur (rouge/orangé) des dégâts
+// qu'il INFLIGE (blanc/jaune) ; `heavy` grossit le chiffre (×1.4 environ) pour un coup marquant
+// (télégraphe exécuté, ruée d'enrage, phase 3). Se nettoie lui-même après son animation
+// (`animationend`), fonctionne aussi bien avec l'animation normale que le simple fondu de
+// prefers-reduced-motion (les deux déclenchent cet événement).
+function showFloatingDamage(containerEl, amount, { heavy = false, toPlayer = false } = {}) {
+    if (!containerEl) return;
+    const el = document.createElement('span');
+    el.className = `floating-damage ${toPlayer ? 'floating-damage-taken' : 'floating-damage-dealt'}${heavy ? ' floating-damage-heavy' : ''}`;
+    el.innerText = `-${Math.round(amount)}`;
+    const offsetX = FLOATING_DAMAGE_OFFSETS[floatingDamageOffsetIndex];
+    floatingDamageOffsetIndex = (floatingDamageOffsetIndex + 1) % FLOATING_DAMAGE_OFFSETS.length;
+    el.style.left = `calc(50% + ${offsetX}px)`;
+    el.addEventListener('animationend', () => el.remove());
+    containerEl.appendChild(el);
+}
+
 // Fonction pour ajouter un message : sur la carte active (fond clair) ET dans le journal complet (fond sombre).
 // Pendant un combat, la carte n'affiche plus le flot de logs (trop de bruit visuel) : elle montre à
 // la place un résumé fixe de l'ennemi (voir renderCombatMobPanel) et un bouton "Examiner". Le
@@ -4612,7 +4641,7 @@ function triggerMobEnrage(enemy) {
         run: () => {
             logEvent(`💢 [${enemy.name}] perd patience et se rue sur vous, enragé !`, "danger");
             const boostedAtk = Math.round(enemy.atk * cfg.atkMult);
-            executeBossStrike(enemy, boostedAtk, `[${enemy.name}], enragé,`);
+            executeBossStrike(enemy, boostedAtk, `[${enemy.name}], enragé,`, undefined, true);
             resetMobKiting(enemy);
             if (gameState.hp > 0) {
                 enemy.status.enraged = { rounds: 2 + Math.floor(Math.random() * 2) }; // 2 ou 3 tours
@@ -4929,6 +4958,7 @@ function performPlayerAttack(attackerAtk, options, label) {
     enemy.hp -= playerDamage;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
+    showFloatingDamage(ui.combatSideEnemy, playerDamage, { toPlayer: false }); // dégâts infligés par le joueur : jamais "heavy" (réservé aux coups marquants du mob/boss)
     logEvent(`Vous attaquez ${label}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée par la folie)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée par l'enrage)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
 
     // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
@@ -5273,7 +5303,7 @@ function getBossPhase(enemy) {
 // re-déclencherait indépendamment le plancher ABSOLU, le multipliant par le nombre de coups (constaté
 // en test : un plancher pensé pour ~10%/tour grimpait à ~30%/tour avec 3 frappes). Omis (undefined),
 // la frappe utilise le plancher complet standard (cas normal : une frappe = un tour entier).
-function executeBossStrike(enemy, atk, label, pressureFloorOverride) {
+function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = false) {
     const pressureFloor = pressureFloorOverride !== undefined
         ? pressureFloorOverride
         : gameState.maxHp * config.mobDamageScaling.pressureFloorFrac;
@@ -5295,6 +5325,7 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride) {
     }
     applyPlayerDamage(playerDamage);
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
+    showFloatingDamage(ui.combatSidePlayer, playerDamage, { toPlayer: true, heavy }); // `heavy` : télégraphe exécuté/ruée d'enrage/phase 3, voir les appelants
     logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
     if (gameState.companion && gameState.companion.hp <= 0) {
         logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
@@ -5358,8 +5389,8 @@ function performBossCounterAttackInner(enemy, onDone) {
 
     // Un coup qui vide les PV du joueur programme gameOver() — jamais un beat de plus après la mort,
     // qui n'a rien à attendre. Petit helper pour ne pas dupliquer ce garde-fou à chaque step.
-    const strikeAndCheckDeath = (atk, label, pressureFloorOverride) => {
-        executeBossStrike(enemy, atk, label, pressureFloorOverride);
+    const strikeAndCheckDeath = (atk, label, pressureFloorOverride, heavy = false) => {
+        executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy);
         if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
     };
 
@@ -5371,7 +5402,7 @@ function performBossCounterAttackInner(enemy, onDone) {
         enemy.status.telegraph = null; // un télégraphe en cours à l'entrée en phase 3 est abandonné
         enemyAtk = Math.round(enemyAtk * bp.phase3.atkMult);
         runCombatBeats([
-            { run: () => strikeAndCheckDeath(enemyAtk, `[${enemy.name}], pris de folie furieuse, vous`), delay: rhythm.beatHeavyEvent }
+            { run: () => strikeAndCheckDeath(enemyAtk, `[${enemy.name}], pris de folie furieuse, vous`, undefined, true), delay: rhythm.beatHeavyEvent }
         ], onDone);
         return;
     }
@@ -5384,7 +5415,7 @@ function performBossCounterAttackInner(enemy, onDone) {
         if (tg.type === 'heavy') {
             const boosted = Math.round(enemyAtk * bp.telegraphHeavyMult);
             runCombatBeats([
-                { run: () => strikeAndCheckDeath(boosted, `[${enemy.name}] abat son attaque annoncée et`), delay: rhythm.beatHeavyEvent }
+                { run: () => strikeAndCheckDeath(boosted, `[${enemy.name}] abat son attaque annoncée et`, undefined, true), delay: rhythm.beatHeavyEvent }
             ], onDone);
             return;
         }
@@ -5589,6 +5620,7 @@ function resolveNonBossCounterAttack(enemy) {
 
     applyPlayerDamage(playerDamage);
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
+    showFloatingDamage(ui.combatSidePlayer, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
     const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
         : "";

@@ -139,6 +139,49 @@
             }
         }
 
+        /* Chiffres de dégâts flottants (chantier "lisibilité combat", Chantier 3) : un chiffre par
+           impact, monte et s'estompe au-dessus de la cible touchée (#combat-side-enemy/-player, voir
+           leur "relative" ajouté ci-dessus pour servir de repère). Généré par showFloatingDamage()
+           (app.js), qui pose `left` en inline (offset aléatoire ±8px) — la classe ne fixe QUE `top`/
+           l'animation. Rouge/orangé = dégâts SUBIS par le joueur, blanc/jaune = dégâts INFLIGÉS par
+           le joueur ; taille ×1.4 pour un coup lourd (télégraphe exécuté, ruée d'enrage, phase 3). */
+        .floating-damage {
+            position: absolute;
+            top: 32%;
+            transform: translate(-50%, 0);
+            font-weight: 900;
+            font-size: 13px;
+            line-height: 1;
+            pointer-events: none;
+            z-index: 20;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+            animation: floatDamage 0.45s ease-out forwards;
+        }
+        .floating-damage-heavy {
+            font-size: 18px;
+        }
+        .floating-damage-dealt {
+            color: #fde047;
+        }
+        .floating-damage-taken {
+            color: #f87171;
+        }
+        @keyframes floatDamage {
+            0%   { opacity: 0; transform: translate(-50%, 4px) scale(0.85); }
+            20%  { opacity: 1; transform: translate(-50%, -4px) scale(1.08); }
+            100% { opacity: 0; transform: translate(-50%, -24px) scale(1); }
+        }
+        @keyframes floatDamageFadeOnly {
+            from { opacity: 1; }
+            to   { opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .floating-damage {
+                animation: floatDamageFadeOnly 0.2s ease-out forwards;
+                transform: translate(-50%, -10px);
+            }
+        }
+
         /* --- Anneau de vie circulaire --- */
         .hp-ring-wrapper {
             position: relative;
@@ -317,7 +360,7 @@
         <section class="flex flex-col items-center gap-2 py-1">
             <div class="w-full flex items-center justify-center gap-2">
                 <!-- Colonne Ennemi (visible uniquement en combat) : PV, statut, dé de dégâts subis -->
-                <div id="combat-side-enemy" class="hidden w-14 shrink-0 text-center gap-1">
+                <div id="combat-side-enemy" class="hidden relative w-14 shrink-0 text-center gap-1">
                     <span class="text-[8px] uppercase tracking-widest text-red-400 block">Ennemi</span>
                     <div class="hp-ring-wrapper mx-auto" style="width: 36px; height: 36px;">
                         <svg viewBox="0 0 44 44" width="36" height="36">
@@ -384,7 +427,7 @@
                 </div>
 
                 <!-- Colonne Joueur (visible uniquement en combat) : PV, statut, dé de dégâts infligés -->
-                <div id="combat-side-player" class="hidden w-14 shrink-0 text-center gap-1">
+                <div id="combat-side-player" class="hidden relative w-14 shrink-0 text-center gap-1">
                     <span class="text-[8px] uppercase tracking-widest text-blue-400 block">Vous</span>
                     <div class="hp-ring-wrapper mx-auto" style="width: 36px; height: 36px;">
                         <svg viewBox="0 0 44 44" width="36" height="36">
@@ -878,13 +921,13 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=63"></script>
-    <script src="items.js?v=63"></script>
-    <script src="spells.js?v=63"></script>
-    <script src="districts.js?v=63"></script>
-    <script src="safehouses.js?v=63"></script>
-    <script src="generator.js?v=63"></script>
-    <script src="anomalies.js?v=63"></script>
-    <script src="app.js?v=63"></script>
+    <script src="bestiary.js?v=64"></script>
+    <script src="items.js?v=64"></script>
+    <script src="spells.js?v=64"></script>
+    <script src="districts.js?v=64"></script>
+    <script src="safehouses.js?v=64"></script>
+    <script src="generator.js?v=64"></script>
+    <script src="anomalies.js?v=64"></script>
+    <script src="app.js?v=64"></script>
 </body>
 </html>

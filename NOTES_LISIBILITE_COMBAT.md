@@ -104,7 +104,28 @@ le saignement) — cohérent avec le texte de la future bannière de changement 
 
 ## Chantier 3 — Chiffres de dégâts flottants
 
-_À compléter._
+`showFloatingDamage(containerEl, amount, {heavy, toPlayer})` (app.js) appelée aux 3 points de dégâts
+RÉELS existants : `performPlayerAttack()` (dégâts infligés, jamais heavy), `executeBossStrike()`
+(dégâts subis, `heavy` transmis par l'appelant), `resolveNonBossCounterAttack()` (dégâts subis,
+jamais heavy — réservé aux moments boss/enrage). `executeBossStrike()`/le helper interne
+`strikeAndCheckDeath()` de `performBossCounterAttackInner()` reçoivent un nouveau paramètre `heavy`,
+posé `true` uniquement pour : exécution de télégraphe heavy, chaque frappe de phase 3, ruée d'enrage
+(`triggerMobEnrage()`) — jamais pour l'attaque de base, le harcèlement à distance ou le multi-coups.
+
+**Écart détecté et corrigé pendant l'implémentation** : le décalage horizontal ±8px (pour éviter que
+deux chiffres quasi simultanés — un multi-coups — ne se superposent exactement) utilisait initialement
+`Math.random()`. Comme cette fonction est appelée à CHAQUE dégât réel, elle consommait le flux
+aléatoire partagé par les tests, désynchronisant deux séquences `Math.random` fixes pré-existantes
+(`tests/regression/combat.js`, scénario `attackMagic()` double-cast — un effet de bord purement
+cosmétique n'a pas sa place dans ce flux). Corrigé en remplaçant par un compteur cyclique sur un petit
+jeu de décalages fixes (`FLOATING_DAMAGE_OFFSETS`) — visuellement tout aussi efficace, et qui ne touche
+plus jamais au hasard partagé. Aucune autre modification de test nécessaire pour ce chantier.
+
+`position: relative` ajouté à `#combat-side-enemy`/`#combat-side-player` (repère pour le
+`position: absolute` du chiffre). Sous `prefers-reduced-motion: reduce`, l'animation de montée/fondu
+(`floatDamage`, 450ms) est remplacée par un simple fondu (`floatDamageFadeOnly`, 200ms) — les deux
+déclenchent `animationend`, donc le nettoyage du nœud (`el.remove()`) fonctionne dans les deux cas
+sans code dupliqué.
 
 ## Chantier 5 — Jauge de tension anti-kite
 
