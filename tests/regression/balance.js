@@ -15,16 +15,20 @@ const { assert, resetTransientState } = require('./_helpers.js');
     gameState.inCombat = true;
     gameState.currentEnemy = { name: "Molosse Enragé", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {}, ranged: false };
     gameState.combatDistance = 7; // Sous-maximal : un delta normal (max 5 avec dieSides=6) ne peut PAS combler seul
-    ui.btnFlee.disabled = false;
     let originalRandom = Math.random;
     let seq = [0, 0.999]; // playerRoll bas (1), mobRoll haut (6) -> marge 5, largement au-dessus du seuil (3)
     let idx = 0;
     Math.random = () => seq[(idx++) % seq.length];
     const timeBefore = gameState.timeLeft;
+    // Témoin de riposte : PV perdus plutôt que le verrouillage des boutons (chantier "lisibilité
+    // combat" — voir le commentaire équivalent dans combat.js : sous le stub global.setTimeout de
+    // _helpers.js, toute la séquence de beats se déroule en synchrone avant que cette ligne ne
+    // s'exécute, donc les boutons sont déjà déverrouillés).
+    const hpBefore = gameState.hp;
     resolveEnemyReaction();
     Math.random = originalRandom;
     assert(gameState.combatDistance === 0, "Ruée (resolveEnemyReaction) : comble tout l'écart d'un coup malgré un delta normal insuffisant");
-    assert(ui.btnFlee.disabled === true, "Ruée (resolveEnemyReaction) : le mob frappe immédiatement (riposte synchrone)");
+    assert(gameState.hp < hpBefore, "Ruée (resolveEnemyReaction) : le mob frappe immédiatement");
     assert(gameState.timeLeft < timeBefore, "Ruée : la manche contestée consomme quand même du temps (timeCostPerRound)");
 
     // attemptRetreat() avantage le joueur (deux dés, le meilleur gardé) : il faut donc deux tirages
@@ -34,14 +38,14 @@ const { assert, resetTransientState } = require('./_helpers.js');
     gameState.inCombat = true;
     gameState.currentEnemy = { name: "Molosse Enragé 2", hp: 9999, maxHp: 9999, atk: 999, def: 0, status: {}, ranged: false };
     gameState.combatDistance = 7;
-    ui.btnFlee.disabled = false;
     originalRandom = Math.random;
     idx = 0;
     Math.random = () => retreatSeq[(idx++) % retreatSeq.length];
+    const hpBefore2 = gameState.hp;
     attemptRetreat();
     Math.random = originalRandom;
     assert(gameState.combatDistance === 0, "Ruée (attemptRetreat) : le mob vous rattrape brutalement malgré la tentative de fuite");
-    assert(ui.btnFlee.disabled === true, "Ruée (attemptRetreat) : riposte immédiate");
+    assert(gameState.hp < hpBefore2, "Ruée (attemptRetreat) : riposte immédiate");
 
     resetTransientState();
     gameState.inCombat = true;

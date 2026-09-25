@@ -301,6 +301,18 @@ const config = {
         atkMultiplier: 1.25
     },
 
+    // Chantier "lisibilité combat" : durées du séquenceur de tour (voir runCombatBeats() dans app.js).
+    // AUCUNE de ces valeurs ne change une formule de dégâts — uniquement le RYTHME d'affichage des
+    // événements déjà calculés. `skipOnInput` est lu par le Chantier 9 (skip au clic/Espace) ; laissé
+    // ici dès ce chantier pour que toute la config du rythme vive au même endroit.
+    combatRhythm: {
+        beatActionToRiposte: 280, // Pause entre l'action du joueur et la riposte (remplace COMBAT_BEAT_MS)
+        beatEmptyEvent: 0,        // Événement sans dégât (télégraphe posé, riposte bloquée) : affichage immédiat
+        beatHeavyEvent: 550,      // Télégraphe exécuté, ruée d'enrage, changement de phase boss
+        beatMultiHit: 90,         // Entre chaque frappe d'un multi-coups (phase 2 boss)
+        skipOnInput: true
+    },
+
     // Paramètres du combat à distance (mobs marqués `ranged: true` dans bestiary.js). Voir
     // getCombatRangeContext()/resolveDistanceRound() dans app.js.
     rangedCombat: {
@@ -466,6 +478,7 @@ const ui = {
     cardTitle: document.getElementById('card-title'),
     cardBody: document.getElementById('card-body'),
     screenFxOverlay: document.getElementById('screen-fx-overlay'),
+    gameMain: document.getElementById('game-main'),
     fullLog: document.getElementById('full-log'),
     playerLevel: document.getElementById('player-level'),
     xpBar: document.getElementById('xp-bar'),
@@ -492,7 +505,7 @@ const ui = {
     combatSidePlayer: document.getElementById('combat-side-player'),
     combatEnemyHp: document.getElementById('combat-enemy-hp'),
     combatEnemyHpRing: document.getElementById('combat-enemy-hp-ring'),
-    combatEnemyStatus: document.getElementById('combat-enemy-status'),
+    enemyStatusIcons: document.getElementById('enemy-status-icons'),
     combatEnemyDie: document.getElementById('combat-enemy-die'),
     combatPlayerHp: document.getElementById('combat-player-hp'),
     combatPlayerHpRing: document.getElementById('combat-player-hp-ring'),
@@ -563,6 +576,9 @@ const ui = {
     companionCombatHpRing: document.getElementById('companion-combat-hp-ring'),
     companionCombatHp: document.getElementById('companion-combat-hp'),
     enemyName: document.getElementById('enemy-name'),
+    telegraphBanner: document.getElementById('telegraph-banner'),
+    phaseTransitionBanner: document.getElementById('phase-transition-banner'),
+    bossPhaseBadge: document.getElementById('boss-phase-badge'),
     btnAttackWeapon: document.getElementById('btn-attack-weapon'),
     btnAttackRanged: document.getElementById('btn-attack-ranged'),
     btnAttackUnarmed: document.getElementById('btn-attack-unarmed'),
@@ -573,6 +589,7 @@ const ui = {
     btnFlee: document.getElementById('btn-flee'),
     combatDistanceWrapper: document.getElementById('combat-distance-wrapper'),
     combatDistanceFill: document.getElementById('combat-distance-fill'),
+    distanceTensionLabel: document.getElementById('distance-tension-label'),
     combatDistancePlayerIcon: document.getElementById('combat-distance-player-icon'),
     combatDistanceEnemyIcon: document.getElementById('combat-distance-enemy-icon'),
     equippedRanged: document.getElementById('equipped-ranged'),
@@ -1080,18 +1097,23 @@ function updateUI() {
             ui.combatSideEnemy.classList.add('flex', 'flex-col');
             setHpRing(ui.combatEnemyHpRing, ui.combatEnemyHp, gameState.currentEnemy.hp, gameState.currentEnemy.maxHp);
 
-            let enemyIcons = "";
-            const enemyStatus = gameState.currentEnemy.status;
-            if (enemyStatus) {
-                if (enemyStatus.bleed && enemyStatus.bleed.rounds > 0) enemyIcons += "🔥";
-                if (enemyStatus.stunned) enemyIcons += "💫";
-                if (enemyStatus.slowed && enemyStatus.slowed.rounds > 0) enemyIcons += "🐌";
-                if (enemyStatus.blinded && enemyStatus.blinded.rounds > 0) enemyIcons += "✨";
-                if (enemyStatus.corroded && enemyStatus.corroded.rounds > 0) enemyIcons += "🧪";
-                if (enemyStatus.feared && enemyStatus.feared.rounds > 0) enemyIcons += "😱";
+            renderEnemyStatusBadges(gameState.currentEnemy);
+
+            // Badge de phase permanent (chantier "lisibilité combat", Chantier 10) : discret,
+            // visible dès la phase 2 seulement (jamais en phase 1 ni sur un mob normal/élite —
+            // la bannière de transition suffit pour l'ANNONCE, ce badge est le rappel permanent).
+            if (ui.bossPhaseBadge) {
+                const phase = gameState.currentEnemy.isBoss ? getBossPhase(gameState.currentEnemy) : 1;
+                if (gameState.currentEnemy.isBoss && phase >= 2) {
+                    ui.bossPhaseBadge.innerText = `Phase ${phase}`;
+                    ui.bossPhaseBadge.classList.remove('hidden');
+                } else {
+                    ui.bossPhaseBadge.classList.add('hidden');
+                }
             }
-            ui.combatEnemyStatus.innerText = enemyIcons || "—";
         }
+        renderDistanceTension(gameState.currentEnemy);
+        updateTelegraphBanner();
 
         // --- Distance de combat : verrouille/déverrouille Arme, Tir et Mains nues selon l'écart
         // actuel (0 = corps à corps possible, >0 = seul le Tir porte). La barre est TOUJOURS
@@ -1282,6 +1304,36 @@ function triggerHaptic(pattern = 'light') {
     }
 }
 
+// Hiérarchie visuelle des impacts (chantier "lisibilité combat", Chantier 4) : secousse de l'écran,
+// réservée aux moments qui doivent se distinguer d'un coup normal EN UNE MICROSECONDE (voir
+// triggerHeavyImpact() ci-dessous pour la liste exacte). JAMAIS pour une frappe normale.
+function screenShake() {
+    if (!ui.gameMain) return;
+    ui.gameMain.classList.remove('screen-shake');
+    void ui.gameMain.offsetWidth; // force le navigateur à relire le style pour pouvoir rejouer l'animation
+    ui.gameMain.classList.add('screen-shake');
+}
+
+// Flash bref sur #screen-fx-overlay, même occasions que screenShake() — voir le commentaire CSS de
+// .fx-impact-flash (index.html) pour le compromis assumé avec les classes de statut joueur déjà en
+// place sur ce même nœud.
+function screenImpactFlash() {
+    if (!ui.screenFxOverlay) return;
+    ui.screenFxOverlay.classList.remove('fx-impact-flash');
+    void ui.screenFxOverlay.offsetWidth;
+    ui.screenFxOverlay.classList.add('fx-impact-flash');
+}
+
+// Point d'appel UNIQUE pour les deux effets ci-dessus : exécution d'un télégraphe heavy, ruée
+// d'enrage et chaque frappe de phase 3 (les 3 via le flag `heavy` d'executeBossStrike(), déjà posé au
+// Chantier 3) et la mort du joueur (gameOver()). Sous prefers-reduced-motion, screenShake() devient un
+// no-op visuel (animation désactivée en CSS) mais screenImpactFlash() continue de jouer, comme demandé
+// explicitement par la consigne.
+function triggerHeavyImpact() {
+    screenShake();
+    screenImpactFlash();
+}
+
 // Anime un dé de dégâts qui "vole" vers le compteur de PV de sa cible, façon petit coup de poing.
 // `direction` : 'left' (le dé du joueur vole vers les PV ennemis, à gauche) ou 'right' (le dé de
 // l'ennemi vole vers les PV du joueur, à droite). `newHpValue` est la valeur déjà décrémentée
@@ -1300,6 +1352,35 @@ function animateDieHit(dieEl, direction, value, ringEl, valueEl, newHpValue, max
         valueEl.classList.add('hp-hit');
         triggerHaptic('light');
     }, 180);
+}
+
+// Décalage horizontal (±8px) des chiffres flottants, pour que deux chiffres quasi simultanés (un
+// multi-coups par exemple) ne se superposent pas exactement. Volontairement PAS Math.random() :
+// cette fonction est appelée à chaque point de dégâts réel, donc consommer le flux aléatoire partagé
+// y désynchroniserait les séquences Math.random fixes de nombreux tests existants
+// (tests/regression/*.js) qui n'ont rien à voir avec cet effet purement cosmétique. Un compteur qui
+// boucle sur un petit jeu de décalages est tout aussi efficace visuellement et ne touche à rien.
+const FLOATING_DAMAGE_OFFSETS = [-7, 6, -3, 8, -8, 3, -5, 7];
+let floatingDamageOffsetIndex = 0;
+
+// Chiffre de dégâts flottant (chantier "lisibilité combat", Chantier 3) : un chiffre par impact,
+// monte et s'estompe au-dessus du panneau touché (#combat-side-enemy/#combat-side-player, voir leur
+// `position: relative` dans index.html — le chiffre s'y ajoute EN PLUS du dé qui vole déjà,
+// jamais à sa place). `toPlayer` distingue les dégâts SUBIS par le joueur (rouge/orangé) des dégâts
+// qu'il INFLIGE (blanc/jaune) ; `heavy` grossit le chiffre (×1.4 environ) pour un coup marquant
+// (télégraphe exécuté, ruée d'enrage, phase 3). Se nettoie lui-même après son animation
+// (`animationend`), fonctionne aussi bien avec l'animation normale que le simple fondu de
+// prefers-reduced-motion (les deux déclenchent cet événement).
+function showFloatingDamage(containerEl, amount, { heavy = false, toPlayer = false } = {}) {
+    if (!containerEl) return;
+    const el = document.createElement('span');
+    el.className = `floating-damage ${toPlayer ? 'floating-damage-taken' : 'floating-damage-dealt'}${heavy ? ' floating-damage-heavy' : ''}`;
+    el.innerText = `-${Math.round(amount)}`;
+    const offsetX = FLOATING_DAMAGE_OFFSETS[floatingDamageOffsetIndex];
+    floatingDamageOffsetIndex = (floatingDamageOffsetIndex + 1) % FLOATING_DAMAGE_OFFSETS.length;
+    el.style.left = `calc(50% + ${offsetX}px)`;
+    el.addEventListener('animationend', () => el.remove());
+    containerEl.appendChild(el);
 }
 
 // Fonction pour ajouter un message : sur la carte active (fond clair) ET dans le journal complet (fond sombre).
@@ -4382,6 +4463,118 @@ function renderCombatMobPanel() {
     }
 }
 
+// Badges d'état ennemi (chantier "lisibilité combat", Chantier 2) : remplace l'ancien texte
+// concaténé (#combat-enemy-status, renommé #enemy-status-icons) par des badges individuels avec
+// infobulle (title), pour que chaque état reste identifiable au survol plutôt qu'une suite d'emoji
+// sans légende. Couvre les statuts déjà existants (saignement/étourdi/ralenti/ébloui/corrodé/apeuré)
+// ET les états posés par les Chantiers 2-3 du rework combat, jamais affichés avant ce chantier
+// (garde hérissée, folie, enrage, télégraphe actif — redondant avec la bannière du Chantier 1, mais
+// utile pour qui ne regarde que le panneau latéral). Seule fonction à toucher #enemy-status-icons.
+function renderEnemyStatusBadges(enemy) {
+    if (!ui.enemyStatusIcons) return;
+    const status = enemy && enemy.status;
+    if (!status) {
+        ui.enemyStatusIcons.innerHTML = "—";
+        return;
+    }
+    const badges = [];
+    const add = (active, icon, title) => { if (active) badges.push({ icon, title }); };
+    add(status.bleed && status.bleed.rounds > 0, "🔥", "Saignement");
+    add(status.stunned, "💫", "Étourdi");
+    add(status.slowed && status.slowed.rounds > 0, "🐌", "Ralenti");
+    add(status.blinded && status.blinded.rounds > 0, "✨", "Ébloui");
+    add(status.corroded && status.corroded.rounds > 0, "🧪", "Corrodé (DEF réduite)");
+    add(status.feared && status.feared.rounds > 0, "😱", "Apeuré (ATQ réduite)");
+    add(status.defBuffed && status.defBuffed.rounds > 0, "🛡️", "Garde hérissée (DEF augmentée)");
+    add(status.frenzied, "🤪", "Folie (phase 3 : dégâts +40%, DEF -30%)");
+    add(status.enraged && status.enraged.rounds > 0, "😡", "Enragé (dégâts +40%, DEF divisée par 2)");
+    add(status.telegraph, "👁️", "Attaque télégraphiée en cours (voir la bannière)");
+    ui.enemyStatusIcons.innerHTML = badges.length
+        ? badges.map(b => `<span title="${b.title}">${b.icon}</span>`).join('')
+        : "—";
+}
+
+// Jauge de tension anti-kite (chantier "lisibilité combat", Chantier 5) : montre la probabilité
+// d'enrage AVANT qu'il n'arrive, pour que le joueur voie la tension monter plutôt que de subir la
+// ruée sans prévenir. Trois états mutuellement exclusifs (voir noteMobKitingRound()/
+// triggerMobEnrage()/endMobEnrage() pour la mécanique sous-jacente) :
+//   - enraged actif : badge rouge fixe, plus de jauge (l'enrage a déjà eu lieu).
+//   - enrageCooldown actif : badge gris (repos forcé, aucun nouveau tirage possible).
+//   - kitingRounds au-dessus de sa base (mobKitingBaseline()) : jauge + % calculé avec les mêmes
+//     valeurs RÉELLES que noteMobKitingRound() (config.distanceEnrage), jamais redupliquées en dur.
+//   - sinon (compteur à sa base) : tout masqué, rien à montrer.
+function renderDistanceTension(enemy) {
+    if (!ui.distanceTensionLabel || !ui.combatDistanceFill) return;
+    const cfg = config.distanceEnrage;
+    const status = enemy && enemy.status;
+    ui.combatDistanceFill.classList.remove('distance-tension');
+    if (!enemy || !status) {
+        ui.distanceTensionLabel.classList.add('hidden');
+        return;
+    }
+    if (status.enraged && status.enraged.rounds > 0) {
+        ui.distanceTensionLabel.innerText = '😡 ENRAGÉ';
+        ui.distanceTensionLabel.className = 'mt-1 text-center text-[9px] font-bold uppercase tracking-wider text-red-400';
+        return;
+    }
+    if (status.enrageCooldown && status.enrageCooldown.rounds > 0) {
+        ui.distanceTensionLabel.innerText = `😵 Épuisé (${status.enrageCooldown.rounds} tour${status.enrageCooldown.rounds > 1 ? 's' : ''})`;
+        ui.distanceTensionLabel.className = 'mt-1 text-center text-[9px] font-bold uppercase tracking-wider text-gray-500';
+        return;
+    }
+    const baseline = mobKitingBaseline(enemy);
+    const kitingRounds = enemy.kitingRounds || baseline;
+    if (kitingRounds > baseline) {
+        const chancePct = Math.round(Math.min(cfg.baseChance + cfg.chancePerRound * kitingRounds, cfg.maxChance) * 100);
+        ui.distanceTensionLabel.innerText = `😤 Enrage imminent : ${chancePct}%`;
+        ui.distanceTensionLabel.className = 'mt-1 text-center text-[9px] font-bold uppercase tracking-wider text-orange-400';
+        ui.combatDistanceFill.classList.add('distance-tension');
+        return;
+    }
+    ui.distanceTensionLabel.classList.add('hidden');
+}
+
+// Bannière de télégraphe (chantier "lisibilité combat", Chantier 1) : affichée EN PERMANENCE tant
+// que enemy.status.telegraph est actif (pas seulement au tour d'annonce, contrairement au log qui ne
+// mentionne l'annonce qu'une fois) — c'est elle qui porte l'information de façon fiable, sans avoir à
+// déplier le journal de combat. Appelée depuis updateUI() à chaque rendu, seule fonction à toucher
+// #telegraph-banner (jamais de mutation DOM dispersée ailleurs).
+function updateTelegraphBanner() {
+    if (!ui.telegraphBanner) return;
+    const enemy = gameState.currentEnemy;
+    const telegraph = enemy && enemy.status && enemy.status.telegraph;
+    if (!telegraph) {
+        ui.telegraphBanner.classList.add('hidden');
+        return;
+    }
+    const messages = {
+        heavy: '⚠️ Coup dévastateur imminent — défendez-vous ou esquivez !',
+        defBuff: '🛡️ Garde imminente — frappez maintenant !'
+    };
+    ui.telegraphBanner.innerText = messages[telegraph.type] || '⚠️ Une attaque se prépare...';
+    ui.telegraphBanner.classList.remove('hidden');
+}
+
+// Bannière de changement de phase boss (chantier "lisibilité combat", Chantier 10) : transitoire
+// (~900ms), prépendue au pattern du tour par runPattern() dans performBossCounterAttackInner()
+// UNIQUEMENT quand la phase vient de monter (jamais en entrant en phase 1). Minutée par un VRAI
+// setTimeout (comme #dev-banner ou tout autre toast ponctuel) plutôt qu'un step de runCombatBeats :
+// elle doit disparaître toute seule après son délai propre, indépendamment du rythme des beats
+// suivants (qui peuvent s'enchaîner bien avant ou bien après ses 900ms). Aucun Math.random() ici
+// (leçon du Chantier 3) : le texte dépend uniquement de `phase`.
+function announceBossPhaseChange(enemy, phase) {
+    if (!ui.phaseTransitionBanner) return;
+    const messages = {
+        2: `😤 ${enemy.name} change de comportement — nouveaux patterns !`,
+        3: `🤪 ${enemy.name} entre en folie furieuse — frappez sans relâche !`
+    };
+    ui.phaseTransitionBanner.innerText = messages[phase] || `${enemy.name} change de phase.`;
+    ui.phaseTransitionBanner.classList.remove('hidden');
+    setTimeout(() => {
+        ui.phaseTransitionBanner.classList.add('hidden');
+    }, 900);
+}
+
 function initiateCombat(forcedEnemy = null) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
     gameState.currentEnemy = enemy;
@@ -4411,6 +4604,10 @@ function initiateCombat(forcedEnemy = null) {
         // Compteur de tours de kiting (Chantier 3) : un boss démarre à 1 (s'enrage plus vite qu'un
         // mob normal, voir NOTES_COMBAT.md Chantier 2) plutôt qu'à 0.
         enemy.kitingRounds = mobKitingBaseline(enemy);
+        // Dernière phase connue (chantier "lisibilité combat") : initialisée à la phase de DÉPART pour
+        // qu'aucun "changement" ne soit détecté au tout premier tour — seulement lue/mise à jour côté
+        // boss (voir getBossPhase()/performBossCounterAttackInner()), neutre sur un mob normal/élite.
+        enemy.lastKnownPhase = enemy.isBoss ? getBossPhase(enemy) : 1;
     }
 
     // Distance de combat initiale : dépend uniquement de la nature du mob (aucune notion de
@@ -4531,22 +4728,36 @@ function noteMobKitingRound(enemy) {
     return false;
 }
 
-// Le mob perd patience : comble l'écart d'un coup et place une frappe bonus IMMÉDIATE (dégâts
+// Le mob perd patience : comble l'écart d'un coup et place une frappe bonus (dégâts
 // +config.distanceEnrage.atkMult, via executeBossStrike() — réutilisée telle quelle, générique à
-// tout mob boss ou non). Cette frappe d'entrée ne compte pas comme la "frappe qui met fin à l'état"
-// (voir noteMobKitingRound()/resolveEnemyCounterAttack()/performBossCounterAttack()) : l'état enragé
-// s'installe SEULEMENT APRÈS elle, pour laisser une vraie fenêtre de 2-3 tours où sa DEF réduite
-// reste exploitable par le joueur (et ses dégâts restent boostés) sur les tours suivants.
+// tout mob boss ou non), sur un beat LOURD (chantier "lisibilité combat" : une ruée d'enrage est un
+// moment fort, au même titre qu'un télégraphe exécuté). Cette frappe d'entrée ne compte pas comme la
+// "frappe qui met fin à l'état" (voir noteMobKitingRound()/resolveEnemyCounterAttack()/
+// performBossCounterAttack()) : l'état enragé s'installe SEULEMENT APRÈS elle, pour laisser une vraie
+// fenêtre de 2-3 tours où sa DEF réduite reste exploitable par le joueur (et ses dégâts restent
+// boostés) sur les tours suivants.
+// Verrouille et déverrouille elle-même les boutons (comme enemyCounterAttack()) : contrairement à
+// avant ce chantier, cette ruée passe désormais par un vrai beat et ne doit pas laisser les boutons
+// actifs pendant qu'elle se joue — ses appelants (noteMobKitingRound(), dans resolveEnemyReaction()/
+// safeEnemyCounterAttack()) n'ont pas besoin de savoir quand elle se termine, exactement comme ils
+// n'ont jamais eu besoin de connaître le timing interne d'enemyCounterAttack().
 function triggerMobEnrage(enemy) {
     const cfg = config.distanceEnrage;
     setCombatDistance(0);
-    logEvent(`💢 [${enemy.name}] perd patience et se rue sur vous, enragé !`, "danger");
-    const boostedAtk = Math.round(enemy.atk * cfg.atkMult);
-    executeBossStrike(enemy, boostedAtk, `[${enemy.name}], enragé,`);
-    resetMobKiting(enemy);
-    if (gameState.hp > 0) {
-        enemy.status.enraged = { rounds: 2 + Math.floor(Math.random() * 2) }; // 2 ou 3 tours
-    }
+    combatSkipRequested = false; // Chantier 9 : même remise à zéro qu'enemyCounterAttack()
+    setCombatInputLocked(true);
+    runCombatBeats([{
+        run: () => {
+            logEvent(`💢 [${enemy.name}] perd patience et se rue sur vous, enragé !`, "danger");
+            const boostedAtk = Math.round(enemy.atk * cfg.atkMult);
+            executeBossStrike(enemy, boostedAtk, `[${enemy.name}], enragé,`, undefined, true);
+            resetMobKiting(enemy);
+            if (gameState.hp > 0) {
+                enemy.status.enraged = { rounds: 2 + Math.floor(Math.random() * 2) }; // 2 ou 3 tours
+            }
+        },
+        delay: config.combatRhythm.beatHeavyEvent
+    }], () => { setCombatInputLocked(false); updateUI(); }); // même centralisation qu'enemyCounterAttack() (Chantier 7)
 }
 
 // Fin de l'état enragé (durée écoulée, ou le mob vient de placer une frappe pendant l'état) : repos
@@ -4856,7 +5067,12 @@ function performPlayerAttack(attackerAtk, options, label) {
     enemy.hp -= playerDamage;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
-    logEvent(`Vous attaquez ${label}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée par la folie)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée par l'enrage)" : ""} et infligez ${playerDamage} dégâts à [${enemy.name}].`, "normal");
+    showFloatingDamage(ui.combatSideEnemy, playerDamage, { toPlayer: false }); // dégâts infligés par le joueur : jamais "heavy" (réservé aux coups marquants du mob/boss)
+    // Ligne raccourcie (chantier "lisibilité combat", Chantier 8) : retire le remplissage "et
+    // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
+    // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
+    // pure redite de ce que les badges du Chantier 2 montrent déjà sans rapport avec CE coup précis).
+    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
 
     // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
     if (gameState.companion && gameState.companion.specialty.type === 'strike' && enemy.hp > 0) {
@@ -5112,9 +5328,12 @@ function applyMobEffectOnPlayer(enemy) {
     }
 }
 
-// Durée de la pause entre l'action du joueur et la riposte de l'ennemi : juste assez pour bien
-// séparer visuellement les deux dés, sans ralentir le rythme du combat.
-const COMBAT_BEAT_MS = 400;
+// Alias historique de la pause action -> riposte, désormais piloté par config.combatRhythm
+// (voir runCombatBeats() ci-dessous) plutôt qu'une constante figée. Conservé tel quel pour les
+// setTimeout(..., COMBAT_BEAT_MS) de fin de combat/mort, non restructurés en beats (voir
+// performBossCounterAttackInner()/resolveEnemyCounterAttack() : un décès termine la séquence, il n'a
+// pas besoin d'un "beat" de plus avant l'écran Game Over).
+const COMBAT_BEAT_MS = config.combatRhythm.beatActionToRiposte;
 
 // Empêche de spammer les boutons de combat pendant la petite pause entre deux actions
 function setCombatInputLocked(locked) {
@@ -5126,15 +5345,72 @@ function setCombatInputLocked(locked) {
     });
 }
 
-// Riposte de l'ennemi : marque une courte pause (le temps que le dé du joueur reste bien visible)
-// avant de résoudre réellement l'attaque, pour que chaque camp "joue son tour" séparément à l'écran.
+// ==========================================
+// SÉQUENCEUR DE TOUR EN BEATS (chantier "lisibilité combat")
+// ==========================================
+// Remplace l'ancien modèle "tout s'affiche en 0ms puis un verrou fixe de 400ms" par une petite file
+// d'étapes espacées dans le temps. Volontairement construit sur des callbacks + setTimeout (comme le
+// COMBAT_BEAT_MS déjà existant), JAMAIS sur des Promises/async-await : une vraie Promise diffère
+// TOUJOURS sa continuation en microtâche, même résolue de façon synchrone — un test qui appelle une
+// fonction de riposte en synchrone (voir tests/regression/combat-boss.js, combat-enrage.js...) et lit
+// gameState.hp juste après casserait silencieusement. En callbacks purs, un stub
+// `global.setTimeout = (fn) => fn();` (voir tests/long_playthrough.js, repris dans
+// tests/regression/_helpers.js pour ce chantier) rend toute la chaîne synchrone d'un bout à l'autre
+// sous Node, sans toucher un seul test existant.
+//
+// `steps` : tableau de `{ run, delay, skippable }`. `delay` est la pause AVANT que ce step ne
+// s'exécute (pas après) — un step au tout début de la liste avec un delay standard reproduit donc
+// exactement le comportement historique "verrouiller, attendre, puis résoudre". `skippable` (par
+// défaut true, Chantier 9) : un step qui ne le désactive PAS explicitement (`skippable: false`) voit
+// son délai ramené à 0 dès que combatSkipRequested est vrai — un `setTimeout(..., 0)` plutôt qu'un
+// appel synchrone direct, pour rester un vrai callback asynchrone (cohérent avec le reste de la
+// chaîne, et sans particularité sous le stub de test qui exécute de toute façon tout en synchrone).
+// Les beats de mort/fin de combat (voir strikeAndCheckDeath()/resolveNonBossCounterAttack()/
+// performPlayerAttack()) ne passent jamais par ce tableau — ils restent donc structurellement à
+// l'abri du skip sans qu'aucun step n'ait besoin de poser `skippable: false` explicitement.
+let combatSkipRequested = false;
+
+// Marque une demande de skip pour le tour de beats EN COURS — drapeau MODULE-LEVEL (pas gameState,
+// même convention que mobExamineOpen) : préférence d'affichage purement transitoire, jamais persistée
+// ni lue par la logique de jeu. Remis à faux au tout début du PROCHAIN tour verrouillé
+// (enemyCounterAttack()/triggerMobEnrage()), pour qu'un clic qui a démarré ce tour-ci (bulle jusqu'à
+// #combat-zone) ne "pré-skippe" jamais le tour SUIVANT.
+function requestCombatSkip() {
+    if (gameState.inCombat) combatSkipRequested = true;
+}
+
+function runCombatBeats(steps, onDone) {
+    function playStep(index) {
+        if (index >= steps.length) {
+            if (onDone) onDone();
+            return;
+        }
+        const step = steps[index];
+        const skip = combatSkipRequested && step.skippable !== false;
+        setTimeout(() => {
+            step.run();
+            playStep(index + 1);
+        }, skip ? 0 : (step.delay || 0));
+    }
+    playStep(0);
+}
+
+// Riposte de l'ennemi : verrouille les boutons, puis laisse resolveEnemyCounterAttack() dérouler sa
+// propre séquence de beats (un seul beat pour un mob normal, plusieurs pour un pattern de boss) —
+// c'est ELLE qui décide du rythme exact (télégraphe, multi-coups...), pas ce point d'entrée.
+// onDone (chantier "lisibilité combat", Chantier 7) déverrouille ET rafraîchit l'UI en un seul point
+// centralisé — jusqu'ici seul resolveNonBossCounterAttack() appelait updateUI() en fin de riposte
+// (dans son propre beat), ce qui laissait les patterns de boss (7 branches dans
+// performBossCounterAttackInner(), aucune n'appelant updateUI()) sans AUCUN rafraîchissement après un
+// tour de boss complet : télégraphe posé, badges d'état, jauge de tension et badge de phase restaient
+// figés sur leur état d'AVANT le tour jusqu'à ce qu'un événement sans rapport force un rendu — bug
+// réel, confirmé par un script de vérification (attaques répétées sur un vrai setTimeout), pas
+// seulement théorique. Centraliser ici plutôt que de rajouter updateUI() dans chacune des branches.
 function enemyCounterAttack() {
     if (!gameState.currentEnemy) return; // sécurité si le combat vient d'être résolu
+    combatSkipRequested = false; // Chantier 9 : jamais de skip qui fuite d'un tour précédent (ou du clic qui a déclenché celui-ci)
     setCombatInputLocked(true);
-    setTimeout(() => {
-        resolveEnemyCounterAttack();
-        setCombatInputLocked(false);
-    }, COMBAT_BEAT_MS);
+    resolveEnemyCounterAttack(() => { setCombatInputLocked(false); updateUI(); });
 }
 
 // ==========================================
@@ -5166,7 +5442,12 @@ function getBossPhase(enemy) {
 // re-déclencherait indépendamment le plancher ABSOLU, le multipliant par le nombre de coups (constaté
 // en test : un plancher pensé pour ~10%/tour grimpait à ~30%/tour avec 3 frappes). Omis (undefined),
 // la frappe utilise le plancher complet standard (cas normal : une frappe = un tour entier).
-function executeBossStrike(enemy, atk, label, pressureFloorOverride) {
+// `silent` (chantier "lisibilité combat", Chantier 8) : réservé au multi-coups — supprime la ligne de
+// log INDIVIDUELLE de ce coup (mais jamais l'application des dégâts/l'animation/l'effondrement d'un
+// compagnon, qui reste toujours annoncé) pour que l'appelant puisse construire UNE seule ligne de
+// résumé après la rafale plutôt que N lignes quasi identiques. Renvoie toujours playerDamage, silent
+// ou non, pour que ce résumé puisse être construit à partir des montants réellement encaissés.
+function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = false, silent = false) {
     const pressureFloor = pressureFloorOverride !== undefined
         ? pressureFloorOverride
         : gameState.maxHp * config.mobDamageScaling.pressureFloorFrac;
@@ -5188,7 +5469,9 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride) {
     }
     applyPlayerDamage(playerDamage);
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
-    logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
+    showFloatingDamage(ui.combatSidePlayer, playerDamage, { toPlayer: true, heavy }); // `heavy` : télégraphe exécuté/ruée d'enrage/phase 3, voir les appelants
+    if (heavy) triggerHeavyImpact(); // Chantier 4 : même flag, mêmes 3 occasions — voir triggerHeavyImpact()
+    if (!silent) logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
     if (gameState.companion && gameState.companion.hp <= 0) {
         logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
         gameState.companion = null;
@@ -5196,33 +5479,46 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride) {
     return playerDamage;
 }
 
-// Riposte complète d'un boss : sélectionne et résout un pattern selon sa phase courante. Chaque
-// branche se termine par un `return` — un seul pattern par tour, jamais cumulés.
+// Riposte complète d'un boss : sélectionne et résout un pattern selon sa phase courante, puis le
+// DÉROULE en un ou plusieurs beats (voir runCombatBeats()) — un seul pattern par tour, jamais
+// cumulés, seul leur RYTHME d'affichage change désormais (chantier "lisibilité combat").
 // Enveloppe fine autour de performBossCounterAttackInner() : gère la fin de l'état enragé (Chantier
-// 3) sur UN SEUL point de sortie plutôt que de dupliquer la logique sur chacun des nombreux `return`
-// internes. "A-t-il placé un coup ce tour-ci ?" est détecté via le delta de floorStats.damageTaken —
-// point de passage UNIQUE de toute perte de PV joueur (voir applyPlayerDamage()), donc un signal
-// fiable même si l'attaque interne a pris un chemin qui NE frappe pas (télégraphe posé, buff de
-// défense) : dans ce cas, ce tour compte quand même contre la durée restante de l'enrage, comme un
-// tour de kiting normal — seul un coup RÉELLEMENT porté y met fin immédiatement (voir la consigne :
+// 3) sur UN SEUL point de sortie (son onDone, appelé une fois TOUTE la séquence de beats jouée)
+// plutôt que de dupliquer la logique sur chacun des nombreux points de sortie internes. "A-t-il placé
+// un coup ce tour-ci ?" est détecté via le delta de floorStats.damageTaken — point de passage UNIQUE
+// de toute perte de PV joueur (voir applyPlayerDamage()), donc un signal fiable même si l'attaque
+// interne a pris un chemin qui NE frappe pas (télégraphe posé, buff de défense) : dans ce cas, ce
+// tour compte quand même contre la durée restante de l'enrage, comme un tour de kiting normal — seul
+// un coup RÉELLEMENT porté y met fin immédiatement (voir la consigne :
 // "dure 2-3 tours OU jusqu'à ce qu'il place un coup").
-function performBossCounterAttack(enemy) {
+function performBossCounterAttack(enemy, onDone) {
     const wasEnraged = !!(enemy.status && enemy.status.enraged && enemy.status.enraged.rounds > 0);
     const dmgBefore = gameState.floorStats.damageTaken;
-    performBossCounterAttackInner(enemy);
-    if (wasEnraged && enemy.status.enraged) {
-        if (gameState.floorStats.damageTaken > dmgBefore) {
-            endMobEnrage(enemy);
-        } else {
-            enemy.status.enraged.rounds -= 1;
-            if (enemy.status.enraged.rounds <= 0) endMobEnrage(enemy);
+    performBossCounterAttackInner(enemy, () => {
+        if (wasEnraged && enemy.status.enraged) {
+            if (gameState.floorStats.damageTaken > dmgBefore) {
+                endMobEnrage(enemy);
+            } else {
+                enemy.status.enraged.rounds -= 1;
+                if (enemy.status.enraged.rounds <= 0) endMobEnrage(enemy);
+            }
         }
-    }
+        if (onDone) onDone();
+    });
 }
 
-function performBossCounterAttackInner(enemy) {
+// Sélectionne le pattern (inchangé, mêmes seuils/tirages qu'avant ce chantier — voir Chantier 2 du
+// rework combat) puis construit la liste de beats qui le joue. Les tirages Math.random() de
+// SÉLECTION restent tous synchrones, AVANT toute construction de step, exactement comme avant : seul
+// le déroulé visuel (executeBossStrike()/logEvent() à l'intérieur d'un step) est décalé dans le temps.
+// Répartition heavy/normal/vide : voir config.combatRhythm et le commentaire de runCombatBeats() —
+// télégraphe posé (heavy et defBuff, moment d'annonce à fort enjeu, voir la bannière du Chantier 1),
+// télégraphe EXÉCUTÉ et phase 3 (folie) sont "heavy" ; l'attaque de base et le harcèlement à distance
+// restent au rythme standard ; le multi-coups espace ses frappes de beatMultiHit après la première.
+function performBossCounterAttackInner(enemy, onDone) {
     const phase = getBossPhase(enemy);
     const bp = config.bossPhases;
+    const rhythm = config.combatRhythm;
     let enemyAtk = enemy.atk;
 
     // Anti-abus mêlée collée + enrage par distance (Chantier 3) : mêmes multiplicateurs que le mob
@@ -5236,6 +5532,31 @@ function performBossCounterAttackInner(enemy) {
         enemyAtk = Math.round(enemyAtk * config.distanceEnrage.atkMult);
     }
 
+    // Un coup qui vide les PV du joueur programme gameOver() — jamais un beat de plus après la mort,
+    // qui n'a rien à attendre. Petit helper pour ne pas dupliquer ce garde-fou à chaque step. Renvoie
+    // les dégâts réellement encaissés (Chantier 8) : le multi-coups en a besoin pour construire sa
+    // ligne de résumé consolidée à partir des montants silencieux de chaque frappe.
+    const strikeAndCheckDeath = (atk, label, pressureFloorOverride, heavy = false, silent = false) => {
+        const dealt = executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy, silent);
+        if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+        return dealt;
+    };
+
+    // Changement de phase (chantier "lisibilité combat", Chantier 10) : détecté ICI, une seule fois
+    // par tour, sur la phase déjà calculée ci-dessus — enemy.lastKnownPhase (posé au Chantier 6, à
+    // l'entrée en combat) est mis à jour DANS TOUS LES CAS, mais un step de bannière n'est prépendu au
+    // pattern du tour QUE si la phase vient de MONTER (jamais en phase 1 : rien à annoncer en y
+    // entrant, c'est l'état de départ). runPattern() (au lieu d'appeler runCombatBeats() directement)
+    // centralise ce préfixe pour ne pas le dupliquer sur les 7 points de sortie de cette fonction.
+    const phaseJustIncreased = phase > enemy.lastKnownPhase;
+    enemy.lastKnownPhase = phase;
+    const runPattern = (patternSteps) => {
+        const steps = phaseJustIncreased
+            ? [{ run: () => announceBossPhaseChange(enemy, phase), delay: rhythm.beatHeavyEvent }, ...patternSteps]
+            : patternSteps;
+        runCombatBeats(steps, onDone);
+    };
+
     // Phase 3 ("folie") : dégâts +40% fixes, pas de télégraphe — le boss cesse d'être tactique et
     // frappe en continu. enemy.status.frenzied (lu par performPlayerAttack()) réduit symétriquement
     // sa DEF effective : la fenêtre risque/récompense de cette phase (voir config.bossPhases.phase3).
@@ -5243,8 +5564,9 @@ function performBossCounterAttackInner(enemy) {
         enemy.status.frenzied = true;
         enemy.status.telegraph = null; // un télégraphe en cours à l'entrée en phase 3 est abandonné
         enemyAtk = Math.round(enemyAtk * bp.phase3.atkMult);
-        executeBossStrike(enemy, enemyAtk, `[${enemy.name}], pris de folie furieuse, vous`);
-        if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+        runPattern([
+            { run: () => strikeAndCheckDeath(enemyAtk, `[${enemy.name}], pris de folie furieuse, vous`, undefined, true), delay: rhythm.beatHeavyEvent }
+        ]);
         return;
     }
     enemy.status.frenzied = false;
@@ -5255,13 +5577,19 @@ function performBossCounterAttackInner(enemy) {
         enemy.status.telegraph = null;
         if (tg.type === 'heavy') {
             const boosted = Math.round(enemyAtk * bp.telegraphHeavyMult);
-            executeBossStrike(enemy, boosted, `[${enemy.name}] abat son attaque annoncée et`);
-            if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+            runPattern([
+                { run: () => strikeAndCheckDeath(boosted, `[${enemy.name}] abat son attaque annoncée et`, undefined, true), delay: rhythm.beatHeavyEvent }
+            ]);
             return;
         }
         if (tg.type === 'defBuff') {
-            enemy.status.defBuffed = { rounds: bp.defBuffRounds };
-            logEvent(`[${enemy.name}] se hérisse : sa garde vient de monter, sans vous frapper ce tour-ci.`, "info");
+            runPattern([{
+                run: () => {
+                    enemy.status.defBuffed = { rounds: bp.defBuffRounds };
+                    logEvent(`[${enemy.name}] se hérisse : sa garde vient de monter, sans vous frapper ce tour-ci.`, "info");
+                },
+                delay: rhythm.beatHeavyEvent
+            }]);
             return;
         }
     }
@@ -5278,11 +5606,28 @@ function performBossCounterAttackInner(enemy) {
             // la SOMME sur le tour reste le plancher standard, au lieu de le multiplier par `hits`.
             const perHitPressureFloor = (gameState.maxHp * config.mobDamageScaling.pressureFloorFrac) / hits;
             logEvent(`[${enemy.name}] enchaîne ${hits} frappes rapides !`, "danger");
+            // beatMultiHit entre chaque frappe (première frappe au rythme standard, comme n'importe
+            // quelle riposte) — un décès en cours de rafale arrête la file (voir strikeAndCheckDeath).
+            // Chaque frappe individuelle reste SILENCIEUSE (Chantier 8, lisibilité combat) : au lieu de
+            // N lignes de log quasi identiques, UNE seule ligne de résumé après la dernière frappe qui
+            // atteint réellement sa cible (jamais si le joueur meurt en cours de rafale — l'écran Game
+            // Over prend le relais, un résumé de plus n'apporterait rien).
+            const dealtAmounts = [];
+            const steps = [];
             for (let i = 0; i < hits; i++) {
-                if (gameState.hp <= 0) break;
-                executeBossStrike(enemy, perHitAtk, `Frappe ${i + 1}/${hits} :`, perHitPressureFloor);
+                steps.push({
+                    run: () => {
+                        if (gameState.hp <= 0) return;
+                        dealtAmounts.push(strikeAndCheckDeath(perHitAtk, `Frappe ${i + 1}/${hits} :`, perHitPressureFloor, false, true));
+                        if (i === hits - 1 && gameState.hp > 0) {
+                            const total = dealtAmounts.reduce((sum, d) => sum + d, 0);
+                            logEvent(`💥 ${dealtAmounts.length} frappes vous touchent : ${dealtAmounts.join(' + ')} = ${total} dégâts au total.`, "danger");
+                        }
+                    },
+                    delay: i === 0 ? rhythm.beatActionToRiposte : rhythm.beatMultiHit
+                });
             }
-            if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+            runPattern(steps);
             return;
         }
         threshold += bp.rangedHarassChance;
@@ -5290,14 +5635,20 @@ function performBossCounterAttackInner(enemy) {
             // Harcèlement à distance : mécanique volontairement minimale ici (pont avec le futur
             // Chantier 3 "enrage distance", pas encore implémenté — voir NOTES_COMBAT.md).
             const harassAtk = Math.round(enemyAtk * bp.rangedHarassMult);
-            executeBossStrike(enemy, harassAtk, `[${enemy.name}] vous harcèle à distance et`);
-            if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+            runPattern([
+                { run: () => strikeAndCheckDeath(harassAtk, `[${enemy.name}] vous harcèle à distance et`), delay: rhythm.beatActionToRiposte }
+            ]);
             return;
         }
         threshold += bp.defBuffTelegraphChance;
         if (roll < threshold) {
-            enemy.status.telegraph = { type: 'defBuff' };
-            logEvent(`[${enemy.name}] se raidit, une garde imminente se prépare...`, "info");
+            runPattern([{
+                run: () => {
+                    enemy.status.telegraph = { type: 'defBuff' };
+                    logEvent(`[${enemy.name}] se raidit, une garde imminente se prépare...`, "info");
+                },
+                delay: rhythm.beatHeavyEvent
+            }]);
             return;
         }
     }
@@ -5306,22 +5657,32 @@ function performBossCounterAttackInner(enemy) {
     // suivant (annonce sans dégât), sinon attaque de base normale.
     const heavyChance = phase === 1 ? bp.phase1TelegraphChance : bp.phase2TelegraphChance;
     if (Math.random() < heavyChance) {
-        enemy.status.telegraph = { type: 'heavy' };
-        logEvent(`[${enemy.name}] prépare un coup dévastateur...`, "info");
+        runPattern([{
+            run: () => {
+                enemy.status.telegraph = { type: 'heavy' };
+                logEvent(`[${enemy.name}] prépare un coup dévastateur...`, "info");
+            },
+            delay: rhythm.beatHeavyEvent
+        }]);
         return;
     }
 
-    executeBossStrike(enemy, enemyAtk, `[${enemy.name}] vous`);
-    if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => gameOver(false, enemy), COMBAT_BEAT_MS); }
+    runPattern([
+        { run: () => strikeAndCheckDeath(enemyAtk, `[${enemy.name}] vous`), delay: rhythm.beatActionToRiposte }
+    ]);
 }
 
-// Riposte de l'ennemi : tient compte de son propre saignement/étourdissement en cours,
-// de l'armure équipée du joueur, et peut infliger un effet de statut selon son trait élémentaire.
-function resolveEnemyCounterAttack() {
+// Riposte de l'ennemi : tient compte de son propre saignement/étourdissement en cours, de l'armure
+// équipée du joueur, et peut infliger un effet de statut selon son trait élémentaire. `onDone` (voir
+// runCombatBeats()) est appelé une fois TOUTE la séquence visuelle de ce tour jouée — immédiatement
+// pour un mob normal (un seul beat) ou après le dernier beat d'un pattern de boss.
+function resolveEnemyCounterAttack(onDone) {
     const enemy = gameState.currentEnemy;
-    if (!enemy) return; // sécurité si le combat vient d'être résolu pendant la pause
+    if (!enemy) { if (onDone) onDone(); return; } // sécurité si le combat vient d'être résolu pendant la pause
 
-    // Saignement en cours sur l'ennemi (infligé par une arme du joueur) : tique avant son action
+    // Saignement en cours sur l'ennemi (infligé par une arme du joueur) : tique avant son action.
+    // Affichage immédiat (pas de beat dédié) : un tick de saignement est un petit événement annexe,
+    // pas "la riposte" elle-même — voir config.combatRhythm.beatEmptyEvent.
     if (enemy.status && enemy.status.bleed && enemy.status.bleed.rounds > 0) {
         const dmg = enemy.status.bleed.dmgPerRound;
         enemy.hp -= dmg;
@@ -5331,6 +5692,7 @@ function resolveEnemyCounterAttack() {
         if (enemy.hp <= 0) {
             logEvent(`[${enemy.name}] succombe à ses blessures !`, "success");
             winCombat();
+            if (onDone) onDone();
             return;
         }
     }
@@ -5340,7 +5702,8 @@ function resolveEnemyCounterAttack() {
         logEvent(`[${enemy.name}] est étourdi et ne peut pas riposter !`, "info");
         enemy.status.stunned = false;
         showDie(ui.combatEnemyDie, "😴");
-        updateUI();
+        // Plus de updateUI() explicite ici (Chantier 7) : onDone() le fait déjà, centralisé.
+        if (onDone) onDone();
         return;
     }
 
@@ -5350,12 +5713,21 @@ function resolveEnemyCounterAttack() {
 
     // Boss : chemin de riposte totalement séparé (patterns par phase, voir performBossCounterAttack()
     // ci-dessous, Chantier 2 du rework combat) — jamais mélangé au chemin mob normal/élite ci-dessous,
-    // pour ne rien changer au comportement déjà testé du Chantier 1 sur les mobs non-boss.
+    // pour ne rien changer au comportement déjà testé du Chantier 1 sur les mobs non-boss. Lui délègue
+    // ENTIÈREMENT la responsabilité d'appeler onDone (sa propre séquence de beats en décide le moment).
     if (enemy.isBoss) {
-        performBossCounterAttack(enemy);
+        performBossCounterAttack(enemy, onDone);
         return;
     }
 
+    // Mob normal/élite : un seul beat (le rythme standard action -> riposte, comme avant ce chantier)
+    // avant de dérouler la riposte elle-même (resolveNonBossCounterAttack(), formules inchangées).
+    runCombatBeats([
+        { run: () => resolveNonBossCounterAttack(enemy), delay: config.combatRhythm.beatActionToRiposte }
+    ], onDone);
+}
+
+function resolveNonBossCounterAttack(enemy) {
     const wasBlinded = gameState.status.blinded && gameState.status.blinded.rounds > 0;
     const wasCorroded = gameState.status.corroded && gameState.status.corroded.rounds > 0;
 
@@ -5423,10 +5795,13 @@ function resolveEnemyCounterAttack() {
 
     applyPlayerDamage(playerDamage);
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
+    showFloatingDamage(ui.combatSidePlayer, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
     const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
         : "";
-    logEvent(`[${enemy.name}]${enemySlowedNote} vous inflige ${playerDamage} dégâts${wasBlinded ? " (vous étiez ébloui)" : ""}${wasCorroded ? " (armure corrodée)" : ""}${guardNote}${companionAbsorbNote}.`, "danger");
+    // Note d'état déplacée après les dégâts plutôt qu'entre le nom et "vous inflige" (chantier
+    // "lisibilité combat", Chantier 8) : lecture plus naturelle, aucune info retirée.
+    logEvent(`[${enemy.name}] vous inflige ${playerDamage} dégâts${enemySlowedNote}${wasBlinded ? " (vous étiez ébloui)" : ""}${wasCorroded ? " (armure corrodée)" : ""}${guardNote}${companionAbsorbNote}.`, "danger");
 
     // Le compagnon tombe s'il vient d'encaisser le coup de trop : il quitte le groupe.
     if (gameState.companion && gameState.companion.hp <= 0) {
@@ -5471,7 +5846,9 @@ function resolveEnemyCounterAttack() {
 
     applyMobEffectOnPlayer(enemy);
     applyArmorMechanic(enemy, playerDamage);
-    updateUI();
+    // Plus de updateUI() ici (chantier "lisibilité combat", Chantier 7) : centralisé dans l'onDone
+    // d'enemyCounterAttack(), pour couvrir aussi les patterns de boss qui n'appelaient jamais cette
+    // fonction (voir le commentaire d'enemyCounterAttack()).
 }
 
 // --- Les 3 types d'attaque ---
@@ -6169,6 +6546,7 @@ function devJumpToUrbanFloor() {
 function gameOver(timeout = false, killer = null) {
     gameState.inCombat = true; // Bloque toute action supplémentaire
     ui.combatZone.classList.add('hidden'); // Cache la zone de combat
+    triggerHeavyImpact(); // Chantier 4 : la mort du joueur est l'un des 4 moments à hiérarchie forte
 
     const reason = timeout
         ? "Le temps est écoulé. Le donjon s'effondre sur vous..."
@@ -6283,6 +6661,24 @@ if (ui.btnSprint) ui.btnSprint.addEventListener('click', attemptSprint);
 if (ui.btnRetreat) ui.btnRetreat.addEventListener('click', attemptRetreat);
 if (ui.btnEngage) ui.btnEngage.addEventListener('click', attemptEngage);
 ui.btnFlee.addEventListener('click', attemptFlee);
+
+// Skip au clic/Espace/Entrée (chantier "lisibilité combat", Chantier 9) : accélère le tour de beats
+// en cours plutôt que d'attendre son rythme normal — voir combatSkipRequested/runCombatBeats().
+// Filtre `e.target.closest('button')` : un clic sur une VRAIE action de combat (même bulle jusqu'à
+// #combat-zone) ne doit jamais être réinterprété en demande de skip, seulement un clic dans l'espace
+// vide de la zone (nom de l'ennemi, bannière, barre de distance...).
+if (ui.combatZone) {
+    ui.combatZone.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        requestCombatSkip();
+    });
+}
+document.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' && e.code !== 'Enter') return;
+    const activeTag = document.activeElement && document.activeElement.tagName;
+    if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return; // ne gêne jamais la saisie (nom du crawler...)
+    requestCombatSkip();
+});
 
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)
 ui.btnFightBoss.addEventListener('click', fightBossNow);

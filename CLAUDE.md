@@ -117,6 +117,73 @@ Tailwind CDN, **aucun build step**.
   `gameState.engageDefHalved` (DEF joueur ÷2 pour la riposte qui suit, lu par `getEffectiveDef()`,
   consommé au tout début de la PROCHAINE action par `tryPlayerAction()` — même convention que
   `lastPlayerActionWasBackfire`).
+- **Séquenceur de tour en beats** (chantier "lisibilité combat" — voir `NOTES_LISIBILITE_COMBAT.md`
+  pour le détail des choix) : remplace l'ancien modèle "tout s'affiche en 0ms puis un verrou fixe de
+  400ms" par une file d'étapes espacées dans le temps, `runCombatBeats(steps, onDone)` (app.js) —
+  `steps` est un tableau de `{run, delay, skippable}` joué par callbacks `setTimeout` CHAÎNÉS,
+  jamais de Promise/async-await (une vraie Promise diffère toujours sa continuation en microtâche,
+  même résolue en synchrone — incompatible avec les 113+ sites d'appel synchrones de
+  `tests/regression/*.js`/`tests/long_playthrough.js`). `tests/regression/_helpers.js` stub
+  `global.setTimeout` (copie du stub déjà présent dans `tests/long_playthrough.js`) pour que toute la
+  chaîne de beats se déroule en synchrone sous Node — aucun test existant n'a eu besoin d'être réécrit
+  pour ça. Durées centralisées dans `config.combatRhythm` (`beatActionToRiposte` 280ms,
+  `beatHeavyEvent` 550ms pour télégraphe posé/exécuté, ruée d'enrage et chaque frappe de phase 3,
+  `beatMultiHit` 90ms entre les frappes d'un multi-coups après la première, `beatEmptyEvent` 0ms —
+  jamais consommé par le séquenceur lui-même : les événements vides — riposte bloquée, repositionnement
+  raté — court-circuitent AVANT d'y entrer, dans `safeEnemyCounterAttack()`/`resolveEnemyReaction()`).
+  `enemyCounterAttack()`/`resolveEnemyCounterAttack()`/`performBossCounterAttack()`/
+  `performBossCounterAttackInner()`/`triggerMobEnrage()` prennent désormais un `onDone` appelé une
+  fois toute la séquence visuelle jouée (déverrouille les boutons via `setCombatInputLocked(false)`) —
+  les FORMULES de dégâts restent strictement inchangées, seul leur RYTHME d'affichage change.
+  `enemy.lastKnownPhase` (initialisé dans `initiateCombat()`) alimente désormais la bannière de
+  changement de phase (voir juste en dessous, même chantier).
+- **Bannière de changement de phase boss** (chantier "lisibilité combat", même contexte que le
+  séquenceur ci-dessus — voir `NOTES_LISIBILITE_COMBAT.md`) : `performBossCounterAttackInner()`
+  compare la phase du tour courant à `enemy.lastKnownPhase` AVANT toute sélection de pattern
+  (`phaseJustIncreased = phase > enemy.lastKnownPhase`), met à jour ce dernier dans tous les cas, puis
+  passe par une closure locale `runPattern(patternSteps)` (au lieu d'appeler `runCombatBeats()`
+  directement, sur les 7 branches de pattern de la fonction) qui prépend un step d'annonce
+  UNIQUEMENT si la phase vient de monter — jamais à l'entrée en phase 1 (état de départ, rien à
+  annoncer). `announceBossPhaseChange(enemy, phase)` affiche `#phase-transition-banner` (texte
+  différent phase 2/phase 3) puis la masque via un VRAI `setTimeout(900ms)` indépendant du rythme des
+  beats (pas un step de `runCombatBeats`, pour ne pas coupler sa durée d'affichage au tempo qui peut
+  s'accélérer juste après, en phase 3 notamment). Badge permanent `#boss-phase-badge` (à côté du nom,
+  mis à jour à chaque `updateUI()`, visible dès phase ≥ 2 sur un boss uniquement) complète la bannière
+  transitoire par un rappel permanent de l'état en cours.
+- **`updateUI()` centralisé en fin de riposte** (chantier "lisibilité combat", Chantier 7 — voir
+  `NOTES_LISIBILITE_COMBAT.md` pour le bug exact et comment il a été trouvé) : `enemyCounterAttack()`
+  et `triggerMobEnrage()` (les deux seuls points qui verrouillent l'input, Chantier 6) appellent
+  `updateUI()` dans leur `onDone`, juste après `setCombatInputLocked(false)` — remplace un
+  `updateUI()` ad hoc qui ne vivait QUE dans `resolveNonBossCounterAttack()` (mob normal/élite) et
+  qu'AUCUNE des 7 branches de pattern boss (`performBossCounterAttackInner()`) n'avait d'équivalent :
+  en jeu réel, un télégraphe posé par un boss ne rafraîchissait donc jamais `#telegraph-banner`/
+  `#enemy-status-icons` avant ce correctif (masqué dans tous les scripts de vérification des
+  Chantiers 1/2/5/10 précédents, qui appelaient `updateUI()` à la main). Les deux appels devenus
+  redondants (fin de `resolveNonBossCounterAttack()`, branche "étourdi" de
+  `resolveEnemyCounterAttack()`) sont retirés, sans changement de comportement observable (même tick
+  synchrone).
+- **Skip de combat** (chantier "lisibilité combat", Chantier 9 — voir `NOTES_LISIBILITE_COMBAT.md`) :
+  `combatSkipRequested` (module-level, pas `gameState`, même convention que `mobExamineOpen`) est lu
+  par `runCombatBeats()` — un step sans `skippable: false` explicite voit son délai ramené à 0 dès que
+  le drapeau est vrai. Posé par `requestCombatSkip()` sur un clic dans `#combat-zone` (filtré via
+  `e.target.closest('button')`, pour qu'un clic sur une vraie action de combat ne se réinterprète
+  jamais en demande de skip) ou un `keydown` Espace/Entrée au niveau du document (jamais si le focus
+  est sur un `<input>`/`<textarea>`). Remis à `false` au tout DÉBUT de `enemyCounterAttack()`/
+  `triggerMobEnrage()` plutôt qu'à la fin du tour précédent — sans ça, le clic qui démarre un tour
+  (qui bulle aussi jusqu'à `#combat-zone`) pré-skipperait systématiquement son propre tour. Les beats
+  de mort/fin de combat (hors du tableau `steps`, voir `strikeAndCheckDeath()`) restent
+  structurellement insensibles au skip, sans qu'aucun step existant ait besoin de `skippable: false`.
+- **Logs de combat allégés** (chantier "lisibilité combat", Chantier 8, dernier de la série — voir
+  `NOTES_LISIBILITE_COMBAT.md`) : `executeBossStrike(..., silent)` (nouveau 6ᵉ paramètre) supprime la
+  ligne de log INDIVIDUELLE d'un coup (jamais les dégâts/l'animation/l'effondrement d'un compagnon,
+  toujours appliqués) — utilisé UNIQUEMENT par le pattern multi-coups (phase 2 boss), qui accumule les
+  montants réellement encaissés (`strikeAndCheckDeath()` les renvoie désormais) et n'affiche qu'UNE
+  ligne de résumé après la dernière frappe qui atteint sa cible (jamais si le joueur meurt en cours de
+  rafale). Lignes d'attaque standard (joueur et mob) raccourcies (retire le remplissage "et infligez
+  ... à", déplace la note d'état du mob après les dégâts) sans retirer d'information : audit des
+  mentions d'état ennemi existantes (ébloui/corrodé/garde hérissée/folie/enrage) — toutes expliquent le
+  calcul du coup en cours (DEF ennemie modifiée), aucune n'est une simple redite des badges du
+  Chantier 2, donc aucune n'a été retirée.
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
