@@ -1,6 +1,6 @@
 {
   "name": "crawler",
-  "version": "20.0.0",
+  "version": "21.0.0",
   "private": true,
   "description": "Rogue-like textuel minimaliste (HTML/JS vanilla, aucun build step) — voir CLAUDE.md.",
   "scripts": {
