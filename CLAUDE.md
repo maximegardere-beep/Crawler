@@ -162,6 +162,17 @@ Tailwind CDN, **aucun build step**.
   redondants (fin de `resolveNonBossCounterAttack()`, branche "étourdi" de
   `resolveEnemyCounterAttack()`) sont retirés, sans changement de comportement observable (même tick
   synchrone).
+- **Skip de combat** (chantier "lisibilité combat", Chantier 9 — voir `NOTES_LISIBILITE_COMBAT.md`) :
+  `combatSkipRequested` (module-level, pas `gameState`, même convention que `mobExamineOpen`) est lu
+  par `runCombatBeats()` — un step sans `skippable: false` explicite voit son délai ramené à 0 dès que
+  le drapeau est vrai. Posé par `requestCombatSkip()` sur un clic dans `#combat-zone` (filtré via
+  `e.target.closest('button')`, pour qu'un clic sur une vraie action de combat ne se réinterprète
+  jamais en demande de skip) ou un `keydown` Espace/Entrée au niveau du document (jamais si le focus
+  est sur un `<input>`/`<textarea>`). Remis à `false` au tout DÉBUT de `enemyCounterAttack()`/
+  `triggerMobEnrage()` plutôt qu'à la fin du tour précédent — sans ça, le clic qui démarre un tour
+  (qui bulle aussi jusqu'à `#combat-zone`) pré-skipperait systématiquement son propre tour. Les beats
+  de mort/fin de combat (hors du tableau `steps`, voir `strikeAndCheckDeath()`) restent
+  structurellement insensibles au skip, sans qu'aucun step existant ait besoin de `skippable: false`.
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF

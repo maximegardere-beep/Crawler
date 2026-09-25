@@ -260,7 +260,57 @@ manuel à `updateUI()`.
 
 ## Chantier 9 — Skip et accessibilité
 
-_À compléter._
+**Skip** : `combatSkipRequested` (drapeau module-level, pas `gameState` — même convention que
+`mobExamineOpen`) est consommé dans `runCombatBeats()` : un step dont `skippable` n'est pas
+explicitement `false` voit son délai ramené à 0 (toujours via un vrai `setTimeout(..., 0)`, jamais un
+appel synchrone direct — cohérent avec le reste de la chaîne). Posé par `requestCombatSkip()`, appelée
+par deux écouteurs :
+- clic sur `#combat-zone` (zone entière, y compris l'espace vide autour du nom de l'ennemi/la bannière/
+  la barre de distance), filtré via `e.target.closest('button')` pour qu'un clic sur une VRAIE action
+  de combat (qui bulle aussi jusqu'à `#combat-zone`) ne soit jamais réinterprété en demande de skip ;
+- `keydown` Espace/Entrée au niveau du document (une `<div>` n'est pas focusable par défaut, un
+  écouteur posé directement sur `#combat-zone` ne recevrait jamais l'événement), sauf si le focus est
+  sur un `<input>`/`<textarea>` (jamais gêner la saisie du nom du crawler ou un futur champ texte).
+
+Remis à `false` au tout début de `enemyCounterAttack()`/`triggerMobEnrage()` (les deux seuls points
+qui verrouillent réellement l'input, Chantier 6/7) plutôt qu'à la fin du tour précédent — piège
+identifié : un clic sur le bouton d'action qui DÉMARRE un tour bulle aussi jusqu'à `#combat-zone`
+après avoir déclenché la chaîne synchrone `attackWeapon() → ... → enemyCounterAttack()` ; sans cette
+remise à zéro AU DÉBUT (plutôt qu'à la fin du tour précédent), ce clic aurait pré-skippé son propre
+tour à chaque fois, rendant le rythme normal inatteignable en pratique. Vérifié avec un vrai
+`setTimeout` (deux tours consécutifs contre un boss en phase 2, l'un avec skip demandé ~40ms après le
+clic, l'autre sans) : ~560ms pour le tour skippé contre ~1100ms pour le tour normal — le skip accélère
+bien le tour EN COURS sans fuiter sur le suivant.
+
+Les beats de mort/fin de combat (les `setTimeout(() => gameOver(...), COMBAT_BEAT_MS)`/
+`setTimeout(() => winCombat(), COMBAT_BEAT_MS)` dans `strikeAndCheckDeath()`/
+`resolveNonBossCounterAttack()`/`performPlayerAttack()`) ne passent jamais par le tableau `steps` de
+`runCombatBeats()` — ils restent donc structurellement insensibles au skip, sans qu'aucun step
+existant n'ait besoin de poser `skippable: false` explicitement pour l'instant.
+
+**Audit `prefers-reduced-motion`** (consolidation finale plutôt que nouveaux guards — scope limité aux
+animations AJOUTÉES par ce chantier, Chantiers 1/3/4/5/10, pas aux effets d'ambiance préexistants
+comme `fx-low-hp`/`fx-burn`/`fx-confused`/`fx-blinded`/`fx-feared`, hors périmètre de ce chantier) :
+- Chantier 1 (`.telegraph-pulse`) : guardé, `animation: none`.
+- Chantier 3 (`.floating-damage`) : guardé, bascule sur `floatDamageFadeOnly` (fondu seul, sans
+  déplacement) plutôt que de simplement désactiver l'animation — un chiffre de dégâts qui apparaît
+  puis disparaît instantanément sans transition serait moins lisible qu'un fondu.
+- Chantier 4 (`.screen-shake`) : guardé, `animation: none` — `.fx-impact-flash` reste volontairement
+  ACTIF sous reduced-motion (déjà documenté au Chantier 4 : un flash d'opacité n'est pas le type de
+  mouvement spatial visé par cette préférence, contrairement à une translation de tout l'écran).
+- Chantier 5 (`.distance-tension`) : guardé, `animation: none` + couleur rouge fixe (l'info reste
+  visible sans le pulse).
+- Chantier 10 (bannière de phase, badge de phase) : aucun guard nécessaire — ni l'un ni l'autre
+  n'utilise de `@keyframes` (apparition/disparition par simple bascule de la classe `hidden`, sans
+  transition CSS), donc rien de concerné par cette préférence.
+
+Tous les guards nécessaires existaient déjà (posés au fil de chaque chantier plutôt que reportés ici) ;
+ce chantier n'a donc ajouté aucune règle CSS, seulement vérifié qu'aucun n'avait été oublié.
+
+`npm test` (10+ runs consécutifs, 0 échec) et `npm run test:long` restent verts — le skip n'est lu que
+par du code déclenché par de vrais événements DOM (`click`/`keydown`), jamais exercé par la suite de
+tests Node (aucun stub de simulation de clic), donc structurellement sans impact sur les tests
+existants.
 
 ## Chantier 8 — Réduire la charge textuelle des logs
 

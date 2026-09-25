@@ -4744,6 +4744,7 @@ function noteMobKitingRound(enemy) {
 function triggerMobEnrage(enemy) {
     const cfg = config.distanceEnrage;
     setCombatDistance(0);
+    combatSkipRequested = false; // Chantier 9 : même remise à zéro qu'enemyCounterAttack()
     setCombatInputLocked(true);
     runCombatBeats([{
         run: () => {
@@ -5356,8 +5357,24 @@ function setCombatInputLocked(locked) {
 // `steps` : tableau de `{ run, delay, skippable }`. `delay` est la pause AVANT que ce step ne
 // s'exécute (pas après) — un step au tout début de la liste avec un delay standard reproduit donc
 // exactement le comportement historique "verrouiller, attendre, puis résoudre". `skippable` (par
-// défaut true) est réservé au Chantier 9 (skip au clic/Espace) — non lu pour l'instant, juste posé
-// dès ce chantier pour que la donnée existe au bon endroit.
+// défaut true, Chantier 9) : un step qui ne le désactive PAS explicitement (`skippable: false`) voit
+// son délai ramené à 0 dès que combatSkipRequested est vrai — un `setTimeout(..., 0)` plutôt qu'un
+// appel synchrone direct, pour rester un vrai callback asynchrone (cohérent avec le reste de la
+// chaîne, et sans particularité sous le stub de test qui exécute de toute façon tout en synchrone).
+// Les beats de mort/fin de combat (voir strikeAndCheckDeath()/resolveNonBossCounterAttack()/
+// performPlayerAttack()) ne passent jamais par ce tableau — ils restent donc structurellement à
+// l'abri du skip sans qu'aucun step n'ait besoin de poser `skippable: false` explicitement.
+let combatSkipRequested = false;
+
+// Marque une demande de skip pour le tour de beats EN COURS — drapeau MODULE-LEVEL (pas gameState,
+// même convention que mobExamineOpen) : préférence d'affichage purement transitoire, jamais persistée
+// ni lue par la logique de jeu. Remis à faux au tout début du PROCHAIN tour verrouillé
+// (enemyCounterAttack()/triggerMobEnrage()), pour qu'un clic qui a démarré ce tour-ci (bulle jusqu'à
+// #combat-zone) ne "pré-skippe" jamais le tour SUIVANT.
+function requestCombatSkip() {
+    if (gameState.inCombat) combatSkipRequested = true;
+}
+
 function runCombatBeats(steps, onDone) {
     function playStep(index) {
         if (index >= steps.length) {
@@ -5365,10 +5382,11 @@ function runCombatBeats(steps, onDone) {
             return;
         }
         const step = steps[index];
+        const skip = combatSkipRequested && step.skippable !== false;
         setTimeout(() => {
             step.run();
             playStep(index + 1);
-        }, step.delay || 0);
+        }, skip ? 0 : (step.delay || 0));
     }
     playStep(0);
 }
@@ -5386,6 +5404,7 @@ function runCombatBeats(steps, onDone) {
 // seulement théorique. Centraliser ici plutôt que de rajouter updateUI() dans chacune des branches.
 function enemyCounterAttack() {
     if (!gameState.currentEnemy) return; // sécurité si le combat vient d'être résolu
+    combatSkipRequested = false; // Chantier 9 : jamais de skip qui fuite d'un tour précédent (ou du clic qui a déclenché celui-ci)
     setCombatInputLocked(true);
     resolveEnemyCounterAttack(() => { setCombatInputLocked(false); updateUI(); });
 }
@@ -6616,6 +6635,24 @@ if (ui.btnSprint) ui.btnSprint.addEventListener('click', attemptSprint);
 if (ui.btnRetreat) ui.btnRetreat.addEventListener('click', attemptRetreat);
 if (ui.btnEngage) ui.btnEngage.addEventListener('click', attemptEngage);
 ui.btnFlee.addEventListener('click', attemptFlee);
+
+// Skip au clic/Espace/Entrée (chantier "lisibilité combat", Chantier 9) : accélère le tour de beats
+// en cours plutôt que d'attendre son rythme normal — voir combatSkipRequested/runCombatBeats().
+// Filtre `e.target.closest('button')` : un clic sur une VRAIE action de combat (même bulle jusqu'à
+// #combat-zone) ne doit jamais être réinterprété en demande de skip, seulement un clic dans l'espace
+// vide de la zone (nom de l'ennemi, bannière, barre de distance...).
+if (ui.combatZone) {
+    ui.combatZone.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        requestCombatSkip();
+    });
+}
+document.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' && e.code !== 'Enter') return;
+    const activeTag = document.activeElement && document.activeElement.tagName;
+    if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return; // ne gêne jamais la saisie (nom du crawler...)
+    requestCombatSkip();
+});
 
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)
 ui.btnFightBoss.addEventListener('click', fightBossNow);
