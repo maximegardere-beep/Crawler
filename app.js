@@ -71,6 +71,8 @@ const gameState = {
     pendingStairAfterCombat: false, // Si vrai, gagner le combat en cours ouvre l'étage suivant
     pendingBossRoomId: null, // Room id de la salle de boss en cours de combat, pour la marquer vaincue à la victoire
     bossChoicePending: false, // Une salle de boss vient d'être trouvée, décision combattre/repérer en attente
+    safehouseChoicePending: false, // Une salle sécurisée vient d'être trouvée, décision repos/repartir en attente
+    pendingSafehouseRoomId: null, // Room id de la salle sécurisée dont le choix est actuellement affiché
     stealthChoicePending: false, // Un ennemi non repéré attend une décision (esquiver/attaque furtive)
     pendingStealthEncounter: null, // L'ennemi généré, en attente de cette décision
     pendingSneakAttack: false, // Consommé par le tout premier coup porté (bonus x2)
@@ -366,6 +368,45 @@ const config = {
         // toujours 1, sauf à l'étage final où un second, plus généreux, s'ajoute.
         lairRoadsPerFloor: 1,
         lairRoadsFinalFloor: 2
+    },
+
+    // Salle sécurisée (chantier "QoL/équilibrage" — voir enterRoom()) : entrée à choix explicite,
+    // plus de soin automatique. Repos = ce coût en temps, contre un soin majoré PV (+ mana si un
+    // sort est équipé, même échelle) ; "Repartir" reste gratuit. Valeurs de départ, à ajuster par
+    // playtest.
+    safehouse: {
+        restCost: 2,
+        restHpMin: 25,
+        restHpMax: 40
+    },
+
+    // Réserve d'équipement (armes/armures/armes à distance — consommables et parchemins jamais
+    // comptés, voir addLoot()) : valeur de départ à playtester, centralisée ici plutôt qu'en dur sur
+    // gameState.maxInventory (voir son initialisation ci-dessous).
+    inventory: {
+        maxEquipment: 8
+    },
+
+    // Parité magie/arme (chantier "QoL/équilibrage" — voir attackMagic()) : le mana achète la
+    // flexibilité (mêlée/distance sans changer d'équipement), pas un surplus de dégâts par rapport à
+    // l'arme équivalente ; le backfire reste le prix du chaos, plus punitif à haut niveau qu'avant
+    // pour continuer à justifier ce risque une fois la compétence Magie montée. Valeurs de départ, à
+    // ajuster par playtest (voir NOTES_COMBAT.md pour la mesure de parité qui a produit ces chiffres).
+    magicBalance: {
+        atkBase: 1.1,
+        atkPerLevel: 0.015,
+        backfireBase: 15,
+        backfirePerLevel: -1.5,
+        backfireMin: 3
+    },
+
+    // Budget temps par étage (chantier "QoL/équilibrage" — voir advanceToNextFloor()) : grandit avec
+    // la profondeur plutôt qu'un plafond fixe, pour réduire les morts "sans avoir vu l'escalier" sur
+    // les étages tardifs (mobs/distances plus coûteux) sans supprimer la pression du temps. Valeur de
+    // départ, à ajuster par playtest.
+    floorTimeBudget: {
+        base: 130,
+        perFloor: 5
     }
 };
 
@@ -516,6 +557,9 @@ const ui = {
     bossChoiceZone: document.getElementById('boss-choice-zone'),
     btnFightBoss: document.getElementById('btn-fight-boss'),
     btnRetreatBoss: document.getElementById('btn-retreat-boss'),
+    safehouseChoiceZone: document.getElementById('safehouse-choice-zone'),
+    btnRestSafehouse: document.getElementById('btn-rest-safehouse'),
+    btnLeaveSafehouse: document.getElementById('btn-leave-safehouse'),
     stealthChoiceZone: document.getElementById('stealth-choice-zone'),
     btnStealthEvade: document.getElementById('btn-stealth-evade'),
     btnStealthAttack: document.getElementById('btn-stealth-attack'),
@@ -1953,7 +1997,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending;
 }
 
 // Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
@@ -4250,47 +4294,33 @@ function enterRoom(room) {
     }
 
     if (room.type === 'safe') {
-        // Soin COMPLET (PV + mana si un sort est équipé), en contrepartie de la régénération passive
-        // dégressive (voir HP_REGEN_TIERS) : une salle sécurisée reste le seul moyen fiable de
-        // repartir plein PV/mana, mais le séjour coûte du temps proportionnel à ce qui est
-        // effectivement régénéré — jamais de double comptage avec applyTimeElapsedRegen() sur ce
-        // temps-là, on fixe directement PV/mana au maximum.
+        // Entrée à choix explicite (chantier "QoL/équilibrage" — voir restAtSafehouse()/
+        // leaveSafehouse() plus bas) : plus de soin automatique ni de coût de temps à l'entrée
+        // elle-même. La salle est enregistrée comme lieu connu dès l'entrée, quelle que soit l'issue
+        // choisie ensuite (comportement conservé de l'ancienne version).
         const safehouse = room.safehouse || { name: "Salle Sécurisée", icon: "🏥", desc: "" };
-        const hasSpell = !!gameState.equipment.spell;
-        const missingHp = gameState.maxHp - gameState.hp;
-        const missingMana = hasSpell ? (gameState.maxMana - gameState.mana) : 0;
-        // REPAS_DE_FAMILLE (anomalies.js) : le séjour devient gratuit en temps — restCost reste
-        // calculé pour le message de log, simplement pas déduit de gameState.timeLeft plus bas.
-        const freeMeals = gameState.anomalyEffects.freeSafehouseMeals;
-        const restCost = Math.ceil(missingHp / 10) + Math.ceil(missingMana / 12);
-
-        applyPlayerHeal(missingHp); // Toujours clampé à gameState.maxHp, quel que soit healingMult
-        if (hasSpell) gameState.mana = gameState.maxMana;
+        gameState.safehouseChoicePending = true;
+        gameState.pendingSafehouseRoomId = room.id;
 
         setCardHeader(safehouse.icon, safehouse.name, 'Repos');
-        if (restCost > 0) {
-            if (!freeMeals) gameState.timeLeft = Math.max(0, gameState.timeLeft - restCost);
-            const restored = hasSpell ? "PV et mana entièrement restaurés" : "PV entièrement restaurés";
-            const costNote = freeMeals ? "repas offerts par la maison, aucun temps perdu" : `-${restCost}H`;
-            logEvent(
-                firstVisit
-                    ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc} Vous vous reposez longuement, ${restored} (${costNote}).`
-                    : `Vous retrouvez ${safehouse.name} et vous reposez à nouveau, ${restored} (${costNote}).`,
-                "success"
-            );
-        } else {
-            logEvent(
-                firstVisit
-                    ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc} Vous êtes déjà en pleine forme.`
-                    : `Vous retrouvez ${safehouse.name}, toujours aussi accueillant.`,
-                "success"
-            );
-        }
+        logEvent(
+            firstVisit
+                ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc}`
+                : `Vous retrouvez ${safehouse.name}, toujours aussi accueillant.`,
+            "info"
+        );
         registerKnownLocation({ id: `safe-${room.id}`, type: 'safeRoom', roomId: room.id, label: safehouse.name, icon: safehouse.icon });
 
-        if (gameState.timeLeft <= 0) {
-            gameOver(true);
-        }
+        // Garde-fou : le repos ne doit JAMAIS pouvoir amener timeLeft à 0 (voir CLAUDE.md) — bouton
+        // désactivé dès l'affichage plutôt que vérifié seulement au clic, pour que ce soit visible
+        // avant toute tentative. REPAS_DE_FAMILLE (anomalies.js) rend le repos gratuit en temps : le
+        // garde-fou ne s'applique donc pas dans ce cas.
+        const freeMeals = gameState.anomalyEffects.freeSafehouseMeals;
+        const canRest = freeMeals || gameState.timeLeft - config.safehouse.restCost > 0;
+        ui.btnRestSafehouse.disabled = !canRest;
+        ui.btnRestSafehouse.title = canRest ? "" : "Pas assez de temps pour vous reposer";
+        ui.safehouseChoiceZone.classList.remove('hidden');
+        updateUI();
         return;
     }
 
@@ -4305,6 +4335,50 @@ function enterRoom(room) {
         setCardHeader('🌑', 'Chemin Connu', 'Exploration');
         logEvent("Vous retraversez un couloir déjà exploré, rien de neuf.", "normal");
     }
+}
+
+// Choix "Repos" d'une salle sécurisée (voir enterRoom()) : coûte config.safehouse.restCost en temps
+// (sauf REPAS_DE_FAMILLE, anomalies.js — repas gratuits) contre un soin PV majoré (25-40, tiré au
+// hasard) ET du mana à la MÊME échelle si un sort est équipé (même montant tiré, clampé séparément
+// à chaque maximum). Le bouton est déjà désactivé côté UI si ce coût ferait tomber timeLeft à 0
+// (voir enterRoom()) : la vérification ici est une sécurité redondante, jamais le chemin normal.
+function restAtSafehouse() {
+    if (!gameState.safehouseChoicePending) return;
+    const restCost = config.safehouse.restCost;
+    const freeMeals = gameState.anomalyEffects.freeSafehouseMeals;
+    if (!freeMeals && gameState.timeLeft - restCost <= 0) return;
+
+    if (!freeMeals) gameState.timeLeft = Math.max(0, gameState.timeLeft - restCost);
+    const healAmount = Math.round(config.safehouse.restHpMin + Math.random() * (config.safehouse.restHpMax - config.safehouse.restHpMin));
+    const healed = applyPlayerHeal(healAmount);
+
+    const hasSpell = !!gameState.equipment.spell;
+    let manaNote = "";
+    if (hasSpell) {
+        const manaBefore = gameState.mana;
+        gameState.mana = Math.min(gameState.maxMana, gameState.mana + healAmount);
+        const manaGained = Math.round(gameState.mana - manaBefore);
+        if (manaGained > 0) manaNote = `, +${manaGained} mana`;
+    }
+
+    const costNote = freeMeals ? "repas offerts par la maison, aucun temps perdu" : `-${restCost}H`;
+    logEvent(`Vous vous reposez longuement (${costNote}, +${healed} PV${manaNote}).`, "success");
+
+    gameState.safehouseChoicePending = false;
+    gameState.pendingSafehouseRoomId = null;
+    ui.safehouseChoiceZone.classList.add('hidden');
+    updateUI();
+}
+
+// Choix "Repartir" d'une salle sécurisée : gratuit, aucun effet — la salle reste visitée et déjà
+// enregistrée comme lieu connu (voir enterRoom()), simplement réutilisable lors d'un futur passage.
+function leaveSafehouse() {
+    if (!gameState.safehouseChoicePending) return;
+    gameState.safehouseChoicePending = false;
+    gameState.pendingSafehouseRoomId = null;
+    ui.safehouseChoiceZone.classList.add('hidden');
+    logEvent("Vous reprenez votre chemin sans vous attarder.", "info");
+    updateUI();
 }
 
 // CAFET_ASSOMBRIE (anomalies.js) : déclenché UNE fois, à la première visite de la pièce taguée
@@ -6683,6 +6757,10 @@ document.addEventListener('keydown', (e) => {
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)
 ui.btnFightBoss.addEventListener('click', fightBossNow);
 ui.btnRetreatBoss.addEventListener('click', retreatFromBoss);
+
+// Clics sur les boutons de choix de salle sécurisée (Repos / Repartir)
+ui.btnRestSafehouse.addEventListener('click', restAtSafehouse);
+ui.btnLeaveSafehouse.addEventListener('click', leaveSafehouse);
 
 // Clics sur les boutons de choix de furtivité (Esquiver / Attaque Furtive)
 ui.btnStealthEvade.addEventListener('click', attemptStealthEvasion);

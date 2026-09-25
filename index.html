@@ -636,6 +636,20 @@
             </div>
         </div>
 
+        <!-- Salle sécurisée (voir enterRoom()/restAtSafehouse()/leaveSafehouse() dans app.js) : choix
+             explicite repos payant / repartir gratuit, jamais de soin automatique. -->
+        <div id="safehouse-choice-zone" class="hidden p-4 bg-green-950/20 border border-green-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-green-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Salle Sécurisée</span>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-rest-safehouse" class="px-3 py-3 bg-gray-900 border border-green-700/80 hover:border-green-400 hover:bg-green-900/30 rounded text-xs text-green-300 uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-green-700/80 disabled:hover:bg-gray-900">
+                    🛌 Repos (-2H)
+                </button>
+                <button id="btn-leave-safehouse" class="px-3 py-3 bg-gray-900 border border-gray-700/80 hover:border-gray-400 hover:bg-gray-800/30 rounded text-xs text-gray-300 uppercase tracking-wider transition-all">
+                    🚶 Repartir
+                </button>
+            </div>
+        </div>
+
         <!-- Repaire repéré sur une route urbaine (voir triggerLairChoice() dans app.js) : plonger
              dedans enchaîne des combats forcés puis un boss, contre un butin garanti ; sinon la
              route se poursuit normalement, sans pénalité. -->
@@ -997,13 +1011,13 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=71"></script>
-    <script src="items.js?v=71"></script>
-    <script src="spells.js?v=71"></script>
-    <script src="districts.js?v=71"></script>
-    <script src="safehouses.js?v=71"></script>
-    <script src="generator.js?v=71"></script>
-    <script src="anomalies.js?v=71"></script>
-    <script src="app.js?v=71"></script>
+    <script src="bestiary.js?v=72"></script>
+    <script src="items.js?v=72"></script>
+    <script src="spells.js?v=72"></script>
+    <script src="districts.js?v=72"></script>
+    <script src="safehouses.js?v=72"></script>
+    <script src="generator.js?v=72"></script>
+    <script src="anomalies.js?v=72"></script>
+    <script src="app.js?v=72"></script>
 </body>
 </html>

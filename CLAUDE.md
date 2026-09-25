@@ -22,6 +22,16 @@ Tailwind CDN, **aucun build step**.
   en cache sur sa pièce, combattable plus tard via "Lieux connus" (distance réelle par Dijkstra,
   `computeDistance()`, coût/risque de trajet proportionnels).
 - Salles sécurisées : pièces fixes, thème tiré dans `safehouses.js`, deviennent un lieu connu.
+  **Entrée à choix explicite** (chantier "QoL/équilibrage", voir `NOTES_QOL_EQUILIBRAGE.md`) : plus de
+  soin automatique — `enterRoom()` pose `gameState.safehouseChoicePending`/`pendingSafehouseRoomId`
+  (inclus dans `isActionBlocked()`) et affiche `#safehouse-choice-zone`, même famille que
+  `#boss-choice-zone`. `restAtSafehouse()` coûte `config.safehouse.restCost` (2H, sauf
+  REPAS_DE_FAMILLE, anomalies.js) contre un soin PV majoré (25-40, tiré au hasard) et du mana à la
+  MÊME échelle si un sort est équipé ; `leaveSafehouse()` reste gratuit, sans effet — la salle reste
+  de toute façon enregistrée comme lieu connu dès l'entrée, quelle que soit l'issue. Garde-fou :
+  `#btn-rest-safehouse` est désactivé dès l'affichage si `timeLeft - restCost <= 0`, doublé d'une
+  vérification identique dans `restAtSafehouse()` elle-même (sécurité redondante) — le repos ne peut
+  donc structurellement plus amener `timeLeft` à 0, contrairement à l'ancien soin automatique.
 - Exploration = un seul bouton "Explorer" : jamais de choix bloquant de navigation.
 - **Combat à distance** : aucune posture côté joueur — seul `mob.ranged` détermine l'écart de départ
   (`gameState.combatDistance`, 0 si mêlée). Arme/Mains nues exigent l'écart nul, Tir l'écart > 0 (+

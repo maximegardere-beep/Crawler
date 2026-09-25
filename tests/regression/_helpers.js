@@ -62,6 +62,9 @@ function resetTransientState() {
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null };
     gameState.companion = null;
     gameState.bossChoicePending = false;
+    gameState.safehouseChoicePending = false;
+    gameState.pendingSafehouseRoomId = null;
+    if (ui.safehouseChoiceZone) ui.safehouseChoiceZone.classList.add('hidden');
     gameState.stealthChoicePending = false;
     gameState.pendingStealthEncounter = null;
     gameState.pendingSneakAttack = false; // Même repéré par le test méta que xp/xpToNextLevel ci-dessus
