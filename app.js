@@ -6240,8 +6240,15 @@ function attackMagic() {
     gameState.mana -= spell.manaCost;
 
     const skill = gameState.skills.magic;
-    const backfireChance = Math.max(8, 15 - 1.5 * (skill.level - 1)) + (gameState.anomalyEffects.backfireBonusPct || 0); // 15% de base, plancher 8% (un sort chaotique garde toujours un risque) + ZONE_MAGIQUE (anomalies.js)
-    const atkMultiplier = (1.25 + 0.02 * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
+    // Chantier "QoL/équilibrage" (Chantier C, voir NOTES_QOL_EQUILIBRAGE.md) : le mana paie la
+    // flexibilité (mêlée/distance sans changer d'équipement), pas un surplus de dégâts par rapport à
+    // l'arme équivalente — atkMultiplier proche de 1.0 (config.magicBalance.atkBase), à rareté égale
+    // un sort et une arme infligent des dégâts comparables (voir tests/regression/magic-balance.js).
+    // Le backfire reste le prix du chaos, et devient PLUS punitif à haut niveau qu'avant (plancher
+    // abaissé) pour continuer à justifier ce risque une fois la compétence Magie montée.
+    const mb = config.magicBalance;
+    const backfireChance = Math.max(mb.backfireMin, mb.backfireBase + mb.backfirePerLevel * (skill.level - 1)) + (gameState.anomalyEffects.backfireBonusPct || 0);
+    const atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
 
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");

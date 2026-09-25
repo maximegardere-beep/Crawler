@@ -163,21 +163,35 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(gameState.skills.stealth.xp - xpBefore === 5, "attemptStealthEvasion() (succès) : XP de Furtivité réduite à 5 (au lieu de 8)");
 }
 
-// attackMagic() (6) : plancher de backfire relevé (8%), multiplicateur de base abaissé (1.25),
-// defReduction non nul (0.15) — les sorts ignorent un peu de DEF sans l'ignorer entièrement.
+// attackMagic() (6, retouché au Chantier C "QoL/équilibrage" — voir NOTES_QOL_EQUILIBRAGE.md) :
+// plancher de backfire ABAISSÉ à 3% (config.magicBalance.backfireMin, plus punitif à haut niveau
+// qu'avant pour continuer à justifier le risque une fois la compétence Magie montée), defReduction
+// non nul (0.15) — les sorts ignorent un peu de DEF sans l'ignorer entièrement.
 {
     resetTransientState();
     gameState.inCombat = true;
-    gameState.skills.magic.level = 50; // Niveau très élevé : le backfire doit quand même plancher à 8%
+    gameState.skills.magic.level = 50; // Niveau très élevé : le backfire doit quand même plancher à 3%
     gameState.currentEnemy = { name: "Cobaye Magie", hp: 9999, maxHp: 9999, atk: 1, def: 50, status: {} };
     gameState.combatDistance = config.rangedCombat.initialDistance;
     gameState.equipment.spell = { spellName: "Test", spellCategory: 'ranged', baseDmg: 10, manaCost: 5 };
     gameState.mana = 100;
     const originalRandom = Math.random;
-    Math.random = () => 0.075; // 7.5% : sous l'ancien plancher (3%) mais sous le nouveau (8%) -> backfire
+    Math.random = () => 0.075; // 7.5% : au-dessus du nouveau plancher (3%) -> pas de backfire, le sort porte
     attackMagic();
     Math.random = originalRandom;
-    assert(gameState.currentEnemy.hp === 9999, "attackMagic() : plancher de backfire relevé à 8% (un tirage à 7.5% échoue désormais)");
+    assert(gameState.currentEnemy.hp < 9999, "attackMagic() : plancher de backfire abaissé à 3% (un tirage à 7.5% ne backfire plus)");
+
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.skills.magic.level = 50;
+    gameState.currentEnemy = { name: "Cobaye Magie 2", hp: 9999, maxHp: 9999, atk: 1, def: 50, status: {} };
+    gameState.combatDistance = config.rangedCombat.initialDistance;
+    gameState.equipment.spell = { spellName: "Test", spellCategory: 'ranged', baseDmg: 10, manaCost: 5 };
+    gameState.mana = 100;
+    Math.random = () => 0.025; // 2.5% : sous le nouveau plancher (3%) -> backfire, même à très haut niveau
+    attackMagic();
+    Math.random = originalRandom;
+    assert(gameState.currentEnemy.hp === 9999, "attackMagic() : le plancher de backfire (3%) reste incompressible, même à très haut niveau");
 }
 
 // Items blagues (7) : jokeItem exclu du loot normal (generateItem()), et poids de rareté bas de

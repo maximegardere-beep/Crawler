@@ -310,6 +310,14 @@ Tailwind CDN, **aucun build step**.
   perdre. Le mana (`gameState.mana`, 0-100) n'existe visuellement pour le joueur qu'une fois un sort
   équipé, et se régénère comme les PV : passif via `applyTimeElapsedRegen()` (voir plus bas),
   potions (`item.mana` dans `items.js`), aide du compagnon Médecin.
+  **Parité magie/arme** (chantier "QoL/équilibrage", Chantier C — voir `NOTES_QOL_EQUILIBRAGE.md`) :
+  `config.magicBalance` (`atkBase` 1.1, `atkPerLevel` 0.015, `backfireBase` 15, `backfirePerLevel`
+  -1.5, `backfireMin` 3) remplace les constantes qui étaient en dur dans `attackMagic()` — le mana
+  achète la flexibilité (mêlée/distance sans changer d'équipement), pas un surplus de dégâts : à
+  rareté égale, un sort et une arme infligent des dégâts comparables (`atkMultiplier` sort 1.1 contre
+  1.0 pour une arme, `spellCatalog` réajusté en conséquence — voir
+  `tests/regression/magic-balance.js`). Le plancher de backfire est ABAISSÉ (8% → 3%) : plus punitif
+  à haut niveau de compétence Magie, pour que le risque reste réel même une fois la compétence montée.
 - **Régénération passive (PV/mana)** : `applyTimeElapsedRegen(hours)` — PV **dégressif** selon le %
   de PV déjà restants (`HP_REGEN_TIERS` : 10/h sous 50%, 4/h entre 50-80%, 1/h au-delà — un vrai filet
   de sécurité en dessous, un simple filet d'eau au-delà), mana à **12/h** (seulement si un sort est

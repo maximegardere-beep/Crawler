@@ -16,6 +16,7 @@ require('./regression/combat-enrage.js');
 require('./regression/items.js');
 require('./regression/misc.js');
 require('./regression/magic.js');
+require('./regression/magic-balance.js');
 require('./regression/saves.js');
 require('./regression/floor-transition.js');
 require('./regression/necrologie.js');
