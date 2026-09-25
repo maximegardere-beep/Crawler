@@ -373,6 +373,13 @@ function generateSpellScroll(powerScore = 0, minRarityKey = null) {
     scroll.category = 'scrolls';
     scroll.spellCategory = base.category; // 'melee' | 'ranged' — voir attackMagic() dans app.js
     scroll.spellName = base.name;
+    // Chantier "QoL/équilibrage" (Chantier D) : baseValue absent jusqu'ici — un parchemin ne pouvait
+    // ni se vendre correctement (sellItem()) ni afficher un prix marchand cohérent (generateShopStock()
+    // calculait déjà baseValue×SHOP_MARKUP, mais avec le repli `|| 1`, invisible faute de baseValue).
+    // Échelle sur base.baseDmg (NON scalé par la rareté — même convention que baseValue sur les objets
+    // classiques dans items.js, jamais affecté par statMult dans generateItem()), ratio ≈1.6 comparable
+    // aux armes (baseValue/baseDmg ≈1.5-2 sur items.js).
+    scroll.baseValue = Math.round(base.baseDmg * 1.6);
 
     const rarity = rollRarity(powerScore, minRarityKey);
     scroll.rarity = rarity.name;
@@ -415,6 +422,7 @@ function generateWelcomeGiftItem(type) {
         scroll.spellName = base.name;
         scroll.rarity = commun.name;
         scroll.rarityColor = commun.color;
+        scroll.baseValue = Math.round(base.baseDmg * 1.6); // Même échelle que generateSpellScroll()
         scroll.name = `Parchemin : ${base.name}`;
         return scroll;
     }
@@ -478,6 +486,7 @@ function generateTestKitSpell() {
     scroll.spellName = base.name;
     scroll.rarity = rarity.name;
     scroll.rarityColor = rarity.color;
+    scroll.baseValue = Math.round(base.baseDmg * 1.6); // Même échelle que generateSpellScroll(), jamais scalé par la rareté
     scroll.baseDmg = Math.max(1, Math.round(scroll.baseDmg * rarity.statMult));
     scroll.manaCost = Math.max(5, Math.round(scroll.manaCost * rarity.statMult));
     scroll.name = `Parchemin : ${base.name}`;

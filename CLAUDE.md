@@ -22,6 +22,16 @@ Tailwind CDN, **aucun build step**.
   en cache sur sa pièce, combattable plus tard via "Lieux connus" (distance réelle par Dijkstra,
   `computeDistance()`, coût/risque de trajet proportionnels).
 - Salles sécurisées : pièces fixes, thème tiré dans `safehouses.js`, deviennent un lieu connu.
+  **Entrée à choix explicite** (chantier "QoL/équilibrage", voir `NOTES_QOL_EQUILIBRAGE.md`) : plus de
+  soin automatique — `enterRoom()` pose `gameState.safehouseChoicePending`/`pendingSafehouseRoomId`
+  (inclus dans `isActionBlocked()`) et affiche `#safehouse-choice-zone`, même famille que
+  `#boss-choice-zone`. `restAtSafehouse()` coûte `config.safehouse.restCost` (2H, sauf
+  REPAS_DE_FAMILLE, anomalies.js) contre un soin PV majoré (25-40, tiré au hasard) et du mana à la
+  MÊME échelle si un sort est équipé ; `leaveSafehouse()` reste gratuit, sans effet — la salle reste
+  de toute façon enregistrée comme lieu connu dès l'entrée, quelle que soit l'issue. Garde-fou :
+  `#btn-rest-safehouse` est désactivé dès l'affichage si `timeLeft - restCost <= 0`, doublé d'une
+  vérification identique dans `restAtSafehouse()` elle-même (sécurité redondante) — le repos ne peut
+  donc structurellement plus amener `timeLeft` à 0, contrairement à l'ancien soin automatique.
 - Exploration = un seul bouton "Explorer" : jamais de choix bloquant de navigation.
 - **Combat à distance** : aucune posture côté joueur — seul `mob.ranged` détermine l'écart de départ
   (`gameState.combatDistance`, 0 si mêlée). Arme/Mains nues exigent l'écart nul, Tir l'écart > 0 (+
@@ -54,7 +64,11 @@ Tailwind CDN, **aucun build step**.
   des deux côtés. Badges visibles dans l'inventaire (`buildMechanicBadgesHtml()`), colorés si
   fonctionnels, grisés sinon. `jokeItem: true` (`items.js`) marque un objet volontairement dérisoire
   (blague DCC), exclu du tirage normal du loot (`generateItem()`) mais toujours accessible via le
-  cadeau de bienvenue et le kit de test.
+  cadeau de bienvenue et le kit de test. Réserve d'équipement (armes/armures/armes à distance,
+  consommables et parchemins jamais comptés, voir `addLoot()`) : `config.inventory.maxEquipment` (8,
+  chantier "QoL/équilibrage", Chantier B — voir `NOTES_QOL_EQUILIBRAGE.md`) — `gameState.maxInventory`
+  en est un simple alias, posé juste après la déclaration de `config` (`gameState` est déclaré avant
+  `config` plus haut dans `app.js`, il ne peut donc pas le référencer dans son propre littéral).
 - **Mobs élite** : `generateMob()` pose `threatMultiplier` (puissance apportée par les seuls
   modificateurs, hors scaling d'étage) via `computeThreatMultiplier()` (generator.js, fonction pure et
   testable indépendamment du pipeline aléatoire) — ATQ×PV pondéré par la DEF avec un poids modéré
@@ -188,6 +202,14 @@ Tailwind CDN, **aucun build step**.
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
   `1 + floor(niveau/5)` (croissants avec le niveau ATTEINT, pour rester au niveau des mobs en fin de run).
+- **Budget temps par étage** (chantier "QoL/équilibrage", Chantier E — voir `NOTES_QOL_EQUILIBRAGE.md`) :
+  `gameState.maxTime` n'est plus un plafond fixe (100H) mais `config.floorTimeBudget.base +
+  perFloor × (étage - 1)` (130 + 5H/étage), recalculé par `advanceToNextFloor()` à chaque changement
+  d'étage (`gameState.timeLeft` remis à ce nouveau maximum, comme avant) — objectif : réduire les
+  morts "sans avoir vu l'escalier" sur les étages tardifs (mobs/distances plus coûteux), sans
+  supprimer la pression du temps ni la mort par épuisement, toujours possible. Alerte visuelle
+  discrète (`#stair-alert-banner`, pulse `prefers-reduced-motion`-safe) affichée par `updateUI()` dès
+  `timeLeft/maxTime <= 25%`, jamais en combat.
 - **Écran d'escalier** (`triggerFloorTransition()`/`continueFromFloorTransition()`) : affiché à la
   place d'un passage direct à l'étage suivant, dès qu'un gardien tombe (`winCombat()`, classique ET
   urbain) ou qu'une ville-escalier non gardée est atteinte (`arriveAtCity()`). Titre sarcastique tiré
@@ -296,6 +318,14 @@ Tailwind CDN, **aucun build step**.
   perdre. Le mana (`gameState.mana`, 0-100) n'existe visuellement pour le joueur qu'une fois un sort
   équipé, et se régénère comme les PV : passif via `applyTimeElapsedRegen()` (voir plus bas),
   potions (`item.mana` dans `items.js`), aide du compagnon Médecin.
+  **Parité magie/arme** (chantier "QoL/équilibrage", Chantier C — voir `NOTES_QOL_EQUILIBRAGE.md`) :
+  `config.magicBalance` (`atkBase` 1.1, `atkPerLevel` 0.015, `backfireBase` 15, `backfirePerLevel`
+  -1.5, `backfireMin` 3) remplace les constantes qui étaient en dur dans `attackMagic()` — le mana
+  achète la flexibilité (mêlée/distance sans changer d'équipement), pas un surplus de dégâts : à
+  rareté égale, un sort et une arme infligent des dégâts comparables (`atkMultiplier` sort 1.1 contre
+  1.0 pour une arme, `spellCatalog` réajusté en conséquence — voir
+  `tests/regression/magic-balance.js`). Le plancher de backfire est ABAISSÉ (8% → 3%) : plus punitif
+  à haut niveau de compétence Magie, pour que le risque reste réel même une fois la compétence montée.
 - **Régénération passive (PV/mana)** : `applyTimeElapsedRegen(hours)` — PV **dégressif** selon le %
   de PV déjà restants (`HP_REGEN_TIERS` : 10/h sous 50%, 4/h entre 50-80%, 1/h au-delà — un vrai filet
   de sécurité en dessous, un simple filet d'eau au-delà), mana à **12/h** (seulement si un sort est
@@ -391,20 +421,31 @@ Tailwind CDN, **aucun build step**.
   `sellItem(index)` (`SELL_VALUE_RATIO = 0.4` × `item.baseValue`, objet retiré de l'inventaire).
   Dépensée exclusivement dans les villes spécialisées (marchand/professeur, voir ci-dessous) — pas
   d'autre sink pour l'instant.
-- **Villes spécialisées (marchand/professeur)** : à la génération d'un étage urbain, chaque ville
-  normale (ni départ, ni escalier/Sortie) a `config.urbanFloors.specializedCityChance` (18%) de
-  devenir marchand OU professeur (50/50), tiré indépendamment par ville. Un marchand vend une
-  catégorie d'objet (`city.specialty` ∈ armes/armes à distance/armures/parchemins) ; un professeur
-  forme UNE des 4 compétences réelles du joueur (`gameState.skills`, pas de "compétence armure" —
-  contrairement aux objets, une compétence n'a que 4 valeurs possibles). `triggerShopEncounter(city)`
-  (dispatché depuis `arriveAtCity()`, avant la résolution générique "ville sûre") ouvre `#shop-zone`
-  et pose `gameState.shopChoicePending` (inclus dans `isActionBlocked()`, comme un choix de boss).
-  `generateShopStock(specialty)` tire 3 objets une seule fois par partie (`city.stock`, jamais
-  régénéré), prix = `item.baseValue × SHOP_MARKUP` (2.5) ; `buyShopItem()`/`sellItem()` sont les deux
-  faces du même `SELL_VALUE_RATIO`/`SHOP_MARKUP`, volontairement asymétriques (acheter coûte plus cher
-  que vendre ne rapporte). `trainSkill()` paie `TRAINER_COST_PER_LEVEL` (20) × le niveau ACTUEL de la
-  compétence pour l'amener exactement au niveau suivant (`gainSkillXp(specialty, xpToNext - xp)`) —
-  "payer pour s'entraîner" plutôt que le grind combat habituel, jamais un raccourci gratuit.
+- **Villes spécialisées (marchand/professeur)** : à la génération d'un étage urbain, **une ville
+  normale est TOUJOURS marchand, une autre TOUJOURS professeur** (ni départ, ni escalier/Sortie —
+  chantier "QoL/équilibrage", Chantier D, voir `NOTES_QOL_EQUILIBRAGE.md` : avant ce chantier les deux
+  étaient purement probabilistes et un étage urbain pouvait n'avoir ni l'un ni l'autre). Les deux
+  villes garanties sont tirées sans remise (mélange Fisher-Yates) parmi les candidates restantes ;
+  `config.urbanFloors.specializedCityChance` (18%) ne gouverne plus que les éventuelles villes
+  spécialisées SUPPLÉMENTAIRES, tirée indépendamment par ville candidate restante (comportement
+  probabiliste inchangé pour celles-là). Un marchand vend une catégorie d'objet (`city.specialty` ∈
+  armes/armes à distance/armures/parchemins) ; un professeur forme UNE des 4 compétences réelles du
+  joueur (`gameState.skills`, pas de "compétence armure" — contrairement aux objets, une compétence
+  n'a que 4 valeurs possibles). `triggerShopEncounter(city)` (dispatché depuis `arriveAtCity()`, avant
+  la résolution générique "ville sûre") ouvre `#shop-zone` et pose `gameState.shopChoicePending`
+  (inclus dans `isActionBlocked()`, comme un choix de boss). `generateShopStock(specialty)` tire 3
+  objets une seule fois par partie (`city.stock`, jamais régénéré), prix = `item.baseValue ×
+  SHOP_MARKUP` (2.5) ; `buyShopItem()`/`sellItem()` sont les deux faces du même
+  `SELL_VALUE_RATIO`/`SHOP_MARKUP`, volontairement asymétriques (acheter coûte plus cher que vendre ne
+  rapporte). `sellSpell()` est le pendant de `sellItem()` pour `gameState.spellbook` (Chantier D,
+  section boutique dédiée `#shop-sell-spells-list`) — les parchemins (`generateSpellScroll()`) posent
+  désormais `baseValue` (dérivé du `baseDmg` NON scalé du sort de base, jamais affecté par la rareté —
+  même convention que `baseValue` sur les objets classiques dans `items.js`), corrigeant au passage un
+  bug préexistant où un marchand de parchemins vendait systématiquement à 2-3 PO (repli `baseValue ||
+  1` dans `generateShopStock()`, faute de `baseValue` réel). `trainSkill()` paie
+  `TRAINER_COST_PER_LEVEL` (20) × le niveau ACTUEL de la compétence pour l'amener exactement au niveau
+  suivant (`gainSkillXp(specialty, xpToNext - xp)`) — "payer pour s'entraîner" plutôt que le grind
+  combat habituel, jamais un raccourci gratuit.
 - **Repaires sur les routes** : `config.urbanFloors.lairRoadsPerFloor` (1, 2 à l'étage final) routes
   du réseau urbain sont désignées "repaire" à la génération (`generateUrbanFloorMap()`), tirées parmi
   toutes les paires ville-ville reliées, `isLair`/`lairId` posés sur LES DEUX sens de la route (comme

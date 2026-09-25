@@ -14,7 +14,7 @@ function assert(cond, msg) { if (!cond) { failures++; console.error("FAIL:", msg
 let steps = 0, floorsCleared = 0, combatsWon = 0, bossesEncountered = 0;
 let stealthEncounters = 0, companionEncounters = 0, eliteMobsSeen = 0, armorMechanicProcs = 0;
 let urbanFloorsSeen = 0, cityTravels = 0, winTriggered = false;
-let shopEncounters = 0, lairEncounters = 0, floorTransitionsSeen = 0, pactChoicesSeen = 0;
+let shopEncounters = 0, lairEncounters = 0, floorTransitionsSeen = 0, pactChoicesSeen = 0, safehouseEncounters = 0;
 const seenErrors = [];
 
 gameState.equipment.armor = { name: "Plastron d'Essai", baseArmor: 12, category: 'armors', mechanics: ['bleed', 'heal', 'adrenaline', 'stealth'] };
@@ -36,6 +36,11 @@ try {
             bossesEncountered++;
             if (gameState.currentEnemy && isEliteMob(gameState.currentEnemy)) eliteMobsSeen++;
             fightBossNow();
+        } else if (gameState.safehouseChoicePending) {
+            // Salle sécurisée (voir enterRoom()) : alterne repos/repartir pour exercer les deux
+            // issues — sans cette branche, la simulation resterait bloquée dessus (isActionBlocked()).
+            safehouseEncounters++;
+            if (steps % 2 === 0) restAtSafehouse(); else leaveSafehouse();
         } else if (gameState.stealthChoicePending) {
             stealthEncounters++;
             attemptStealthAttack();
@@ -222,7 +227,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon, ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon, ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");

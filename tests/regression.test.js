@@ -16,6 +16,7 @@ require('./regression/combat-enrage.js');
 require('./regression/items.js');
 require('./regression/misc.js');
 require('./regression/magic.js');
+require('./regression/magic-balance.js');
 require('./regression/saves.js');
 require('./regression/floor-transition.js');
 require('./regression/necrologie.js');
@@ -25,6 +26,7 @@ require('./regression/balance.js');
 require('./regression/urban-map.js');
 require('./regression/urban-shops.js');
 require('./regression/urban-lairs.js');
+require('./regression/safehouses.js');
 
 console.log(`${counts.passed} test(s) OK, ${counts.failures} échec(s).`);
 process.exit(counts.failures === 0 ? 0 : 1);

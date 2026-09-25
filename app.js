@@ -31,13 +31,18 @@ const gameState = {
         magic: { level: 1, xp: 0, xpToNext: 30 },
         stealth: { level: 1, xp: 0, xpToNext: 30 }
     },
+    // Valeurs réelles (config.floorTimeBudget.base) posées juste après la déclaration de `config`
+    // plus bas dans ce fichier, même contrainte d'ordre que gameState.maxInventory (Chantier B).
     timeLeft: 100,
-    maxTime: 100, // Temps alloué pour un niveau
+    maxTime: 100, // Temps alloué pour l'étage courant
     currentFloor: 1,
     // Reflète toujours le quartier (quadrant) où se trouve actuellement le joueur ; posé par
     // generateFloorMap() à chaque étage, puis mis à jour à chaque changement de quadrant.
     currentDistrict: null,
     inventory: [],
+    // Valeur réelle posée juste après la déclaration de `config` plus bas dans ce fichier (ordre de
+    // déclaration : config référence gameState par endroits, gameState ne peut donc pas référencer
+    // config ici) — voir `gameState.maxInventory = config.inventory.maxEquipment;` juste après `config`.
     maxInventory: 5,
     // PO (pièces d'or) : trouvées en explorant (voir config.chances.goldFind) ou obtenues en
     // revendant un objet d'inventaire (sellItem()) — seule monnaie du jeu, dépensée dans les villes
@@ -71,6 +76,8 @@ const gameState = {
     pendingStairAfterCombat: false, // Si vrai, gagner le combat en cours ouvre l'étage suivant
     pendingBossRoomId: null, // Room id de la salle de boss en cours de combat, pour la marquer vaincue à la victoire
     bossChoicePending: false, // Une salle de boss vient d'être trouvée, décision combattre/repérer en attente
+    safehouseChoicePending: false, // Une salle sécurisée vient d'être trouvée, décision repos/repartir en attente
+    pendingSafehouseRoomId: null, // Room id de la salle sécurisée dont le choix est actuellement affiché
     stealthChoicePending: false, // Un ennemi non repéré attend une décision (esquiver/attaque furtive)
     pendingStealthEncounter: null, // L'ennemi généré, en attente de cette décision
     pendingSneakAttack: false, // Consommé par le tout premier coup porté (bonus x2)
@@ -366,8 +373,57 @@ const config = {
         // toujours 1, sauf à l'étage final où un second, plus généreux, s'ajoute.
         lairRoadsPerFloor: 1,
         lairRoadsFinalFloor: 2
+    },
+
+    // Salle sécurisée (chantier "QoL/équilibrage" — voir enterRoom()) : entrée à choix explicite,
+    // plus de soin automatique. Repos = ce coût en temps, contre un soin majoré PV (+ mana si un
+    // sort est équipé, même échelle) ; "Repartir" reste gratuit. Valeurs de départ, à ajuster par
+    // playtest.
+    safehouse: {
+        restCost: 2,
+        restHpMin: 25,
+        restHpMax: 40
+    },
+
+    // Réserve d'équipement (armes/armures/armes à distance — consommables et parchemins jamais
+    // comptés, voir addLoot()) : valeur de départ à playtester, centralisée ici plutôt qu'en dur sur
+    // gameState.maxInventory (voir son initialisation ci-dessous).
+    inventory: {
+        maxEquipment: 8
+    },
+
+    // Parité magie/arme (chantier "QoL/équilibrage" — voir attackMagic()) : le mana achète la
+    // flexibilité (mêlée/distance sans changer d'équipement), pas un surplus de dégâts par rapport à
+    // l'arme équivalente ; le backfire reste le prix du chaos, plus punitif à haut niveau qu'avant
+    // pour continuer à justifier ce risque une fois la compétence Magie montée. Valeurs de départ, à
+    // ajuster par playtest (voir NOTES_COMBAT.md pour la mesure de parité qui a produit ces chiffres).
+    magicBalance: {
+        atkBase: 1.1,
+        atkPerLevel: 0.015,
+        backfireBase: 15,
+        backfirePerLevel: -1.5,
+        backfireMin: 3
+    },
+
+    // Budget temps par étage (chantier "QoL/équilibrage" — voir advanceToNextFloor()) : grandit avec
+    // la profondeur plutôt qu'un plafond fixe, pour réduire les morts "sans avoir vu l'escalier" sur
+    // les étages tardifs (mobs/distances plus coûteux) sans supprimer la pression du temps. Valeur de
+    // départ, à ajuster par playtest.
+    floorTimeBudget: {
+        base: 130,
+        perFloor: 5
     }
 };
+
+// Réserve d'équipement (Chantier B, "QoL/équilibrage") : valeur réelle posée ici, juste après la
+// déclaration de config (gameState est déclaré AVANT config plus haut dans ce fichier, donc son
+// littéral ne peut pas référencer config.inventory.maxEquipment directement).
+gameState.maxInventory = config.inventory.maxEquipment;
+// Budget temps du tout premier étage (Chantier E, "QoL/équilibrage") : même contrainte d'ordre —
+// advanceToNextFloor() recalcule ensuite maxTime à chaque changement d'étage (formule composée avec
+// la profondeur), cette ligne ne pose que la valeur de DÉPART, avant tout advanceToNextFloor().
+gameState.maxTime = config.floorTimeBudget.base;
+gameState.timeLeft = gameState.maxTime;
 
 // Un mob non-boss est "élite" si ses modificateurs (voir threatMultiplier dans generateMob())
 // dépassent le seuil de config.eliteThreatMultiplier. Les boss ont déjà leur propre signal (👑) :
@@ -493,6 +549,7 @@ const ui = {
     skillStealthBar: document.getElementById('skill-stealth-bar'),
     timeText: document.getElementById('time-text'),
     timeBar: document.getElementById('time-bar'),
+    stairAlertBanner: document.getElementById('stair-alert-banner'),
     inventoryCount: document.getElementById('inventory-count'),
     consumableQuickbar: document.getElementById('consumable-quickbar'),
     inventoryEquipmentCards: document.getElementById('inventory-equipment-cards'),
@@ -516,6 +573,9 @@ const ui = {
     bossChoiceZone: document.getElementById('boss-choice-zone'),
     btnFightBoss: document.getElementById('btn-fight-boss'),
     btnRetreatBoss: document.getElementById('btn-retreat-boss'),
+    safehouseChoiceZone: document.getElementById('safehouse-choice-zone'),
+    btnRestSafehouse: document.getElementById('btn-rest-safehouse'),
+    btnLeaveSafehouse: document.getElementById('btn-leave-safehouse'),
     stealthChoiceZone: document.getElementById('stealth-choice-zone'),
     btnStealthEvade: document.getElementById('btn-stealth-evade'),
     btnStealthAttack: document.getElementById('btn-stealth-attack'),
@@ -561,6 +621,7 @@ const ui = {
     shopTrainerContent: document.getElementById('shop-trainer-content'),
     shopStockList: document.getElementById('shop-stock-list'),
     shopSellList: document.getElementById('shop-sell-list'),
+    shopSellSpellsList: document.getElementById('shop-sell-spells-list'),
     shopTrainerInfo: document.getElementById('shop-trainer-info'),
     btnTrainSkill: document.getElementById('btn-train-skill'),
     btnLeaveShop: document.getElementById('btn-leave-shop'),
@@ -1051,6 +1112,14 @@ function updateUI() {
     } else {
         ui.timeBar.classList.replace('bg-red-600', 'bg-blue-600');
         ui.timeBar.style.boxShadow = "0 0 15px rgba(37, 99, 235, 1)";
+    }
+
+    // Alerte escalier (chantier "QoL/équilibrage", Chantier E — voir NOTES_QOL_EQUILIBRAGE.md) :
+    // bandeau discret sous la barre de temps dès que timeLeft/maxTime <= 25%, jamais en combat (le
+    // panneau latéral PV/statut prend toute la place utile à ce moment-là, et le temps n'y est de
+    // toute façon pas la ressource sur laquelle agir dans l'instant).
+    if (ui.stairAlertBanner) {
+        ui.stairAlertBanner.classList.toggle('hidden', timePercentage > 25 || gameState.inCombat);
     }
 
     // Gestion de l'affichage du combat : rétrécissement de la carte, panneaux latéraux PV/statut
@@ -1683,9 +1752,10 @@ function useConsumable(index) {
 }
 
 // Ratio de revente : un objet de l'inventaire (équipement non équipé ou consommable) se vend à une
-// fraction de sa valeur de base — jamais l'équipement actuellement porté (gameState.equipment),
-// jamais un sort (le grimoire n'a pas de valeur marchande). Réservé à l'interaction boutique (voir
-// triggerShopEncounter()) : pas de vente "de rue" hors ville spécialisée.
+// fraction de sa valeur de base — jamais l'équipement actuellement porté (gameState.equipment). Un
+// parchemin du grimoire se vend au même ratio (voir sellSpell() ci-dessous), jamais celui équipé
+// (gameState.equipment.spell), qui ne fait justement jamais partie de gameState.spellbook. Réservé à
+// l'interaction boutique (voir triggerShopEncounter()) : pas de vente "de rue" hors ville spécialisée.
 const SELL_VALUE_RATIO = 0.4;
 function sellItem(index) {
     const item = gameState.inventory[index];
@@ -1697,6 +1767,22 @@ function sellItem(index) {
     logEvent(`Vous vendez [${formatItemDisplayName(item)}] pour ${price} PO.`, "success");
     updateUI();
     updateInventoryUI();
+}
+
+// Vente d'un parchemin du grimoire (chantier "QoL/équilibrage", Chantier D) — pendant de sellItem()
+// pour gameState.spellbook plutôt que gameState.inventory, même ratio/logique. L'équipé
+// (gameState.equipment.spell) n'est structurellement jamais dans ce tableau (voir equipSpell()), donc
+// rien de plus à vérifier ici pour l'exclure.
+function sellSpell(index) {
+    const spell = gameState.spellbook[index];
+    if (!spell) return;
+
+    const price = Math.max(1, Math.round((spell.baseValue || 0) * SELL_VALUE_RATIO));
+    gameState.gold += price;
+    gameState.spellbook.splice(index, 1);
+    logEvent(`Vous vendez [${formatItemDisplayName(spell)}] pour ${price} PO.`, "success");
+    updateUI();
+    updateSpellbookUI();
 }
 
 // ==========================================
@@ -1953,7 +2039,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending;
 }
 
 // Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
@@ -2265,6 +2351,11 @@ function updateCompanionUI() {
 function advanceToNextFloor() {
     gameState.currentFloor += 1;
     gameState.cardsDrawnThisFloor = 0;
+    // Budget temps croissant par étage (chantier "QoL/équilibrage", Chantier E — voir
+    // NOTES_QOL_EQUILIBRAGE.md) : plus de plafond fixe, config.floorTimeBudget.base +
+    // perFloor × profondeur, pour réduire les morts "sans avoir vu l'escalier" sur les étages
+    // tardifs (mobs/distances plus coûteux) sans supprimer la pression du temps.
+    gameState.maxTime = config.floorTimeBudget.base + config.floorTimeBudget.perFloor * (gameState.currentFloor - 1);
     gameState.timeLeft = gameState.maxTime; // Réinitialisation du temps
     gameState.knownLocations = []; // Les lieux repérés à l'étage précédent ne sont plus accessibles
     gameState.floorMap = null;
@@ -3655,12 +3746,37 @@ function generateUrbanFloorMap() {
         target.guarded = Math.random() * 100 < guardChance;
     }
 
-    // Villes spécialisées (marchand/professeur) : chaque ville normale (jamais le départ, jamais
-    // l'escalier/la Sortie — pour ne pas cumuler un gardien ET un PNJ sur la même ville) a une
-    // chance de devenir un point de vente ou de formation. Le marchand vend une catégorie d'objet
-    // (voir generateShopStock()) ; le professeur forme UNE des 4 compétences réelles du joueur
-    // (gameState.skills) — pas de "compétence armure", contrairement aux objets.
-    candidateIds.filter(id => id !== target.id).forEach(id => {
+    // Villes spécialisées (marchand/professeur) : GARANTIES (chantier "QoL/équilibrage", Chantier D)
+    // — une ville normale (jamais le départ, jamais l'escalier/la Sortie, pour ne pas cumuler un
+    // gardien ET un PNJ) devient TOUJOURS marchand, une autre TOUJOURS professeur, tirées sans remise
+    // parmi les candidates restantes. Avant ce chantier, les deux étaient purement probabilistes
+    // (specializedCityChance par ville) : un étage urbain pouvait n'avoir ni l'un ni l'autre. Le
+    // marchand vend une catégorie d'objet (voir generateShopStock()) ; le professeur forme UNE des 4
+    // compétences réelles du joueur (gameState.skills) — pas de "compétence armure", contrairement
+    // aux objets.
+    const specialCandidateIds = candidateIds.filter(id => id !== target.id);
+    const shuffledSpecialCandidates = [...specialCandidateIds];
+    for (let i = shuffledSpecialCandidates.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledSpecialCandidates[i], shuffledSpecialCandidates[j]] = [shuffledSpecialCandidates[j], shuffledSpecialCandidates[i]];
+    }
+    // cityCount (6 + profondeur/9) laisse toujours au moins 2 candidates hors départ/cible en
+    // pratique sur cette plage de valeurs — pas de garde spécifique pour le cas contraire, qui
+    // n'est jamais atteint avec la config actuelle (voir NOTES_QOL_EQUILIBRAGE.md).
+    const guaranteedMerchantId = shuffledSpecialCandidates[0];
+    const guaranteedTrainerId = shuffledSpecialCandidates[1];
+    if (guaranteedMerchantId) {
+        citiesById[guaranteedMerchantId].role = 'merchant';
+        citiesById[guaranteedMerchantId].specialty = pick(['weapons', 'ranged', 'armors', 'scrolls']);
+    }
+    if (guaranteedTrainerId) {
+        citiesById[guaranteedTrainerId].role = 'trainer';
+        citiesById[guaranteedTrainerId].specialty = pick(['weapon', 'unarmed', 'magic', 'stealth']);
+    }
+
+    // Villes spécialisées SUPPLÉMENTAIRES, au-delà de la garantie ci-dessus : chance indépendante par
+    // ville candidate restante, comportement inchangé de ce chantier.
+    specialCandidateIds.filter(id => id !== guaranteedMerchantId && id !== guaranteedTrainerId).forEach(id => {
         if (Math.random() * 100 >= config.urbanFloors.specializedCityChance) return;
         const city = citiesById[id];
         if (Math.random() < 0.5) {
@@ -4119,6 +4235,26 @@ function updateShopUI() {
             row.addEventListener('click', () => { sellItem(index); updateShopUI(); });
             ui.shopSellList.appendChild(row);
         });
+
+        // Vente de parchemins (chantier "QoL/équilibrage", Chantier D) : même présentation que la
+        // vente d'inventaire ci-dessus, mais sur gameState.spellbook via sellSpell() — l'équipé
+        // (gameState.equipment.spell) n'y figure structurellement jamais (voir equipSpell()).
+        ui.shopSellSpellsList.innerHTML = "";
+        const sellableSpells = gameState.spellbook;
+        if (sellableSpells.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = "text-[10px] text-gray-600 italic";
+            empty.innerText = "Aucun parchemin à vendre pour l'instant.";
+            ui.shopSellSpellsList.appendChild(empty);
+        }
+        sellableSpells.forEach((spell, index) => {
+            const price = Math.max(1, Math.round((spell.baseValue || 0) * SELL_VALUE_RATIO));
+            const row = document.createElement('button');
+            row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
+            row.innerHTML = `<span class="truncate">${formatItemDisplayName(spell)}</span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
+            row.addEventListener('click', () => { sellSpell(index); updateShopUI(); });
+            ui.shopSellSpellsList.appendChild(row);
+        });
     } else {
         const skill = gameState.skills[city.specialty];
         const cost = TRAINER_COST_PER_LEVEL * skill.level;
@@ -4250,47 +4386,33 @@ function enterRoom(room) {
     }
 
     if (room.type === 'safe') {
-        // Soin COMPLET (PV + mana si un sort est équipé), en contrepartie de la régénération passive
-        // dégressive (voir HP_REGEN_TIERS) : une salle sécurisée reste le seul moyen fiable de
-        // repartir plein PV/mana, mais le séjour coûte du temps proportionnel à ce qui est
-        // effectivement régénéré — jamais de double comptage avec applyTimeElapsedRegen() sur ce
-        // temps-là, on fixe directement PV/mana au maximum.
+        // Entrée à choix explicite (chantier "QoL/équilibrage" — voir restAtSafehouse()/
+        // leaveSafehouse() plus bas) : plus de soin automatique ni de coût de temps à l'entrée
+        // elle-même. La salle est enregistrée comme lieu connu dès l'entrée, quelle que soit l'issue
+        // choisie ensuite (comportement conservé de l'ancienne version).
         const safehouse = room.safehouse || { name: "Salle Sécurisée", icon: "🏥", desc: "" };
-        const hasSpell = !!gameState.equipment.spell;
-        const missingHp = gameState.maxHp - gameState.hp;
-        const missingMana = hasSpell ? (gameState.maxMana - gameState.mana) : 0;
-        // REPAS_DE_FAMILLE (anomalies.js) : le séjour devient gratuit en temps — restCost reste
-        // calculé pour le message de log, simplement pas déduit de gameState.timeLeft plus bas.
-        const freeMeals = gameState.anomalyEffects.freeSafehouseMeals;
-        const restCost = Math.ceil(missingHp / 10) + Math.ceil(missingMana / 12);
-
-        applyPlayerHeal(missingHp); // Toujours clampé à gameState.maxHp, quel que soit healingMult
-        if (hasSpell) gameState.mana = gameState.maxMana;
+        gameState.safehouseChoicePending = true;
+        gameState.pendingSafehouseRoomId = room.id;
 
         setCardHeader(safehouse.icon, safehouse.name, 'Repos');
-        if (restCost > 0) {
-            if (!freeMeals) gameState.timeLeft = Math.max(0, gameState.timeLeft - restCost);
-            const restored = hasSpell ? "PV et mana entièrement restaurés" : "PV entièrement restaurés";
-            const costNote = freeMeals ? "repas offerts par la maison, aucun temps perdu" : `-${restCost}H`;
-            logEvent(
-                firstVisit
-                    ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc} Vous vous reposez longuement, ${restored} (${costNote}).`
-                    : `Vous retrouvez ${safehouse.name} et vous reposez à nouveau, ${restored} (${costNote}).`,
-                "success"
-            );
-        } else {
-            logEvent(
-                firstVisit
-                    ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc} Vous êtes déjà en pleine forme.`
-                    : `Vous retrouvez ${safehouse.name}, toujours aussi accueillant.`,
-                "success"
-            );
-        }
+        logEvent(
+            firstVisit
+                ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc}`
+                : `Vous retrouvez ${safehouse.name}, toujours aussi accueillant.`,
+            "info"
+        );
         registerKnownLocation({ id: `safe-${room.id}`, type: 'safeRoom', roomId: room.id, label: safehouse.name, icon: safehouse.icon });
 
-        if (gameState.timeLeft <= 0) {
-            gameOver(true);
-        }
+        // Garde-fou : le repos ne doit JAMAIS pouvoir amener timeLeft à 0 (voir CLAUDE.md) — bouton
+        // désactivé dès l'affichage plutôt que vérifié seulement au clic, pour que ce soit visible
+        // avant toute tentative. REPAS_DE_FAMILLE (anomalies.js) rend le repos gratuit en temps : le
+        // garde-fou ne s'applique donc pas dans ce cas.
+        const freeMeals = gameState.anomalyEffects.freeSafehouseMeals;
+        const canRest = freeMeals || gameState.timeLeft - config.safehouse.restCost > 0;
+        ui.btnRestSafehouse.disabled = !canRest;
+        ui.btnRestSafehouse.title = canRest ? "" : "Pas assez de temps pour vous reposer";
+        ui.safehouseChoiceZone.classList.remove('hidden');
+        updateUI();
         return;
     }
 
@@ -4305,6 +4427,50 @@ function enterRoom(room) {
         setCardHeader('🌑', 'Chemin Connu', 'Exploration');
         logEvent("Vous retraversez un couloir déjà exploré, rien de neuf.", "normal");
     }
+}
+
+// Choix "Repos" d'une salle sécurisée (voir enterRoom()) : coûte config.safehouse.restCost en temps
+// (sauf REPAS_DE_FAMILLE, anomalies.js — repas gratuits) contre un soin PV majoré (25-40, tiré au
+// hasard) ET du mana à la MÊME échelle si un sort est équipé (même montant tiré, clampé séparément
+// à chaque maximum). Le bouton est déjà désactivé côté UI si ce coût ferait tomber timeLeft à 0
+// (voir enterRoom()) : la vérification ici est une sécurité redondante, jamais le chemin normal.
+function restAtSafehouse() {
+    if (!gameState.safehouseChoicePending) return;
+    const restCost = config.safehouse.restCost;
+    const freeMeals = gameState.anomalyEffects.freeSafehouseMeals;
+    if (!freeMeals && gameState.timeLeft - restCost <= 0) return;
+
+    if (!freeMeals) gameState.timeLeft = Math.max(0, gameState.timeLeft - restCost);
+    const healAmount = Math.round(config.safehouse.restHpMin + Math.random() * (config.safehouse.restHpMax - config.safehouse.restHpMin));
+    const healed = applyPlayerHeal(healAmount);
+
+    const hasSpell = !!gameState.equipment.spell;
+    let manaNote = "";
+    if (hasSpell) {
+        const manaBefore = gameState.mana;
+        gameState.mana = Math.min(gameState.maxMana, gameState.mana + healAmount);
+        const manaGained = Math.round(gameState.mana - manaBefore);
+        if (manaGained > 0) manaNote = `, +${manaGained} mana`;
+    }
+
+    const costNote = freeMeals ? "repas offerts par la maison, aucun temps perdu" : `-${restCost}H`;
+    logEvent(`Vous vous reposez longuement (${costNote}, +${healed} PV${manaNote}).`, "success");
+
+    gameState.safehouseChoicePending = false;
+    gameState.pendingSafehouseRoomId = null;
+    ui.safehouseChoiceZone.classList.add('hidden');
+    updateUI();
+}
+
+// Choix "Repartir" d'une salle sécurisée : gratuit, aucun effet — la salle reste visitée et déjà
+// enregistrée comme lieu connu (voir enterRoom()), simplement réutilisable lors d'un futur passage.
+function leaveSafehouse() {
+    if (!gameState.safehouseChoicePending) return;
+    gameState.safehouseChoicePending = false;
+    gameState.pendingSafehouseRoomId = null;
+    ui.safehouseChoiceZone.classList.add('hidden');
+    logEvent("Vous reprenez votre chemin sans vous attarder.", "info");
+    updateUI();
 }
 
 // CAFET_ASSOMBRIE (anomalies.js) : déclenché UNE fois, à la première visite de la pièce taguée
@@ -6095,8 +6261,15 @@ function attackMagic() {
     gameState.mana -= spell.manaCost;
 
     const skill = gameState.skills.magic;
-    const backfireChance = Math.max(8, 15 - 1.5 * (skill.level - 1)) + (gameState.anomalyEffects.backfireBonusPct || 0); // 15% de base, plancher 8% (un sort chaotique garde toujours un risque) + ZONE_MAGIQUE (anomalies.js)
-    const atkMultiplier = (1.25 + 0.02 * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
+    // Chantier "QoL/équilibrage" (Chantier C, voir NOTES_QOL_EQUILIBRAGE.md) : le mana paie la
+    // flexibilité (mêlée/distance sans changer d'équipement), pas un surplus de dégâts par rapport à
+    // l'arme équivalente — atkMultiplier proche de 1.0 (config.magicBalance.atkBase), à rareté égale
+    // un sort et une arme infligent des dégâts comparables (voir tests/regression/magic-balance.js).
+    // Le backfire reste le prix du chaos, et devient PLUS punitif à haut niveau qu'avant (plancher
+    // abaissé) pour continuer à justifier ce risque une fois la compétence Magie montée.
+    const mb = config.magicBalance;
+    const backfireChance = Math.max(mb.backfireMin, mb.backfireBase + mb.backfirePerLevel * (skill.level - 1)) + (gameState.anomalyEffects.backfireBonusPct || 0);
+    const atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
 
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
@@ -6683,6 +6856,10 @@ document.addEventListener('keydown', (e) => {
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)
 ui.btnFightBoss.addEventListener('click', fightBossNow);
 ui.btnRetreatBoss.addEventListener('click', retreatFromBoss);
+
+// Clics sur les boutons de choix de salle sécurisée (Repos / Repartir)
+ui.btnRestSafehouse.addEventListener('click', restAtSafehouse);
+ui.btnLeaveSafehouse.addEventListener('click', leaveSafehouse);
 
 // Clics sur les boutons de choix de furtivité (Esquiver / Attaque Furtive)
 ui.btnStealthEvade.addEventListener('click', attemptStealthEvasion);

@@ -144,3 +144,40 @@ const { assert, resetTransientState } = require('./_helpers.js');
     continueFromFloorTransition();
     assert(gameState.currentFloor === 2, "continueFromFloorTransition() : fait avancer l'étage après coup");
 }
+
+// advanceToNextFloor() : budget temps croissant par étage (chantier "QoL/équilibrage", Chantier E —
+// voir NOTES_QOL_EQUILIBRAGE.md), config.floorTimeBudget.base + perFloor × profondeur, timeLeft
+// remis EXACTEMENT à ce nouveau maxTime (comportement de reset conservé).
+{
+    resetTransientState();
+    gameState.currentFloor = 1;
+    advanceToNextFloor(); // -> étage 2
+    assert(gameState.maxTime === config.floorTimeBudget.base + config.floorTimeBudget.perFloor * 1,
+        "advanceToNextFloor() : maxTime suit base + perFloor × (étage - 1)");
+    assert(gameState.timeLeft === gameState.maxTime, "advanceToNextFloor() : timeLeft remis exactement à maxTime");
+
+    advanceToNextFloor(); // -> étage 3
+    assert(gameState.maxTime === config.floorTimeBudget.base + config.floorTimeBudget.perFloor * 2,
+        "advanceToNextFloor() : maxTime continue de grandir à chaque étage suivant");
+}
+
+// updateUI() : bandeau d'alerte escalier affiché dès timeLeft/maxTime <= 25%, masqué au-dessus,
+// jamais affiché en combat même sous le seuil (chantier "QoL/équilibrage", Chantier E).
+{
+    resetTransientState();
+    gameState.maxTime = 100;
+    gameState.timeLeft = 30; // 30% : au-dessus du seuil
+    gameState.inCombat = false;
+    updateUI();
+    assert(ui.stairAlertBanner.classList.contains('hidden') === true, "updateUI() : bandeau masqué au-dessus du seuil de 25%");
+
+    gameState.timeLeft = 25; // Exactement 25% : sous le seuil (<=)
+    updateUI();
+    assert(ui.stairAlertBanner.classList.contains('hidden') === false, "updateUI() : bandeau affiché dès 25% de temps restant");
+
+    gameState.timeLeft = 10;
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Test", hp: 10, maxHp: 10, atk: 1, def: 1, status: {} };
+    updateUI();
+    assert(ui.stairAlertBanner.classList.contains('hidden') === true, "updateUI() : bandeau jamais affiché en combat, même sous le seuil");
+}

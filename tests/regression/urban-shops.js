@@ -29,6 +29,10 @@ const { assert, resetTransientState } = require('./_helpers.js');
                     "generateUrbanFloorMap() : spécialité professeur dans le bon pool (compétences réelles)");
             }
         });
+        // Chantier "QoL/équilibrage" (Chantier D) : au moins un marchand ET un professeur garantis,
+        // plus specializedCityChance ne gouvernant plus que les éventuelles villes supplémentaires.
+        assert(Object.values(um.citiesById).some(c => c.role === 'merchant'), "generateUrbanFloorMap() : au moins une ville marchand garantie");
+        assert(Object.values(um.citiesById).some(c => c.role === 'trainer'), "generateUrbanFloorMap() : au moins une ville professeur garantie");
     }
 }
 
@@ -46,6 +50,10 @@ const { assert, resetTransientState } = require('./_helpers.js');
     const scrollStock = generateShopStock('scrolls');
     scrollStock.forEach(item => {
         assert(item.category === 'scrolls', "generateShopStock() : catégorie 'scrolls' (parchemins) respectée aussi");
+        // Chantier "QoL/équilibrage" (Chantier D) : generateSpellScroll() pose désormais baseValue,
+        // donc un parchemin en boutique a un vrai prix (pas le repli à 1 PO d'avant ce chantier).
+        assert(item.baseValue > 0, "generateShopStock() : un parchemin a un baseValue > 0 (Chantier D)");
+        assert(item.price > Math.round(SHOP_MARKUP), "generateShopStock() : le prix d'un parchemin reflète son baseValue, pas le repli à 1");
     });
 }
 
@@ -111,6 +119,24 @@ const { assert, resetTransientState } = require('./_helpers.js');
     buyShopItem(0);
     assert(gameState.spellbook.some(i => i.name === "Parchemin test"), "buyShopItem() : parchemin ajouté au grimoire");
     assert(gameState.inventory.length === 0, "buyShopItem() : parchemin jamais ajouté à l'inventaire");
+}
+
+// sellSpell() (chantier "QoL/équilibrage", Chantier D) : vend un parchemin du grimoire au même ratio
+// que sellItem() sur l'inventaire, retire l'entrée, jamais l'inventaire touché.
+{
+    resetTransientState();
+    gameState.gold = 0;
+    gameState.spellbook = [
+        { name: "Parchemin A", category: 'scrolls', baseValue: 20 },
+        { name: "Parchemin B", category: 'scrolls', baseValue: 10 }
+    ];
+    gameState.inventory = [];
+
+    sellSpell(0);
+    assert(gameState.gold === Math.max(1, Math.round(20 * SELL_VALUE_RATIO)), "sellSpell() : PO créditées au même ratio que sellItem()");
+    assert(gameState.spellbook.length === 1, "sellSpell() : le parchemin vendu est retiré du grimoire");
+    assert(gameState.spellbook[0].name === "Parchemin B", "sellSpell() : ne touche jamais aux autres entrées du grimoire");
+    assert(gameState.inventory.length === 0, "sellSpell() : n'affecte jamais gameState.inventory");
 }
 
 // trainSkill() : coût = TRAINER_COST_PER_LEVEL × niveau ACTUEL, amène l'XP exactement au niveau
