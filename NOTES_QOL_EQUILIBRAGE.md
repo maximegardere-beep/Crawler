@@ -49,7 +49,20 @@ résumé final (13 sur la dernière simulation de validation, aucun blocage cons
 
 ## Chantier B — Réserve d'équipement 5 → 8
 
-_À compléter._
+**Problème** : la limite de 5 objets d'équipement (armes/armures/armes à distance — consommables et
+parchemins déjà hors quota) était en dur sur `gameState.maxInventory`, sans point de config.
+
+**Solution retenue** : `config.inventory.maxEquipment = 8` (valeur de départ, à ajuster par
+playtest), avec `gameState.maxInventory` conservé comme simple alias pour ne rien casser des
+appelants existants (`addLoot()`, `awardBossSignatureItem()`, `buyShopItem()` — tous lisaient déjà
+`gameState.maxInventory` dynamiquement, aucun n'avait la valeur `5` en dur). Contrainte d'ordre de
+déclaration : `gameState` est déclaré avant `config` dans `app.js`, donc l'alias ne peut pas être posé
+dans le littéral de `gameState` lui-même — il est assigné juste après la fermeture de l'objet
+`config` (`gameState.maxInventory = config.inventory.maxEquipment;`), avant tout code de jeu.
+
+**Tests** : aucun nouveau test nécessaire — la suite existante (`urban-shops.js`, `floor-transition.js`)
+paramétrait déjà ses boucles sur `gameState.maxInventory` plutôt que sur la valeur `5` en dur, donc le
+changement passe sans modification (`npm test` : 2175 tests OK après ce chantier).
 
 ## Chantier C — Parité magie/arme
 

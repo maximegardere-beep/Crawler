@@ -64,7 +64,11 @@ Tailwind CDN, **aucun build step**.
   des deux côtés. Badges visibles dans l'inventaire (`buildMechanicBadgesHtml()`), colorés si
   fonctionnels, grisés sinon. `jokeItem: true` (`items.js`) marque un objet volontairement dérisoire
   (blague DCC), exclu du tirage normal du loot (`generateItem()`) mais toujours accessible via le
-  cadeau de bienvenue et le kit de test.
+  cadeau de bienvenue et le kit de test. Réserve d'équipement (armes/armures/armes à distance,
+  consommables et parchemins jamais comptés, voir `addLoot()`) : `config.inventory.maxEquipment` (8,
+  chantier "QoL/équilibrage", Chantier B — voir `NOTES_QOL_EQUILIBRAGE.md`) — `gameState.maxInventory`
+  en est un simple alias, posé juste après la déclaration de `config` (`gameState` est déclaré avant
+  `config` plus haut dans `app.js`, il ne peut donc pas le référencer dans son propre littéral).
 - **Mobs élite** : `generateMob()` pose `threatMultiplier` (puissance apportée par les seuls
   modificateurs, hors scaling d'étage) via `computeThreatMultiplier()` (generator.js, fonction pure et
   testable indépendamment du pipeline aléatoire) — ATQ×PV pondéré par la DEF avec un poids modéré

@@ -38,6 +38,9 @@ const gameState = {
     // generateFloorMap() à chaque étage, puis mis à jour à chaque changement de quadrant.
     currentDistrict: null,
     inventory: [],
+    // Valeur réelle posée juste après la déclaration de `config` plus bas dans ce fichier (ordre de
+    // déclaration : config référence gameState par endroits, gameState ne peut donc pas référencer
+    // config ici) — voir `gameState.maxInventory = config.inventory.maxEquipment;` juste après `config`.
     maxInventory: 5,
     // PO (pièces d'or) : trouvées en explorant (voir config.chances.goldFind) ou obtenues en
     // revendant un objet d'inventaire (sellItem()) — seule monnaie du jeu, dépensée dans les villes
@@ -409,6 +412,11 @@ const config = {
         perFloor: 5
     }
 };
+
+// Réserve d'équipement (Chantier B, "QoL/équilibrage") : valeur réelle posée ici, juste après la
+// déclaration de config (gameState est déclaré AVANT config plus haut dans ce fichier, donc son
+// littéral ne peut pas référencer config.inventory.maxEquipment directement).
+gameState.maxInventory = config.inventory.maxEquipment;
 
 // Un mob non-boss est "élite" si ses modificateurs (voir threatMultiplier dans generateMob())
 // dépassent le seuil de config.eliteThreatMultiplier. Les boss ont déjà leur propre signal (👑) :
