@@ -87,7 +87,20 @@ continu, pas lié au timing d'un événement précis.
 
 ## Chantier 2 — Badges d'état ennemi
 
-_À compléter._
+**Décision prise pendant l'exploration** : `#combat-enemy-status`/`ui.combatEnemyStatus` existait déjà
+au bon endroit visuel (panneau latéral `#combat-side-enemy`) mais en simple `<span>` texte concaténé,
+sans tooltip possible. Plutôt que de créer un second nœud concurrent, RENOMMÉ en `#enemy-status-icons`/
+`ui.enemyStatusIcons` (vérifié au préalable : aucun test n'y faisait référence) et son rendu bascule
+en `innerHTML` de badges individuels `<span title="...">`. Fonction unique `renderEnemyStatusBadges(enemy)`
+(app.js), appelée depuis `updateUI()`.
+
+Couvre les 6 statuts déjà affichés avant ce chantier (saignement 🔥, étourdi 💫, ralenti 🐌, ébloui ✨,
+corrodé 🧪, apeuré 😱) + les 4 nouveaux posés par le rework combat mais jamais montrés visuellement
+jusqu'ici : garde hérissée 🛡️ (`defBuffed`), folie 🤪 (`frenzied`), enragé 😡 (`enraged`), télégraphe
+actif 👁️ (`telegraph` — redondance volontaire avec la bannière du Chantier 1, utile pour qui ne
+regarde que le panneau latéral compact). Icône `🤪` choisie pour "Folie" plutôt que `🔥` (déjà pris par
+le saignement) — cohérent avec le texte de la future bannière de changement de phase du Chantier 10
+("🤪 [Nom] entre en folie furieuse").
 
 ## Chantier 3 — Chiffres de dégâts flottants
 

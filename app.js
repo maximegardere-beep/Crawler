@@ -504,7 +504,7 @@ const ui = {
     combatSidePlayer: document.getElementById('combat-side-player'),
     combatEnemyHp: document.getElementById('combat-enemy-hp'),
     combatEnemyHpRing: document.getElementById('combat-enemy-hp-ring'),
-    combatEnemyStatus: document.getElementById('combat-enemy-status'),
+    enemyStatusIcons: document.getElementById('enemy-status-icons'),
     combatEnemyDie: document.getElementById('combat-enemy-die'),
     combatPlayerHp: document.getElementById('combat-player-hp'),
     combatPlayerHpRing: document.getElementById('combat-player-hp-ring'),
@@ -1093,17 +1093,7 @@ function updateUI() {
             ui.combatSideEnemy.classList.add('flex', 'flex-col');
             setHpRing(ui.combatEnemyHpRing, ui.combatEnemyHp, gameState.currentEnemy.hp, gameState.currentEnemy.maxHp);
 
-            let enemyIcons = "";
-            const enemyStatus = gameState.currentEnemy.status;
-            if (enemyStatus) {
-                if (enemyStatus.bleed && enemyStatus.bleed.rounds > 0) enemyIcons += "🔥";
-                if (enemyStatus.stunned) enemyIcons += "💫";
-                if (enemyStatus.slowed && enemyStatus.slowed.rounds > 0) enemyIcons += "🐌";
-                if (enemyStatus.blinded && enemyStatus.blinded.rounds > 0) enemyIcons += "✨";
-                if (enemyStatus.corroded && enemyStatus.corroded.rounds > 0) enemyIcons += "🧪";
-                if (enemyStatus.feared && enemyStatus.feared.rounds > 0) enemyIcons += "😱";
-            }
-            ui.combatEnemyStatus.innerText = enemyIcons || "—";
+            renderEnemyStatusBadges(gameState.currentEnemy);
         }
         updateTelegraphBanner();
 
@@ -4394,6 +4384,37 @@ function renderCombatMobPanel() {
             }
         });
     }
+}
+
+// Badges d'état ennemi (chantier "lisibilité combat", Chantier 2) : remplace l'ancien texte
+// concaténé (#combat-enemy-status, renommé #enemy-status-icons) par des badges individuels avec
+// infobulle (title), pour que chaque état reste identifiable au survol plutôt qu'une suite d'emoji
+// sans légende. Couvre les statuts déjà existants (saignement/étourdi/ralenti/ébloui/corrodé/apeuré)
+// ET les états posés par les Chantiers 2-3 du rework combat, jamais affichés avant ce chantier
+// (garde hérissée, folie, enrage, télégraphe actif — redondant avec la bannière du Chantier 1, mais
+// utile pour qui ne regarde que le panneau latéral). Seule fonction à toucher #enemy-status-icons.
+function renderEnemyStatusBadges(enemy) {
+    if (!ui.enemyStatusIcons) return;
+    const status = enemy && enemy.status;
+    if (!status) {
+        ui.enemyStatusIcons.innerHTML = "—";
+        return;
+    }
+    const badges = [];
+    const add = (active, icon, title) => { if (active) badges.push({ icon, title }); };
+    add(status.bleed && status.bleed.rounds > 0, "🔥", "Saignement");
+    add(status.stunned, "💫", "Étourdi");
+    add(status.slowed && status.slowed.rounds > 0, "🐌", "Ralenti");
+    add(status.blinded && status.blinded.rounds > 0, "✨", "Ébloui");
+    add(status.corroded && status.corroded.rounds > 0, "🧪", "Corrodé (DEF réduite)");
+    add(status.feared && status.feared.rounds > 0, "😱", "Apeuré (ATQ réduite)");
+    add(status.defBuffed && status.defBuffed.rounds > 0, "🛡️", "Garde hérissée (DEF augmentée)");
+    add(status.frenzied, "🤪", "Folie (phase 3 : dégâts +40%, DEF -30%)");
+    add(status.enraged && status.enraged.rounds > 0, "😡", "Enragé (dégâts +40%, DEF divisée par 2)");
+    add(status.telegraph, "👁️", "Attaque télégraphiée en cours (voir la bannière)");
+    ui.enemyStatusIcons.innerHTML = badges.length
+        ? badges.map(b => `<span title="${b.title}">${b.icon}</span>`).join('')
+        : "—";
 }
 
 // Bannière de télégraphe (chantier "lisibilité combat", Chantier 1) : affichée EN PERMANENCE tant

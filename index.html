@@ -327,7 +327,11 @@
                         </svg>
                         <span id="combat-enemy-hp" class="hp-ring-label text-[10px] text-red-300">0</span>
                     </div>
-                    <span id="combat-enemy-status" class="text-xs leading-none block">—</span>
+                    <!-- Badges d'état ennemi (chantier "lisibilité combat", Chantier 2) : remplace
+                         l'ancien texte concaténé (#combat-enemy-status) par des badges individuels
+                         avec infobulle (title), pour que chaque état reste identifiable au survol.
+                         Rempli par renderEnemyStatusBadges() (app.js), appelée depuis updateUI(). -->
+                    <div id="enemy-status-icons" class="text-xs leading-none flex flex-wrap justify-center gap-0.5">—</div>
                     <div id="combat-enemy-die" class="die-badge border-red-700 text-red-300 mx-auto mt-1">–</div>
                 </div>
 
@@ -874,13 +878,13 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=62"></script>
-    <script src="items.js?v=62"></script>
-    <script src="spells.js?v=62"></script>
-    <script src="districts.js?v=62"></script>
-    <script src="safehouses.js?v=62"></script>
-    <script src="generator.js?v=62"></script>
-    <script src="anomalies.js?v=62"></script>
-    <script src="app.js?v=62"></script>
+    <script src="bestiary.js?v=63"></script>
+    <script src="items.js?v=63"></script>
+    <script src="spells.js?v=63"></script>
+    <script src="districts.js?v=63"></script>
+    <script src="safehouses.js?v=63"></script>
+    <script src="generator.js?v=63"></script>
+    <script src="anomalies.js?v=63"></script>
+    <script src="app.js?v=63"></script>
 </body>
 </html>
