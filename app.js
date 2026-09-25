@@ -4756,7 +4756,7 @@ function triggerMobEnrage(enemy) {
             }
         },
         delay: config.combatRhythm.beatHeavyEvent
-    }], () => setCombatInputLocked(false));
+    }], () => { setCombatInputLocked(false); updateUI(); }); // même centralisation qu'enemyCounterAttack() (Chantier 7)
 }
 
 // Fin de l'état enragé (durée écoulée, ou le mob vient de placer une frappe pendant l'état) : repos
@@ -5376,10 +5376,18 @@ function runCombatBeats(steps, onDone) {
 // Riposte de l'ennemi : verrouille les boutons, puis laisse resolveEnemyCounterAttack() dérouler sa
 // propre séquence de beats (un seul beat pour un mob normal, plusieurs pour un pattern de boss) —
 // c'est ELLE qui décide du rythme exact (télégraphe, multi-coups...), pas ce point d'entrée.
+// onDone (chantier "lisibilité combat", Chantier 7) déverrouille ET rafraîchit l'UI en un seul point
+// centralisé — jusqu'ici seul resolveNonBossCounterAttack() appelait updateUI() en fin de riposte
+// (dans son propre beat), ce qui laissait les patterns de boss (7 branches dans
+// performBossCounterAttackInner(), aucune n'appelant updateUI()) sans AUCUN rafraîchissement après un
+// tour de boss complet : télégraphe posé, badges d'état, jauge de tension et badge de phase restaient
+// figés sur leur état d'AVANT le tour jusqu'à ce qu'un événement sans rapport force un rendu — bug
+// réel, confirmé par un script de vérification (attaques répétées sur un vrai setTimeout), pas
+// seulement théorique. Centraliser ici plutôt que de rajouter updateUI() dans chacune des branches.
 function enemyCounterAttack() {
     if (!gameState.currentEnemy) return; // sécurité si le combat vient d'être résolu
     setCombatInputLocked(true);
-    resolveEnemyCounterAttack(() => setCombatInputLocked(false));
+    resolveEnemyCounterAttack(() => { setCombatInputLocked(false); updateUI(); });
 }
 
 // ==========================================
@@ -5651,7 +5659,7 @@ function resolveEnemyCounterAttack(onDone) {
         logEvent(`[${enemy.name}] est étourdi et ne peut pas riposter !`, "info");
         enemy.status.stunned = false;
         showDie(ui.combatEnemyDie, "😴");
-        updateUI();
+        // Plus de updateUI() explicite ici (Chantier 7) : onDone() le fait déjà, centralisé.
         if (onDone) onDone();
         return;
     }
@@ -5793,7 +5801,9 @@ function resolveNonBossCounterAttack(enemy) {
 
     applyMobEffectOnPlayer(enemy);
     applyArmorMechanic(enemy, playerDamage);
-    updateUI();
+    // Plus de updateUI() ici (chantier "lisibilité combat", Chantier 7) : centralisé dans l'onDone
+    // d'enemyCounterAttack(), pour couvrir aussi les patterns de boss qui n'appelaient jamais cette
+    // fonction (voir le commentaire d'enemyCounterAttack()).
 }
 
 // --- Les 3 types d'attaque ---

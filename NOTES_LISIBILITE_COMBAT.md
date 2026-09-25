@@ -200,7 +200,13 @@ CSS (`color`/`font-weight`/`font-size`/`text-align`) préserve l'apparence sans 
 Vérifié fonctionnellement (script ad-hoc, hors suite de tests) : phase 1→2 déclenche la bannière
 "change de comportement" et affiche "Phase 2" ; 2→3 déclenche "entre en folie furieuse" et affiche
 "Phase 3" ; un mob normal ne montre jamais le badge ; la bannière se masque bien après son délai de
-900ms (testé avec un vrai `setTimeout`, hors stub synchrone des tests). Aucune régression sur
+900ms (testé avec un vrai `setTimeout`, hors stub synchrone des tests). **Note rétrospective** : cette
+vérification appelait `updateUI()` manuellement après la riposte pour lire l'état du badge — ce qui a
+involontairement masqué un vrai bug (voir Chantier 7 ci-dessous) où `updateUI()` n'était en réalité
+JAMAIS appelé après un tour de boss complet en jeu réel. Le badge de phase (comme le reste des
+indicateurs boss des Chantiers 1/2/5) ne s'affichait donc pas réellement en jeu avant le correctif du
+Chantier 7 — corrigé, revérifié par un script qui passe cette fois par le point d'entrée RÉEL
+(`attackWeapon()`) sans appel manuel à `updateUI()`. Aucune régression sur
 `npm test` (10 runs consécutifs) ni `npm run test:long` — `enemy.lastKnownPhase` étant `undefined`
 sur les enemies construits directement par les tests (sans passer par `initiateCombat()`),
 `phase > undefined` vaut `false` en JS, donc `phaseJustIncreased` reste correctement faux sans
@@ -208,7 +214,49 @@ exception ni bannière parasite.
 
 ## Chantier 7 — Découpler le verrou d'input du beat
 
-_À compléter._
+**Bug réel trouvé en creusant la consigne** (pas seulement théorique) : `updateUI()` n'était appelé,
+en fin de riposte, QUE dans `resolveNonBossCounterAttack()` (mob normal/élite) — hérité tel quel
+d'avant le Chantier 6, avec le commentaire d'origine "le prochain `updateUI()` naturel (riposte
+différée ou fin de combat) suffit". Ce "prochain `updateUI()` naturel" N'EXISTE PAS pour un boss :
+aucune des 7 branches de `performBossCounterAttackInner()` (ni `performBossCounterAttack()` ni son
+`onDone`) n'appelle `updateUI()`. Conséquence en jeu réel (confirmé par un script d'attaques répétées
+sur un boss avec un VRAI `setTimeout`, sans jamais appeler `updateUI()` soi-même) : après un tour de
+boss complet, `enemy.status.telegraph` peut être posé, mais `#telegraph-banner` reste masqué et
+`#enemy-status-icons` reste à "—" — les Chantiers 1/2/5/10 fonctionnaient donc uniquement dans mes
+scripts de vérification ad-hoc (qui appelaient `updateUI()` à la main pour lire l'état), jamais en
+jeu réel contre un boss. Les boutons eux-mêmes n'étaient pas visiblement cassés (aucune riposte de
+boss ne change la distance en cours de tour hors ruée d'enrage, qui appelle déjà `setCombatDistance()`
+→ `updateUI()` avant de verrouiller), mais le verrou n'était réellement "propre" qu'en façade.
+
+**Correctif** : centralisation plutôt que rajout dispersé. `enemyCounterAttack()` et
+`triggerMobEnrage()` (les deux SEULS points qui verrouillent réellement l'input, voir Chantier 6) ont
+désormais un `onDone` qui fait `setCombatInputLocked(false); updateUI();` — un seul endroit, qui
+couvre les deux chemins (mob normal ET boss) puisque `onDone` est appelé dans tous les cas une fois
+la séquence de beats intégralement jouée. Les deux appels `updateUI()` devenus redondants
+(`resolveNonBossCounterAttack()` en fin de fonction, et la branche "étourdi" de
+`resolveEnemyCounterAttack()`) sont retirés — le rendu final était de toute façon déjà garanti par le
+point centralisé, appelé juste après dans le même tick synchrone (aucune différence visuelle, juste
+un seul appel au lieu de deux). La branche "l'ennemi meurt de son saignement" (`winCombat()` +
+`onDone`) reste inchangée : `winCombat()` gère son propre rendu (écran de victoire), l'`onDone`
+qui suit reste inoffensif (redondant mais sans effet visible, la zone de combat étant déjà masquée).
+
+**Points d'entrée qui verrouillent "dès le début"** (deuxième partie de la consigne) : revérifié que
+Sprint/Retreat/Engage (`attemptSprint()`/`attemptRetreat()`/`attemptEngage()`) passent tous par
+`tryPlayerAction()` puis, en fin de fonction, soit `safeEnemyCounterAttack()` soit `enemyCounterAttack()`
+directement (ruée) — aucun verrou explicite supplémentaire n'était nécessaire à ce niveau : le code
+entre l'appel et le premier `setTimeout` réel est strictement synchrone (JS mono-thread, un clic ne
+peut pas s'intercaler avant que la fonction ne rende la main), et `setCombatDistance()` (appelée par
+ces trois actions AVANT tout verrouillage) rafraîchit l'UI alors qu'aucun beat n'est encore en cours —
+état cohérent, pas de fenêtre de double-clic exploitable. Le seul vrai "flou" était donc côté SORTIE
+(`updateUI()` manquant), pas côté entrée — la consigne parlait de verrouillage mais le symptôme réel
+touchait le déverrouillage/rendu, corrigé ci-dessus.
+
+Vérifié : `npm test` (10 runs consécutifs, 0 échec) et `npm run test:long` restent verts sans aucune
+modification de test (la centralisation ne change aucun comportement synchrone sous le stub — même
+nombre d'appels `updateUI()` au total dans le pire cas, juste déplacés). Script de non-régression
+ad-hoc (attaques répétées sur un vrai `setTimeout`, jusqu'à l'apparition d'un télégraphe) confirmé :
+la bannière et le badge d'état s'affichent désormais correctement dès la fin du tour, sans appel
+manuel à `updateUI()`.
 
 ## Chantier 9 — Skip et accessibilité
 

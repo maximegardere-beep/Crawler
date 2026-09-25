@@ -150,6 +150,18 @@ Tailwind CDN, **aucun build step**.
   s'accélérer juste après, en phase 3 notamment). Badge permanent `#boss-phase-badge` (à côté du nom,
   mis à jour à chaque `updateUI()`, visible dès phase ≥ 2 sur un boss uniquement) complète la bannière
   transitoire par un rappel permanent de l'état en cours.
+- **`updateUI()` centralisé en fin de riposte** (chantier "lisibilité combat", Chantier 7 — voir
+  `NOTES_LISIBILITE_COMBAT.md` pour le bug exact et comment il a été trouvé) : `enemyCounterAttack()`
+  et `triggerMobEnrage()` (les deux seuls points qui verrouillent l'input, Chantier 6) appellent
+  `updateUI()` dans leur `onDone`, juste après `setCombatInputLocked(false)` — remplace un
+  `updateUI()` ad hoc qui ne vivait QUE dans `resolveNonBossCounterAttack()` (mob normal/élite) et
+  qu'AUCUNE des 7 branches de pattern boss (`performBossCounterAttackInner()`) n'avait d'équivalent :
+  en jeu réel, un télégraphe posé par un boss ne rafraîchissait donc jamais `#telegraph-banner`/
+  `#enemy-status-icons` avant ce correctif (masqué dans tous les scripts de vérification des
+  Chantiers 1/2/5/10 précédents, qui appelaient `updateUI()` à la main). Les deux appels devenus
+  redondants (fin de `resolveNonBossCounterAttack()`, branche "étourdi" de
+  `resolveEnemyCounterAttack()`) sont retirés, sans changement de comportement observable (même tick
+  synchrone).
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
