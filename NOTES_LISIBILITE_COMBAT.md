@@ -129,7 +129,19 @@ sans code dupliqué.
 
 ## Chantier 5 — Jauge de tension anti-kite
 
-_À compléter._
+`renderDistanceTension(enemy)` (app.js, appelée depuis `updateUI()`) — 3 états mutuellement exclusifs
+sous `#combat-distance-wrapper` (`#distance-tension-label` + classe `distance-tension` sur
+`#combat-distance-fill`) :
+- `enemy.status.enraged` actif : badge rouge fixe "😡 ENRAGÉ", plus de jauge.
+- `enemy.status.enrageCooldown` actif : badge gris "😵 Épuisé (N tour(s))".
+- `enemy.kitingRounds > mobKitingBaseline(enemy)` : "😤 Enrage imminent : NN%" + pulse orangé/rouge
+  sur la barre de distance elle-même. `NN%` calculé avec les valeurs RÉELLES de
+  `config.distanceEnrage` (jamais redupliquées en dur), exactement la même formule que
+  `noteMobKitingRound()`.
+- Compteur à sa base : tout masqué.
+
+Aucun écart signalé : mapping direct de la mécanique déjà en place (Chantier 3 du rework combat),
+juste rendue visible pour la première fois.
 
 ## Chantier 4 — Hiérarchie visuelle des impacts
 

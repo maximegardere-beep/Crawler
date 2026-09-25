@@ -586,6 +586,7 @@ const ui = {
     btnFlee: document.getElementById('btn-flee'),
     combatDistanceWrapper: document.getElementById('combat-distance-wrapper'),
     combatDistanceFill: document.getElementById('combat-distance-fill'),
+    distanceTensionLabel: document.getElementById('distance-tension-label'),
     combatDistancePlayerIcon: document.getElementById('combat-distance-player-icon'),
     combatDistanceEnemyIcon: document.getElementById('combat-distance-enemy-icon'),
     equippedRanged: document.getElementById('equipped-ranged'),
@@ -1095,6 +1096,7 @@ function updateUI() {
 
             renderEnemyStatusBadges(gameState.currentEnemy);
         }
+        renderDistanceTension(gameState.currentEnemy);
         updateTelegraphBanner();
 
         // --- Distance de combat : verrouille/déverrouille Arme, Tir et Mains nues selon l'écart
@@ -4444,6 +4446,46 @@ function renderEnemyStatusBadges(enemy) {
     ui.enemyStatusIcons.innerHTML = badges.length
         ? badges.map(b => `<span title="${b.title}">${b.icon}</span>`).join('')
         : "—";
+}
+
+// Jauge de tension anti-kite (chantier "lisibilité combat", Chantier 5) : montre la probabilité
+// d'enrage AVANT qu'il n'arrive, pour que le joueur voie la tension monter plutôt que de subir la
+// ruée sans prévenir. Trois états mutuellement exclusifs (voir noteMobKitingRound()/
+// triggerMobEnrage()/endMobEnrage() pour la mécanique sous-jacente) :
+//   - enraged actif : badge rouge fixe, plus de jauge (l'enrage a déjà eu lieu).
+//   - enrageCooldown actif : badge gris (repos forcé, aucun nouveau tirage possible).
+//   - kitingRounds au-dessus de sa base (mobKitingBaseline()) : jauge + % calculé avec les mêmes
+//     valeurs RÉELLES que noteMobKitingRound() (config.distanceEnrage), jamais redupliquées en dur.
+//   - sinon (compteur à sa base) : tout masqué, rien à montrer.
+function renderDistanceTension(enemy) {
+    if (!ui.distanceTensionLabel || !ui.combatDistanceFill) return;
+    const cfg = config.distanceEnrage;
+    const status = enemy && enemy.status;
+    ui.combatDistanceFill.classList.remove('distance-tension');
+    if (!enemy || !status) {
+        ui.distanceTensionLabel.classList.add('hidden');
+        return;
+    }
+    if (status.enraged && status.enraged.rounds > 0) {
+        ui.distanceTensionLabel.innerText = '😡 ENRAGÉ';
+        ui.distanceTensionLabel.className = 'mt-1 text-center text-[9px] font-bold uppercase tracking-wider text-red-400';
+        return;
+    }
+    if (status.enrageCooldown && status.enrageCooldown.rounds > 0) {
+        ui.distanceTensionLabel.innerText = `😵 Épuisé (${status.enrageCooldown.rounds} tour${status.enrageCooldown.rounds > 1 ? 's' : ''})`;
+        ui.distanceTensionLabel.className = 'mt-1 text-center text-[9px] font-bold uppercase tracking-wider text-gray-500';
+        return;
+    }
+    const baseline = mobKitingBaseline(enemy);
+    const kitingRounds = enemy.kitingRounds || baseline;
+    if (kitingRounds > baseline) {
+        const chancePct = Math.round(Math.min(cfg.baseChance + cfg.chancePerRound * kitingRounds, cfg.maxChance) * 100);
+        ui.distanceTensionLabel.innerText = `😤 Enrage imminent : ${chancePct}%`;
+        ui.distanceTensionLabel.className = 'mt-1 text-center text-[9px] font-bold uppercase tracking-wider text-orange-400';
+        ui.combatDistanceFill.classList.add('distance-tension');
+        return;
+    }
+    ui.distanceTensionLabel.classList.add('hidden');
 }
 
 // Bannière de télégraphe (chantier "lisibilité combat", Chantier 1) : affichée EN PERMANENCE tant
