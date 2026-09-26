@@ -17,7 +17,13 @@ function makeEl() {
             contains(c) { return this._set.has(c); },
             replace(oldC, newC) { if (this._set.has(oldC)) { this._set.delete(oldC); this._set.add(newC); } }
         },
-        style: {},
+        // setProperty/getPropertyValue : nécessaires pour les variables CSS (--xyz) posées par
+        // scene.js (renderMobSprite()) — un vrai CSSStyleDeclaration les expose déjà, ce stub minimal
+        // se contente de lire/écrire la même propriété qu'un accès direct (style.xyz).
+        style: {
+            setProperty(prop, value) { this[prop] = value; },
+            getPropertyValue(prop) { return this[prop] || ''; }
+        },
         dataset: {},
         attributes: {},
         setAttribute(name, value) { this.attributes[name] = value; },

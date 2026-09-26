@@ -67,52 +67,57 @@ const mobModifiers = {
 // quelques entrées (Fromage qui Pue, Ouvrier à la Chaîne, Imprimante à Rêves, Présentateur Télé-Achat
 // Hystérique) ont été retouchées ponctuellement pour corriger les écarts les plus visibles — pas de
 // règle générale appliquée à tout le catalogue, ça reste à faire à l'occasion d'un futur rework.
+//
+// `visualArchetype` (chantier "refonte graphique", branche `graphique`) : silhouette réutilisable
+// parmi celles de sprites.js (MOB_ARCHETYPES) — donnée pure, lue par scene.js, jamais par le moteur
+// de jeu. Survit au clonage/renommage avec modificateurs (generateMob() clone l'entrée AVANT
+// d'ajouter un suffixe à `.name`), voir CLAUDE.md.
 const baseMobs = [
-    { name: "Rat Goulot", hp: 30, atk: 5, def: 2, xpReward: 10, allowedTags: ["mental", "physical", "elemental"] },
-    { name: "Distributeur de Snacks Hanté", hp: 70, atk: 11, def: 10, xpReward: 40, allowedTags: ["elemental", "physical"] },
-    { name: "Contrôleur de Billets Zombifié", hp: 45, atk: 8, def: 4, xpReward: 15, allowedTags: ["mental", "physical", "elemental"] },
-    { name: "Tulipe Géante", hp: 40, atk: 10, def: 3, xpReward: 12, allowedTags: ["elemental", "physical"] },
-    { name: "Ronce Étrangleuse", hp: 60, atk: 15, def: 5, xpReward: 18, allowedTags: ["elemental", "physical"] },
-    { name: "Gobelin Paysagiste", hp: 35, atk: 7, def: 2, xpReward: 12, allowedTags: ["mental", "physical", "elemental"] },
-    { name: "Photocopieuse Carnivore", hp: 100, atk: 10, def: 6, xpReward: 55, allowedTags: ["elemental", "physical"], ranged: true },
-    { name: "Stagiaire Démoniaque", hp: 25, atk: 4, def: 1, xpReward: 8, allowedTags: ["mental", "physical", "elemental"] },
-    { name: "Garde-Chiourme Bureaucrate", hp: 70, atk: 11, def: 8, xpReward: 25, allowedTags: ["mental", "physical"], ranged: true },
-    { name: "Saucisse Vivante", hp: 50, atk: 12, def: 3, xpReward: 15, allowedTags: ["elemental", "physical"] },
-    { name: "Fromage qui Pue", hp: 80, atk: 5, def: 12, xpReward: 14, allowedTags: ["elemental", "physical"] },
-    { name: "Ouvrier à la Chaîne", hp: 60, atk: 14, def: 4, xpReward: 32, allowedTags: ["mental", "physical", "elemental"] },
-    { name: "Livre Maudit", hp: 40, atk: 8, def: 5, xpReward: 18, allowedTags: ["elemental", "physical"] },
-    { name: "Bibliothécaire Fantôme", hp: 55, atk: 9, def: 6, xpReward: 22, allowedTags: ["mental", "physical", "elemental"], ranged: true },
-    { name: "Encre Vivante", hp: 30, atk: 10, def: 2, xpReward: 10, allowedTags: ["elemental", "physical"] },
-    { name: "Savant Dingue", hp: 50, atk: 15, def: 3, xpReward: 30, allowedTags: ["mental", "physical", "elemental"], ranged: true },
-    { name: "Créature en Bocaux", hp: 65, atk: 12, def: 4, xpReward: 25, allowedTags: ["elemental", "physical"] },
-    { name: "Robot Défectueux", hp: 90, atk: 10, def: 8, xpReward: 40, allowedTags: ["elemental", "physical"], ranged: true },
-    { name: "Mime Aggressif", hp: 45, atk: 10, def: 5, xpReward: 20, allowedTags: ["mental", "physical", "elemental"] },
-    { name: "Ombre Suspicieuse", hp: 50, atk: 12, def: 3, xpReward: 25, allowedTags: ["elemental", "physical"] },
-    { name: "Miroir Brisé", hp: 60, atk: 8, def: 7, xpReward: 30, allowedTags: ["elemental", "physical"], ranged: true },
-    { name: "Chaussette Solitaire", hp: 20, atk: 2, def: 1, xpReward: 5, allowedTags: ["elemental", "physical"] },
-    { name: "Lave-Linge Possédé", hp: 110, atk: 14, def: 8, xpReward: 50, allowedTags: ["elemental", "physical"], ranged: true },
-    { name: "Monstre de Poussière", hp: 40, atk: 6, def: 3, xpReward: 10, allowedTags: ["elemental", "physical"] },
-    { name: "Marchand Malhonnête", hp: 70, atk: 8, def: 6, xpReward: 35, allowedTags: ["mental", "physical", "elemental"], ranged: true },
-    { name: "Sac de Pièces Vivant", hp: 50, atk: 10, def: 5, xpReward: 20, allowedTags: ["elemental", "physical"] },
-    { name: "Garde du Marché", hp: 90, atk: 12, def: 7, xpReward: 45, allowedTags: ["mental", "physical", "elemental"], ranged: true },
-    { name: "Imprimante à Rêves", hp: 80, atk: 10, def: 5, xpReward: 30, allowedTags: ["elemental", "physical"] },
-    { name: "Ordinateur en Colère", hp: 100, atk: 15, def: 8, xpReward: 50, allowedTags: ["elemental", "physical"], ranged: true },
-    { name: "Câble Électrique Vivant", hp: 30, atk: 12, def: 2, xpReward: 15, allowedTags: ["elemental", "physical"] },
+    { name: "Rat Goulot", hp: 30, atk: 5, def: 2, xpReward: 10, allowedTags: ["mental", "physical", "elemental"], visualArchetype: "beast" },
+    { name: "Distributeur de Snacks Hanté", hp: 70, atk: 11, def: 10, xpReward: 40, allowedTags: ["elemental", "physical"], visualArchetype: "machine" },
+    { name: "Contrôleur de Billets Zombifié", hp: 45, atk: 8, def: 4, xpReward: 15, allowedTags: ["mental", "physical", "elemental"], visualArchetype: "zombie" },
+    { name: "Tulipe Géante", hp: 40, atk: 10, def: 3, xpReward: 12, allowedTags: ["elemental", "physical"], visualArchetype: "plant" },
+    { name: "Ronce Étrangleuse", hp: 60, atk: 15, def: 5, xpReward: 18, allowedTags: ["elemental", "physical"], visualArchetype: "plant" },
+    { name: "Gobelin Paysagiste", hp: 35, atk: 7, def: 2, xpReward: 12, allowedTags: ["mental", "physical", "elemental"], visualArchetype: "goblinoid" },
+    { name: "Photocopieuse Carnivore", hp: 100, atk: 10, def: 6, xpReward: 55, allowedTags: ["elemental", "physical"], ranged: true, visualArchetype: "machine" },
+    { name: "Stagiaire Démoniaque", hp: 25, atk: 4, def: 1, xpReward: 8, allowedTags: ["mental", "physical", "elemental"], visualArchetype: "goblinoid" },
+    { name: "Garde-Chiourme Bureaucrate", hp: 70, atk: 11, def: 8, xpReward: 25, allowedTags: ["mental", "physical"], ranged: true, visualArchetype: "zombie" },
+    { name: "Saucisse Vivante", hp: 50, atk: 12, def: 3, xpReward: 15, allowedTags: ["elemental", "physical"], visualArchetype: "blob" },
+    { name: "Fromage qui Pue", hp: 80, atk: 5, def: 12, xpReward: 14, allowedTags: ["elemental", "physical"], visualArchetype: "blob" },
+    { name: "Ouvrier à la Chaîne", hp: 60, atk: 14, def: 4, xpReward: 32, allowedTags: ["mental", "physical", "elemental"], visualArchetype: "zombie" },
+    { name: "Livre Maudit", hp: 40, atk: 8, def: 5, xpReward: 18, allowedTags: ["elemental", "physical"], visualArchetype: "shade" },
+    { name: "Bibliothécaire Fantôme", hp: 55, atk: 9, def: 6, xpReward: 22, allowedTags: ["mental", "physical", "elemental"], ranged: true, visualArchetype: "shade" },
+    { name: "Encre Vivante", hp: 30, atk: 10, def: 2, xpReward: 10, allowedTags: ["elemental", "physical"], visualArchetype: "blob" },
+    { name: "Savant Dingue", hp: 50, atk: 15, def: 3, xpReward: 30, allowedTags: ["mental", "physical", "elemental"], ranged: true, visualArchetype: "zombie" },
+    { name: "Créature en Bocaux", hp: 65, atk: 12, def: 4, xpReward: 25, allowedTags: ["elemental", "physical"], visualArchetype: "blob" },
+    { name: "Robot Défectueux", hp: 90, atk: 10, def: 8, xpReward: 40, allowedTags: ["elemental", "physical"], ranged: true, visualArchetype: "machine" },
+    { name: "Mime Aggressif", hp: 45, atk: 10, def: 5, xpReward: 20, allowedTags: ["mental", "physical", "elemental"], visualArchetype: "mannequin" },
+    { name: "Ombre Suspicieuse", hp: 50, atk: 12, def: 3, xpReward: 25, allowedTags: ["elemental", "physical"], visualArchetype: "shade" },
+    { name: "Miroir Brisé", hp: 60, atk: 8, def: 7, xpReward: 30, allowedTags: ["elemental", "physical"], ranged: true, visualArchetype: "shade" },
+    { name: "Chaussette Solitaire", hp: 20, atk: 2, def: 1, xpReward: 5, allowedTags: ["elemental", "physical"], visualArchetype: "mannequin" },
+    { name: "Lave-Linge Possédé", hp: 110, atk: 14, def: 8, xpReward: 50, allowedTags: ["elemental", "physical"], ranged: true, visualArchetype: "machine" },
+    { name: "Monstre de Poussière", hp: 40, atk: 6, def: 3, xpReward: 10, allowedTags: ["elemental", "physical"], visualArchetype: "blob" },
+    { name: "Marchand Malhonnête", hp: 70, atk: 8, def: 6, xpReward: 35, allowedTags: ["mental", "physical", "elemental"], ranged: true, visualArchetype: "zombie" },
+    { name: "Sac de Pièces Vivant", hp: 50, atk: 10, def: 5, xpReward: 20, allowedTags: ["elemental", "physical"], visualArchetype: "blob" },
+    { name: "Garde du Marché", hp: 90, atk: 12, def: 7, xpReward: 45, allowedTags: ["mental", "physical", "elemental"], ranged: true, visualArchetype: "zombie" },
+    { name: "Imprimante à Rêves", hp: 80, atk: 10, def: 5, xpReward: 30, allowedTags: ["elemental", "physical"], visualArchetype: "machine" },
+    { name: "Ordinateur en Colère", hp: 100, atk: 15, def: 8, xpReward: 50, allowedTags: ["elemental", "physical"], ranged: true, visualArchetype: "machine" },
+    { name: "Câble Électrique Vivant", hp: 30, atk: 12, def: 2, xpReward: 15, allowedTags: ["elemental", "physical"], visualArchetype: "swarm" },
 
     // --- Parking Souterrain Maudit ---
-    { name: "Voiture Abandonnée Rouillée", hp: 95, atk: 9, def: 12, xpReward: 35, allowedTags: ["physical", "elemental"] },
-    { name: "Horodateur Vengeur", hp: 55, atk: 11, def: 5, xpReward: 28, allowedTags: ["mental", "elemental"], ranged: true },
-    { name: "Cône de Chantier Fou", hp: 35, atk: 8, def: 2, xpReward: 14, allowedTags: ["mental", "physical"] },
+    { name: "Voiture Abandonnée Rouillée", hp: 95, atk: 9, def: 12, xpReward: 35, allowedTags: ["physical", "elemental"], visualArchetype: "vehicle" },
+    { name: "Horodateur Vengeur", hp: 55, atk: 11, def: 5, xpReward: 28, allowedTags: ["mental", "elemental"], ranged: true, visualArchetype: "machine" },
+    { name: "Cône de Chantier Fou", hp: 35, atk: 8, def: 2, xpReward: 14, allowedTags: ["mental", "physical"], visualArchetype: "mannequin" },
 
     // --- Piscine Municipale Désaffectée ---
-    { name: "Maître-Nageur Zombifié", hp: 65, atk: 10, def: 6, xpReward: 26, allowedTags: ["mental", "physical"], ranged: true },
-    { name: "Frite de Piscine Étrangleuse", hp: 40, atk: 13, def: 3, xpReward: 16, allowedTags: ["elemental", "physical"] },
-    { name: "Nuage de Chlore Ambulant", hp: 50, atk: 9, def: 4, xpReward: 20, allowedTags: ["elemental"] },
+    { name: "Maître-Nageur Zombifié", hp: 65, atk: 10, def: 6, xpReward: 26, allowedTags: ["mental", "physical"], ranged: true, visualArchetype: "zombie" },
+    { name: "Frite de Piscine Étrangleuse", hp: 40, atk: 13, def: 3, xpReward: 16, allowedTags: ["elemental", "physical"], visualArchetype: "plant" },
+    { name: "Nuage de Chlore Ambulant", hp: 50, atk: 9, def: 4, xpReward: 20, allowedTags: ["elemental"], visualArchetype: "shade" },
 
     // --- Studio de Télé-Achat Abandonné ---
-    { name: "Mannequin Vitrine Possédé", hp: 60, atk: 9, def: 7, xpReward: 24, allowedTags: ["mental", "physical"] },
-    { name: "Caméra de Surveillance Autonome", hp: 45, atk: 12, def: 4, xpReward: 22, allowedTags: ["elemental", "physical"], ranged: true },
-    { name: "Présentateur Télé-Achat Hystérique", hp: 50, atk: 14, def: 3, xpReward: 28, allowedTags: ["mental"] }
+    { name: "Mannequin Vitrine Possédé", hp: 60, atk: 9, def: 7, xpReward: 24, allowedTags: ["mental", "physical"], visualArchetype: "mannequin" },
+    { name: "Caméra de Surveillance Autonome", hp: 45, atk: 12, def: 4, xpReward: 22, allowedTags: ["elemental", "physical"], ranged: true, visualArchetype: "machine" },
+    { name: "Présentateur Télé-Achat Hystérique", hp: 50, atk: 14, def: 3, xpReward: 28, allowedTags: ["mental"], visualArchetype: "zombie" }
 ];
 
 function findMobByName(name) {
@@ -126,32 +131,35 @@ function findMobByName(name) {
 // IMPLEMENTED_ARMOR_MECHANICS dans app.js — "confusion", utilisé comme `effect` narratif de certains
 // boss ci-dessous, n'a pas de mécanique de combat réelle : les objets signature associés utilisent
 // "fear"/"adrenaline", les plus proches thématiquement).
+//
+// `visualArchetype` (voir baseMobs ci-dessus, même convention) : un boss réutilise une silhouette
+// existante, affichée plus grande et couronnée par scene.js (jamais de silhouette dédiée par boss).
 const districtBosses = {
-    "Tunnels de Métro Abandonnés": { name: "Le Chef de Gare Nécrosé", hp: 220, atk: 15, def: 10, xpReward: 90, effect: "stun", isBoss: true,
+    "Tunnels de Métro Abandonnés": { name: "Le Chef de Gare Nécrosé", hp: 220, atk: 15, def: 10, xpReward: 90, effect: "stun", isBoss: true, visualArchetype: "zombie",
         signatureItem: { name: "Sifflet du Chef de Gare Nécrosé", category: "weapons", baseDmg: 30, baseValue: 90, canEnchant: false, mechanics: ["stun"], signature: true } },
-    "Jardins Carnivores": { name: "La Mère-Liane", hp: 210, atk: 14, def: 9, xpReward: 90, effect: "poison", isBoss: true,
+    "Jardins Carnivores": { name: "La Mère-Liane", hp: 210, atk: 14, def: 9, xpReward: 90, effect: "poison", isBoss: true, visualArchetype: "plant",
         signatureItem: { name: "Tronçon de Liane Toxique", category: "weapons", baseDmg: 28, baseValue: 88, canEnchant: false, mechanics: ["poison"], signature: true } },
-    "Bureaux de l'Administration Pénitentiaire": { name: "Le Directeur Général (Édition Cauchemar)", hp: 230, atk: 16, def: 11, xpReward: 100, effect: "slow", isBoss: true, ranged: true,
+    "Bureaux de l'Administration Pénitentiaire": { name: "Le Directeur Général (Édition Cauchemar)", hp: 230, atk: 16, def: 11, xpReward: 100, effect: "slow", isBoss: true, ranged: true, visualArchetype: "zombie",
         signatureItem: { name: "Tampon Encreur du Directeur", category: "ranged", baseDmg: 32, baseValue: 95, canEnchant: false, mechanics: ["slow"], signature: true } },
-    "Usine de Transformation Alimentaire": { name: "Le Boucher Sans Visage", hp: 250, atk: 18, def: 12, xpReward: 110, effect: "bleed", isBoss: true,
+    "Usine de Transformation Alimentaire": { name: "Le Boucher Sans Visage", hp: 250, atk: 18, def: 12, xpReward: 110, effect: "bleed", isBoss: true, visualArchetype: "zombie",
         signatureItem: { name: "Couperet du Boucher Sans Visage", category: "weapons", baseDmg: 34, baseValue: 100, canEnchant: false, mechanics: ["bleed"], signature: true } },
-    "Bibliothèque des Oubliés": { name: "Le Gardien des Mots Perdus", hp: 240, atk: 17, def: 10, xpReward: 120, effect: "confusion", isBoss: true,
+    "Bibliothèque des Oubliés": { name: "Le Gardien des Mots Perdus", hp: 240, atk: 17, def: 10, xpReward: 120, effect: "confusion", isBoss: true, visualArchetype: "shade",
         signatureItem: { name: "Reliure du Gardien des Mots Perdus", category: "armors", baseArmor: 16, baseValue: 92, canEnchant: false, mechanics: ["fear"], signature: true } },
-    "Laboratoire de Fous": { name: "Le Professeur Démentiel", hp: 260, atk: 20, def: 8, xpReward: 130, effect: "poison", isBoss: true,
+    "Laboratoire de Fous": { name: "Le Professeur Démentiel", hp: 260, atk: 20, def: 8, xpReward: 130, effect: "poison", isBoss: true, visualArchetype: "zombie",
         signatureItem: { name: "Seringue Géante du Professeur Démentiel", category: "weapons", baseDmg: 30, baseValue: 98, canEnchant: false, mechanics: ["poison"], signature: true } },
-    "Rue des Illusions": { name: "Le Maître des Illusions", hp: 220, atk: 16, def: 9, xpReward: 100, effect: "confusion", isBoss: true,
+    "Rue des Illusions": { name: "Le Maître des Illusions", hp: 220, atk: 16, def: 9, xpReward: 100, effect: "confusion", isBoss: true, visualArchetype: "shade",
         signatureItem: { name: "Cape en Lambeaux du Maître des Illusions", category: "armors", baseArmor: 14, baseValue: 90, canEnchant: false, mechanics: ["fear"], signature: true } },
-    "Catacombes des Chaussettes Perdues": { name: "Le Roi des Chaussettes Solitaires", hp: 200, atk: 14, def: 13, xpReward: 90, effect: "slow", isBoss: true,
+    "Catacombes des Chaussettes Perdues": { name: "Le Roi des Chaussettes Solitaires", hp: 200, atk: 14, def: 13, xpReward: 90, effect: "slow", isBoss: true, visualArchetype: "mannequin",
         signatureItem: { name: "Chaussette Royale Dépareillée", category: "armors", baseArmor: 17, baseValue: 85, canEnchant: false, mechanics: ["slow"], signature: true } },
-    "Marché Noir du Donjon": { name: "Le Baron des Ombres", hp: 270, atk: 19, def: 14, xpReward: 140, effect: "stun", isBoss: true,
+    "Marché Noir du Donjon": { name: "Le Baron des Ombres", hp: 270, atk: 19, def: 14, xpReward: 140, effect: "stun", isBoss: true, visualArchetype: "shade",
         signatureItem: { name: "Canne-Épée du Baron des Ombres", category: "weapons", baseDmg: 33, baseValue: 105, canEnchant: false, mechanics: ["stun"], signature: true } },
-    "Salle des Machines Infernales": { name: "L'IA Malveillante", hp: 300, atk: 22, def: 15, xpReward: 150, effect: "stun", isBoss: true, ranged: true,
+    "Salle des Machines Infernales": { name: "L'IA Malveillante", hp: 300, atk: 22, def: 15, xpReward: 150, effect: "stun", isBoss: true, ranged: true, visualArchetype: "machine",
         signatureItem: { name: "Canon à Impulsions de l'IA Malveillante", category: "ranged", baseDmg: 36, baseValue: 115, canEnchant: false, mechanics: ["stun"], signature: true } },
-    "Parking Souterrain Maudit": { name: "Le Gardien du Parking Éternel", hp: 235, atk: 16, def: 13, xpReward: 105, effect: "stun", isBoss: true,
+    "Parking Souterrain Maudit": { name: "Le Gardien du Parking Éternel", hp: 235, atk: 16, def: 13, xpReward: 105, effect: "stun", isBoss: true, visualArchetype: "vehicle",
         signatureItem: { name: "Barre de Péage Maudite", category: "weapons", baseDmg: 29, baseValue: 93, canEnchant: false, mechanics: ["stun"], signature: true } },
-    "Piscine Municipale Désaffectée": { name: "Le Grand Requin Gonflable", hp: 245, atk: 17, def: 9, xpReward: 110, effect: "bleed", isBoss: true,
+    "Piscine Municipale Désaffectée": { name: "Le Grand Requin Gonflable", hp: 245, atk: 17, def: 9, xpReward: 110, effect: "bleed", isBoss: true, visualArchetype: "beast",
         signatureItem: { name: "Dents du Grand Requin Gonflable", category: "weapons", baseDmg: 31, baseValue: 96, canEnchant: false, mechanics: ["bleed"], signature: true } },
-    "Studio de Télé-Achat Abandonné": { name: "L'Animateur Vedette Immortel", hp: 255, atk: 18, def: 10, xpReward: 115, effect: "confusion", isBoss: true,
+    "Studio de Télé-Achat Abandonné": { name: "L'Animateur Vedette Immortel", hp: 255, atk: 18, def: 10, xpReward: 115, effect: "confusion", isBoss: true, visualArchetype: "zombie",
         signatureItem: { name: "Micro Électrifié de l'Animateur Vedette", category: "weapons", baseDmg: 30, baseValue: 94, canEnchant: false, mechanics: ["adrenaline"], signature: true } }
 };
 

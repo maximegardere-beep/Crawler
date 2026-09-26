@@ -22,6 +22,7 @@ const sceneUi = {
     playerSprite: document.getElementById('scene-player-sprite'),
     enemyBadgeSlot: document.getElementById('scene-enemy-badge-slot'),
     playerBadgeSlot: document.getElementById('scene-player-badge-slot'),
+    mobSprite: document.getElementById('scene-mob-sprite'),
     // Panneaux existants (anneau PV + badges de statut + dé + indicateur compagnon), déplacés une
     // seule fois dans les slots ci-dessus — voir relocateLegacyPanels(). Références indépendantes de
     // celles d'app.js (même `document.getElementById`, même nœud DOM), pour ne rien coupler aux
@@ -103,6 +104,58 @@ function updateSceneVitals() {
     }
 }
 
+// Teintes par effet de mob (chantier "refonte graphique", Étape 3) : varie l'apparence des
+// archétypes de sprites.js sans dessiner une silhouette par créature (~52 dans le bestiaire). Un
+// SEUL accent rouge, fixe, réservé aux détails de danger (yeux/organes) quel que soit l'effet ; les
+// teintes de base/ombre changent, jamais l'accent — voir sprites.js/index.html (classes mob-fill-*).
+const MOB_EFFECT_TINTS = {
+    burn: { base: '#6b3a30', dark: '#4a2620' },
+    poison: { base: '#4f6b3a', dark: '#33452a' },
+    slow: { base: '#3a5a6b', dark: '#26414a' },
+    stun: { base: '#6b5a2a', dark: '#4a3f1e' },
+    confusion: { base: '#5a3a6b', dark: '#3f2a4a' },
+    pull: { base: '#3a4a6b', dark: '#26304a' },
+    light: { base: '#7a7550', dark: '#55512f' },
+    corrode: { base: '#4a6b4a', dark: '#304a30' },
+    fear: { base: '#4a2a4a', dark: '#301c30' },
+    bleed: { base: '#5a2a2a', dark: '#3a1c1c' }
+};
+const MOB_DEFAULT_TINT = { base: '#6b7280', dark: '#454c58' };
+const MOB_ACCENT_COLOR = '#c23b3b';
+
+// Mémorise le dernier archétype injecté pour ne pas réécrire innerHTML à chaque updateUI() (le mob
+// ne change pas de forme en cours de combat, seuls sa teinte/sa position bougent).
+let lastMobSpriteKey = null;
+
+// Sprite mob (Étape 3) : silhouette selon l'archétype du mob généré (bestiary.js), teinte selon son
+// effet, couronne superposée pour un boss, position le long du couloir selon gameState.combatDistance
+// — remplace la barre de distance retirée à l'Étape 1 (0 = proche/grand, maxDistance = loin/petit).
+function renderMobSprite() {
+    const enemy = gameState.currentEnemy;
+    if (!sceneUi.mobSprite || !enemy) return;
+
+    const archetypeKey = enemy.visualArchetype || 'goblinoid';
+    const spriteKey = archetypeKey + (enemy.isBoss ? ':boss' : '');
+    if (lastMobSpriteKey !== spriteKey) {
+        const archetypeSvg = MOB_ARCHETYPES[archetypeKey] || MOB_ARCHETYPES.goblinoid;
+        const crownHtml = enemy.isBoss ? `<div class="scene-boss-crown">${BOSS_CROWN_SVG}</div>` : '';
+        sceneUi.mobSprite.innerHTML = archetypeSvg + crownHtml;
+        lastMobSpriteKey = spriteKey;
+    }
+    sceneUi.mobSprite.classList.toggle('scene-sprite-boss', !!enemy.isBoss);
+
+    const tint = MOB_EFFECT_TINTS[enemy.effect] || MOB_DEFAULT_TINT;
+    sceneUi.mobSprite.style.setProperty('--mob-base', tint.base);
+    sceneUi.mobSprite.style.setProperty('--mob-dark', tint.dark);
+    sceneUi.mobSprite.style.setProperty('--mob-accent', MOB_ACCENT_COLOR);
+
+    const maxDist = (config.rangedCombat && config.rangedCombat.maxDistance) || 1;
+    const ratio = Math.max(0, Math.min(1, (gameState.combatDistance || 0) / maxDist));
+    sceneUi.mobSprite.style.width = `${34 - ratio * 20}%`;
+    sceneUi.mobSprite.style.top = `${46 - ratio * 30}%`;
+    sceneUi.mobSprite.style.left = `${30 - ratio * 18}%`;
+}
+
 // Élargit la carte (dialogue box) pour la scène : appelé APRÈS qu'app.js a fixé sa propre largeur
 // (170px en combat) dans ce même passage d'updateUI() — dernière écriture gagnante, sans avoir à
 // toucher la logique d'app.js elle-même.
@@ -127,8 +180,9 @@ function renderScene() {
 
     widenDialogueBox();
     updateSceneVitals();
+    renderMobSprite();
 
-    // Étapes suivantes (sprites mobs, effets) : à compléter ici.
+    // Étape suivante (effets : télégraphe, dégâts flottants, compagnon) : à compléter ici.
 }
 
 if (typeof module !== 'undefined' && module.exports) {

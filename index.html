@@ -344,6 +344,32 @@
         #scene-vignette {
             background: radial-gradient(ellipse at 50% 45%, transparent 40%, rgba(2,3,6,0.8) 100%);
         }
+        /* Sprites (joueur + archétypes de mobs, voir sprites.js) : contours épais sombres, un seul
+           accent rouge (--mob-accent) réservé aux détails de danger — jamais utilisé sur le joueur.
+           Teintes de base/ombre posées par instance via renderMobSprite() (scene.js), selon l'effet
+           du mob généré ; valeurs neutres par défaut si scene.js n'a encore rien posé. */
+        #scene-mob-sprite svg, #scene-player-sprite svg {
+            width: 100%;
+            height: auto;
+            display: block;
+            overflow: visible;
+            filter: drop-shadow(0 6px 5px rgba(0,0,0,0.5));
+        }
+        .mob-fill-base { fill: var(--mob-base, #6b7280); stroke: #05060c; stroke-width: 4; }
+        .mob-fill-dark { fill: var(--mob-dark, #454c58); stroke: #05060c; stroke-width: 3; }
+        .mob-fill-accent { fill: var(--mob-accent, #c23b3b); }
+        .mob-stroke-thick { stroke: var(--mob-dark, #454c58); stroke-width: 10; stroke-linecap: round; }
+        .scene-boss-crown {
+            position: absolute;
+            top: -13%;
+            left: 15%;
+            width: 70%;
+        }
+        /* Sélecteur d'enfant direct (>) : ne cible QUE la silhouette du mob, jamais la couronne
+           imbriquée dans .scene-boss-crown (qui garde son propre drop-shadow neutre ci-dessus). */
+        #scene-mob-sprite.scene-sprite-boss > svg {
+            filter: drop-shadow(0 6px 5px rgba(0,0,0,0.5)) drop-shadow(0 0 10px rgba(202,162,58,0.35));
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-200 min-h-screen flex justify-center items-center py-6 px-4 selection:bg-blue-900 selection:text-white">
@@ -478,6 +504,12 @@
 
                 <!-- Sprite joueur (vu de dos, coin inférieur droit — voir sprites.js). -->
                 <div id="scene-player-sprite" class="absolute" style="width: 30%; right: 4%; bottom: 3%;"></div>
+
+                <!-- Sprite mob (archétype selon gameState.currentEnemy.visualArchetype, voir
+                     bestiary.js/sprites.js) : position (top/left/width) recalculée à chaque rendu par
+                     scene.js -> renderMobSprite() selon gameState.combatDistance, en remplacement de
+                     l'ancienne barre de distance retirée plus haut. -->
+                <div id="scene-mob-sprite" class="absolute transition-all duration-500 ease-out" style="width: 34%; top: 46%; left: 30%;"></div>
 
                 <!-- Emplacements des panneaux PV existants (anneau + badges de statut + dé + indicateur
                      compagnon) : DÉPLACÉS ici une seule fois par scene.js (ensureSceneDom()), jamais
@@ -1075,15 +1107,15 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=78"></script>
-    <script src="items.js?v=78"></script>
-    <script src="spells.js?v=78"></script>
-    <script src="districts.js?v=78"></script>
-    <script src="safehouses.js?v=78"></script>
-    <script src="generator.js?v=78"></script>
-    <script src="anomalies.js?v=78"></script>
-    <script src="sprites.js?v=78"></script>
-    <script src="scene.js?v=78"></script>
-    <script src="app.js?v=78"></script>
+    <script src="bestiary.js?v=79"></script>
+    <script src="items.js?v=79"></script>
+    <script src="spells.js?v=79"></script>
+    <script src="districts.js?v=79"></script>
+    <script src="safehouses.js?v=79"></script>
+    <script src="generator.js?v=79"></script>
+    <script src="anomalies.js?v=79"></script>
+    <script src="sprites.js?v=79"></script>
+    <script src="scene.js?v=79"></script>
+    <script src="app.js?v=79"></script>
 </body>
 </html>
