@@ -198,8 +198,10 @@ let lastMobSpriteKey = null;
 // n'a encore calculé de position réelle.
 let lastMobCenter = { left: 28, top: 80 };
 // Centre approximatif, FIXE, du sprite joueur (%) — voir sa position dans index.html
-// (right:2%, bottom:-1%, width:40%). Même approximation volontaire que lastMobCenter.
-const PLAYER_CENTER = { left: 78, top: 74 };
+// (right:10%, bottom:0%, width:24%, sprite corps entier viewBox 100x160). `left` reste le centre
+// horizontal (78%, inchangé). `top` vise la hauteur des mains (~y=90 sur 160 dans le SVG joueur),
+// convertie en % de la hauteur du couloir. Même approximation volontaire que lastMobCenter.
+const PLAYER_CENTER = { left: 78, top: 76 };
 
 // Sprite mob (Étape 3) : silhouette selon l'archétype du mob généré (bestiary.js), teinte selon son
 // effet, couronne superposée pour un boss, position le long du couloir selon gameState.combatDistance

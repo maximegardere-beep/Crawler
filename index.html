@@ -640,14 +640,23 @@
                      décalé (voir scene.js -> MOB_ARCHETYPE_FLOATS), où l'écart shadow/sprite EST le
                      signal visuel de lévitation. z-index juste sous leur sprite respectif. -->
                 <div id="scene-mob-shadow" class="scene-shadow absolute" style="z-index: 9;"></div>
-                <div id="scene-player-shadow" class="scene-shadow absolute" style="width: 34%; left: 78%; bottom: 0%; z-index: 19;"></div>
+                <!-- width recalibrée au gabarit du sprite corps entier (jambes plus fines que
+                     l'ancien buste large) : voir #scene-player-sprite juste en dessous. -->
+                <div id="scene-player-shadow" class="scene-shadow absolute" style="width: 16%; left: 78%; bottom: 0%; z-index: 19;"></div>
                 <div id="scene-companion-shadow" class="scene-shadow absolute hidden" style="width: 12%; left: 48.5%; bottom: 2%; z-index: 14;"></div>
 
-                <!-- Sprite joueur (vu de dos, plan américain — voir sprites.js). Ancré sur le bord
-                     bas du couloir (bottom: 0, léger débord -1%) plutôt qu'en flottant au-dessus du
-                     sol avec un écart visible (correctif). z-index le plus élevé des sprites : reste
-                     TOUJOURS au premier plan, quel que soit l'écart de combat. -->
-                <div id="scene-player-sprite" class="absolute" style="width: 40%; right: 2%; bottom: -1%; z-index: 20;"></div>
+                <!-- Sprite joueur (vu de dos, corps entier — voir sprites.js, viewBox 100x160).
+                     bottom: 0 pile (les pieds sont désormais dessinés dans le SVG lui-même, plus de
+                     débord de crop à masquer comme sur l'ancien buste). width/right calibrés pour
+                     garder le MÊME centre horizontal (78%, aligné sur #scene-player-hp-wrap et
+                     #scene-player-shadow ci-dessus) sans passer par `transform` — l'animation de
+                     respiration/recul (voir plus haut, scenePlayerBreathe/scenePlayerRecoil) écrit
+                     déjà `transform`, un translateX(-50%) statique y serait écrasé à chaque frame.
+                     right = 22 - width/2 (centre = 100 - right - width/2 = 78) : si la silhouette est
+                     retouchée et change de largeur, recalculer right avec cette formule plutôt que de
+                     changer left/transform. z-index le plus élevé des sprites : reste TOUJOURS au
+                     premier plan, quel que soit l'écart de combat. -->
+                <div id="scene-player-sprite" class="absolute" style="width: 24%; right: 10%; bottom: 0%; z-index: 20;"></div>
 
                 <!-- Barre de vie du joueur (chantier "polish", Axe B) : remplace le bandeau du haut
                      ET l'ancien anneau du panneau relocalisé (masqué, voir index.html/scene.js) —
@@ -1301,15 +1310,15 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=87"></script>
-    <script src="items.js?v=87"></script>
-    <script src="spells.js?v=87"></script>
-    <script src="districts.js?v=87"></script>
-    <script src="safehouses.js?v=87"></script>
-    <script src="generator.js?v=87"></script>
-    <script src="anomalies.js?v=87"></script>
-    <script src="sprites.js?v=87"></script>
-    <script src="scene.js?v=87"></script>
-    <script src="app.js?v=87"></script>
+    <script src="bestiary.js?v=88"></script>
+    <script src="items.js?v=88"></script>
+    <script src="spells.js?v=88"></script>
+    <script src="districts.js?v=88"></script>
+    <script src="safehouses.js?v=88"></script>
+    <script src="generator.js?v=88"></script>
+    <script src="anomalies.js?v=88"></script>
+    <script src="sprites.js?v=88"></script>
+    <script src="scene.js?v=88"></script>
+    <script src="app.js?v=88"></script>
 </body>
 </html>

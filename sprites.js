@@ -4,38 +4,45 @@
 // contours épais sombres (#05060c), palette désaturée, un seul accent rouge réservé aux détails de
 // danger (yeux/organes de monstres, voir la suite du chantier), jamais utilisé sur le joueur.
 //
-// viewBox normalisée à "0 0 100 140" (portrait) pour tous les sprites, afin qu'ils s'alignent au
-// même point d'ancrage (bas du sprite = sol) quelle que soit leur silhouette.
+// viewBox normalisée à "0 0 100 140" (portrait) pour les archétypes de mobs/compagnon, afin qu'ils
+// s'alignent au même point d'ancrage (bas du sprite = sol) quelle que soit leur silhouette. Le
+// joueur (corps entier, voir plus bas) utilise sa propre viewBox "0 0 100 160" — même convention
+// d'ancrage bas = sol, mais gabarit dédié à son propre CSS dans index.html (#scene-player-sprite).
 
 // Joueur vu de dos (une seule apparence pour l'instant : pas de variation par équipement dans ce
-// chantier). Cadré en PLAN AMÉRICAIN (buste, jamais les jambes) — plus proche du premier plan, sans
-// ombre au sol séparée (voir #scene-mob-shadow/#scene-player-shadow dans index.html, gérées par
-// scene.js). Silhouette la plus aboutie de la banque (point focal constant de l'écran) : torse en UNE
-// seule silhouette tapered (épaules larges -> taille, sans double-contour), sac à dos bombé aux
-// sangles visibles, capuche/col avec nuque dessinée. Palette brune terre (tenue de survie), contours
-// épais sombres. Chantier "polish" (Axe C) : gourdin retiré (déjà représenté par la carte de jeu,
-// pas de doublon visuel), silhouette redessinée pour plus de définition — reste volontairement sobre
-// (pas d'accessoire narratif supplémentaire sur le sac).
+// chantier). CORPS ENTIER (viewBox 100×160, jambes+bottes incluses — pas de crop plan américain,
+// contrairement à l'ancienne version) : bas du SVG = sol, ancrage cohérent avec le reste de la
+// banque. Torse tapered (épaules 44 -> taille 40, plus de silhouette carrée), sac à dos bombé + patch
+// tissu teinté (rupture avec le camaïeu brun d'origine), nuque peau visible sous la capuche, tête
+// proportionnellement plus grosse (~28% de la largeur d'épaules) qu'avant. Toujours sans arme visible
+// (déjà représentée par la carte de jeu, pas de doublon visuel). #scene-player-sprite (index.html)
+// est calibré (width/right/bottom) pour ce ratio 100:160 — voir le commentaire à côté de cet élément
+// si la silhouette est retouchée et change de proportions.
 const PLAYER_SPRITE_SVG = `
-<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-    <!-- Sac à dos : silhouette bombée (plus de volume qu'un simple rectangle), sangles visibles -->
-    <path d="M12 38 Q8 36 10 52 Q12 74 22 80 Q26 76 24 70 Q17 62 17 48 Q17 38 24 33 Q16 34 12 38 Z" fill="#5a4530" stroke="#05060c" stroke-width="3" stroke-linejoin="round"/>
-    <path d="M88 38 Q92 36 90 52 Q88 74 78 80 Q74 76 76 70 Q83 62 83 48 Q83 38 76 33 Q84 34 88 38 Z" fill="#5a4530" stroke="#05060c" stroke-width="3" stroke-linejoin="round"/>
-    <rect x="19" y="44" width="9" height="11" rx="3" fill="#4a3a24" stroke="#05060c" stroke-width="2"/>
-    <rect x="72" y="44" width="9" height="11" rx="3" fill="#4a3a24" stroke="#05060c" stroke-width="2"/>
+<svg viewBox="0 0 100 160" xmlns="http://www.w3.org/2000/svg">
+    <!-- Jambes + bottes -->
+    <path d="M39 90 Q36 112 37 132 Q37 146 40 156 L48 156 Q47 146 47 132 Q47 112 45 90 Z" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
+    <path d="M61 90 Q64 112 63 132 Q63 146 60 156 L52 156 Q53 146 53 132 Q53 112 55 90 Z" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
+    <path d="M37 150 Q36 157 42 159 L49 159 Q49 154 48 150 Z" fill="#241a10" stroke="#05060c" stroke-width="2.5"/>
+    <path d="M63 150 Q64 157 58 159 L51 159 Q51 154 52 150 Z" fill="#241a10" stroke="#05060c" stroke-width="2.5"/>
+    <!-- Bassin -->
+    <path d="M32 78 Q30 86 34 92 L66 92 Q70 86 68 78 Q60 84 50 84 Q40 84 32 78 Z" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
     <!-- Bras -->
-    <rect x="12" y="38" width="14" height="46" rx="7" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
-    <rect x="74" y="38" width="14" height="46" rx="7" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
-    <!-- Torse : une seule silhouette tapered (épaules larges -> taille), sans double-contour -->
-    <path d="M20 36 Q20 26 30 23 L70 23 Q80 26 80 36 L77 52 Q77 80 67 84 L33 84 Q23 80 23 52 Z" fill="#6b5638" stroke="#05060c" stroke-width="4" stroke-linejoin="round"/>
-    <path d="M32 40 Q32 33 39 31 L61 31 Q68 33 68 40 L66 52 Q66 72 60 76 L40 76 Q34 72 34 52 Z" fill="#5a4a34" stroke="#05060c" stroke-width="2.5" stroke-linejoin="round"/>
-    <!-- Capuche / col ramassé sur la nuque -->
-    <path d="M33 29 Q50 20 67 29 L67 36 Q50 29 33 36 Z" fill="#4a3a24" stroke="#05060c" stroke-width="3" stroke-linejoin="round"/>
-    <!-- Nuque/cheveux : touffe visible sous la capuche -->
-    <path d="M44 32 Q50 37 56 32 L55 38 Q50 42 45 38 Z" fill="#3a2c1a"/>
-    <!-- Tête -->
-    <circle cx="50" cy="14" r="14" fill="#6b5638" stroke="#05060c" stroke-width="4"/>
-    <path d="M37 11 a13 13 0 0 1 26 0 v3.5 h-26 z" fill="#4a3a24" stroke="#05060c" stroke-width="3"/>
+    <path d="M26 42 Q18 46 18 62 Q18 80 24 92 Q30 90 29 82 Q24 70 26 56 Q27 48 32 43 Z" fill="#4a3a24" stroke="#05060c" stroke-width="3"/>
+    <path d="M74 42 Q82 46 82 62 Q82 80 76 92 Q70 90 71 82 Q76 70 74 56 Q73 48 68 43 Z" fill="#4a3a24" stroke="#05060c" stroke-width="3"/>
+    <!-- Torse : silhouette tapered (épaules larges -> taille) -->
+    <path d="M28 40 Q26 30 36 26 L64 26 Q74 30 72 40 L70 60 Q69 80 60 84 L40 84 Q31 80 30 60 Z" fill="#6b5638" stroke="#05060c" stroke-width="4"/>
+    <!-- Sac à dos + patch tissu -->
+    <rect x="35" y="34" width="30" height="38" rx="6" fill="#4a3a24" stroke="#05060c" stroke-width="3"/>
+    <rect x="40" y="40" width="20" height="14" rx="3" fill="#3a6b5e" stroke="#05060c" stroke-width="2"/>
+    <path d="M38 28 L38 40" stroke="#8a5a2e" stroke-width="4" stroke-linecap="round"/>
+    <path d="M62 28 L62 40" stroke="#8a5a2e" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="50" cy="58" r="3" fill="#9a9a9a" stroke="#05060c" stroke-width="1.5"/>
+    <!-- Nuque -->
+    <path d="M40 24 Q40 20 50 20 Q60 20 60 24 L58 30 L42 30 Z" fill="#c98a5e" stroke="#05060c" stroke-width="2"/>
+    <!-- Tête / capuche -->
+    <circle cx="50" cy="14" r="14" fill="#2f2318" stroke="#05060c" stroke-width="4"/>
+    <path d="M36 10 a14 14 0 0 1 28 0 v4 h-28 z" fill="#241a10" stroke="#05060c" stroke-width="3"/>
 </svg>`;
 
 // Archétypes visuels réutilisables du bestiaire (~52 créatures, voir bestiary.js -> champ
