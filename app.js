@@ -1306,6 +1306,12 @@ function updateUI() {
         ui.combatSidePlayer.classList.remove('flex', 'flex-col');
     }
 
+    // Scène de combat (chantier "refonte graphique", branche `graphique`) : seul point d'accroche
+    // côté moteur, tout le reste (DOM, styles, état) vit dans scene.js. Garde défensive : scene.js
+    // est chargé juste avant app.js (voir index.html/tests/load_game.js), donc déjà défini au tout
+    // premier appel d'updateUI() ci-dessous — le typeof reste une sécurité, pas une nécessité.
+    if (typeof renderScene === 'function') renderScene();
+
     // "Lieux connus" (donjon classique) reste un panneau séparé ; la "Carte Urbaine" (étage urbain)
     // s'affiche elle en overlay directement sur la carte active plutôt qu'en panneau séparé, pour
     // que le déplacement entre villes reste au même endroit que l'exploration classique. Elle se
