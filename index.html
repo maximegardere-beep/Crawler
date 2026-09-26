@@ -283,6 +283,15 @@
             font-weight: bold;
             line-height: 1;
         }
+        /* Chantier "polish", Axe B : l'anneau PV des panneaux relocalisés dans la scène (statuts/dé)
+           est remplacé par les nouvelles barres (#scene-player-hp-wrap/#scene-enemy-hp-wrap) —
+           sélecteur d'ENFANT DIRECT uniquement : ne masque jamais l'anneau du compagnon, imbriqué
+           plus profondément dans #companion-combat-indicator, ni un anneau PV ailleurs dans l'appli
+           (profil joueur, écran de victoire...). */
+        #combat-side-enemy > .hp-ring-wrapper,
+        #combat-side-player > .hp-ring-wrapper {
+            display: none;
+        }
 
         /* --- Overlay d'ambiance (états critiques du joueur) ---
            Chaque effet est une couche indépendante empilable (plusieurs classes peuvent être
@@ -623,31 +632,6 @@
              updateUI() dans app.js — seul point d'accroche côté moteur). Couloir neutre pour
              l'instant : pas encore de variation visuelle par quartier (à valider plus tard). -->
         <section id="scene-view" class="hidden gap-2 py-1 w-full">
-            <!-- Barres de vie (chantier "refonte graphique", Étape 2) : lues directement depuis
-                 gameState par scene.js, indépendamment des anneaux PV existants (#combat-side-enemy/
-                 -player, relocalisés plus bas dans ce bloc pour leurs badges de statut/dé/compagnon,
-                 mais dont l'anneau lui-même reste, lui, sans rôle ici). -->
-            <div class="w-full flex items-start gap-3">
-                <div class="flex-1 min-w-0">
-                    <div class="flex justify-between text-[9px] uppercase tracking-widest text-blue-400 mb-0.5">
-                        <span>Crawler</span>
-                        <span id="scene-player-hp-text">0/0</span>
-                    </div>
-                    <div class="w-full bg-gray-950 rounded-full h-3 border border-gray-800 overflow-hidden">
-                        <div id="scene-player-hp-bar" class="bg-blue-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
-                    </div>
-                </div>
-                <div class="flex-1 min-w-0">
-                    <div class="flex justify-between text-[9px] uppercase tracking-widest text-red-400 mb-0.5">
-                        <span id="scene-enemy-name-text" class="truncate">Ennemi</span>
-                        <span id="scene-enemy-hp-text" class="shrink-0">0/0</span>
-                    </div>
-                    <div class="w-full bg-gray-950 rounded-full h-3 border border-gray-800 overflow-hidden">
-                        <div id="scene-enemy-hp-bar" class="bg-red-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
-                    </div>
-                </div>
-            </div>
-
             <div id="scene-corridor" class="relative w-full rounded-xl overflow-hidden border border-amber-900/40" style="aspect-ratio: 4 / 3; background:#0a0d14;">
                 <svg id="scene-corridor-svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" class="absolute inset-0 w-full h-full"></svg>
 
@@ -664,6 +648,20 @@
                      sol avec un écart visible (correctif). z-index le plus élevé des sprites : reste
                      TOUJOURS au premier plan, quel que soit l'écart de combat. -->
                 <div id="scene-player-sprite" class="absolute" style="width: 40%; right: 2%; bottom: -1%; z-index: 20;"></div>
+
+                <!-- Barre de vie du joueur (chantier "polish", Axe B) : remplace le bandeau du haut
+                     ET l'ancien anneau du panneau relocalisé (masqué, voir index.html/scene.js) —
+                     position FIXE au-dessus de la tête du joueur (celui-ci ne change jamais de
+                     profondeur, contrairement au mob). -->
+                <div id="scene-player-hp-wrap" class="absolute" style="width: 32%; left: 78%; bottom: 58%; transform: translateX(-50%); z-index: 25;">
+                    <div class="flex justify-between text-[8px] uppercase tracking-widest text-blue-400">
+                        <span>Crawler</span>
+                        <span id="scene-player-hp-text">0/0</span>
+                    </div>
+                    <div class="w-full h-2 bg-gray-950 rounded-full border border-gray-800 overflow-hidden">
+                        <div id="scene-player-hp-bar" class="bg-blue-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
+                    </div>
+                </div>
 
                 <!-- Sprite compagnon (chantier "refonte graphique", Étape 4) : visible seulement si
                      gameState.companion est actif, teinté selon sa spécialité (voir scene.js). -->
@@ -684,14 +682,27 @@
                      jamais les clics. -->
                 <div id="scene-fx-layer" class="absolute inset-0 pointer-events-none" style="z-index: 22;"></div>
 
-                <!-- Emplacements des panneaux PV existants (anneau + badges de statut + dé + indicateur
+                <!-- Emplacements des panneaux PV existants (badges de statut + dé + indicateur
                      compagnon) : DÉPLACÉS ici une seule fois par scene.js (ensureSceneDom()), jamais
                      dupliqués/réécrits — app.js continue de les gérer exactement comme avant, sans le
                      savoir. Conserve au passage le point d'ancrage `position: relative` dont dépend
                      showFloatingDamage() (app.js) pour les chiffres de dégâts flottants. Le slot
                      ennemi est repositionné à chaque rendu par scene.js pour SUIVRE le mob (correctif :
-                     les dégâts flottants partaient d'un coin fixe, jamais de la position réelle). -->
-                <div id="scene-enemy-badge-slot" class="absolute transition-all duration-500 ease-out" style="z-index: 25;"></div>
+                     les dégâts flottants partaient d'un coin fixe, jamais de la position réelle).
+                     L'ancien anneau PV (dans le panneau relocalisé) est masqué en CSS (voir
+                     index.html) : #scene-enemy-hp-wrap ci-dessous, avec un gabarit proportionnel au
+                     mob, le remplace comme unique affichage PV côté mob (Axe B, "polish"). -->
+                <div id="scene-enemy-badge-slot" class="absolute transition-all duration-500 ease-out flex flex-col items-center gap-0.5" style="z-index: 25;">
+                    <div id="scene-enemy-hp-wrap" style="width: 26%;">
+                        <div class="flex justify-between text-[8px] uppercase tracking-widest text-red-400">
+                            <span id="scene-enemy-name-text" class="truncate">Ennemi</span>
+                            <span id="scene-enemy-hp-text" class="shrink-0">0/0</span>
+                        </div>
+                        <div class="w-full h-2 bg-gray-950 rounded-full border border-gray-800 overflow-hidden">
+                            <div id="scene-enemy-hp-bar" class="bg-red-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
+                        </div>
+                    </div>
+                </div>
                 <div id="scene-player-badge-slot" class="absolute" style="bottom: 3%; left: 4%; z-index: 25;"></div>
 
                 <div id="scene-vignette" class="absolute inset-0 pointer-events-none" style="z-index: 30;"></div>
@@ -1290,15 +1301,15 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=85"></script>
-    <script src="items.js?v=85"></script>
-    <script src="spells.js?v=85"></script>
-    <script src="districts.js?v=85"></script>
-    <script src="safehouses.js?v=85"></script>
-    <script src="generator.js?v=85"></script>
-    <script src="anomalies.js?v=85"></script>
-    <script src="sprites.js?v=85"></script>
-    <script src="scene.js?v=85"></script>
-    <script src="app.js?v=85"></script>
+    <script src="bestiary.js?v=86"></script>
+    <script src="items.js?v=86"></script>
+    <script src="spells.js?v=86"></script>
+    <script src="districts.js?v=86"></script>
+    <script src="safehouses.js?v=86"></script>
+    <script src="generator.js?v=86"></script>
+    <script src="anomalies.js?v=86"></script>
+    <script src="sprites.js?v=86"></script>
+    <script src="scene.js?v=86"></script>
+    <script src="app.js?v=86"></script>
 </body>
 </html>

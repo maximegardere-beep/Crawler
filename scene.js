@@ -21,6 +21,7 @@ const sceneUi = {
     enemyNameText: document.getElementById('scene-enemy-name-text'),
     playerSprite: document.getElementById('scene-player-sprite'),
     enemyBadgeSlot: document.getElementById('scene-enemy-badge-slot'),
+    enemyHpWrap: document.getElementById('scene-enemy-hp-wrap'),
     playerBadgeSlot: document.getElementById('scene-player-badge-slot'),
     mobSprite: document.getElementById('scene-mob-sprite'),
     companionSprite: document.getElementById('scene-companion-sprite'),
@@ -145,9 +146,11 @@ function ensureSceneDom() {
     sceneDomReady = true;
 }
 
-// Barres de vie (Étape 2) : lues directement dans gameState, indépendamment des anneaux PV
-// existants (relocalisés ci-dessus pour leurs badges de statut/dé/compagnon, pas pour l'anneau
-// lui-même). Même formule que le reste de l'UI (ex. ui.timeBar dans updateUI()).
+// Barres de vie (Axe B, chantier "polish") : lues directement dans gameState, indépendamment des
+// panneaux relocalisés (statuts/dé/compagnon, voir relocateLegacyPanels()) — leur ancien anneau PV
+// est masqué en CSS (index.html), ces barres en sont l'unique remplaçant. Même formule que le reste
+// de l'UI (ex. ui.timeBar dans updateUI()). Position/gabarit : fixes côté joueur (index.html), gérés
+// dynamiquement côté mob par renderMobSprite() (suit sa position ET sa taille à l'écran).
 function updateSceneVitals() {
     const enemy = gameState.currentEnemy;
     if (sceneUi.playerHpBar && sceneUi.playerHpText) {
@@ -263,13 +266,18 @@ function renderMobSprite() {
         top: 100 - spriteBottom - heightPct / 2
     };
 
-    // Le badge PV ennemi (anneau/statuts/dé, voir relocateLegacyPanels()) suit désormais le mob —
-    // correctif : il partait d'un coin fixe, jamais de la position réelle (dégâts flottants inclus,
-    // puisque showFloatingDamage() cible ce même panneau).
+    // Le badge PV ennemi (statuts/dé + barre de vie, voir relocateLegacyPanels()) suit désormais le
+    // mob — correctif : il partait d'un coin fixe, jamais de la position réelle (dégâts flottants
+    // inclus, puisque showFloatingDamage() cible ce même panneau).
     if (sceneUi.enemyBadgeSlot) {
         sceneUi.enemyBadgeSlot.style.left = `${anchor.centerX}%`;
         sceneUi.enemyBadgeSlot.style.bottom = `${spriteBottom + heightPct}%`;
         sceneUi.enemyBadgeSlot.style.transform = 'translateX(-50%)';
+    }
+    // Barre de vie du mob (chantier "polish", Axe B) : gabarit proportionnel à sa distance (donc à
+    // sa taille à l'écran), avec un plancher pour rester lisible même très loin.
+    if (sceneUi.enemyHpWrap) {
+        sceneUi.enemyHpWrap.style.width = `${Math.max(18, anchor.width * 1.2)}%`;
     }
 }
 
