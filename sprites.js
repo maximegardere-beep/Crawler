@@ -147,6 +147,20 @@ const BOSS_CROWN_SVG = `
         <circle cx="86" cy="10" r="4" fill="#e8c766"/>
     </svg>`;
 
+// Compagnon (chantier "refonte graphique", Étape 4) : une seule silhouette générique, teintée par
+// spécialité (strike/guard/medic/scout, voir generator.js -> companionSpecialties) via les mêmes
+// classes mob-fill-* que les archétypes de mobs ci-dessus — pas de silhouette dédiée par spécialité.
+const COMPANION_SPRITE_SVG = `
+<svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="50" cy="132" rx="20" ry="5" fill="#000" opacity="0.3"/>
+    <rect x="36" y="82" width="10" height="30" rx="4" class="mob-fill-dark"/>
+    <rect x="54" y="82" width="10" height="30" rx="4" class="mob-fill-dark"/>
+    <rect x="30" y="48" width="40" height="38" rx="10" class="mob-fill-base"/>
+    <circle cx="50" cy="26" r="16" class="mob-fill-base"/>
+    <circle cx="44" cy="24" r="3" class="mob-fill-accent"/>
+    <circle cx="56" cy="24" r="3" class="mob-fill-accent"/>
+</svg>`;
+
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { PLAYER_SPRITE_SVG, MOB_ARCHETYPES, BOSS_CROWN_SVG };
+    module.exports = { PLAYER_SPRITE_SVG, MOB_ARCHETYPES, BOSS_CROWN_SVG, COMPANION_SPRITE_SVG };
 }

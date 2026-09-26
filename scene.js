@@ -23,6 +23,7 @@ const sceneUi = {
     enemyBadgeSlot: document.getElementById('scene-enemy-badge-slot'),
     playerBadgeSlot: document.getElementById('scene-player-badge-slot'),
     mobSprite: document.getElementById('scene-mob-sprite'),
+    companionSprite: document.getElementById('scene-companion-sprite'),
     // Panneaux existants (anneau PV + badges de statut + dé + indicateur compagnon), déplacés une
     // seule fois dans les slots ci-dessus — voir relocateLegacyPanels(). Références indépendantes de
     // celles d'app.js (même `document.getElementById`, même nœud DOM), pour ne rien coupler aux
@@ -143,6 +144,9 @@ function renderMobSprite() {
         lastMobSpriteKey = spriteKey;
     }
     sceneUi.mobSprite.classList.toggle('scene-sprite-boss', !!enemy.isBoss);
+    // Télégraphe (Étape 4) : même état que la bannière #telegraph-banner (updateTelegraphBanner(),
+    // app.js), lu ici indépendamment pour le halo pulsé du sprite — jamais de nouvel état posé.
+    sceneUi.mobSprite.classList.toggle('scene-telegraph', !!(enemy.status && enemy.status.telegraph));
 
     const tint = MOB_EFFECT_TINTS[enemy.effect] || MOB_DEFAULT_TINT;
     sceneUi.mobSprite.style.setProperty('--mob-base', tint.base);
@@ -154,6 +158,37 @@ function renderMobSprite() {
     sceneUi.mobSprite.style.width = `${34 - ratio * 20}%`;
     sceneUi.mobSprite.style.top = `${46 - ratio * 30}%`;
     sceneUi.mobSprite.style.left = `${30 - ratio * 18}%`;
+}
+
+// Teintes par spécialité de compagnon (Étape 4) : même mécanisme de variables CSS que les mobs
+// (mob-fill-*), sur un conteneur DOM différent — aucune collision, chaque élément porte les siennes.
+const COMPANION_SPECIALTY_TINTS = {
+    strike: { base: '#6b3a30', dark: '#4a2620' },
+    guard: { base: '#3a4a6b', dark: '#26304a' },
+    medic: { base: '#3a6b4a', dark: '#264a30' },
+    scout: { base: '#4a4f5c', dark: '#33363f' }
+};
+
+let companionSpriteBuilt = false;
+
+// Sprite compagnon (Étape 4) : visible seulement si gameState.companion est actif (silhouette
+// injectée une seule fois, jamais recréée), teinté selon sa spécialité.
+function renderCompanionSprite() {
+    if (!sceneUi.companionSprite) return;
+    const companion = gameState.companion;
+    if (!companion) {
+        sceneUi.companionSprite.classList.add('hidden');
+        return;
+    }
+    if (!companionSpriteBuilt) {
+        sceneUi.companionSprite.innerHTML = COMPANION_SPRITE_SVG;
+        companionSpriteBuilt = true;
+    }
+    sceneUi.companionSprite.classList.remove('hidden');
+    const tint = COMPANION_SPECIALTY_TINTS[companion.specialty && companion.specialty.type] || MOB_DEFAULT_TINT;
+    sceneUi.companionSprite.style.setProperty('--mob-base', tint.base);
+    sceneUi.companionSprite.style.setProperty('--mob-dark', tint.dark);
+    sceneUi.companionSprite.style.setProperty('--mob-accent', MOB_ACCENT_COLOR);
 }
 
 // Élargit la carte (dialogue box) pour la scène : appelé APRÈS qu'app.js a fixé sa propre largeur
@@ -181,8 +216,9 @@ function renderScene() {
     widenDialogueBox();
     updateSceneVitals();
     renderMobSprite();
-
-    // Étape suivante (effets : télégraphe, dégâts flottants, compagnon) : à compléter ici.
+    renderCompanionSprite();
+    // Dégâts flottants et distance visuelle : déjà couverts (Étapes 2-3, voir relocateLegacyPanels()
+    // et renderMobSprite()), aucun code supplémentaire nécessaire ici.
 }
 
 if (typeof module !== 'undefined' && module.exports) {

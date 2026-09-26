@@ -370,6 +370,23 @@
         #scene-mob-sprite.scene-sprite-boss > svg {
             filter: drop-shadow(0 6px 5px rgba(0,0,0,0.5)) drop-shadow(0 0 10px rgba(202,162,58,0.35));
         }
+        /* Télégraphe (chantier "refonte graphique", Étape 4) : halo rouge pulsé sur le mob tant que
+           enemy.status.telegraph est actif — même état que la bannière #telegraph-banner existante
+           (updateTelegraphBanner() dans app.js), lu indépendamment ici par renderMobSprite() (scene.js).
+           Désactivé sous prefers-reduced-motion (halo fixe, sans pulse). */
+        @keyframes sceneTelegraphPulse {
+            0%, 100% { filter: drop-shadow(0 6px 5px rgba(0,0,0,0.5)) drop-shadow(0 0 0px rgba(239,68,68,0)); }
+            50%      { filter: drop-shadow(0 6px 5px rgba(0,0,0,0.5)) drop-shadow(0 0 16px rgba(239,68,68,0.95)); }
+        }
+        #scene-mob-sprite.scene-telegraph > svg {
+            animation: sceneTelegraphPulse 0.9s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #scene-mob-sprite.scene-telegraph > svg {
+                animation: none;
+                filter: drop-shadow(0 6px 5px rgba(0,0,0,0.5)) drop-shadow(0 0 12px rgba(239,68,68,0.95));
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-200 min-h-screen flex justify-center items-center py-6 px-4 selection:bg-blue-900 selection:text-white">
@@ -504,6 +521,10 @@
 
                 <!-- Sprite joueur (vu de dos, coin inférieur droit — voir sprites.js). -->
                 <div id="scene-player-sprite" class="absolute" style="width: 30%; right: 4%; bottom: 3%;"></div>
+
+                <!-- Sprite compagnon (chantier "refonte graphique", Étape 4) : visible seulement si
+                     gameState.companion est actif, teinté selon sa spécialité (voir scene.js). -->
+                <div id="scene-companion-sprite" class="absolute hidden" style="width: 15%; right: 34%; bottom: 3%;"></div>
 
                 <!-- Sprite mob (archétype selon gameState.currentEnemy.visualArchetype, voir
                      bestiary.js/sprites.js) : position (top/left/width) recalculée à chaque rendu par
@@ -1107,15 +1128,15 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=79"></script>
-    <script src="items.js?v=79"></script>
-    <script src="spells.js?v=79"></script>
-    <script src="districts.js?v=79"></script>
-    <script src="safehouses.js?v=79"></script>
-    <script src="generator.js?v=79"></script>
-    <script src="anomalies.js?v=79"></script>
-    <script src="sprites.js?v=79"></script>
-    <script src="scene.js?v=79"></script>
-    <script src="app.js?v=79"></script>
+    <script src="bestiary.js?v=80"></script>
+    <script src="items.js?v=80"></script>
+    <script src="spells.js?v=80"></script>
+    <script src="districts.js?v=80"></script>
+    <script src="safehouses.js?v=80"></script>
+    <script src="generator.js?v=80"></script>
+    <script src="anomalies.js?v=80"></script>
+    <script src="sprites.js?v=80"></script>
+    <script src="scene.js?v=80"></script>
+    <script src="app.js?v=80"></script>
 </body>
 </html>
