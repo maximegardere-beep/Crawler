@@ -53,8 +53,19 @@ const FLOOR_NEAR_Y = 100;   // bord bas du couloir (écart nul)
 const FLOOR_FAR_Y = 60;     // seuil de l'arche, au point de fuite (écart maximal)
 const FLOOR_NEAR_LEFT = 0, FLOOR_NEAR_RIGHT = 100;   // bord du sol au premier plan
 const FLOOR_FAR_LEFT = 36.25, FLOOR_FAR_RIGHT = 63.75; // bord du sol au fond (largeur de l'arche)
-const MOB_LANE_FRACTION = 0.28; // position du mob à travers la largeur du sol (0=mur gauche, 1=droit)
-const MOB_BASE_WIDTH = 22;      // gabarit du mob à l'écart nul (%), toujours < gabarit joueur (40%)
+// Voie du mob (chantier "polish") : DYNAMIQUE avec l'écart, plus une constante — loin (écart max),
+// le mob reste sur sa voie d'origine (mur gauche, 28% de la largeur du sol) ; en approchant, il
+// dérive vers le joueur jusqu'à une marge de sécurité calculée à partir des gabarits RÉELS des deux
+// sprites (jamais un nombre deviné), pour un rapprochement maximal sans jamais pouvoir les faire se
+// chevaucher, quels que soient les réglages de taille des deux côtés.
+const MOB_FAR_LANE_FRACTION = 0.28;
+const MOB_CLOSE_WIDTH = 32;     // gabarit du mob à l'écart nul (%) — "grand, premier plan"
+const PLAYER_LEFT_EDGE = 58;    // right:2% + width:40% (voir index.html) = 100-2-40
+const SPRITE_SAFETY_MARGIN = 2; // écart minimal garanti entre les deux silhouettes, à l'écart nul
+// Voie la plus proche atteignable sans chevaucher le joueur, déduite de PLAYER_LEFT_EDGE et du
+// gabarit du mob à l'écart nul — c'est CETTE valeur, pas MOB_CLOSE_WIDTH seul, qui garantit
+// l'absence de chevauchement (voir computeGroundAnchor() : le mob est centré sur `laneFraction`).
+const MOB_NEAR_LANE_FRACTION = (PLAYER_LEFT_EDGE - SPRITE_SAFETY_MARGIN - MOB_CLOSE_WIDTH / 2) / 100;
 // Décalage de lévitation (chantier "normalisation visuelle") : archétypes conceptuellement
 // incorporels (voir bestiary.js) — le sprite flotte au-dessus de son point d'ancrage réel, dont
 // l'ombre portée (jamais déplacée, elle) reste seule à marquer le sol, pour lire la lévitation
@@ -218,7 +229,11 @@ function renderMobSprite() {
     // l'écart nul (corps à corps) — combiné au z-index (voir index.html), le mob ne peut plus
     // jamais visuellement passer devant le joueur. Position ANCRÉE au sol réel de la perspective du
     // couloir (voir computeGroundAnchor()) — plus une interpolation de coin arbitraire.
-    const anchor = computeGroundAnchor(ratio, MOB_LANE_FRACTION, MOB_BASE_WIDTH);
+    // Rapprochement (chantier "polish") : la voie du mob dérive elle aussi vers le joueur à mesure
+    // que `ratio` diminue (1-ratio), jusqu'à MOB_NEAR_LANE_FRACTION à l'écart nul — dérive maximale
+    // sans chevauchement, garantie par construction (voir sa définition).
+    const laneFraction = MOB_FAR_LANE_FRACTION + (1 - ratio) * (MOB_NEAR_LANE_FRACTION - MOB_FAR_LANE_FRACTION);
+    const anchor = computeGroundAnchor(ratio, laneFraction, MOB_CLOSE_WIDTH);
     const floats = !!MOB_ARCHETYPE_FLOATS[archetypeKey];
     // Décalage de lévitation : appliqué UNIQUEMENT au sprite (voir ombre plus bas, jamais décalée)
     // — l'écart visuel entre les deux EST le signal de lévitation volontaire.
