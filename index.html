@@ -448,8 +448,45 @@
              updateUI() dans app.js — seul point d'accroche côté moteur). Couloir neutre pour
              l'instant : pas encore de variation visuelle par quartier (à valider plus tard). -->
         <section id="scene-view" class="hidden gap-2 py-1 w-full">
+            <!-- Barres de vie (chantier "refonte graphique", Étape 2) : lues directement depuis
+                 gameState par scene.js, indépendamment des anneaux PV existants (#combat-side-enemy/
+                 -player, relocalisés plus bas dans ce bloc pour leurs badges de statut/dé/compagnon,
+                 mais dont l'anneau lui-même reste, lui, sans rôle ici). -->
+            <div class="w-full flex items-start gap-3">
+                <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-[9px] uppercase tracking-widest text-blue-400 mb-0.5">
+                        <span>Crawler</span>
+                        <span id="scene-player-hp-text">0/0</span>
+                    </div>
+                    <div class="w-full bg-gray-950 rounded-full h-3 border border-gray-800 overflow-hidden">
+                        <div id="scene-player-hp-bar" class="bg-blue-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
+                    </div>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex justify-between text-[9px] uppercase tracking-widest text-red-400 mb-0.5">
+                        <span id="scene-enemy-name-text" class="truncate">Ennemi</span>
+                        <span id="scene-enemy-hp-text" class="shrink-0">0/0</span>
+                    </div>
+                    <div class="w-full bg-gray-950 rounded-full h-3 border border-gray-800 overflow-hidden">
+                        <div id="scene-enemy-hp-bar" class="bg-red-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
+                    </div>
+                </div>
+            </div>
+
             <div id="scene-corridor" class="relative w-full rounded-xl overflow-hidden border border-gray-800" style="aspect-ratio: 4 / 3; background:#0a0d14;">
                 <svg id="scene-corridor-svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" class="absolute inset-0 w-full h-full"></svg>
+
+                <!-- Sprite joueur (vu de dos, coin inférieur droit — voir sprites.js). -->
+                <div id="scene-player-sprite" class="absolute" style="width: 30%; right: 4%; bottom: 3%;"></div>
+
+                <!-- Emplacements des panneaux PV existants (anneau + badges de statut + dé + indicateur
+                     compagnon) : DÉPLACÉS ici une seule fois par scene.js (ensureSceneDom()), jamais
+                     dupliqués/réécrits — app.js continue de les gérer exactement comme avant, sans le
+                     savoir. Conserve au passage le point d'ancrage `position: relative` dont dépend
+                     showFloatingDamage() (app.js) pour les chiffres de dégâts flottants. -->
+                <div id="scene-enemy-badge-slot" class="absolute" style="top: 4%; left: 4%;"></div>
+                <div id="scene-player-badge-slot" class="absolute" style="bottom: 3%; left: 4%;"></div>
+
                 <div id="scene-vignette" class="absolute inset-0 pointer-events-none"></div>
             </div>
         </section>
@@ -1038,14 +1075,15 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=77"></script>
-    <script src="items.js?v=77"></script>
-    <script src="spells.js?v=77"></script>
-    <script src="districts.js?v=77"></script>
-    <script src="safehouses.js?v=77"></script>
-    <script src="generator.js?v=77"></script>
-    <script src="anomalies.js?v=77"></script>
-    <script src="scene.js?v=77"></script>
-    <script src="app.js?v=77"></script>
+    <script src="bestiary.js?v=78"></script>
+    <script src="items.js?v=78"></script>
+    <script src="spells.js?v=78"></script>
+    <script src="districts.js?v=78"></script>
+    <script src="safehouses.js?v=78"></script>
+    <script src="generator.js?v=78"></script>
+    <script src="anomalies.js?v=78"></script>
+    <script src="sprites.js?v=78"></script>
+    <script src="scene.js?v=78"></script>
+    <script src="app.js?v=78"></script>
 </body>
 </html>

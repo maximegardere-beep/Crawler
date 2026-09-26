@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const GAME_FILES = ['bestiary.js', 'items.js', 'spells.js', 'districts.js', 'safehouses.js', 'generator.js', 'anomalies.js', 'scene.js', 'app.js'];
+const GAME_FILES = ['bestiary.js', 'items.js', 'spells.js', 'districts.js', 'safehouses.js', 'generator.js', 'anomalies.js', 'sprites.js', 'scene.js', 'app.js'];
 const REPO_ROOT = path.join(__dirname, '..');
 
 function loadGame() {
