@@ -30,25 +30,41 @@ const sceneUi = {
     // détails internes de `ui` côté moteur.
     legacyEnemyPanel: document.getElementById('combat-side-enemy'),
     legacyPlayerPanel: document.getElementById('combat-side-player'),
-    cardStackWrapper: document.getElementById('card-stack-wrapper')
+    cardStackWrapper: document.getElementById('card-stack-wrapper'),
+    // Boîte de dialogue (correctif : remplace l'ancienne carte pleine hauteur, jugée trop imposante,
+    // par un bandeau en largeur). cardBody est le nœud RÉUTILISÉ (jamais copié) qu'app.js peuple
+    // déjà en exploration (logEvent()) et en combat (renderCombatMobPanel()) — voir
+    // relocateDialogueBody(). cardBodyHomeParent mémorise son parent d'origine (la carte
+    // d'exploration) pour l'y ramener à la sortie de combat.
+    dialogueBox: document.getElementById('scene-dialogue-box'),
+    cardBody: document.getElementById('card-body'),
+    cardBodyHomeParent: document.getElementById('card-body') ? document.getElementById('card-body').parentElement : null
 };
 
 // Dessine le couloir une seule fois (jamais reconstruit à chaque updateUI() : rien n'y change
-// pour l'instant). Contours épais sombres + palette désaturée bleu-gris, dans l'esprit de la
-// maquette validée (perspective sombre, point de fuite unique, vignettage en surcouche CSS
-// séparée sur #scene-vignette).
+// pour l'instant). Contours épais sombres + palette désaturée, dans l'esprit de la maquette
+// validée (perspective sombre, point de fuite unique, vignettage en surcouche CSS séparée sur
+// #scene-vignette) — correctif : un peu plus de couleur (mur gauche plus froid/teal, mur droit
+// plus chaud/prune, lueur ambrée au fond, lignes de fuite teintées) sans sortir du thème sombre.
 function buildCorridorSvg() {
     const vpX = 200, vpY = 128; // point de fuite
     const stroke = '#05060c';
     return `
+        <defs>
+            <radialGradient id="scene-archway-glow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#caa23a" stop-opacity="0.45"/>
+                <stop offset="100%" stop-color="#caa23a" stop-opacity="0"/>
+            </radialGradient>
+        </defs>
         <rect x="0" y="0" width="400" height="300" fill="#12161f"/>
-        <polygon points="0,300 400,300 ${vpX + 55},${vpY + 52} ${vpX - 55},${vpY + 52}" fill="#1b2130" stroke="${stroke}" stroke-width="3"/>
-        <polygon points="0,0 400,0 ${vpX + 50},${vpY - 48} ${vpX - 50},${vpY - 48}" fill="#0d1019" stroke="${stroke}" stroke-width="3"/>
-        <polygon points="0,0 0,300 ${vpX - 55},${vpY + 52} ${vpX - 50},${vpY - 48}" fill="#171c28" stroke="${stroke}" stroke-width="3"/>
-        <polygon points="400,0 400,300 ${vpX + 55},${vpY + 52} ${vpX + 50},${vpY - 48}" fill="#232a39" stroke="${stroke}" stroke-width="3"/>
+        <polygon points="0,300 400,300 ${vpX + 55},${vpY + 52} ${vpX - 55},${vpY + 52}" fill="#232a42" stroke="${stroke}" stroke-width="3"/>
+        <polygon points="0,0 400,0 ${vpX + 50},${vpY - 48} ${vpX - 50},${vpY - 48}" fill="#12101a" stroke="${stroke}" stroke-width="3"/>
+        <polygon points="0,0 0,300 ${vpX - 55},${vpY + 52} ${vpX - 50},${vpY - 48}" fill="#152430" stroke="${stroke}" stroke-width="3"/>
+        <polygon points="400,0 400,300 ${vpX + 55},${vpY + 52} ${vpX + 50},${vpY - 48}" fill="#2c2438" stroke="${stroke}" stroke-width="3"/>
+        <ellipse cx="${vpX}" cy="${vpY}" rx="90" ry="75" fill="url(#scene-archway-glow)"/>
         <rect x="${vpX - 50}" y="${vpY - 48}" width="100" height="100" fill="#05060c" stroke="${stroke}" stroke-width="3"/>
-        <line x1="90" y1="300" x2="${vpX - 40}" y2="${vpY + 40}" stroke="${stroke}" stroke-width="1.5" opacity="0.5"/>
-        <line x1="310" y1="300" x2="${vpX + 40}" y2="${vpY + 40}" stroke="${stroke}" stroke-width="1.5" opacity="0.5"/>
+        <line x1="90" y1="300" x2="${vpX - 40}" y2="${vpY + 40}" stroke="#3a8f8f" stroke-width="1.5" opacity="0.4"/>
+        <line x1="310" y1="300" x2="${vpX + 40}" y2="${vpY + 40}" stroke="#3a8f8f" stroke-width="1.5" opacity="0.4"/>
     `;
 }
 
@@ -121,7 +137,7 @@ const MOB_EFFECT_TINTS = {
     fear: { base: '#4a2a4a', dark: '#301c30' },
     bleed: { base: '#5a2a2a', dark: '#3a1c1c' }
 };
-const MOB_DEFAULT_TINT = { base: '#6b7280', dark: '#454c58' };
+const MOB_DEFAULT_TINT = { base: '#4a5b6b', dark: '#33404a' };
 const MOB_ACCENT_COLOR = '#c23b3b';
 
 // Mémorise le dernier archétype injecté pour ne pas réécrire innerHTML à chaque updateUI() (le mob
@@ -155,9 +171,12 @@ function renderMobSprite() {
 
     const maxDist = (config.rangedCombat && config.rangedCombat.maxDistance) || 1;
     const ratio = Math.max(0, Math.min(1, (gameState.combatDistance || 0) / maxDist));
-    sceneUi.mobSprite.style.width = `${34 - ratio * 20}%`;
-    sceneUi.mobSprite.style.top = `${46 - ratio * 30}%`;
-    sceneUi.mobSprite.style.left = `${30 - ratio * 18}%`;
+    // Correctif : gabarit toujours strictement inférieur à celui du joueur (30%, fixe), même à
+    // l'écart nul (corps à corps) — combiné au z-index (voir index.html), le mob ne peut plus
+    // jamais visuellement passer devant le joueur.
+    sceneUi.mobSprite.style.width = `${24 - ratio * 14}%`;
+    sceneUi.mobSprite.style.top = `${42 - ratio * 28}%`;
+    sceneUi.mobSprite.style.left = `${28 - ratio * 18}%`;
 }
 
 // Teintes par spécialité de compagnon (Étape 4) : même mécanisme de variables CSS que les mobs
@@ -191,12 +210,21 @@ function renderCompanionSprite() {
     sceneUi.companionSprite.style.setProperty('--mob-accent', MOB_ACCENT_COLOR);
 }
 
-// Élargit la carte (dialogue box) pour la scène : appelé APRÈS qu'app.js a fixé sa propre largeur
-// (170px en combat) dans ce même passage d'updateUI() — dernière écriture gagnante, sans avoir à
-// toucher la logique d'app.js elle-même.
-function widenDialogueBox() {
+// Correctif : remplace l'ancien élargissement de la carte (jugée trop imposante en combat, voir
+// widenDialogueBox() historique) par un basculement complet — la grande carte d'exploration se
+// masque entièrement, remplacée par le bandeau #scene-dialogue-box en largeur sous le couloir.
+// #card-body (chips ATQ/DEF/effet + bouton Examiner, gérés par renderCombatMobPanel() dans app.js,
+// ou simple narration via logEvent() hors combat) est DÉPLACÉ dedans à l'entrée en combat, puis
+// ramené à sa place d'origine à la sortie — jamais copié, app.js continue de le peupler à
+// l'identique sans savoir qu'il change ponctuellement de parent.
+function toggleDialogueBox(active) {
     if (sceneUi.cardStackWrapper) {
-        sceneUi.cardStackWrapper.style.maxWidth = 'none';
+        sceneUi.cardStackWrapper.classList.toggle('hidden', active);
+    }
+    if (!sceneUi.cardBody) return;
+    const target = active ? sceneUi.dialogueBox : sceneUi.cardBodyHomeParent;
+    if (target && sceneUi.cardBody.parentElement !== target) {
+        target.appendChild(sceneUi.cardBody);
     }
 }
 
@@ -211,9 +239,9 @@ function renderScene() {
     sceneUi.view.classList.toggle('hidden', !active);
     sceneUi.view.classList.toggle('flex', active);
     sceneUi.view.classList.toggle('flex-col', active);
+    toggleDialogueBox(active);
     if (!active) return;
 
-    widenDialogueBox();
     updateSceneVitals();
     renderMobSprite();
     renderCompanionSprite();
