@@ -10,36 +10,32 @@
 // Joueur vu de dos (une seule apparence pour l'instant : pas de variation par équipement dans ce
 // chantier). Cadré en PLAN AMÉRICAIN (buste, jamais les jambes) — plus proche du premier plan, sans
 // ombre au sol séparée (voir #scene-mob-shadow/#scene-player-shadow dans index.html, gérées par
-// scene.js). Silhouette la plus aboutie de la banque (point focal constant de l'écran, chantier
-// "normalisation visuelle") : épaules larges (capuchon de silhouette plus large que le torse),
-// sac à dos aux sangles visibles, massue de fortune en bandoulière, capuche/col au cou. Palette
-// brune terre (tenue de survie), contours épais sombres — cohérente avec l'identité du jeu.
+// scene.js). Silhouette la plus aboutie de la banque (point focal constant de l'écran) : torse en UNE
+// seule silhouette tapered (épaules larges -> taille, sans double-contour), sac à dos bombé aux
+// sangles visibles, capuche/col avec nuque dessinée. Palette brune terre (tenue de survie), contours
+// épais sombres. Chantier "polish" (Axe C) : gourdin retiré (déjà représenté par la carte de jeu,
+// pas de doublon visuel), silhouette redessinée pour plus de définition — reste volontairement sobre
+// (pas d'accessoire narratif supplémentaire sur le sac).
 const PLAYER_SPRITE_SVG = `
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-    <!-- Massue de fortune en bandoulière : dépasse au-dessus de l'épaule, dessinée en premier pour
-         que le sac à dos/torse la recouvrent partiellement à la base (l'effet "bandoulière"). -->
-    <line x1="64" y1="80" x2="84" y2="6" stroke="#05060c" stroke-width="13" stroke-linecap="round"/>
-    <line x1="64" y1="80" x2="84" y2="6" stroke="#6b4a2c" stroke-width="9" stroke-linecap="round"/>
-    <ellipse cx="84" cy="8" rx="10" ry="12" fill="#5a3f24" stroke="#05060c" stroke-width="3"/>
-    <circle cx="80" cy="4" r="1.6" fill="#05060c"/>
-    <circle cx="88" cy="6" r="1.6" fill="#05060c"/>
-    <circle cx="84" cy="13" r="1.6" fill="#05060c"/>
-    <!-- Sac à dos : sangles/rabats qui dépassent derrière les épaules -->
-    <rect x="20" y="34" width="15" height="44" rx="6" fill="#5a4530" stroke="#05060c" stroke-width="3"/>
-    <rect x="65" y="34" width="15" height="44" rx="6" fill="#5a4530" stroke="#05060c" stroke-width="3"/>
-    <rect x="23" y="40" width="9" height="10" rx="3" fill="#4a3a24" stroke="#05060c" stroke-width="2"/>
+    <!-- Sac à dos : silhouette bombée (plus de volume qu'un simple rectangle), sangles visibles -->
+    <path d="M12 38 Q8 36 10 52 Q12 74 22 80 Q26 76 24 70 Q17 62 17 48 Q17 38 24 33 Q16 34 12 38 Z" fill="#5a4530" stroke="#05060c" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M88 38 Q92 36 90 52 Q88 74 78 80 Q74 76 76 70 Q83 62 83 48 Q83 38 76 33 Q84 34 88 38 Z" fill="#5a4530" stroke="#05060c" stroke-width="3" stroke-linejoin="round"/>
+    <rect x="19" y="44" width="9" height="11" rx="3" fill="#4a3a24" stroke="#05060c" stroke-width="2"/>
+    <rect x="72" y="44" width="9" height="11" rx="3" fill="#4a3a24" stroke="#05060c" stroke-width="2"/>
     <!-- Bras -->
-    <rect x="11" y="38" width="14" height="46" rx="6" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
-    <rect x="75" y="38" width="14" height="46" rx="6" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
-    <!-- Épaules larges (capuchon plus large que le torse, qui se resserre par-dessus vers la taille) -->
-    <rect x="15" y="28" width="70" height="20" rx="10" fill="#6b5638" stroke="#05060c" stroke-width="4"/>
-    <rect x="27" y="32" width="46" height="52" rx="14" fill="#6b5638" stroke="#05060c" stroke-width="4"/>
-    <rect x="34" y="39" width="32" height="34" rx="8" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
+    <rect x="12" y="38" width="14" height="46" rx="7" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
+    <rect x="74" y="38" width="14" height="46" rx="7" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
+    <!-- Torse : une seule silhouette tapered (épaules larges -> taille), sans double-contour -->
+    <path d="M20 36 Q20 26 30 23 L70 23 Q80 26 80 36 L77 52 Q77 80 67 84 L33 84 Q23 80 23 52 Z" fill="#6b5638" stroke="#05060c" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M32 40 Q32 33 39 31 L61 31 Q68 33 68 40 L66 52 Q66 72 60 76 L40 76 Q34 72 34 52 Z" fill="#5a4a34" stroke="#05060c" stroke-width="2.5" stroke-linejoin="round"/>
     <!-- Capuche / col ramassé sur la nuque -->
-    <path d="M33 30 Q50 21 67 30 L67 37 Q50 30 33 37 Z" fill="#4a3a24" stroke="#05060c" stroke-width="3"/>
+    <path d="M33 29 Q50 20 67 29 L67 36 Q50 29 33 36 Z" fill="#4a3a24" stroke="#05060c" stroke-width="3" stroke-linejoin="round"/>
+    <!-- Nuque/cheveux : touffe visible sous la capuche -->
+    <path d="M44 32 Q50 37 56 32 L55 38 Q50 42 45 38 Z" fill="#3a2c1a"/>
     <!-- Tête -->
-    <circle cx="50" cy="15" r="14" fill="#6b5638" stroke="#05060c" stroke-width="4"/>
-    <path d="M37.5 12 a12.5 12.5 0 0 1 25 0 v3.5 h-25 z" fill="#4a3a24" stroke="#05060c" stroke-width="3"/>
+    <circle cx="50" cy="14" r="14" fill="#6b5638" stroke="#05060c" stroke-width="4"/>
+    <path d="M37 11 a13 13 0 0 1 26 0 v3.5 h-26 z" fill="#4a3a24" stroke="#05060c" stroke-width="3"/>
 </svg>`;
 
 // Archétypes visuels réutilisables du bestiaire (~52 créatures, voir bestiary.js -> champ
