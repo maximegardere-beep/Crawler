@@ -2763,6 +2763,7 @@ function applyPlayerDamage(amount) {
     if (!amount || amount <= 0) return;
     gameState.hp = Math.max(0, gameState.hp - amount);
     gameState.floorStats.damageTaken += amount;
+    if (typeof playPlayerHitRecoil === 'function') playPlayerHitRecoil(); // Effet visuel (scene.js), voir CLAUDE.md
 }
 
 // Point de passage UNIQUE pour tout gain de PV du joueur (potion, trouvaille, régénération passive,

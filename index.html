@@ -348,6 +348,16 @@
                 radial-gradient(ellipse at 50% 40%, rgba(202,162,58,0.10) 0%, transparent 35%),
                 radial-gradient(ellipse at 50% 45%, transparent 40%, rgba(2,3,6,0.8) 100%);
         }
+        /* Ombres portées (chantier "normalisation visuelle") : simple ellipse aplatie, jamais un
+           import SVG — suffisant pour un ancrage au sol discret. Largeur/position posées par sprite
+           (statique pour joueur/compagnon, recalculée à chaque rendu pour le mob par scene.js). */
+        .scene-shadow {
+            aspect-ratio: 1 / 0.28;
+            border-radius: 50%;
+            background: radial-gradient(ellipse, rgba(0,0,0,0.55) 0%, transparent 75%);
+            transform: translateX(-50%);
+            transition: left 0.5s ease-out, bottom 0.5s ease-out, width 0.5s ease-out;
+        }
         /* Sprites (joueur + archétypes de mobs, voir sprites.js) : contours épais sombres, un seul
            accent rouge (--mob-accent) réservé aux détails de danger — jamais utilisé sur le joueur.
            Teintes de base/ombre posées par instance via renderMobSprite() (scene.js), selon l'effet
@@ -363,6 +373,34 @@
         .mob-fill-dark { fill: var(--mob-dark, #454c58); stroke: #05060c; stroke-width: 3; }
         .mob-fill-accent { fill: var(--mob-accent, #c23b3b); }
         .mob-stroke-thick { stroke: var(--mob-dark, #454c58); stroke-width: 10; stroke-linecap: round; }
+        /* Présence vivante du joueur (chantier "normalisation visuelle") : respiration lente en
+           continu, recul bref superposé lors des dégâts reçus (playPlayerHitRecoil(), scene.js,
+           câblé sur applyPlayerDamage() — seul point de passage des PV perdus, voir CLAUDE.md). Les
+           deux animations ciblent `transform` : le recul (courte, non-infinite) prend simplement le
+           dessus pendant ses ~0.3s, la respiration reprend ensuite d'elle-même. */
+        @keyframes scenePlayerBreathe {
+            0%, 100% { transform: translateY(0); }
+            50%      { transform: translateY(-1.5%); }
+        }
+        #scene-player-sprite {
+            animation: scenePlayerBreathe 3.4s ease-in-out infinite;
+        }
+        @keyframes scenePlayerRecoil {
+            0%   { transform: translateY(0) scale(1); }
+            30%  { transform: translateY(1.5%) scale(0.97); }
+            100% { transform: translateY(0) scale(1); }
+        }
+        #scene-player-sprite.scene-player-hit {
+            animation: scenePlayerRecoil 0.3s ease-out;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #scene-player-sprite {
+                animation: none;
+            }
+            #scene-player-sprite.scene-player-hit {
+                animation: none;
+            }
+        }
         .scene-boss-crown {
             position: absolute;
             top: -13%;
@@ -613,6 +651,14 @@
             <div id="scene-corridor" class="relative w-full rounded-xl overflow-hidden border border-amber-900/40" style="aspect-ratio: 4 / 3; background:#0a0d14;">
                 <svg id="scene-corridor-svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" class="absolute inset-0 w-full h-full"></svg>
 
+                <!-- Ombres portées (chantier "normalisation visuelle") : ellipses discrètes ANCRÉES
+                     sur le sol, sous chaque sprite correspondant — jamais sur un archétype flottant
+                     décalé (voir scene.js -> MOB_ARCHETYPE_FLOATS), où l'écart shadow/sprite EST le
+                     signal visuel de lévitation. z-index juste sous leur sprite respectif. -->
+                <div id="scene-mob-shadow" class="scene-shadow absolute" style="z-index: 9;"></div>
+                <div id="scene-player-shadow" class="scene-shadow absolute" style="width: 34%; left: 78%; bottom: 0%; z-index: 19;"></div>
+                <div id="scene-companion-shadow" class="scene-shadow absolute hidden" style="width: 12%; left: 48.5%; bottom: 2%; z-index: 14;"></div>
+
                 <!-- Sprite joueur (vu de dos, plan américain — voir sprites.js). Ancré sur le bord
                      bas du couloir (bottom: 0, léger débord -1%) plutôt qu'en flottant au-dessus du
                      sol avec un écart visible (correctif). z-index le plus élevé des sprites : reste
@@ -624,11 +670,13 @@
                 <div id="scene-companion-sprite" class="absolute hidden" style="width: 15%; right: 44%; bottom: 3%; z-index: 15;"></div>
 
                 <!-- Sprite mob (archétype selon gameState.currentEnemy.visualArchetype, voir
-                     bestiary.js/sprites.js) : position (top/left/width) recalculée à chaque rendu par
-                     scene.js -> renderMobSprite() selon gameState.combatDistance, en remplacement de
-                     l'ancienne barre de distance retirée plus haut. Gabarit et z-index (10) toujours
-                     inférieurs au joueur : reste visuellement en retrait même à l'écart nul. -->
-                <div id="scene-mob-sprite" class="absolute transition-all duration-500 ease-out" style="width: 24%; top: 42%; left: 28%; z-index: 10;"></div>
+                     bestiary.js/sprites.js) : position (bottom/left/width) recalculée à chaque rendu
+                     par scene.js -> renderMobSprite(), ANCRÉE sur le sol réel de la perspective du
+                     couloir (trapèze du sol dans buildCorridorSvg()) selon gameState.combatDistance —
+                     jamais de `top` fixé en parallèle (l'ancrage bas + la hauteur automatique du SVG
+                     suffisent, voir CLAUDE.md). Gabarit et z-index (10) toujours inférieurs au
+                     joueur : reste visuellement en retrait même à l'écart nul. -->
+                <div id="scene-mob-sprite" class="absolute transition-all duration-500 ease-out" style="width: 22%; left: 22%; bottom: 0%; z-index: 10;"></div>
 
                 <!-- Couche d'effets d'attaque (coup CAC, projectile, lueur magique — voir
                      scene.js -> playAttackAnimation()) : au-dessus des sprites (z-index 22),
@@ -640,8 +688,10 @@
                      compagnon) : DÉPLACÉS ici une seule fois par scene.js (ensureSceneDom()), jamais
                      dupliqués/réécrits — app.js continue de les gérer exactement comme avant, sans le
                      savoir. Conserve au passage le point d'ancrage `position: relative` dont dépend
-                     showFloatingDamage() (app.js) pour les chiffres de dégâts flottants. -->
-                <div id="scene-enemy-badge-slot" class="absolute" style="top: 4%; left: 4%; z-index: 25;"></div>
+                     showFloatingDamage() (app.js) pour les chiffres de dégâts flottants. Le slot
+                     ennemi est repositionné à chaque rendu par scene.js pour SUIVRE le mob (correctif :
+                     les dégâts flottants partaient d'un coin fixe, jamais de la position réelle). -->
+                <div id="scene-enemy-badge-slot" class="absolute transition-all duration-500 ease-out" style="z-index: 25;"></div>
                 <div id="scene-player-badge-slot" class="absolute" style="bottom: 3%; left: 4%; z-index: 25;"></div>
 
                 <div id="scene-vignette" class="absolute inset-0 pointer-events-none" style="z-index: 30;"></div>
@@ -1240,15 +1290,15 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=82"></script>
-    <script src="items.js?v=82"></script>
-    <script src="spells.js?v=82"></script>
-    <script src="districts.js?v=82"></script>
-    <script src="safehouses.js?v=82"></script>
-    <script src="generator.js?v=82"></script>
-    <script src="anomalies.js?v=82"></script>
-    <script src="sprites.js?v=82"></script>
-    <script src="scene.js?v=82"></script>
-    <script src="app.js?v=82"></script>
+    <script src="bestiary.js?v=84"></script>
+    <script src="items.js?v=84"></script>
+    <script src="spells.js?v=84"></script>
+    <script src="districts.js?v=84"></script>
+    <script src="safehouses.js?v=84"></script>
+    <script src="generator.js?v=84"></script>
+    <script src="anomalies.js?v=84"></script>
+    <script src="sprites.js?v=84"></script>
+    <script src="scene.js?v=84"></script>
+    <script src="app.js?v=84"></script>
 </body>
 </html>

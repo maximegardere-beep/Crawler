@@ -71,7 +71,11 @@ const mobModifiers = {
 // `visualArchetype` (chantier "refonte graphique", branche `graphique`) : silhouette réutilisable
 // parmi celles de sprites.js (MOB_ARCHETYPES) — donnée pure, lue par scene.js, jamais par le moteur
 // de jeu. Survit au clonage/renommage avec modificateurs (generateMob() clone l'entrée AVANT
-// d'ajouter un suffixe à `.name`), voir CLAUDE.md.
+// d'ajouter un suffixe à `.name`), voir CLAUDE.md. L'archétype "shade" (ombres/fantômes/gaz —
+// Livre Maudit, Bibliothécaire Fantôme, Ombre Suspicieuse, Miroir Brisé, Nuage de Chlore Ambulant,
+// Encre Vivante...) est en plus marqué FLOTTANT côté scene.js (MOB_ARCHETYPE_FLOATS, chantier
+// "normalisation visuelle") : le sprite plane au-dessus de son ombre portée plutôt que d'y toucher,
+// lisible comme une lévitation volontaire.
 const baseMobs = [
     { name: "Rat Goulot", hp: 30, atk: 5, def: 2, xpReward: 10, allowedTags: ["mental", "physical", "elemental"], visualArchetype: "beast" },
     { name: "Distributeur de Snacks Hanté", hp: 70, atk: 11, def: 10, xpReward: 40, allowedTags: ["elemental", "physical"], visualArchetype: "machine" },
@@ -87,7 +91,7 @@ const baseMobs = [
     { name: "Ouvrier à la Chaîne", hp: 60, atk: 14, def: 4, xpReward: 32, allowedTags: ["mental", "physical", "elemental"], visualArchetype: "zombie" },
     { name: "Livre Maudit", hp: 40, atk: 8, def: 5, xpReward: 18, allowedTags: ["elemental", "physical"], visualArchetype: "shade" },
     { name: "Bibliothécaire Fantôme", hp: 55, atk: 9, def: 6, xpReward: 22, allowedTags: ["mental", "physical", "elemental"], ranged: true, visualArchetype: "shade" },
-    { name: "Encre Vivante", hp: 30, atk: 10, def: 2, xpReward: 10, allowedTags: ["elemental", "physical"], visualArchetype: "blob" },
+    { name: "Encre Vivante", hp: 30, atk: 10, def: 2, xpReward: 10, allowedTags: ["elemental", "physical"], visualArchetype: "shade" },
     { name: "Savant Dingue", hp: 50, atk: 15, def: 3, xpReward: 30, allowedTags: ["mental", "physical", "elemental"], ranged: true, visualArchetype: "zombie" },
     { name: "Créature en Bocaux", hp: 65, atk: 12, def: 4, xpReward: 25, allowedTags: ["elemental", "physical"], visualArchetype: "blob" },
     { name: "Robot Défectueux", hp: 90, atk: 10, def: 8, xpReward: 40, allowedTags: ["elemental", "physical"], ranged: true, visualArchetype: "machine" },

@@ -8,18 +8,38 @@
 // même point d'ancrage (bas du sprite = sol) quelle que soit leur silhouette.
 
 // Joueur vu de dos (une seule apparence pour l'instant : pas de variation par équipement dans ce
-// chantier). Correctif : cadré en PLAN AMÉRICAIN (buste, jamais les jambes) plutôt qu'en pied —
-// plus proche du premier plan, sans ombre au sol ni écart flottant avec le bas du cadre (voir
-// #scene-player-sprite dans index.html, désormais ancré sur le bord bas du couloir). Silhouette
-// affinée (torse à 40% de la largeur du viewBox, contre 56% avant) : moins cubique.
+// chantier). Cadré en PLAN AMÉRICAIN (buste, jamais les jambes) — plus proche du premier plan, sans
+// ombre au sol séparée (voir #scene-mob-shadow/#scene-player-shadow dans index.html, gérées par
+// scene.js). Silhouette la plus aboutie de la banque (point focal constant de l'écran, chantier
+// "normalisation visuelle") : épaules larges (capuchon de silhouette plus large que le torse),
+// sac à dos aux sangles visibles, massue de fortune en bandoulière, capuche/col au cou. Palette
+// brune terre (tenue de survie), contours épais sombres — cohérente avec l'identité du jeu.
 const PLAYER_SPRITE_SVG = `
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-    <rect x="14" y="34" width="13" height="48" rx="6" fill="#3a3f4a" stroke="#05060c" stroke-width="3"/>
-    <rect x="73" y="34" width="13" height="48" rx="6" fill="#3a3f4a" stroke="#05060c" stroke-width="3"/>
-    <rect x="29" y="26" width="42" height="58" rx="13" fill="#5b6472" stroke="#05060c" stroke-width="4"/>
-    <rect x="36" y="33" width="28" height="36" rx="7" fill="#454c58" stroke="#05060c" stroke-width="3"/>
-    <circle cx="50" cy="13" r="14" fill="#6b7280" stroke="#05060c" stroke-width="4"/>
-    <path d="M37.5 10 a12.5 12.5 0 0 1 25 0 v3 h-25 z" fill="#454c58" stroke="#05060c" stroke-width="3"/>
+    <!-- Massue de fortune en bandoulière : dépasse au-dessus de l'épaule, dessinée en premier pour
+         que le sac à dos/torse la recouvrent partiellement à la base (l'effet "bandoulière"). -->
+    <line x1="64" y1="80" x2="84" y2="6" stroke="#05060c" stroke-width="13" stroke-linecap="round"/>
+    <line x1="64" y1="80" x2="84" y2="6" stroke="#6b4a2c" stroke-width="9" stroke-linecap="round"/>
+    <ellipse cx="84" cy="8" rx="10" ry="12" fill="#5a3f24" stroke="#05060c" stroke-width="3"/>
+    <circle cx="80" cy="4" r="1.6" fill="#05060c"/>
+    <circle cx="88" cy="6" r="1.6" fill="#05060c"/>
+    <circle cx="84" cy="13" r="1.6" fill="#05060c"/>
+    <!-- Sac à dos : sangles/rabats qui dépassent derrière les épaules -->
+    <rect x="20" y="34" width="15" height="44" rx="6" fill="#5a4530" stroke="#05060c" stroke-width="3"/>
+    <rect x="65" y="34" width="15" height="44" rx="6" fill="#5a4530" stroke="#05060c" stroke-width="3"/>
+    <rect x="23" y="40" width="9" height="10" rx="3" fill="#4a3a24" stroke="#05060c" stroke-width="2"/>
+    <!-- Bras -->
+    <rect x="11" y="38" width="14" height="46" rx="6" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
+    <rect x="75" y="38" width="14" height="46" rx="6" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
+    <!-- Épaules larges (capuchon plus large que le torse, qui se resserre par-dessus vers la taille) -->
+    <rect x="15" y="28" width="70" height="20" rx="10" fill="#6b5638" stroke="#05060c" stroke-width="4"/>
+    <rect x="27" y="32" width="46" height="52" rx="14" fill="#6b5638" stroke="#05060c" stroke-width="4"/>
+    <rect x="34" y="39" width="32" height="34" rx="8" fill="#5a4a34" stroke="#05060c" stroke-width="3"/>
+    <!-- Capuche / col ramassé sur la nuque -->
+    <path d="M33 30 Q50 21 67 30 L67 37 Q50 30 33 37 Z" fill="#4a3a24" stroke="#05060c" stroke-width="3"/>
+    <!-- Tête -->
+    <circle cx="50" cy="15" r="14" fill="#6b5638" stroke="#05060c" stroke-width="4"/>
+    <path d="M37.5 12 a12.5 12.5 0 0 1 25 0 v3.5 h-25 z" fill="#4a3a24" stroke="#05060c" stroke-width="3"/>
 </svg>`;
 
 // Archétypes visuels réutilisables du bestiaire (~52 créatures, voir bestiary.js -> champ

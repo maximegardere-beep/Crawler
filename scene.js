@@ -39,8 +39,43 @@ const sceneUi = {
     dialogueBox: document.getElementById('scene-dialogue-box'),
     cardBody: document.getElementById('card-body'),
     cardBodyHomeParent: document.getElementById('card-body') ? document.getElementById('card-body').parentElement : null,
-    fxLayer: document.getElementById('scene-fx-layer')
+    fxLayer: document.getElementById('scene-fx-layer'),
+    mobShadow: document.getElementById('scene-mob-shadow'),
+    companionShadow: document.getElementById('scene-companion-shadow')
 };
+
+// Géométrie du couloir (chantier "normalisation visuelle") : mêmes coordonnées que le trapèze du
+// sol dessiné dans buildCorridorSvg() (vpX=200/vpY=128 sur un viewBox 400x300, converties en % —
+// 1% de largeur = 4 unités SVG, 1% de hauteur = 3 unités), pour que la trajectoire du mob et le
+// dessin du couloir ne puissent jamais diverger. FLOOR_FAR_Y correspond exactement au bas de
+// l'arche (point de fuite) : à l'écart maximal, les pieds du mob touchent le seuil de l'arche.
+const FLOOR_NEAR_Y = 100;   // bord bas du couloir (écart nul)
+const FLOOR_FAR_Y = 60;     // seuil de l'arche, au point de fuite (écart maximal)
+const FLOOR_NEAR_LEFT = 0, FLOOR_NEAR_RIGHT = 100;   // bord du sol au premier plan
+const FLOOR_FAR_LEFT = 36.25, FLOOR_FAR_RIGHT = 63.75; // bord du sol au fond (largeur de l'arche)
+const MOB_LANE_FRACTION = 0.28; // position du mob à travers la largeur du sol (0=mur gauche, 1=droit)
+const MOB_BASE_WIDTH = 22;      // gabarit du mob à l'écart nul (%), toujours < gabarit joueur (40%)
+// Décalage de lévitation (chantier "normalisation visuelle") : archétypes conceptuellement
+// incorporels (voir bestiary.js) — le sprite flotte au-dessus de son point d'ancrage réel, dont
+// l'ombre portée (jamais déplacée, elle) reste seule à marquer le sol, pour lire la lévitation
+// comme volontaire plutôt que comme un bug d'ancrage.
+const MOB_ARCHETYPE_FLOATS = { shade: true };
+const FLOAT_OFFSET_PCT = 10; // % de la hauteur du couloir dont le sprite flottant est surélevé
+
+// Calcule la position au sol (bas/gauche/largeur, en % du couloir) pour une profondeur donnée
+// (0 = premier plan, 1 = point de fuite), à partir du même trapèze que buildCorridorSvg(). Pure,
+// réutilisée par renderMobSprite() pour le sprite ET son ombre (l'ombre ignore le décalage de
+// lévitation, voir MOB_ARCHETYPE_FLOATS ci-dessus).
+function computeGroundAnchor(depth, laneFraction, baseWidth) {
+    const floorWidthNear = FLOOR_NEAR_RIGHT - FLOOR_NEAR_LEFT;
+    const floorWidthFar = FLOOR_FAR_RIGHT - FLOOR_FAR_LEFT;
+    const floorWidth = floorWidthNear + depth * (floorWidthFar - floorWidthNear);
+    const floorLeft = FLOOR_NEAR_LEFT + depth * (FLOOR_FAR_LEFT - FLOOR_NEAR_LEFT);
+    const centerX = floorLeft + laneFraction * floorWidth;
+    const footY = FLOOR_NEAR_Y + depth * (FLOOR_FAR_Y - FLOOR_NEAR_Y);
+    const width = baseWidth * (floorWidth / floorWidthNear);
+    return { centerX, bottom: 100 - footY, width };
+}
 
 // Dessine le couloir une seule fois (jamais reconstruit à chaque updateUI() : rien n'y change
 // pour l'instant). Contours épais sombres + palette désaturée, dans l'esprit de la maquette
@@ -147,7 +182,7 @@ let lastMobSpriteKey = null;
 // Centre courant du sprite mob (%), tenu à jour par renderMobSprite() — cible des effets d'attaque
 // (voir playAttackAnimation()). Valeur de départ approximative (écart nul) tant qu'aucun combat
 // n'a encore calculé de position réelle.
-let lastMobCenter = { left: 40, top: 53 };
+let lastMobCenter = { left: 28, top: 80 };
 // Centre approximatif, FIXE, du sprite joueur (%) — voir sa position dans index.html
 // (right:2%, bottom:-1%, width:40%). Même approximation volontaire que lastMobCenter.
 const PLAYER_CENTER = { left: 78, top: 74 };
@@ -179,20 +214,48 @@ function renderMobSprite() {
 
     const maxDist = (config.rangedCombat && config.rangedCombat.maxDistance) || 1;
     const ratio = Math.max(0, Math.min(1, (gameState.combatDistance || 0) / maxDist));
-    // Correctif : gabarit toujours strictement inférieur à celui du joueur (30%, fixe), même à
+    // Correctif : gabarit toujours strictement inférieur à celui du joueur (40%, fixe), même à
     // l'écart nul (corps à corps) — combiné au z-index (voir index.html), le mob ne peut plus
-    // jamais visuellement passer devant le joueur.
-    const width = 24 - ratio * 14;
-    const top = 42 - ratio * 28;
-    const left = 28 - ratio * 18;
-    sceneUi.mobSprite.style.width = `${width}%`;
-    sceneUi.mobSprite.style.top = `${top}%`;
-    sceneUi.mobSprite.style.left = `${left}%`;
+    // jamais visuellement passer devant le joueur. Position ANCRÉE au sol réel de la perspective du
+    // couloir (voir computeGroundAnchor()) — plus une interpolation de coin arbitraire.
+    const anchor = computeGroundAnchor(ratio, MOB_LANE_FRACTION, MOB_BASE_WIDTH);
+    const floats = !!MOB_ARCHETYPE_FLOATS[archetypeKey];
+    // Décalage de lévitation : appliqué UNIQUEMENT au sprite (voir ombre plus bas, jamais décalée)
+    // — l'écart visuel entre les deux EST le signal de lévitation volontaire.
+    const spriteBottom = anchor.bottom + (floats ? FLOAT_OFFSET_PCT : 0);
+    sceneUi.mobSprite.style.width = `${anchor.width}%`;
+    sceneUi.mobSprite.style.left = `${anchor.centerX - anchor.width / 2}%`;
+    sceneUi.mobSprite.style.bottom = `${spriteBottom}%`;
 
-    // Centre approximatif du sprite (cible des effets d'attaque, voir playAttackAnimation()) —
-    // approximation volontaire (les deux axes ne partagent pas la même échelle en pixels réels,
-    // le couloir n'étant pas carré), suffisante pour un effet "simplifié".
-    lastMobCenter = { left: left + width / 2, top: top + width / 2 };
+    // Ombre portée (chantier "normalisation visuelle") : TOUJOURS au véritable ancrage au sol,
+    // jamais au décalage de lévitation — c'est cet écart shadow/sprite qui rend un archétype
+    // flottant lisible comme volontaire plutôt que comme un bug. `Math.max(0, ...)` : jamais un
+    // bottom négatif à l'écart nul (le couloir découpe tout ce qui déborde de son cadre).
+    if (sceneUi.mobShadow) {
+        sceneUi.mobShadow.style.width = `${anchor.width * 0.9}%`;
+        sceneUi.mobShadow.style.left = `${anchor.centerX}%`;
+        sceneUi.mobShadow.style.bottom = `${Math.max(0, anchor.bottom)}%`;
+        sceneUi.mobShadow.style.opacity = floats ? '0.5' : '0.85';
+    }
+
+    // Centre du sprite (cible des effets d'attaque, voir playAttackAnimation()) : hauteur estimée à
+    // partir du ratio d'aspect des archétypes (largeur:hauteur ≈ 1:1.4 dans sprites.js) converti en
+    // % de la hauteur du couloir (le couloir n'étant pas carré, largeur% ≠ hauteur% en pixels réels)
+    // — approximation volontaire, suffisante pour un effet "simplifié".
+    const heightPct = anchor.width * 1.4 * (4 / 3);
+    lastMobCenter = {
+        left: anchor.centerX,
+        top: 100 - spriteBottom - heightPct / 2
+    };
+
+    // Le badge PV ennemi (anneau/statuts/dé, voir relocateLegacyPanels()) suit désormais le mob —
+    // correctif : il partait d'un coin fixe, jamais de la position réelle (dégâts flottants inclus,
+    // puisque showFloatingDamage() cible ce même panneau).
+    if (sceneUi.enemyBadgeSlot) {
+        sceneUi.enemyBadgeSlot.style.left = `${anchor.centerX}%`;
+        sceneUi.enemyBadgeSlot.style.bottom = `${spriteBottom + heightPct}%`;
+        sceneUi.enemyBadgeSlot.style.transform = 'translateX(-50%)';
+    }
 }
 
 // Teintes par spécialité de compagnon (Étape 4) : même mécanisme de variables CSS que les mobs
@@ -213,6 +276,7 @@ function renderCompanionSprite() {
     const companion = gameState.companion;
     if (!companion) {
         sceneUi.companionSprite.classList.add('hidden');
+        if (sceneUi.companionShadow) sceneUi.companionShadow.classList.add('hidden');
         return;
     }
     if (!companionSpriteBuilt) {
@@ -220,6 +284,7 @@ function renderCompanionSprite() {
         companionSpriteBuilt = true;
     }
     sceneUi.companionSprite.classList.remove('hidden');
+    if (sceneUi.companionShadow) sceneUi.companionShadow.classList.remove('hidden'); // ancré au sol, jamais flottant (aucune spécialité de compagnon n'est incorporelle)
     const tint = COMPANION_SPECIALTY_TINTS[companion.specialty && companion.specialty.type] || MOB_DEFAULT_TINT;
     sceneUi.companionSprite.style.setProperty('--mob-base', tint.base);
     sceneUi.companionSprite.style.setProperty('--mob-dark', tint.dark);
@@ -242,6 +307,17 @@ function toggleDialogueBox(active) {
     if (target && sceneUi.cardBody.parentElement !== target) {
         target.appendChild(sceneUi.cardBody);
     }
+}
+
+// Recul du joueur aux dégâts reçus (chantier "normalisation visuelle") : point d'accroche unique
+// câblé sur applyPlayerDamage() (app.js) — SEUL point de passage de toute perte de PV (piège,
+// saignement, riposte...), voir CLAUDE.md. Remove+reflow+add (même motif que playAttackAnimation())
+// pour rejouer l'animation même si un coup arrive alors que la précédente vient tout juste de finir.
+function playPlayerHitRecoil() {
+    if (!sceneUi.playerSprite) return;
+    sceneUi.playerSprite.classList.remove('scene-player-hit');
+    void sceneUi.playerSprite.offsetWidth;
+    sceneUi.playerSprite.classList.add('scene-player-hit');
 }
 
 // Effets d'attaque (correctif) : un élément DOM éphémère par effet, ajouté à #scene-fx-layer et
