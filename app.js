@@ -6063,6 +6063,7 @@ function attackWeapon() {
     if (landed) {
         gainSkillXp('weapon', SKILL_XP_PER_USE);
         applyWeaponMechanic(equippedGear); // Ne fait rien si le combat vient de se terminer ou si l'arme n'a pas de mécanique
+        if (typeof playAttackAnimation === 'function') playAttackAnimation('melee'); // Effet visuel (scene.js), voir CLAUDE.md
     }
 }
 
@@ -6099,6 +6100,7 @@ function attackRanged() {
     if (landed) {
         gainSkillXp('weapon', SKILL_XP_PER_USE);
         applyWeaponMechanic(equippedGear);
+        if (typeof playAttackAnimation === 'function') playAttackAnimation('rangedPhysical'); // Effet visuel (scene.js), voir CLAUDE.md
     }
 }
 
@@ -6115,7 +6117,10 @@ function attackUnarmed() {
     const skill = gameState.skills.unarmed;
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
     const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75, varianceRange: 0.10, defReduction }, "à mains nues");
-    if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
+    if (landed) {
+        gainSkillXp('unarmed', SKILL_XP_PER_USE);
+        if (typeof playAttackAnimation === 'function') playAttackAnimation('melee'); // Effet visuel (scene.js), voir CLAUDE.md
+    }
 }
 
 // S'approcher : action dédiée au rapprochement, à la place d'une attaque. Toujours disponible dès
@@ -6292,7 +6297,10 @@ function attackMagic() {
         { atkMultiplier, varianceRange: 0.35, defReduction: 0.15 }, // Les sorts ignorent un peu de DEF (thématique), pas toute
         `avec [${spell.spellName}]`
     );
-    if (used) gainSkillXp('magic', SKILL_XP_PER_USE);
+    if (used) {
+        gainSkillXp('magic', SKILL_XP_PER_USE);
+        if (typeof playAttackAnimation === 'function') playAttackAnimation(needsMelee ? 'magicMelee' : 'magicRanged'); // Effet visuel (scene.js), voir CLAUDE.md
+    }
 }
 
 // Tentative de fuite : quitte le combat sans le gagner ni obtenir de loot/XP.

@@ -8,20 +8,18 @@
 // même point d'ancrage (bas du sprite = sol) quelle que soit leur silhouette.
 
 // Joueur vu de dos (une seule apparence pour l'instant : pas de variation par équipement dans ce
-// chantier). Casque/tête arrondie, sac à dos, silhouette trapue dans l'esprit de la maquette.
+// chantier). Correctif : cadré en PLAN AMÉRICAIN (buste, jamais les jambes) plutôt qu'en pied —
+// plus proche du premier plan, sans ombre au sol ni écart flottant avec le bas du cadre (voir
+// #scene-player-sprite dans index.html, désormais ancré sur le bord bas du couloir). Silhouette
+// affinée (torse à 40% de la largeur du viewBox, contre 56% avant) : moins cubique.
 const PLAYER_SPRITE_SVG = `
-<svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
-    <ellipse cx="50" cy="132" rx="26" ry="6" fill="#000" opacity="0.35"/>
-    <rect x="30" y="60" width="14" height="38" rx="5" fill="#3a3f4a" stroke="#05060c" stroke-width="3"/>
-    <rect x="56" y="60" width="14" height="38" rx="5" fill="#3a3f4a" stroke="#05060c" stroke-width="3"/>
-    <rect x="24" y="86" width="22" height="16" rx="4" fill="#2b2f38" stroke="#05060c" stroke-width="3"/>
-    <rect x="54" y="86" width="22" height="16" rx="4" fill="#2b2f38" stroke="#05060c" stroke-width="3"/>
-    <rect x="8" y="40" width="16" height="32" rx="6" fill="#3a3f4a" stroke="#05060c" stroke-width="3"/>
-    <rect x="76" y="40" width="16" height="32" rx="6" fill="#3a3f4a" stroke="#05060c" stroke-width="3"/>
-    <rect x="22" y="34" width="56" height="52" rx="14" fill="#5b6472" stroke="#05060c" stroke-width="4"/>
-    <rect x="30" y="40" width="40" height="34" rx="8" fill="#454c58" stroke="#05060c" stroke-width="3"/>
-    <circle cx="50" cy="16" r="17" fill="#6b7280" stroke="#05060c" stroke-width="4"/>
-    <path d="M35 12 a15 15 0 0 1 30 0 v4 h-30 z" fill="#454c58" stroke="#05060c" stroke-width="3"/>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <rect x="14" y="34" width="13" height="48" rx="6" fill="#3a3f4a" stroke="#05060c" stroke-width="3"/>
+    <rect x="73" y="34" width="13" height="48" rx="6" fill="#3a3f4a" stroke="#05060c" stroke-width="3"/>
+    <rect x="29" y="26" width="42" height="58" rx="13" fill="#5b6472" stroke="#05060c" stroke-width="4"/>
+    <rect x="36" y="33" width="28" height="36" rx="7" fill="#454c58" stroke="#05060c" stroke-width="3"/>
+    <circle cx="50" cy="13" r="14" fill="#6b7280" stroke="#05060c" stroke-width="4"/>
+    <path d="M37.5 10 a12.5 12.5 0 0 1 25 0 v3 h-25 z" fill="#454c58" stroke="#05060c" stroke-width="3"/>
 </svg>`;
 
 // Archétypes visuels réutilisables du bestiaire (~52 créatures, voir bestiary.js -> champ

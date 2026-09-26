@@ -38,7 +38,8 @@ const sceneUi = {
     // d'exploration) pour l'y ramener à la sortie de combat.
     dialogueBox: document.getElementById('scene-dialogue-box'),
     cardBody: document.getElementById('card-body'),
-    cardBodyHomeParent: document.getElementById('card-body') ? document.getElementById('card-body').parentElement : null
+    cardBodyHomeParent: document.getElementById('card-body') ? document.getElementById('card-body').parentElement : null,
+    fxLayer: document.getElementById('scene-fx-layer')
 };
 
 // Dessine le couloir une seule fois (jamais reconstruit à chaque updateUI() : rien n'y change
@@ -143,6 +144,13 @@ const MOB_ACCENT_COLOR = '#c23b3b';
 // Mémorise le dernier archétype injecté pour ne pas réécrire innerHTML à chaque updateUI() (le mob
 // ne change pas de forme en cours de combat, seuls sa teinte/sa position bougent).
 let lastMobSpriteKey = null;
+// Centre courant du sprite mob (%), tenu à jour par renderMobSprite() — cible des effets d'attaque
+// (voir playAttackAnimation()). Valeur de départ approximative (écart nul) tant qu'aucun combat
+// n'a encore calculé de position réelle.
+let lastMobCenter = { left: 40, top: 53 };
+// Centre approximatif, FIXE, du sprite joueur (%) — voir sa position dans index.html
+// (right:2%, bottom:-1%, width:40%). Même approximation volontaire que lastMobCenter.
+const PLAYER_CENTER = { left: 78, top: 74 };
 
 // Sprite mob (Étape 3) : silhouette selon l'archétype du mob généré (bestiary.js), teinte selon son
 // effet, couronne superposée pour un boss, position le long du couloir selon gameState.combatDistance
@@ -174,9 +182,17 @@ function renderMobSprite() {
     // Correctif : gabarit toujours strictement inférieur à celui du joueur (30%, fixe), même à
     // l'écart nul (corps à corps) — combiné au z-index (voir index.html), le mob ne peut plus
     // jamais visuellement passer devant le joueur.
-    sceneUi.mobSprite.style.width = `${24 - ratio * 14}%`;
-    sceneUi.mobSprite.style.top = `${42 - ratio * 28}%`;
-    sceneUi.mobSprite.style.left = `${28 - ratio * 18}%`;
+    const width = 24 - ratio * 14;
+    const top = 42 - ratio * 28;
+    const left = 28 - ratio * 18;
+    sceneUi.mobSprite.style.width = `${width}%`;
+    sceneUi.mobSprite.style.top = `${top}%`;
+    sceneUi.mobSprite.style.left = `${left}%`;
+
+    // Centre approximatif du sprite (cible des effets d'attaque, voir playAttackAnimation()) —
+    // approximation volontaire (les deux axes ne partagent pas la même échelle en pixels réels,
+    // le couloir n'étant pas carré), suffisante pour un effet "simplifié".
+    lastMobCenter = { left: left + width / 2, top: top + width / 2 };
 }
 
 // Teintes par spécialité de compagnon (Étape 4) : même mécanisme de variables CSS que les mobs
@@ -225,6 +241,62 @@ function toggleDialogueBox(active) {
     const target = active ? sceneUi.dialogueBox : sceneUi.cardBodyHomeParent;
     if (target && sceneUi.cardBody.parentElement !== target) {
         target.appendChild(sceneUi.cardBody);
+    }
+}
+
+// Effets d'attaque (correctif) : un élément DOM éphémère par effet, ajouté à #scene-fx-layer et
+// retiré via setTimeout (jamais transitionend/animationend — sous le stub de test, ces événements
+// ne sont jamais dispatchés, et un `setTimeout` y résout IMMÉDIATEMENT, voir _helpers.js/
+// long_playthrough.js : le nettoyage doit donc pouvoir compter sur lui seul, pas sur un événement CSS).
+function spawnFx(el, durationMs) {
+    if (!sceneUi.fxLayer) return;
+    sceneUi.fxLayer.appendChild(el);
+    setTimeout(() => { if (el.parentElement) el.parentElement.removeChild(el); }, durationMs);
+}
+
+// Anime un projectile (physique ou magique) du joueur vers le centre courant du mob. Le départ est
+// posé immédiatement, puis la cible juste après (un `setTimeout` court, jamais une Promise — voir
+// runCombatBeats() dans app.js pour la même contrainte) : la transition CSS (voir index.html)
+// anime alors le déplacement toute seule ; sous le stub de test, les deux affectations se
+// résolvent l'une après l'autre sans attente, sans erreur.
+function spawnProjectile(className, durationMs) {
+    if (!sceneUi.fxLayer) return;
+    const el = document.createElement('div');
+    el.className = className;
+    el.style.left = `${PLAYER_CENTER.left}%`;
+    el.style.top = `${PLAYER_CENTER.top}%`;
+    spawnFx(el, durationMs);
+    setTimeout(() => {
+        el.style.left = `${lastMobCenter.left}%`;
+        el.style.top = `${lastMobCenter.top}%`;
+    }, 16);
+}
+
+// Point d'accroche (correctif) appelé depuis attackWeapon()/attackRanged()/attackUnarmed()/
+// attackMagic() (app.js) juste après une attaque jouée avec succès — jamais sur un flop de sort
+// (attackMagic() ne l'appelle que dans la branche `used`). Purement cosmétique : aucune formule de
+// dégâts touchée, aucun état de jeu lu au-delà de la position déjà calculée du mob/joueur.
+function playAttackAnimation(kind) {
+    if (!sceneUi.mobSprite) return;
+    if (kind === 'melee') {
+        sceneUi.mobSprite.classList.remove('scene-melee-hit');
+        void sceneUi.mobSprite.offsetWidth; // force le redémarrage de l'animation CSS si déjà jouée
+        sceneUi.mobSprite.classList.add('scene-melee-hit');
+        const slash = document.createElement('div');
+        slash.className = 'scene-slash';
+        slash.style.left = `${lastMobCenter.left}%`;
+        slash.style.top = `${lastMobCenter.top}%`;
+        spawnFx(slash, 320);
+    } else if (kind === 'rangedPhysical') {
+        spawnProjectile('scene-projectile-physical', 400);
+    } else if (kind === 'magicMelee') {
+        const glow = document.createElement('div');
+        glow.className = 'scene-magic-glow';
+        glow.style.left = `${lastMobCenter.left}%`;
+        glow.style.top = `${lastMobCenter.top}%`;
+        spawnFx(glow, 480);
+    } else if (kind === 'magicRanged') {
+        spawnProjectile('scene-projectile-magic', 450);
     }
 }
 
