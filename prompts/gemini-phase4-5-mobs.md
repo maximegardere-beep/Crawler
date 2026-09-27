@@ -92,11 +92,15 @@ valider AVANT** toute livraison de fichiers d'intégration.
   cristaux (slow), étincelles (stun), spirales (confusion), gouttes (bleed), fumée violette (fear), rayons
   (light), éclaboussures acides (corrode), lignes d'aspiration (pull). Elle doit rester discrète : le mob
   passe avant son aura.
+- **Classe `mf-line` réservée aux membres et aux queues** : elle impose un trait de 4 unités. Pour un
+  trait fin (bouche, couture, ride), écris un `stroke` et un `stroke-width` explicites (0,8 à 1,5).
+  Sinon, la bouche devient une bande épaisse en travers du visage.
 - **Techniquement interdit** : `<defs>`, `id=`, gradients, filtres, `<image>`, polices externes,
   `Math.random()`. Plusieurs scènes affichent des mobs en même temps : un identifiant SVG entrerait en
   collision. Au plus 45 éléments SVG par mob, aura comprise ; un boss peut aller jusqu'à 70.
-- **Animation (facultative)** : uniquement par classes CSS lentes (≥ 1,5 s), par exemple
-  `.mob-aura-pulse` ou `.mob-float`, à ajouter dans `index.html` ET à couper dans le bloc
+- **Animation (facultative)** : uniquement par classes CSS lentes (≥ 1,5 s), nommées `mob-aura-a`,
+  `mob-aura-b`, `mob-aura-c` pour les particules d'aura (décalées dans le temps) et `mob-float` pour
+  les `shade`, à ajouter dans `index.html` ET à couper dans le bloc
   `@media (prefers-reduced-motion: reduce)` existant.
 
 ## 3. Étape 1 — Prévisualisation (à livrer seule, puis STOP)
@@ -130,7 +134,9 @@ chacun (« Rat Goulot — goulot de bouteille vert sur le dos, queue en tire-bou
   par défaut. Garde les classes `mf-base`/`mf-dark`/`mf-accent`/`mf-line` pour les parties colorées
   par la palette. Garde `SCENE_BOSS_CROWN_SVG` tel quel.
 - `sprites/mob-details.js` : `MOB_DETAILS`, clé = nom EXACT de `baseMobs`, valeur
-  `{ palette: { base, dark, accent }, markup }`. `markup` est le détail signature, dessiné par-dessus
+  `{ palette: { base, dark, accent }, markup, top?, bounds }`. `bounds` = vrais x minimum et maximum du
+  mob COMPLET (silhouette + détail) ; `top` seulement si le détail dépasse le haut de la silhouette
+  (casquette, antenne…), pour que la couronne et les chiffres de dégâts se posent au bon endroit. `markup` est le détail signature, dessiné par-dessus
   la silhouette, dans le même repère. Plus `MOB_EFFECT_AURAS`, clé = effet, valeur = fonction
   `(color) => markup` dessinée DERRIÈRE le mob.
 - `sprites/bosses.js` : `SCENE_BOSS_SPRITES`, clé = nom EXACT du boss, valeur
