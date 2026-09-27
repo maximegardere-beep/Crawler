@@ -209,11 +209,37 @@ const SCENE_TRAINER_SVG = `
     <path d="M8.6 -73 H10" stroke="#05060c" stroke-width="1.2"/>
 `;
 
+// Cadavre du crawler VU DE DESSUS (écran Game Over), face contre terre : sac à dos encore sur le dos,
+// bras en croix, jambes écartées. Repère : x = 0, y = 0 au milieu du torse, tête vers y négatif ;
+// s'étend d'environ -42 à +42 en x et de -54 à +56 en y. Mêmes couleurs que SCENE_CRAWLER_SVG.
+const SCENE_CORPSE_TOPDOWN_SVG = `
+    <path d="M-7 8 L-19 50" stroke="#05060c" stroke-width="11" stroke-linecap="round"/>
+    <path d="M-7 8 L-19 50" stroke="#5a4a34" stroke-width="8" stroke-linecap="round"/>
+    <path d="M7 8 L16 30 L24 50" fill="none" stroke="#05060c" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M7 8 L16 30 L24 50" fill="none" stroke="#4a3c2a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <ellipse cx="-20" cy="55" rx="5" ry="7" transform="rotate(20 -20 55)" fill="#241a10" stroke="#05060c" stroke-width="1.5"/>
+    <ellipse cx="26" cy="54" rx="5" ry="7" transform="rotate(-25 26 54)" fill="#241a10" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M-12 -24 L-30 -42" stroke="#05060c" stroke-width="10" stroke-linecap="round"/>
+    <path d="M-12 -24 L-30 -42" stroke="#4a3a24" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="-33" cy="-45" r="4" fill="#c98a5e" stroke="#05060c" stroke-width="1.2"/>
+    <path d="M12 -22 L30 -18 L40 -6" fill="none" stroke="#05060c" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M12 -22 L30 -18 L40 -6" fill="none" stroke="#4a3a24" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="41" cy="-3" r="4" fill="#c98a5e" stroke="#05060c" stroke-width="1.2"/>
+    <rect x="-15" y="-30" width="30" height="42" rx="8" fill="#6b5638" stroke="#05060c" stroke-width="2.5"/>
+    <rect x="-11" y="-25" width="22" height="30" rx="4" fill="#4a3a24" stroke="#05060c" stroke-width="2"/>
+    <rect x="-6" y="-8" width="12" height="9" rx="1.5" fill="#3a6b5e" stroke="#05060c" stroke-width="1.2"/>
+    <path d="M-9 -22 H9" stroke="#2f2418" stroke-width="1.5"/>
+    <path d="M-14 -28 L12 10" stroke="#8a5a2e" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+    <ellipse cx="-9" cy="-42" rx="2.5" ry="3.5" fill="#c98a5e" stroke="#05060c" stroke-width="1"/>
+    <circle cx="0" cy="-42" r="10" fill="#2f2318" stroke="#05060c" stroke-width="2.5"/>
+    <path d="M-5 -47 Q0 -40 5 -47 M-6 -41 Q0 -36 6 -41" fill="none" stroke="#1f170f" stroke-width="1.2"/>
+`;
+
 // Couronne de boss, posée au-dessus de la silhouette (y = 0 = base de la couronne).
 const SCENE_BOSS_CROWN_SVG = `
     <path d="M-10 0 L-9 -10 L-4 -5 L0 -13 L4 -5 L9 -10 L10 0 Z" fill="#caa23a" stroke="#05060c" stroke-width="2" stroke-linejoin="round"/>
 `;
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { SCENE_CRAWLER_SVG, SCENE_COMPANION_SVG, SCENE_MOB_SPRITES, SCENE_BOSS_CROWN_SVG, SCENE_MERCHANT_SVG, SCENE_TRAINER_SVG };
+    module.exports = { SCENE_CRAWLER_SVG, SCENE_COMPANION_SVG, SCENE_MOB_SPRITES, SCENE_BOSS_CROWN_SVG, SCENE_MERCHANT_SVG, SCENE_TRAINER_SVG, SCENE_CORPSE_TOPDOWN_SVG };
 }

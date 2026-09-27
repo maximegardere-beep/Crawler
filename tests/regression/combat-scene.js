@@ -468,3 +468,36 @@ function isRedHex(hex) {
     delete vignetteKeys.fbd;
     delete lastBackdropKeys.fbd;
 }
+
+// ===================================================================
+// renderScene('gameOver') : le cadavre du crawler vu de dessus, dans sa mare de sang, avec un indice
+// propre à CHAQUE cause de mort que gameOver() sait dériver (EPITAPH_TEMPLATES, hors pools spéciaux).
+// ===================================================================
+{
+    const causes = Object.keys(EPITAPH_TEMPLATES).filter(k => k !== 'mobFaible');
+    const missing = causes.filter(c => !GAME_OVER_CAUSE_PROPS[c]);
+    assert(missing.length === 0, `Chaque cause de mort a son indice sur l'écran Game Over (manquantes : ${missing.join(', ')})`);
+    const cluesDistinct = new Set(causes.map(c => GAME_OVER_CAUSE_PROPS[c]));
+    assert(cluesDistinct.size === causes.length, "Deux causes de mort n'ont jamais le même indice");
+    const broken = [];
+    causes.concat(['causeInconnue']).forEach(cause => {
+        Object.keys(SCENE_BACKDROPS).forEach(key => {
+            const markup = composeGameOverScene(cause, key, 'gbd');
+            if (/undefined|NaN/.test(markup) || !markup.includes(SCENE_CORPSE_TOPDOWN_SVG) || !markup.includes(GAME_OVER_BLOOD_POOL)) broken.push(`${cause}/${key}`);
+        });
+    });
+    assert(broken.length === 0, `Écran Game Over : cadavre et mare de sang rendus pour toute cause et tout quartier (${broken.slice(0, 5).join(', ')})`);
+    assert(!composeGameOverScene('causeInconnue', 'default', 'gbd').includes(GAME_OVER_CAUSE_PROPS.combat), "Cause inconnue : aucun indice, jamais celui d'une autre cause");
+    assert((composeGameOverScene('combat', 'default', 'gbd').match(/#facc15/g) || []).length === 2, "Écran Game Over : deux plots de scène de crime");
+
+    resetTransientState();
+    const savedNecro = gameState.necrologie.slice();
+    const content = document.getElementById('game-over-scene-content');
+    gameOver(false, 'trap');
+    assert(content.innerHTML.includes('data-cause="trap"') && content.innerHTML.includes(GAME_OVER_CAUSE_PROPS.trap), "gameOver() sur un piège : scène du cadavre avec la plaque à pointes");
+    gameOver(true);
+    assert(content.innerHTML.includes('data-cause="timeout"'), "gameOver() par épuisement du temps : indice des gravats");
+    gameState.necrologie = savedNecro;
+    document.getElementById('game-over-overlay').classList.add('hidden');
+    resetTransientState();
+}

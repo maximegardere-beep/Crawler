@@ -1586,10 +1586,75 @@ function safehouseBackdropFor(typeName) {
     return { ...SAFEHOUSE_BACKDROP, props: [...SAFEHOUSE_BACKDROP.props, ...signature] };
 }
 
+// --- Écran Game Over (vue de DESSUS) --------------------------------------------------------------------
+// Scène 280 x 170 : le sol du quartier vu d'en haut, le cadavre du crawler (SCENE_CORPSE_TOPDOWN_SVG) au
+// centre dans sa mare de sang, des plots numérotés de scène de crime, des mouches, et un indice propre à
+// la cause de la mort (gameOver() dans app.js). Humour noir façon Dungeon Crawler Carl : la mort est un
+// épisode comme un autre.
+const GAME_OVER_VIEW = { w: 280, h: 170 };
+const GAME_OVER_BODY = { x: 142, y: 86, angle: -24 };
+
+// Mare de sang, dans le repère du cadavre (centrée un peu vers la tête). S'étale une fois à l'affichage
+// (.go-blood-spread, coupée sous prefers-reduced-motion).
+const GAME_OVER_BLOOD_POOL = `
+    <path d="M-44 -58 Q-20 -76 12 -66 Q44 -62 52 -34 Q62 -6 40 14 Q30 34 6 30 Q-18 40 -36 22 Q-60 6 -54 -22 Q-62 -44 -44 -58 Z" fill="#5c0d12" stroke="#2a0508" stroke-width="1.5"/>
+    <path d="M-34 -50 Q-12 -64 14 -56 Q38 -50 42 -30 Q48 -8 30 6 Q14 22 -8 18 Q-30 22 -40 4 Q-52 -16 -34 -50 Z" fill="#7a141b"/>
+    <path d="M52 -30 q14 4 18 14 q-10 2 -16 -4 Z M-54 8 q-12 8 -10 18 q8 -2 10 -10 Z" fill="#5c0d12"/>
+    <ellipse cx="-14" cy="-50" rx="16" ry="4" transform="rotate(-12 -14 -50)" fill="#fff" opacity="0.1"/>`;
+
+// Plot jaune numéroté de scène de crime. Origine : base du plot.
+function evidenceMarker(n) {
+    return `<path d="M-6 0 L0 -12 L6 0 Z" fill="#facc15" stroke="#05060c" stroke-width="1.2" stroke-linejoin="round"/>
+        <text x="0" y="-2.5" text-anchor="middle" font-size="6.5" font-weight="bold" fill="#05060c">${n}</text>`;
+}
+
+// Indice de la cause de la mort, en coordonnées de la scène.
+const GAME_OVER_CAUSE_PROPS = {
+    // Empreintes griffues ensanglantées qui s'éloignent : le coupable ne s'est pas attardé.
+    combat: `
+        <g fill="#5c0d12" opacity="0.8">
+            ${[[206, 118, 20], [222, 132, 28], [238, 142, 18], [252, 156, 30]].map(([x, y, a]) => `
+            <g transform="translate(${x} ${y}) rotate(${a})"><ellipse rx="4" ry="5"/><circle cx="-4" cy="-7" r="1.6"/><circle cx="0" cy="-8.5" r="1.6"/><circle cx="4" cy="-7" r="1.6"/></g>`).join('')}
+        </g>`,
+    // Plaque à pointes encore sortie, juste sous les bottes.
+    trap: `
+        <g transform="translate(146 152)">
+            <rect x="-20" y="-12" width="40" height="24" rx="2" fill="#3a3e44" stroke="#05060c" stroke-width="1.5"/>
+            ${[-12, 0, 12].map(x => [-5, 5].map(y => `<path d="M${x - 3} ${y + 3} L${x} ${y - 3} L${x + 3} ${y + 3} Z" fill="#9ca3af" stroke="#05060c" stroke-width="0.8"/>`).join('')).join('')}
+        </g>`,
+    // Longue traînée de sang : il a marché un moment avant de s'effondrer.
+    bleed: `
+        <path d="M280 22 Q240 30 226 46 Q210 62 184 66" fill="none" stroke="#5c0d12" stroke-width="7" stroke-linecap="round" opacity="0.85"/>
+        <g fill="#5c0d12"><circle cx="262" cy="18" r="2.5"/><circle cx="246" cy="30" r="2"/><circle cx="214" cy="52" r="2.5"/></g>`,
+    // Brûlure et grimoire fumant : le sort est parti dans le mauvais sens.
+    backfire: `
+        <ellipse cx="70" cy="54" rx="30" ry="22" fill="#05060c" opacity="0.55"/>
+        <ellipse cx="70" cy="54" rx="18" ry="12" fill="#05060c" opacity="0.5"/>
+        <g transform="translate(64 50) rotate(-18)">
+            <rect x="-11" y="-8" width="11" height="16" fill="#5b2d7a" stroke="#05060c" stroke-width="1.2"/>
+            <rect x="0" y="-8" width="11" height="16" fill="#4a2463" stroke="#05060c" stroke-width="1.2"/>
+            <path d="M-8 -3 h6 M-8 1 h5 M3 -3 h6" stroke="#c084fc" stroke-width="0.8"/>
+        </g>
+        <g class="bd-steam"><circle cx="62" cy="40" r="5" fill="#9ca3af" opacity="0.35"/></g>
+        <g class="bd-steam" style="animation-delay:-1.4s"><circle cx="70" cy="38" r="4" fill="#9ca3af" opacity="0.35"/></g>`,
+    // Gravats tombés du plafond et sablier vide : le donjon s'est effondré à l'heure dite.
+    timeout: `
+        <g fill="#5a5a60" stroke="#05060c" stroke-width="1.2">
+            <path d="M40 30 l14 -4 l6 10 l-12 8 Z"/><path d="M222 120 l18 -2 l2 12 l-16 4 Z"/><path d="M98 142 l10 -6 l8 8 l-10 6 Z"/>
+            <path d="M200 34 l9 -2 l3 7 l-8 4 Z"/>
+        </g>
+        <path d="M30 70 l20 8 l8 20 M230 60 l-14 14 l4 18" fill="none" stroke="#05060c" stroke-width="1.2" opacity="0.7"/>
+        <g transform="translate(58 128) rotate(70)">
+            <path d="M-6 -10 H6 L0 0 L6 10 H-6 L0 0 Z" fill="#d8d6cc" fill-opacity="0.35" stroke="#caa23a" stroke-width="1.5"/>
+            <path d="M-8 -10 H8 M-8 10 H8" stroke="#6b4a2a" stroke-width="2.5"/>
+        </g>`
+};
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         BACKDROP_WIDTH, BACKDROP_HEIGHT, BACKDROP_GROUND_Y, BACKDROP_WALL_PATTERNS, BACKDROP_FLOOR_PATTERNS,
         BACKDROP_CEILINGS, BACKDROP_PROPS, BACKDROP_DEBRIS, SCENE_BACKDROPS, SHOP_SIGN_STYLES, TRAINER_BOARD_STYLES,
-        SAFEHOUSE_BACKDROP, SAFEHOUSE_SIGNATURES, safehouseBackdropFor
+        SAFEHOUSE_BACKDROP, SAFEHOUSE_SIGNATURES, safehouseBackdropFor,
+        GAME_OVER_VIEW, GAME_OVER_BODY, GAME_OVER_BLOOD_POOL, GAME_OVER_CAUSE_PROPS, evidenceMarker
     };
 }

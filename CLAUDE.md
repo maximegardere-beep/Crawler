@@ -13,7 +13,7 @@ Tailwind CDN, **aucun build step**.
 - `safehouses.js` — types de salles sécurisées (narratif seul pour l'instant)
 - `generator.js` — génération procédurale (mobs, objets, parchemins de sorts, boss, compagnons)
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
-- `sprites.js` — silhouettes SVG de profil des scènes (crawler, compagnon, 10 archétypes de mob, couronne de boss, PNJ marchand/professeur)
+- `sprites.js` — silhouettes SVG des scènes (crawler, compagnon, 10 archétypes de mob, couronne de boss, PNJ marchand/professeur, cadavre vu de dessus)
 - `backdrops.js` — décors des scènes : catalogue pur (motifs de mur/sol, plafonds, accessoires, fiches de décor `SCENE_BACKDROPS`, enseignes/tableaux des villes spécialisées)
 - `scene.js` — rendu des scènes en vue latérale et de leur décor (`distanceToX()`, `composeBackdrop()`, point d'entrée unique `renderScene(mode)`)
 - `tests/` — voir plus bas
@@ -567,6 +567,16 @@ Tailwind CDN, **aucun build step**.
   `chalkMarks`, `fallenCrown`, `checkedMap`, `dustPuff`, `darkCafeteria`, `stairsDown`, `pactAltar`).
   `combat-scene.js` lit `app.js` et exige que chaque vignette nommée par un `setCardHeader()` existe :
   une faute de frappe dans un nom fait échouer les tests au lieu de retomber silencieusement sur l'emoji.
+  **Écran Game Over** (`renderScene('gameOver', { cause })`, appelé par `gameOver()`, remplace l'ancien
+  emoji 💀) : seule scène VUE DE DESSUS — sol du quartier de la mort (même motif de sol que son décor),
+  cadavre `SCENE_CORPSE_TOPDOWN_SVG` (sprites.js, face contre terre, sac encore sur le dos) dans
+  `GAME_OVER_BLOOD_POOL` (s'étale une fois, `.go-blood-spread`), deux plots jaunes de scène de crime
+  (`evidenceMarker()`), mouches (`.go-fly`), et un indice par cause (`GAME_OVER_CAUSE_PROPS` : empreintes
+  griffues pour `combat`, plaque à pointes pour `trap`, traînée de sang pour `bleed`, brûlure + grimoire
+  fumant pour `backfire`, gravats + sablier pour `timeout`). `composeGameOverScene(cause, district,
+  prefix)` est pure (préfixe `'gbd'`). `combat-scene.js` exige un indice distinct pour CHAQUE cause de
+  `EPITAPH_TEMPLATES` (hors pool `mobFaible`) : une nouvelle cause de mort sans indice fait échouer les
+  tests.
   **Scène des villes spécialisées** (`#shop-scene-svg`, au-dessus des listes d'achat/vente et des
   boutons, qui restent intacts) : même décor du quartier courant (préfixe `'sbd'`, jamais d'identifiant
   partagé avec la scène de combat `'cbd'`), crawler à `CRAWLER_X`, ni barres de vie ni bandes de portée.

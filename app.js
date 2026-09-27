@@ -6729,6 +6729,7 @@ function gameOver(timeout = false, killer = null) {
     ui.gameOverLevel.innerText = gameState.level;
     ui.gameOverDistrict.innerText = gameState.currentDistrict;
     if (ui.gameOverEpitaph) ui.gameOverEpitaph.innerText = epitaph;
+    renderScene('gameOver', { cause });
     ui.gameOverOverlay.classList.remove('hidden');
 
     updateUI();

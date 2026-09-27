@@ -587,14 +587,65 @@ function renderStairsScene() {
     renderVignetteScene({ ...stairsSceneUi, prefix: 'fbd', view: { x: 0, y: 0, w: SCENE_WIDTH, h: 150 } }, 'stairs');
 }
 
+
+// --- Écran Game Over : le cadavre du crawler vu de dessus ---------------------------------------------
+// Sol du quartier de la mort (même motif que la scène de combat, vu d'en haut), cadavre dans sa mare de
+// sang, plots de scène de crime, mouches, indice de la cause (GAME_OVER_CAUSE_PROPS, backdrops.js ;
+// cause inconnue -> aucun indice). Pure : ne lit que le catalogue.
+function composeGameOverScene(cause, districtKey, prefix) {
+    const def = SCENE_BACKDROPS[districtKey] || SCENE_BACKDROPS.default;
+    const floorPattern = BACKDROP_FLOOR_PATTERNS[def.floor] || BACKDROP_FLOOR_PATTERNS.flagstones;
+    const { w, h } = GAME_OVER_VIEW;
+    const b = GAME_OVER_BODY;
+    const clue = GAME_OVER_CAUSE_PROPS[cause] || '';
+    const flies = [[b.x + 6, b.y - 38, 0], [b.x - 18, b.y - 20, 1.3], [b.x + 22, b.y + 4, 2.1]]
+        .map(([x, y, delay]) => `<g transform="translate(${x} ${y})"><g class="go-fly" style="animation-delay:-${delay}s"><circle cx="7" cy="0" r="1.4" fill="#05060c"/><ellipse cx="7" cy="-1.6" rx="1.4" ry="0.8" fill="#d1d5db" opacity="0.6"/></g></g>`)
+        .join('');
+    return `
+        <defs>
+            ${floorPattern(`${prefix}-floor`, def.palette)}
+            <radialGradient id="${prefix}-spot" cx="50%" cy="50%" r="60%">
+                <stop offset="0%" stop-color="#fef3c7" stop-opacity="0.16"/>
+                <stop offset="100%" stop-color="#fef3c7" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="${prefix}-vignette" cx="50%" cy="50%" r="72%">
+                <stop offset="55%" stop-color="#000" stop-opacity="0"/>
+                <stop offset="100%" stop-color="#000" stop-opacity="0.7"/>
+            </radialGradient>
+        </defs>
+        <rect x="0" y="0" width="${w}" height="${h}" fill="url(#${prefix}-floor)"/>
+        <rect x="0" y="0" width="${w}" height="${h}" fill="#05060c" opacity="0.35"/>
+        <ellipse cx="${b.x}" cy="${b.y}" rx="120" ry="80" fill="url(#${prefix}-spot)"/>
+        <g class="go-clue" data-cause="${cause}">${clue}</g>
+        <g transform="translate(${b.x} ${b.y}) rotate(${b.angle})">
+            <g class="go-blood-spread">${GAME_OVER_BLOOD_POOL}</g>
+            ${SCENE_CORPSE_TOPDOWN_SVG}
+        </g>
+        <g transform="translate(${b.x - 58} ${b.y + 44})">${evidenceMarker(1)}</g>
+        <g transform="translate(${b.x + 62} ${b.y - 40})">${evidenceMarker(2)}</g>
+        ${flies}
+        <rect x="0" y="0" width="${w}" height="${h}" fill="url(#${prefix}-vignette)"/>`;
+}
+
+const gameOverSceneUi = {
+    svg: document.getElementById('game-over-scene-svg'),
+    content: document.getElementById('game-over-scene-content')
+};
+function renderGameOverScene(opts) {
+    if (!gameOverSceneUi.content) return;
+    const cause = (opts && opts.cause) || 'combat';
+    gameOverSceneUi.content.innerHTML = composeGameOverScene(cause, resolveBackdropKey(gameState.currentDistrict), 'gbd');
+}
+
 // Point d'entrée unique du rendu des scènes : 'combat' (#combat-zone), 'merchant' | 'trainer'
 // (#shop-zone), 'safehouse' (#safehouse-choice-zone), 'card' (vignette de la carte active, `opts` =
-// nom de vignette ou { key, enemy, disposition }), 'stairs' (écran d'escalier) ; tout mode inconnu ne
-// fait rien.
+// nom de vignette ou { key, enemy, disposition }), 'stairs' (écran d'escalier), 'gameOver' (cadavre vu
+// de dessus, `opts` = { cause }) ; tout mode inconnu ne fait rien.
 function renderScene(mode, opts) {
     if (mode === 'combat') renderCombatScene();
     else if (mode === 'merchant' || mode === 'trainer') renderShopScene(mode);
     else if (mode === 'safehouse') renderSafehouseScene();
     else if (mode === 'card') renderCardScene(opts);
     else if (mode === 'stairs') renderStairsScene();
+    else if (mode === 'gameOver') renderGameOverScene(opts);
 }
