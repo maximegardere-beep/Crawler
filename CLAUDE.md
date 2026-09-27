@@ -17,7 +17,9 @@ Tailwind CDN, **aucun build step**.
   que le fichier concerné) : `crawler.js` (crawler + cadavre vu de dessus), `npcs.js` (compagnon, marchand,
   professeur), `mobs.js` (10 silhouettes d'archétype avec palette naturelle, couronne de boss),
   `mob-details-a.js`/`mob-details-b.js` (`MOB_DETAILS` : détail signature + palette de chacun des 39 mobs
-  de `baseMobs`, clé = nom exact), `mob-auras.js` (`MOB_EFFECT_AURAS` : une aura par effet de mob),
+  de `baseMobs`, clé = nom exact), `mob-auras.js` (`MOB_EFFECT_AURAS` : une aura par effet de mob), `bosses-a.js`/`bosses-b.js`
+  (`SCENE_BOSS_SPRITES` : sprite unique de chaque boss, clé = nom exact, avec `held` = objet signature
+  tenu/porté),
   `items-generic.js` (registre
   `ITEM_SPRITES` des sprites d'équipement, dessins génériques de repli par catégorie, cadrages d'icône
   `ITEM_ICON_TRANSFORMS`, couleurs d'enchantement `ENCHANT_COLORS`), puis un dessin par objet, clé = nom
@@ -555,8 +557,12 @@ Tailwind CDN, **aucun build step**.
   les suffixes de modificateurs, et par `generateBoss()`), sinon nom exact, sinon plus long nom connu en
   préfixe (anciennes sauvegardes). `top` renvoyé = détail compris (couronne de boss, chiffres, fx.js via
   `fxMobSprite()`). Utilisé par `renderSceneMob()` (clé de cache archétype|détail|effet) et `mobAt()`
-  (vignettes d'exploration). Les 13 boss réutilisent la silhouette de leur archétype, couronnée, en
-  attendant leurs sprites uniques (phase 5). `combat-scene.js` exige un détail pour CHAQUE mob de
+  (vignettes d'exploration). **Boss uniques** (phase 5) : un boss présent dans `SCENE_BOSS_SPRITES`
+  (`resolveBossSpriteKey()` : `baseName` ou nom exact) remplace silhouette + détail par son propre dessin
+  (`{ top, bounds, palette, markup, held }`), avec son objet signature repris TEL QUEL de `ITEM_SPRITES`
+  (`bossHeldMarkup()`, placé par `held.transform`, derrière le corps si `held.layer === 'back'`) ; la
+  couronne et l'aura restent ajoutées par le jeu. Un boss sans sprite unique garde la silhouette couronnée
+  de son archétype. `combat-scene.js` exige un détail pour CHAQUE mob de
   `baseMobs` (et aucun détail orphelin), une aura pour CHAQUE effet, des `bounds` dans ±`MOB_EXTENT`, des
   palettes valides et aucun `id=`/`<defs>`/gradient/filtre.
   **Décor** (`backdrops.js`, catalogue pur sur le modèle de `sprites/*.js`, chargé avant `scene.js`) :

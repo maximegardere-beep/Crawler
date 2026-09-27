@@ -852,3 +852,35 @@ function isRedHex(hex) {
     assert(sceneMob.innerHTML.includes(MOB_EFFECT_FX_COLORS.burn) && sceneMob.innerHTML.includes('scene-pose'), "Scène de combat : aura et groupe de pose du mob");
     resetTransientState();
 }
+
+// ============================================================
+// Boss uniques (phase 5 : sprites/bosses-a.js, bosses-b.js) : chaque sprite de boss correspond à un boss
+// de districtBosses, tient son PROPRE objet signature (dessin de ITEM_SPRITES), reste dans ±MOB_EXTENT ;
+// un boss sans sprite unique garde la silhouette couronnée de son archétype.
+// ============================================================
+{
+    const forbidden = /undefined|NaN|id=|<defs|<image|<filter|Gradient/;
+    const bossesByName = {};
+    Object.values(districtBosses).forEach(b => { bossesByName[b.name] = b; });
+    const bad = Object.keys(SCENE_BOSS_SPRITES).filter(name => {
+        const s = SCENE_BOSS_SPRITES[name];
+        const boss = bossesByName[name];
+        return !boss || !s.held || s.held.item !== boss.signatureItem.name || !ITEM_SPRITES[s.held.item]
+            || !Array.isArray(s.bounds) || s.bounds[0] < -MOB_EXTENT || s.bounds[1] > MOB_EXTENT
+            || s.top > -50 || s.top < -90 || !s.palette || forbidden.test(s.markup);
+    });
+    assert(bad.length === 0, `Sprites de boss : boss existant, son objet signature, bornes ±${MOB_EXTENT}, hauteur, aucun élément interdit (${bad.join(', ')})`);
+
+    const name = Object.keys(SCENE_BOSS_SPRITES)[0];
+    const boss = { ...bossesByName[name], baseName: name };
+    const sprite = resolveMobSprite(boss);
+    const held = SCENE_BOSS_SPRITES[name].held;
+    assert(sprite.key === `boss:${name}|${boss.effect}` && sprite.markup.includes(ITEM_SPRITES[held.item].art) && sprite.top === SCENE_BOSS_SPRITES[name].top, "Boss au sprite unique : son dessin, son objet signature, son aura, sa hauteur");
+    const cape = Object.keys(SCENE_BOSS_SPRITES).find(n => SCENE_BOSS_SPRITES[n].held.layer === 'back');
+    if (cape) {
+        const m = resolveMobSprite({ ...bossesByName[cape] }).markup;
+        assert(m.indexOf('boss-held') < m.indexOf(SCENE_BOSS_SPRITES[cape].markup), "Objet porté dans le dos (layer 'back') : dessiné derrière le boss");
+    }
+    const without = Object.values(districtBosses).find(b => !SCENE_BOSS_SPRITES[b.name]);
+    if (without) assert(resolveMobSprite(without).key.startsWith(`${without.visualArchetype}|`), "Boss sans sprite unique : silhouette de son archétype");
+}

@@ -393,18 +393,45 @@ function resolveMobDetailKey(enemy) {
     return best;
 }
 
+// Boss au sprite unique (sprites/bosses-*.js) : clé = nom d'origine ou nom exact, sinon null.
+function resolveBossSpriteKey(enemy) {
+    if (!enemy || typeof SCENE_BOSS_SPRITES === 'undefined') return null;
+    if (enemy.baseName && SCENE_BOSS_SPRITES[enemy.baseName]) return enemy.baseName;
+    return enemy.name && SCENE_BOSS_SPRITES[enemy.name] ? enemy.name : null;
+}
+
+// Objet signature tenu ou porté par un boss : dessin de ITEM_SPRITES placé par `held.transform`.
+function bossHeldMarkup(held) {
+    const sprite = held && ITEM_SPRITES[held.item];
+    return sprite ? `<g class="boss-held" transform="${held.transform}">${sprite.art}</g>` : '';
+}
+
 // Dessin complet d'un mob (pure) : aura de son effet DERRIÈRE, silhouette de son archétype (goblinoid si
 // inconnu), puis son détail signature par-dessus ; palette = celle du mob, sinon celle de l'archétype.
 // `top` = point le plus haut, détail compris (couronne de boss, chiffres de dégâts, effets de fx.js).
-// `opts.aura === false` : sans aura (mob à terre dans la vignette de victoire).
+// `opts.aura === false` : sans aura (mob à terre dans la vignette de victoire). Un boss qui a son sprite
+// unique (SCENE_BOSS_SPRITES) le remplace entièrement, avec son objet signature (`held`).
 function resolveMobSprite(enemy, opts) {
+    const effect = enemy && enemy.effect;
+    const auraFn = effect && MOB_EFFECT_AURAS[effect];
+    const aura = auraFn && !(opts && opts.aura === false) ? auraFn(MOB_EFFECT_FX_COLORS[effect] || '#f8fafc') : '';
+    // Boss au sprite unique : aura, objet porté dans le dos, boss, objet tenu devant.
+    const bossKey = resolveBossSpriteKey(enemy);
+    if (bossKey) {
+        const boss = SCENE_BOSS_SPRITES[bossKey];
+        const held = bossHeldMarkup(boss.held);
+        const back = boss.held && boss.held.layer === 'back';
+        return {
+            key: `boss:${bossKey}|${aura ? effect : ''}`,
+            top: boss.top,
+            markup: aura + (back ? held : '') + boss.markup + (back ? '' : held),
+            palette: boss.palette
+        };
+    }
     const archetype = enemy && SCENE_MOB_SPRITES[enemy.visualArchetype] ? enemy.visualArchetype : 'goblinoid';
     const base = SCENE_MOB_SPRITES[archetype];
     const detailKey = resolveMobDetailKey(enemy);
     const detail = detailKey ? MOB_DETAILS[detailKey] : null;
-    const effect = enemy && enemy.effect;
-    const auraFn = effect && MOB_EFFECT_AURAS[effect];
-    const aura = auraFn && !(opts && opts.aura === false) ? auraFn(MOB_EFFECT_FX_COLORS[effect] || '#f8fafc') : '';
     return {
         key: `${archetype}|${detailKey || ''}|${aura ? effect : ''}`,
         top: Math.min(base.top, detail && detail.top != null ? detail.top : 0),
