@@ -269,6 +269,24 @@
         .scene-band-ranged { fill: #0891b2; }
         .scene-band-label { font-size: 9px; letter-spacing: 0.08em; fill: #4b5563; font-weight: bold; }
         .scene-band-label.is-active { fill: #d1d5db; }
+        /* Déplacement fluide du mob (transition sur transform, posée par scene.js) et de l'ancre de
+           ses chiffres de dégâts ; coupée pour l'apparition d'un nouvel ennemi (scene-no-transition). */
+        #scene-mob { transition: transform 0.45s ease-out; }
+        #scene-mob-anchor { transition: left 0.45s ease-out, top 0.45s ease-out; }
+        #scene-mob.scene-no-transition, #scene-mob-anchor.scene-no-transition { transition: none; }
+        /* Petite secousse du combattant touché (shakeSceneFighter(), scene.js). */
+        @keyframes sceneHitShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-3px); }
+            40% { transform: translateX(3px); }
+            60% { transform: translateX(-2px); }
+            80% { transform: translateX(1px); }
+        }
+        .scene-hit { animation: sceneHitShake 0.28s ease-out; }
+        @media (prefers-reduced-motion: reduce) {
+            #scene-mob, #scene-mob-anchor { transition: none; }
+            .scene-hit { animation: none; }
+        }
 
         /* --- Overlay d'ambiance (états critiques du joueur) ---
            Chaque effet est une couche indépendante empilable (plusieurs classes peuvent être
@@ -1032,15 +1050,15 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=94"></script>
-    <script src="items.js?v=94"></script>
-    <script src="spells.js?v=94"></script>
-    <script src="districts.js?v=94"></script>
-    <script src="safehouses.js?v=94"></script>
-    <script src="generator.js?v=94"></script>
-    <script src="anomalies.js?v=94"></script>
-    <script src="sprites.js?v=94"></script>
-    <script src="scene.js?v=94"></script>
-    <script src="app.js?v=94"></script>
+    <script src="bestiary.js?v=95"></script>
+    <script src="items.js?v=95"></script>
+    <script src="spells.js?v=95"></script>
+    <script src="districts.js?v=95"></script>
+    <script src="safehouses.js?v=95"></script>
+    <script src="generator.js?v=95"></script>
+    <script src="anomalies.js?v=95"></script>
+    <script src="sprites.js?v=95"></script>
+    <script src="scene.js?v=95"></script>
+    <script src="app.js?v=95"></script>
 </body>
 </html>

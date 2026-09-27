@@ -136,11 +136,21 @@ function renderRangeBands() {
 
 let sceneBuilt = false;
 let lastMobSpriteKey = null;
+// Ennemi dessiné au rendu précédent : un nouvel ennemi apparaît directement à sa place, sans glisser
+// depuis la position où le précédent a fini son combat.
+let lastSceneEnemy = null;
 let lastCompanionKey = null;
+
+// Chaque silhouette est enveloppée dans un <g class="scene-body"> : le groupe extérieur porte la
+// position (translate, animée par transition), le groupe intérieur la secousse d'impact — deux
+// transformations indépendantes qui ne s'écrasent jamais.
+function wrapSceneBody(markup) {
+    return `<g class="scene-body">${markup}</g>`;
+}
 
 function ensureSceneBuilt() {
     if (sceneBuilt) return;
-    sceneUi.crawler.innerHTML = SCENE_CRAWLER_SVG;
+    sceneUi.crawler.innerHTML = wrapSceneBody(SCENE_CRAWLER_SVG);
     placeSceneGroup(sceneUi.crawler, CRAWLER_X, SCENE_GROUND_Y);
     placeSceneGroup(sceneUi.companion, COMPANION_X, SCENE_GROUND_Y);
     placeSceneAnchor(sceneUi.crawlerAnchor, CRAWLER_X, SCENE_GROUND_Y + CRAWLER_TOP + DAMAGE_ANCHOR_DROP);
@@ -158,13 +168,42 @@ function renderSceneMob(enemy) {
         const crown = enemy.isBoss
             ? `<g transform="translate(0 ${sprite.top - 2})">${SCENE_BOSS_CROWN_SVG}</g>`
             : '';
-        sceneUi.mob.innerHTML = sprite.markup + crown;
+        sceneUi.mob.innerHTML = wrapSceneBody(sprite.markup + crown);
         lastMobSpriteKey = spriteKey;
     }
     applySceneTint(sceneUi.mob, MOB_EFFECT_TINTS[enemy.effect] || MOB_DEFAULT_TINT);
     const x = distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance);
+    const isNewEnemy = enemy !== lastSceneEnemy;
+    if (isNewEnemy) {
+        sceneUi.mob.classList.add('scene-no-transition');
+        sceneUi.mobAnchor.classList.add('scene-no-transition');
+    }
     placeSceneGroup(sceneUi.mob, x, SCENE_GROUND_Y);
     placeSceneAnchor(sceneUi.mobAnchor, x, SCENE_GROUND_Y + sprite.top + DAMAGE_ANCHOR_DROP);
+    if (isNewEnemy) {
+        forceStyleFlush(sceneUi.mob);
+        sceneUi.mob.classList.remove('scene-no-transition');
+        sceneUi.mobAnchor.classList.remove('scene-no-transition');
+        lastSceneEnemy = enemy;
+    }
+}
+
+// Force le navigateur à appliquer les styles en attente (utile pour couper puis réactiver une
+// transition, ou rejouer une animation CSS). Un élément SVG n'a pas d'offsetWidth :
+// getBoundingClientRect() fonctionne pour les deux.
+function forceStyleFlush(el) {
+    if (el && typeof el.getBoundingClientRect === 'function') el.getBoundingClientRect();
+}
+
+// Petite secousse du combattant touché ('mob' ou 'crawler'), appelée par showFloatingDamage()
+// (app.js) au moment où le coup porte. Rejouable même si la précédente n'est pas finie.
+function shakeSceneFighter(target) {
+    const group = target === 'crawler' ? sceneUi.crawler : sceneUi.mob;
+    const body = group && group.querySelector('.scene-body');
+    if (!body) return;
+    body.classList.remove('scene-hit');
+    forceStyleFlush(body);
+    body.classList.add('scene-hit');
 }
 
 // Barres de vie au-dessus de la scène : nom + PV actuels/max de chaque combattant.
@@ -192,7 +231,7 @@ function renderSceneCompanion() {
     if (!companion) return;
     const specialty = companion.specialty && companion.specialty.type;
     if (lastCompanionKey !== specialty) {
-        sceneUi.companion.innerHTML = SCENE_COMPANION_SVG;
+        sceneUi.companion.innerHTML = wrapSceneBody(SCENE_COMPANION_SVG);
         applySceneTint(sceneUi.companion, COMPANION_SPECIALTY_TINTS[specialty] || MOB_DEFAULT_TINT);
         lastCompanionKey = specialty;
     }

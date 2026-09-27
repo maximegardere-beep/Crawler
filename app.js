@@ -1386,7 +1386,8 @@ let floatingDamageOffsetIndex = 0;
 // placées sur chaque silhouette par scene.js — le chiffre s'ajoute EN PLUS du dé qui vole déjà,
 // jamais à sa place). `toPlayer` distingue les dégâts SUBIS par le joueur (rouge/orangé) des dégâts
 // qu'il INFLIGE (blanc/jaune) ; `heavy` grossit le chiffre (×1.4 environ) pour un coup marquant
-// (télégraphe exécuté, ruée d'enrage, phase 3). Se nettoie lui-même après son animation
+// (télégraphe exécuté, ruée d'enrage, phase 3). Fait aussi trembler le combattant touché dans la
+// scène (shakeSceneFighter(), scene.js). Se nettoie lui-même après son animation
 // (`animationend`), fonctionne aussi bien avec l'animation normale que le simple fondu de
 // prefers-reduced-motion (les deux déclenchent cet événement).
 function showFloatingDamage(containerEl, amount, { heavy = false, toPlayer = false } = {}) {
@@ -1399,6 +1400,7 @@ function showFloatingDamage(containerEl, amount, { heavy = false, toPlayer = fal
     el.style.left = `calc(50% + ${offsetX}px)`;
     el.addEventListener('animationend', () => el.remove());
     containerEl.appendChild(el);
+    shakeSceneFighter(toPlayer ? 'crawler' : 'mob');
 }
 
 // Nombre de lignes gardées dans le journal court de combat (#combat-last-action) ; il n'en montre
