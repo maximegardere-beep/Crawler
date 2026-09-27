@@ -131,11 +131,11 @@ function mobX() {
     logEvent('hors combat');
     assert(!lines().includes('hors combat'), "Journal court : les messages hors combat n'y vont pas");
 
-    const cardBefore = document.getElementById('card-body').innerHTML;
+    const lastLineBefore = document.getElementById('explore-last-line').innerText;
     gameState.inCombat = true;
     renderCombatMobPanel();
     assert(document.getElementById('combat-mob-info').innerHTML.includes('Examiner'), "Infos du mob (et bouton Examiner) affichées sous la scène");
-    assert(document.getElementById('card-body').innerHTML === cardBefore, "renderCombatMobPanel() ne touche plus la carte d'exploration");
+    assert(document.getElementById('explore-last-line').innerText === lastLineBefore, "renderCombatMobPanel() ne touche pas la scène d'exploration");
 }
 
 // ===================================================================
@@ -401,9 +401,9 @@ function isRedHex(hex) {
 }
 
 // ===================================================================
-// renderScene('card') : vignette d'événement dans la carte active (option A, à la place de l'emoji).
-// Chaque vignette nommée par app.js existe, se rend sans valeur manquante, tient dans le cadre recadré de
-// la carte (CARD_VIEW), et n'est redessinée que si elle change.
+// renderScene('explore') : vignette d'événement dans la scène d'exploration (remplace l'ancienne carte à
+// jouer). Chaque vignette nommée par app.js existe, se rend sans valeur manquante, tient dans la scène,
+// et n'est redessinée que si elle change.
 // ===================================================================
 {
     const fs = require('fs');
@@ -411,60 +411,60 @@ function isRedHex(hex) {
     const appSource = fs.readFileSync(path.join(__dirname, '..', '..', 'app.js'), 'utf8');
     const usedKeys = new Set();
     // Noms de vignette = identifiants camelCase (minuscule en tête), jamais un libellé de type affiché.
-    (appSource.match(/setCardHeader\([^\n]*\);/g) || []).forEach(call => {
+    (appSource.match(/setSceneHeader\([^\n]*\);/g) || []).forEach(call => {
         const m = /key:\s*'([a-z][A-Za-z]+)'/.exec(call) || /,\s*'([a-z][A-Za-z]+)'\s*\);$/.exec(call);
         if (m) usedKeys.add(m[1]);
     });
-    const unknownUsed = [...usedKeys].filter(k => !CARD_VIGNETTES[k]);
+    const unknownUsed = [...usedKeys].filter(k => !EXPLORE_VIGNETTES[k]);
     assert(usedKeys.size >= 20, `app.js nomme bien les vignettes de ses événements (${usedKeys.size} trouvées)`);
-    assert(unknownUsed.length === 0, `Chaque vignette nommée par app.js existe dans CARD_VIGNETTES (inconnues : ${unknownUsed.join(', ')})`);
+    assert(unknownUsed.length === 0, `Chaque vignette nommée par app.js existe dans EXPLORE_VIGNETTES (inconnues : ${unknownUsed.join(', ')})`);
 
     const sampleMob = { name: 'Rat', visualArchetype: 'beast', effect: 'poison', isBoss: false };
     const sampleBoss = { name: 'Chef', visualArchetype: 'machine', effect: null, isBoss: true };
     const broken = [];
     const outside = [];
-    Object.keys(CARD_VIGNETTES).forEach(key => {
+    Object.keys(EXPLORE_VIGNETTES).forEach(key => {
         [{}, { enemy: sampleMob }, { enemy: sampleBoss }, { enemy: { name: 'X', visualArchetype: 'inconnu' } }].forEach(ctx => {
-            const markup = composeCardVignette(key, ctx);
+            const markup = composeExploreVignette(key, ctx);
             if (!markup || /undefined|NaN/.test(markup)) broken.push(`${key}`);
         });
-        const markup = composeCardVignette(key, { enemy: sampleMob });
+        const markup = composeExploreVignette(key, { enemy: sampleMob });
         // Positions de premier niveau (y > 0, dans la scène) — les translations internes d'un accessoire
         // sont relatives à son origine (y <= 0).
         (markup.match(/<g transform="translate\([-\d.]+ [-\d.]+\)/g) || []).forEach(t => {
             const [x, y] = /translate\(([-\d.]+) ([-\d.]+)/.exec(t).slice(1).map(parseFloat);
-            if (y > 0 && (x < CARD_VIEW.x + 8 || x > CARD_VIEW.x + CARD_VIEW.w - 8)) outside.push(`${key}@${x}`);
+            if (y > 0 && (x < FULL_SCENE_VIEW.x + 8 || x > FULL_SCENE_VIEW.x + FULL_SCENE_VIEW.w - 8)) outside.push(`${key}@${x}`);
         });
     });
     assert(broken.length === 0, `Chaque vignette se rend avec ou sans ennemi (y compris archétype inconnu) sans valeur manquante (${[...new Set(broken)].join(', ')})`);
-    assert(outside.length === 0, `Chaque élément de vignette tient dans le cadre recadré de la carte (${outside.join(', ')})`);
-    assert(composeCardVignette('stealthUnseen', { enemy: sampleMob }).includes('scale(-1 1)'), "Furtivité : le mob tourne le dos au crawler");
-    assert(composeCardVignette('bossSpotted', { enemy: sampleBoss }).includes(SCENE_BOSS_CROWN_SVG), "Boss repéré : couronne sur la silhouette");
-    assert(composeCardVignette('victory', { enemy: sampleMob }).includes('rotate(-90)'), "Victoire : le mob est à terre");
+    assert(outside.length === 0, `Chaque élément de vignette tient dans la scène (${outside.join(', ')})`);
+    assert(composeExploreVignette('stealthUnseen', { enemy: sampleMob }).includes('scale(-1 1)'), "Furtivité : le mob tourne le dos au crawler");
+    assert(composeExploreVignette('bossSpotted', { enemy: sampleBoss }).includes(SCENE_BOSS_CROWN_SVG), "Boss repéré : couronne sur la silhouette");
+    assert(composeExploreVignette('victory', { enemy: sampleMob }).includes('rotate(-90)'), "Victoire : le mob est à terre");
 
     resetTransientState();
-    const icon = document.getElementById('card-icon');
-    const wrap = document.getElementById('card-scene');
-    const vignette = document.getElementById('card-scene-vignette');
-    delete lastBackdropKeys.kbd;
-    delete vignetteKeys.kbd;
-    setCardHeader('💰', 'Trésor', 'Butin', 'treasure');
-    assert(!wrap.classList.contains('hidden') && icon.classList.contains('hidden'), "setCardHeader() avec vignette : la scène remplace l'emoji");
-    assert(vignette.innerHTML === composeCardVignette('treasure') && document.getElementById('card-scene-backdrop').innerHTML.includes('id="kbd-wall"'), "Vignette dessinée avec le décor du quartier (préfixe 'kbd')");
+    const icon = document.getElementById('explore-icon');
+    const wrap = document.getElementById('explore-scene');
+    const vignette = document.getElementById('explore-scene-vignette');
+    delete lastBackdropKeys.ebd;
+    delete vignetteKeys.ebd;
+    setSceneHeader('💰', 'Trésor', 'Butin', 'treasure');
+    assert(!wrap.classList.contains('hidden') && icon.classList.contains('hidden'), "setSceneHeader() avec vignette : la vignette s'affiche, l'emoji est masqué");
+    assert(vignette.innerHTML === composeExploreVignette('treasure') && document.getElementById('explore-scene-backdrop').innerHTML.includes('id="ebd-wall"'), "Vignette dessinée avec le décor du quartier (préfixe 'ebd')");
     vignette.innerHTML = 'SENTINELLE';
-    setCardHeader('💰', 'Trésor', 'Butin', 'treasure');
+    setSceneHeader('💰', 'Trésor', 'Butin', 'treasure');
     assert(vignette.innerHTML === 'SENTINELLE', "Même vignette : pas de redessin");
-    setCardHeader('🚪', 'Porte', 'Test');
-    assert(wrap.classList.contains('hidden') && !icon.classList.contains('hidden') && icon.innerText === '🚪', "setCardHeader() sans vignette : l'emoji revient");
-    setCardHeader('?', 'Inconnu', 'Test', 'vignetteInexistante');
-    assert(wrap.classList.contains('hidden') && !icon.classList.contains('hidden'), "Vignette inconnue : repli sur l'emoji");
-    delete lastBackdropKeys.kbd;
-    delete vignetteKeys.kbd;
+    setSceneHeader('🚪', 'Porte', 'Test');
+    assert(!wrap.classList.contains('hidden') && !icon.classList.contains('hidden') && icon.innerText === '🚪', "setSceneHeader() sans vignette : l'emoji recouvre la scène, qui reste visible (c'est aussi le bouton Explorer)");
+    setSceneHeader('?', 'Inconnu', 'Test', 'vignetteInexistante');
+    assert(!icon.classList.contains('hidden'), "Vignette inconnue : repli sur l'emoji");
+    delete lastBackdropKeys.ebd;
+    delete vignetteKeys.ebd;
 
     const stairsWrap = document.getElementById('floor-transition-scene');
     delete vignetteKeys.fbd;
     renderScene('stairs');
-    assert(!stairsWrap.classList.contains('hidden') && document.getElementById('floor-transition-scene-vignette').innerHTML === composeCardVignette('stairs'), "Écran d'escalier : scène de l'escalier à la place de l'emoji");
+    assert(!stairsWrap.classList.contains('hidden') && document.getElementById('floor-transition-scene-vignette').innerHTML === composeExploreVignette('stairs'), "Écran d'escalier : scène de l'escalier à la place de l'emoji");
     delete vignetteKeys.fbd;
     delete lastBackdropKeys.fbd;
 }
@@ -504,7 +504,7 @@ function isRedHex(hex) {
 
 // ===================================================================
 // Étages urbains : décor de combat sur la route ou au fond d'un repaire (jamais l'intérieur du
-// quartier), progression de plongée, vignettes gardien/Sortie/repaire, bandeau « vous êtes ici ».
+// quartier), progression de plongée, vignettes ville/gardien/Sortie/repaire.
 // ===================================================================
 {
     const problems = [];
@@ -544,19 +544,12 @@ function isRedHex(hex) {
     renderScene('combat');
     assert(document.getElementById('scene-backdrop').innerHTML === composeBackdrop(URBAN_COMBAT_BACKDROPS.road, 'cbd') && document.getElementById('scene-lair-progress').innerHTML === '', "Embuscade urbaine : décor de route, sans progression de repaire");
 
-    const stairsGuard = composeCardVignette('urbanGuardian', { enemy: { visualArchetype: 'blob', isBoss: true } });
-    const exitGuard = composeCardVignette('urbanGuardian', { enemy: { visualArchetype: 'blob', isBoss: true }, isExit: true });
+    const stairsGuard = composeExploreVignette('urbanGuardian', { enemy: { visualArchetype: 'blob', isBoss: true } });
+    const exitGuard = composeExploreVignette('urbanGuardian', { enemy: { visualArchetype: 'blob', isBoss: true }, isExit: true });
     assert(stairsGuard.includes(BACKDROP_PROPS.stairsDown.markup({})) && exitGuard.includes('SORTIE') && exitGuard.includes(SCENE_BOSS_CROWN_SVG), "Gardien urbain : l'escalier ou la porte de Sortie derrière le boss couronné");
-    assert(composeCardVignette('citySafe', { cityName: 'Port Fluvial' }).includes('Port Fluvial'), "Ville sûre : panneau au nom de la ville");
-
-    delete vignetteKeys.ubd;
-    renderScene('urbanCity');
-    assert(!document.getElementById('urban-city-scene').classList.contains('hidden') && document.getElementById('urban-city-scene-vignette').innerHTML.includes('Faubourg'), "Carte Urbaine : bandeau « vous êtes ici » au nom de la ville courante");
-    gameState.urbanMap = null;
-    renderScene('urbanCity');
-    assert(document.getElementById('urban-city-scene').classList.contains('hidden'), "Hors étage urbain : bandeau masqué");
+    assert(composeExploreVignette('citySafe', { cityName: 'Port Fluvial' }).includes('Port Fluvial'), "Ville sûre : panneau au nom de la ville");
 
     Object.assign(gameState, { urbanMap: saved.urbanMap, currentDistrict: saved.district, currentEnemy: saved.enemy, inCombat: saved.inCombat });
-    ['cbd', 'ubd'].forEach(p => { delete lastBackdropKeys[p]; delete vignetteKeys[p]; });
+    ['cbd'].forEach(p => { delete lastBackdropKeys[p]; delete vignetteKeys[p]; });
     resetTransientState();
 }

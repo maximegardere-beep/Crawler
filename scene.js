@@ -2,8 +2,8 @@
 // horizontal) et de son décor (catalogue dans backdrops.js). Module de RENDU pur : lit
 // gameState/config, ne les modifie jamais. Chargé juste avant app.js (après sprites.js et
 // backdrops.js) ; son seul point d'entrée côté moteur est renderScene(mode) — 'combat' en fin
-// d'updateUI(), 'merchant'/'trainer' depuis updateShopUI() (scène de #shop-zone), 'safehouse' depuis
-// enterRoom() (scène de #safehouse-choice-zone).
+// d'updateUI(), 'explore' depuis setSceneHeader(), 'merchant'/'trainer' depuis updateShopUI(),
+// 'safehouse' depuis enterRoom(), 'stairs'/'gameOver' depuis les écrans correspondants.
 //
 // Coordonnées : celles du viewBox de #combat-scene-svg (index.html), 360 x 150 unités. Le SVG
 // s'adapte à la largeur de l'écran ; toutes les positions ci-dessous restent donc en unités viewBox.
@@ -509,24 +509,22 @@ function renderSafehouseScene() {
 }
 
 
-// --- Scène de la carte active (option A : vignette à la place de l'emoji) ---------------------------
-// Chaque événement d'exploration (setCardHeader() dans app.js) peut nommer une vignette : décor du
-// quartier courant en fond (préfixe 'kbd') + mise en scène de l'événement (accessoires de backdrops.js,
-// silhouettes de sprites.js). Sans vignette, la carte garde son emoji. Même repère 360 x 150 que les
-// autres scènes ; le crawler reste à droite.
-const cardSceneUi = {
-    wrap: document.getElementById('card-scene'),
-    svg: document.getElementById('card-scene-svg'),
-    backdrop: document.getElementById('card-scene-backdrop'),
-    vignette: document.getElementById('card-scene-vignette'),
-    icon: document.getElementById('card-icon')
+// --- Scène d'exploration (#explore-scene, remplace l'ancienne carte à jouer) --------------------------
+// Chaque événement d'exploration (setSceneHeader() dans app.js) peut nommer une vignette : décor du
+// quartier courant en fond (préfixe 'ebd') + mise en scène de l'événement (accessoires de backdrops.js,
+// silhouettes de sprites.js). Sans vignette, l'emoji de l'événement s'affiche à la place. Même repère
+// 360 x 150 que la scène de combat, vue complète ; le crawler reste à droite, à la même place qu'en
+// combat, pour que le passage exploration -> combat reste continu.
+const exploreSceneUi = {
+    wrap: document.getElementById('explore-scene'),
+    svg: document.getElementById('explore-scene-svg'),
+    backdrop: document.getElementById('explore-scene-backdrop'),
+    vignette: document.getElementById('explore-scene-vignette'),
+    icon: document.getElementById('explore-icon')
 };
 
-// La carte est étroite (~210 px) : sa vue ne montre que la moitié droite de la scène, zoomée (le décor
-// reste dessiné sur toute la largeur, simplement recadré). Toute vignette doit tenir dans ce cadre.
-const CARD_VIEW = { x: 140, y: 14, w: 220, h: 136 };
-const CARD_CRAWLER_X = CRAWLER_X;
-const CARD_NPC_TINTS = {
+const FULL_SCENE_VIEW = { x: 0, y: 0, w: SCENE_WIDTH, h: 150 };
+const NPC_CRAWLER_TINTS = {
     friendly: { base: '#3a6b6b', dark: '#264a4a', accent: '#fde68a' },
     hostile: { base: '#3a3036', dark: '#241c22', accent: '#c23b3b' }
 };
@@ -565,7 +563,7 @@ function mobAt(enemy, x, pose, opacity) {
 // couteau et yeux rouges (hostile).
 function npcCrawlerAt(x, disposition) {
     const hostile = disposition === 'hostile';
-    const tint = CARD_NPC_TINTS[hostile ? 'hostile' : 'friendly'];
+    const tint = NPC_CRAWLER_TINTS[hostile ? 'hostile' : 'friendly'];
     const extra = hostile
         ? `<path d="M9 -34 L22 -40" stroke="#b8b2a0" stroke-width="2" stroke-linecap="round"/><path d="M6 -33 L10 -35" stroke="#4a3a24" stroke-width="3"/><circle cx="3" cy="-55" r="1.4" fill="#c23b3b"/>`
         : `<path class="mf-line" d="M6 -42 L14 -60"/><circle cx="14" cy="-62" r="3" class="mf-base"/>`;
@@ -575,37 +573,37 @@ function npcCrawlerAt(x, disposition) {
 const SHADOW_OVERLAY = '<rect x="0" y="0" width="360" height="150" fill="#05060c" opacity="0.45"/>';
 
 // Une entrée par vignette : ctx = { enemy, disposition } selon l'événement. Pures (chaîne SVG).
-const CARD_VIGNETTES = {
-    silence: () => crawlerAt(CARD_CRAWLER_X),
-    ambiance: () => propAt('cameraDrone', 232, 50) + crawlerAt(CARD_CRAWLER_X),
-    knownPath: () => propAt('chalkMarks', 196, 64) + crawlerAt(CARD_CRAWLER_X),
-    emptyLair: () => propAt('fallenCrown', 214, 124) + crawlerAt(CARD_CRAWLER_X),
-    floorCleared: () => propAt('checkedMap', 206, 60) + crawlerAt(CARD_CRAWLER_X),
-    fled: () => propAt('dustPuff', 250, 124) + crawlerAt(CARD_CRAWLER_X + 14),
-    treasure: () => propAt('treasureChest', 222, 124) + crawlerAt(CARD_CRAWLER_X),
-    minorFind: () => propAt('pouch', 232, 124) + crawlerAt(CARD_CRAWLER_X),
-    gold: () => propAt('coinPile', 232, 124) + crawlerAt(CARD_CRAWLER_X),
-    audienceGift: () => propAt('parachuteCrate', 222, 74) + crawlerAt(CARD_CRAWLER_X),
-    trap: () => propAt('spikeTrap', 250, 124) + crawlerAt(CARD_CRAWLER_X, { cls: 'card-recoil' }),
-    timeLoss: () => propAt('bigClock', 206, 60) + crawlerAt(CARD_CRAWLER_X),
-    cafeteria: () => propAt('darkCafeteria', 206, 124) + SHADOW_OVERLAY + crawlerAt(CARD_CRAWLER_X, { opacity: 0.8 }),
-    crawlerFriendly: () => npcCrawlerAt(206, 'friendly') + crawlerAt(CARD_CRAWLER_X),
-    crawlerHostile: () => npcCrawlerAt(206, 'hostile') + crawlerAt(CARD_CRAWLER_X),
-    stealthUnseen: (ctx) => mobAt(ctx.enemy, 196, 'away') + crawlerAt(CARD_CRAWLER_X, { opacity: 0.7 }) + propAt('crate', 292, 124, { w: 40, h: 34 }),
-    stealthEvaded: (ctx) => mobAt(ctx.enemy, 176, 'away', 0.4) + crawlerAt(CARD_CRAWLER_X),
-    combat: (ctx) => mobAt(ctx.enemy, 206, 'stand') + crawlerAt(CARD_CRAWLER_X),
-    bossSpotted: (ctx) => mobAt(ctx.enemy, 200, 'stand') + crawlerAt(CARD_CRAWLER_X),
-    victory: (ctx) => mobAt(ctx.enemy, 236, 'down', 0.85) + crawlerAt(CARD_CRAWLER_X),
-    bossVictory: (ctx) => mobAt(ctx.enemy, 226, 'down', 0.85) + propAt('fallenCrown', 258, 124) + crawlerAt(CARD_CRAWLER_X),
-    pact: () => propAt('pactAltar', 212, 124) + crawlerAt(CARD_CRAWLER_X),
-    citySafe: (ctx) => propAt('citySign', 222, 124, { text: ctx.cityName }) + crawlerAt(CARD_CRAWLER_X),
-    urbanGuardian: (ctx) => propAt(ctx.isExit ? 'exitDoor' : 'stairsDown', 184, 124) + mobAt(ctx.enemy, 236, 'stand') + crawlerAt(CARD_CRAWLER_X),
-    lairSpotted: () => propAt('lairEntrance', 212, 124) + crawlerAt(CARD_CRAWLER_X),
-    stairs: () => propAt('stairsDown', 214, 124) + crawlerAt(CARD_CRAWLER_X)
+const EXPLORE_VIGNETTES = {
+    silence: () => crawlerAt(CRAWLER_X),
+    ambiance: () => propAt('cameraDrone', 232, 50) + crawlerAt(CRAWLER_X),
+    knownPath: () => propAt('chalkMarks', 196, 64) + crawlerAt(CRAWLER_X),
+    emptyLair: () => propAt('fallenCrown', 214, 124) + crawlerAt(CRAWLER_X),
+    floorCleared: () => propAt('checkedMap', 206, 60) + crawlerAt(CRAWLER_X),
+    fled: () => propAt('dustPuff', 250, 124) + crawlerAt(CRAWLER_X + 14),
+    treasure: () => propAt('treasureChest', 222, 124) + crawlerAt(CRAWLER_X),
+    minorFind: () => propAt('pouch', 232, 124) + crawlerAt(CRAWLER_X),
+    gold: () => propAt('coinPile', 232, 124) + crawlerAt(CRAWLER_X),
+    audienceGift: () => propAt('parachuteCrate', 222, 74) + crawlerAt(CRAWLER_X),
+    trap: () => propAt('spikeTrap', 250, 124) + crawlerAt(CRAWLER_X, { cls: 'scene-recoil' }),
+    timeLoss: () => propAt('bigClock', 206, 60) + crawlerAt(CRAWLER_X),
+    cafeteria: () => propAt('darkCafeteria', 206, 124) + SHADOW_OVERLAY + crawlerAt(CRAWLER_X, { opacity: 0.8 }),
+    crawlerFriendly: () => npcCrawlerAt(206, 'friendly') + crawlerAt(CRAWLER_X),
+    crawlerHostile: () => npcCrawlerAt(206, 'hostile') + crawlerAt(CRAWLER_X),
+    stealthUnseen: (ctx) => mobAt(ctx.enemy, 196, 'away') + crawlerAt(CRAWLER_X, { opacity: 0.7 }) + propAt('crate', 292, 124, { w: 40, h: 34 }),
+    stealthEvaded: (ctx) => mobAt(ctx.enemy, 176, 'away', 0.4) + crawlerAt(CRAWLER_X),
+    combat: (ctx) => mobAt(ctx.enemy, 206, 'stand') + crawlerAt(CRAWLER_X),
+    bossSpotted: (ctx) => mobAt(ctx.enemy, 200, 'stand') + crawlerAt(CRAWLER_X),
+    victory: (ctx) => mobAt(ctx.enemy, 236, 'down', 0.85) + crawlerAt(CRAWLER_X),
+    bossVictory: (ctx) => mobAt(ctx.enemy, 226, 'down', 0.85) + propAt('fallenCrown', 258, 124) + crawlerAt(CRAWLER_X),
+    pact: () => propAt('pactAltar', 212, 124) + crawlerAt(CRAWLER_X),
+    citySafe: (ctx) => propAt('citySign', 222, 124, { text: ctx.cityName }) + crawlerAt(CRAWLER_X),
+    urbanGuardian: (ctx) => propAt(ctx.isExit ? 'exitDoor' : 'stairsDown', 184, 124) + mobAt(ctx.enemy, 236, 'stand') + crawlerAt(CRAWLER_X),
+    lairSpotted: () => propAt('lairEntrance', 212, 124) + crawlerAt(CRAWLER_X),
+    stairs: () => propAt('stairsDown', 214, 124) + crawlerAt(CRAWLER_X)
 };
 
-function composeCardVignette(key, ctx) {
-    const vignette = CARD_VIGNETTES[key];
+function composeExploreVignette(key, ctx) {
+    const vignette = EXPLORE_VIGNETTES[key];
     return vignette ? vignette(ctx || {}) : '';
 }
 
@@ -616,41 +614,27 @@ const vignetteKeys = {};
 function renderVignetteScene(target, scene) {
     if (!target.wrap) return;
     const spec = typeof scene === 'string' ? { key: scene } : (scene || {});
-    const known = !!CARD_VIGNETTES[spec.key];
+    const known = !!EXPLORE_VIGNETTES[spec.key];
     const v = target.view;
     target.svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
-    target.wrap.classList.toggle('hidden', !known);
+    // `overlayIcon` : l'emoji de repli est posé PAR-DESSUS la scène (scène d'exploration, toujours
+    // visible car c'est aussi le bouton Explorer) ; sinon, la scène et l'emoji s'échangent.
+    if (!target.overlayIcon) target.wrap.classList.toggle('hidden', !known);
     if (target.icon) target.icon.classList.toggle('hidden', known);
     if (!known) return;
     renderSceneBackdrop(target.backdrop, target.prefix, resolveBackdropKey(gameState.currentDistrict));
     const enemy = spec.enemy;
     const key = [spec.key, enemy ? `${enemy.visualArchetype}:${enemy.effect}:${enemy.isBoss ? 1 : 0}` : '', spec.cityName || '', spec.isExit ? 1 : 0].join('|');
     if (vignetteKeys[target.prefix] === key) return;
-    target.vignette.innerHTML = composeCardVignette(spec.key, spec);
+    target.vignette.innerHTML = composeExploreVignette(spec.key, spec);
     vignetteKeys[target.prefix] = key;
 }
 
-function renderCardScene(scene) {
-    renderVignetteScene({ ...cardSceneUi, prefix: 'kbd', view: CARD_VIEW }, scene);
+function renderExploreScene(scene) {
+    renderVignetteScene({ ...exploreSceneUi, prefix: 'ebd', view: FULL_SCENE_VIEW, overlayIcon: true }, scene);
 }
 
-// Bandeau « vous êtes ici » de la Carte Urbaine : panneau de la ville courante dans le décor du thème
-// de l'étage. Sur un étage urbain, la carte active reste couverte par la Carte Urbaine tant qu'aucune
-// situation n'est en cours : c'est donc ici, et non sur la carte, que l'arrivée en ville se voit.
-const urbanCitySceneUi = {
-    wrap: document.getElementById('urban-city-scene'),
-    svg: document.getElementById('urban-city-scene-svg'),
-    backdrop: document.getElementById('urban-city-scene-backdrop'),
-    vignette: document.getElementById('urban-city-scene-vignette')
-};
-function renderUrbanCityScene() {
-    const map = gameState.urbanMap;
-    const city = map && map.citiesById[map.currentCityId];
-    renderVignetteScene({ ...urbanCitySceneUi, prefix: 'ubd', view: { x: 80, y: 30, w: 280, h: 100 } },
-        city ? { key: 'citySafe', cityName: city.name } : null);
-}
-
-// Écran d'escalier (#floor-transition-overlay) : même mécanique, vue complète (le cadre y est plus large).
+// Écran d'escalier (#floor-transition-overlay) : même mécanique.
 const stairsSceneUi = {
     wrap: document.getElementById('floor-transition-scene'),
     svg: document.getElementById('floor-transition-scene-svg'),
@@ -659,7 +643,7 @@ const stairsSceneUi = {
     icon: document.getElementById('floor-transition-icon')
 };
 function renderStairsScene() {
-    renderVignetteScene({ ...stairsSceneUi, prefix: 'fbd', view: { x: 0, y: 0, w: SCENE_WIDTH, h: 150 } }, 'stairs');
+    renderVignetteScene({ ...stairsSceneUi, prefix: 'fbd', view: FULL_SCENE_VIEW }, 'stairs');
 }
 
 
@@ -712,17 +696,15 @@ function renderGameOverScene(opts) {
     gameOverSceneUi.content.innerHTML = composeGameOverScene(cause, resolveBackdropKey(gameState.currentDistrict), 'gbd');
 }
 
-// Point d'entrée unique du rendu des scènes : 'combat' (#combat-zone), 'merchant' | 'trainer'
-// (#shop-zone), 'safehouse' (#safehouse-choice-zone), 'card' (vignette de la carte active, `opts` =
-// nom de vignette ou { key, enemy, disposition }), 'stairs' (écran d'escalier), 'urbanCity' (bandeau
-// « vous êtes ici » de la Carte Urbaine), 'gameOver' (cadavre vu de dessus, `opts` = { cause }) ; tout
-// mode inconnu ne fait rien.
+// Point d'entrée unique du rendu des scènes : 'combat' (#combat-zone), 'explore' (scène d'exploration,
+// `opts` = nom de vignette ou { key, enemy, ... }), 'merchant' | 'trainer' (#shop-zone), 'safehouse'
+// (#safehouse-choice-zone), 'stairs' (écran d'escalier), 'gameOver' (cadavre vu de dessus, `opts` =
+// { cause }) ; tout mode inconnu ne fait rien.
 function renderScene(mode, opts) {
     if (mode === 'combat') renderCombatScene();
+    else if (mode === 'explore') renderExploreScene(opts);
     else if (mode === 'merchant' || mode === 'trainer') renderShopScene(mode);
     else if (mode === 'safehouse') renderSafehouseScene();
-    else if (mode === 'card') renderCardScene(opts);
     else if (mode === 'stairs') renderStairsScene();
-    else if (mode === 'urbanCity') renderUrbanCityScene();
     else if (mode === 'gameOver') renderGameOverScene(opts);
 }

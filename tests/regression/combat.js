@@ -393,36 +393,36 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     assert(gameState.combatDistance === 4, "attackRanged() est une simple attaque gated par l'écart courant, qui ne le modifie plus lui-même");
 }
 // ===================================================================
-// En-tête de carte au démarrage d'un combat (initiateCombat) : le nom du mob remplace "Combat" et
-// n'importe quel titre laissé par la carte précédente (ex: "Silence") — bug rapporté : une embuscade
-// ou un combat déclenché sans passer par setCardHeader() laissait l'ancien titre affiché pendant que
-// le corps de la carte basculait déjà sur le panneau du mob.
+// En-tête de la scène d'exploration au démarrage d'un combat (initiateCombat) : le nom du mob remplace
+// "Combat" et n'importe quel titre laissé par l'événement précédent (ex: "Silence") — bug rapporté (du
+// temps de la carte à jouer) : une embuscade ou un combat déclenché sans passer par l'en-tête laissait
+// l'ancien titre affiché pendant que l'affichage basculait déjà sur le panneau du mob.
 // ===================================================================
 {
     resetTransientState();
-    setCardHeader('🌑', 'Silence', 'Exploration'); // simule la carte précédente, comme en vraie partie
+    setSceneHeader('🌑', 'Silence', 'Exploration'); // simule l'événement précédent, comme en vraie partie
     const mob = { name: "Contrôleur de Billets Zombifié", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
     initiateCombat(mob);
-    assert(ui.cardTitle.innerText === mob.name, "initiateCombat() : le nom du mob remplace le titre de la carte précédente");
-    assert(ui.cardIcon.innerText === '⚔️', "initiateCombat() : icône épée pour un mob normal");
-    assert(ui.cardTypeLabel.innerText === 'Danger', "initiateCombat() : type 'Danger' pour un mob normal");
+    assert(ui.sceneTitle.innerText === mob.name, "initiateCombat() : le nom du mob remplace le titre de l'événement précédent");
+    assert(ui.sceneIcon.innerText === '⚔️', "initiateCombat() : icône épée pour un mob normal");
+    assert(ui.sceneTypeLabel.innerText === 'Danger', "initiateCombat() : type 'Danger' pour un mob normal");
 }
 {
     resetTransientState();
-    setCardHeader('🌑', 'Silence', 'Exploration');
+    setSceneHeader('🌑', 'Silence', 'Exploration');
     const eliteMob = { name: "Boucher Increvable", hp: 30, maxHp: 30, atk: 5, def: 2, threatMultiplier: 3.6, status: {} };
     initiateCombat(eliteMob);
-    assert(ui.cardTitle.innerText === eliteMob.name, "initiateCombat() : nom du mob élite sur la carte aussi");
-    assert(ui.cardIcon.innerText === '💀', "initiateCombat() : icône crâne pour un mob élite");
+    assert(ui.sceneTitle.innerText === eliteMob.name, "initiateCombat() : nom du mob élite dans la scène aussi");
+    assert(ui.sceneIcon.innerText === '💀', "initiateCombat() : icône crâne pour un mob élite");
 }
 {
     resetTransientState();
     // En-tête plus riche posé par triggerBossEncounter() juste avant fightBossNow() -> initiateCombat()
-    setCardHeader('👑', 'Le Chef de Gare Nécrosé', "Gardien de l'Escalier");
+    setSceneHeader('👑', 'Le Chef de Gare Nécrosé', "Gardien de l'Escalier");
     const boss = { name: "Le Chef de Gare Nécrosé", isBoss: true, hp: 200, maxHp: 200, atk: 20, def: 10, status: {} };
     initiateCombat(boss);
-    assert(ui.cardTitle.innerText === boss.name, "initiateCombat() : titre correct pour un boss");
-    assert(ui.cardTypeLabel.innerText === "Gardien de l'Escalier", "initiateCombat() : n'écrase pas l'en-tête plus riche déjà posé pour un boss");
+    assert(ui.sceneTitle.innerText === boss.name, "initiateCombat() : titre correct pour un boss");
+    assert(ui.sceneTypeLabel.innerText === "Gardien de l'Escalier", "initiateCombat() : n'écrase pas l'en-tête plus riche déjà posé pour un boss");
 }
 
 // ===================================================================

@@ -4,7 +4,7 @@ Rogue-like textuel minimaliste inspiré de Dungeon Crawler Carl. GitHub Pages, H
 Tailwind CDN, **aucun build step**.
 
 ## Fichiers
-- `index.html` — UI (deck de cartes, combat, inventaire, grimoire, "Lieux connus"/"Carte Urbaine", Game Over/Victoire)
+- `index.html` — UI (scène d'exploration, combat, inventaire, grimoire, "Lieux connus"/"Carte Urbaine", Game Over/Victoire)
 - `app.js` — moteur : état, exploration, combat, niveau/XP, compétences, équipement, magie/mana, compagnons, carte d'étage
 - `bestiary.js` — monstres de base + boss de quartier (`districtBosses`)
 - `items.js` — objets, raretés, enchantements (`itemModifiers.effect`)
@@ -35,7 +35,11 @@ Tailwind CDN, **aucun build step**.
   `#btn-rest-safehouse` est désactivé dès l'affichage si `timeLeft - restCost <= 0`, doublé d'une
   vérification identique dans `restAtSafehouse()` elle-même (sécurité redondante) — le repos ne peut
   donc structurellement plus amener `timeLeft` à 0, contrairement à l'ancien soin automatique.
-- Exploration = un seul bouton "Explorer" : jamais de choix bloquant de navigation.
+- Exploration = toucher la scène d'exploration (`#explore-scene`, -1H) : jamais de choix bloquant de
+  navigation. **Plus de carte à jouer** : la scène (vignette de l'événement, voir « Scène d'exploration »
+  plus bas), son titre (`#explore-title`) et la DERNIÈRE ligne du journal (`#explore-last-line`, écrasée
+  par chaque `logEvent()` hors combat) sont le seul affichage minimal ; tout le détail va dans le
+  journal complet (repliable).
 - **Combat à distance** : aucune posture côté joueur — seul `mob.ranged` détermine l'écart de départ
   (`gameState.combatDistance`, 0 si mêlée). Arme/Mains nues exigent l'écart nul, Tir l'écart > 0 (+
   arme à distance équipée pour Tir, arme pour Arme) : ce sont de simples dégâts gated par l'écart
@@ -385,11 +389,14 @@ Tailwind CDN, **aucun build step**.
   gardée (100 %, jamais de pourcentage) ; la vaincre (ou la trouver non gardée) déclenche `winGame()`
   (`gameState.hasWon`) plutôt que `nextFloor()` — écran de victoire calqué sur Game Over, jamais
   d'étage 19 généré. Côté UI, la Carte Urbaine (`#urban-map-svg`, rempli par `updateUrbanMapUI()`)
-  s'affiche en **overlay directement sur la carte active** (`#urban-travel-overlay`, dernier enfant de
-  `#card-stack-wrapper`) plutôt qu'en panneau séparé — l'inventaire plus bas reste toujours accessible
-  normalement. Masqué dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
-  `isActionBlocked()`) : la carte redevient alors visible et se comporte exactement comme sur un étage
-  classique (toggle dans `updateUI()`). Le déplacement s'y représente comme une **mini carte
+  est un **panneau sous la scène d'exploration** (`#urban-travel-overlay`, dans `#explore-stage`), ouvert
+  ou fermé par le bouton `#btn-toggle-map` (« 🗺️ Carte », `toggleMapPanel()`, ouvert par défaut —
+  `mapPanelOpen` est une variable de module, préférence d'affichage et non état de jeu) ; toucher la
+  scène sur un étage urbain la rouvre au lieu d'explorer (pas d'exploration libre ici). Panneau et
+  bouton sont masqués dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
+  `isActionBlocked()`) : la scène montre alors la situation (toggle dans `updateUI()`). Le bouton est
+  prévu pour ouvrir aussi, plus tard, une carte des étages classiques (pas encore implémentée : il
+  reste masqué hors étage urbain). Le déplacement s'y représente comme une **mini carte
   graphique** (nœuds = villes, arêtes = routes) plutôt qu'une liste, sur une **grille logique** (gx/gy
   entiers, `URBAN_GRID_CELL` = 70 unités monde par cellule) plutôt qu'un gabarit de points fixes :
   `generateConnectedCityGrid(cityCount)` fait croître une région CONNEXE par construction (chaque
@@ -548,25 +555,29 @@ Tailwind CDN, **aucun build step**.
   **`renderScene(mode)`** est le point d'entrée unique de toutes les scènes : `'combat'` appelle
   `renderCombatScene()` (rendu inchangé), `'merchant'`/`'trainer'` la scène de `#shop-zone` (appelée par
   `updateShopUI()`), `'safehouse'` la scène de `#safehouse-choice-zone` (appelée par `enterRoom()`),
-  `'card'` la vignette de la carte active (appelée par `setCardHeader()`), `'stairs'` celle de l'écran
-  d'escalier (`triggerFloorTransition()`), `'urbanCity'` le bandeau de la Carte Urbaine, `'gameOver'`
-  l'écran de mort ; un mode inconnu ne fait rien.
-  **Vignettes d'exploration (carte active)** : `setCardHeader(icon, title, typeLabel, scene)` accepte un
-  4ᵉ argument — nom de vignette (`'treasure'`, `'trap'`…) ou `{ key, enemy }` — qui dessine
-  `#card-scene` À LA PLACE de l'emoji `#card-icon` (sans 4ᵉ argument ou nom inconnu : emoji seul, comme
-  avant). `CARD_VIGNETTES` (scene.js, fonctions pures) : calme (`silence`, `ambiance` drone caméra de
+  `'explore'` la scène d'exploration (appelée par `setSceneHeader()`), `'stairs'` celle de l'écran
+  d'escalier (`triggerFloorTransition()`), `'gameOver'` l'écran de mort ; un mode inconnu ne fait rien.
+  **Scène d'exploration** (`#explore-scene`, remplace l'ancienne carte à jouer) : `setSceneHeader(icon,
+  title, typeLabel, scene)` pose le type (pastille en haut à gauche), le titre et la vignette — nom
+  (`'treasure'`, `'trap'`…) ou `{ key, enemy }` ; sans 4ᵉ argument ou nom inconnu, l'emoji `#explore-icon`
+  recouvre la scène (qui reste visible, c'est aussi le bouton Explorer — `overlayIcon`).
+  `showFloorArrivalScene()` pose la scène d'arrivée (quartier, ou ville de départ sur un étage urbain) à
+  chaque nouvel étage, au lancement et à la restauration d'une sauvegarde. Salle sécurisée et ville
+  spécialisée ont leur propre scène : la scène d'exploration s'y efface (titre + dernière ligne gardés).
+  `EXPLORE_VIGNETTES` (scene.js, fonctions pures) : calme (`silence`, `ambiance` drone caméra de
   l'émission, `knownPath` craie « DÉJÀ VU », `emptyLair` couronne tombée, `floorCleared`, `fled`), butin
   (`treasure`, `minorFind`, `gold`, `audienceGift` colis parachuté), danger (`trap`, `timeLoss` horloge
   qui s'emballe, `cafeteria`), rencontre (`crawlerFriendly`/`crawlerHostile`, silhouette de compagnon
   agrandie), furtivité (`stealthUnseen` mob de dos + crawler caché derrière une caisse, `stealthEvaded`),
   combat (`combat`, `bossSpotted`, `victory`/`bossVictory` mob à terre via `mobAt(enemy, x, pose)`),
-  `pact` (autel), `stairs`. Décor du quartier courant en fond (préfixe `'kbd'` pour la carte, `'fbd'` pour
-  l'escalier) ; la carte étant étroite, sa vue est RECADRÉE sur la moitié droite de la scène
-  (`CARD_VIEW`, x 140..360) — toute vignette doit y tenir. `renderVignetteScene()` ne redessine que si
+  `pact` (autel), `stairs`, `citySafe`, `urbanGuardian`, `lairSpotted`. Décor du quartier courant en fond
+  (préfixe `'ebd'` pour l'exploration, `'fbd'` pour l'escalier), vue complète 360 x 150
+  (`FULL_SCENE_VIEW`), crawler à `CRAWLER_X` comme en combat (passage exploration -> combat continu) —
+  toute vignette doit tenir dans la scène. `renderVignetteScene()` ne redessine que si
   vignette/ennemi changent (`vignetteKeys`). Les accessoires correspondants vivent dans `BACKDROP_PROPS`
   (`treasureChest`, `coinPile`, `pouch`, `parachuteCrate`, `cameraDrone`, `spikeTrap`, `bigClock`,
   `chalkMarks`, `fallenCrown`, `checkedMap`, `dustPuff`, `darkCafeteria`, `stairsDown`, `pactAltar`).
-  `combat-scene.js` lit `app.js` et exige que chaque vignette nommée par un `setCardHeader()` existe :
+  `combat-scene.js` lit `app.js` et exige que chaque vignette nommée par un `setSceneHeader()` existe :
   une faute de frappe dans un nom fait échouer les tests au lieu de retomber silencieusement sur l'emoji.
   **Étages urbains (scènes)** : sur un étage urbain (`gameState.urbanMap` présent), le combat ne se
   déroule jamais dans le décor du quartier — `resolveCombatBackdrop()` choisit
@@ -575,13 +586,10 @@ Tailwind CDN, **aucun build step**.
   crochets, crânes) pendant une plongée (`gameState.pendingLairDive`) ; étage classique inchangé.
   Pendant une plongée, `#scene-lair-progress` (haut de la scène) affiche un pion par sbire (plein =
   vaincu, cerclé de rouge = en cours) puis la couronne du boss (`lairProgressState()`/
-  `composeLairProgress()`, total = `lair.combatsRemaining`). Vignettes de carte : `urbanGuardian`
+  `composeLairProgress()`, total = `lair.combatsRemaining`). Vignettes : `urbanGuardian`
   (escalier ou porte « SORTIE » à l'étage final, le boss couronné posté DEVANT, entre elle et le
-  crawler), `lairSpotted` (entrée de repaire défoncée, lueur rouge). L'arrivée en ville (`citySafe`,
-  panneau au nom de la ville) ne peut PAS vivre sur la carte active — la Carte Urbaine la recouvre tant
-  qu'aucune situation n'est en cours — : elle s'affiche en bandeau « vous êtes ici » en haut de la
-  Carte Urbaine (`#urban-city-scene`, `renderScene('urbanCity')` appelé par `updateUrbanMapUI()`,
-  préfixe `'ubd'`, masqué hors étage urbain).
+  crawler), `lairSpotted` (entrée de repaire défoncée, lueur rouge), `citySafe` (panneau au nom de la
+  ville, à chaque arrivée en ville sûre et au début d'un étage urbain).
   **Écran Game Over** (`renderScene('gameOver', { cause })`, appelé par `gameOver()`, remplace l'ancien
   emoji 💀) : seule scène VUE DE DESSUS — sol du quartier de la mort (même motif de sol que son décor),
   cadavre `SCENE_CORPSE_TOPDOWN_SVG` (sprites.js, face contre terre, sac encore sur le dos) dans
