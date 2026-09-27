@@ -3949,7 +3949,7 @@ function arriveAtCity() {
         return;
     }
 
-    setCardHeader('🏙️', city.name, 'Ville sûre');
+    setCardHeader('🏙️', city.name, 'Ville sûre', { key: 'citySafe', cityName: city.name });
     logEvent(
         firstVisit
             ? `Vous découvrez ${city.name}. Les rues sont calmes ici — vous pouvez souffler.`
@@ -3972,7 +3972,7 @@ function triggerUrbanBossEncounter(city) {
     gameState.pendingUrbanBossEncounter = { cityId: city.id, isExit: city.isExit === true };
     gameState.bossChoicePending = true;
 
-    setCardHeader('👑', boss.name, city.isExit ? "Gardien de la Sortie" : "Gardien de l'Escalier");
+    setCardHeader('👑', boss.name, city.isExit ? "Gardien de la Sortie" : "Gardien de l'Escalier", { key: 'urbanGuardian', enemy: boss, isExit: city.isExit === true });
     logEvent(
         city.isExit
             ? `🎬 Vous atteignez la Sortie... gardée par ${boss.name} !`
@@ -4020,7 +4020,7 @@ function retreatFromUrbanBoss() {
 function triggerLairChoice(lair) {
     gameState.lairChoicePending = true;
     gameState.pendingLairId = lair.id;
-    setCardHeader('💀', 'Repaire Repéré', 'Route Urbaine');
+    setCardHeader('💀', 'Repaire Repéré', 'Route Urbaine', 'lairSpotted');
     logEvent("Un repaire hostile borde la route. Plonger dedans (combats enchaînés, butin garanti), ou poursuivre votre chemin sans l'affronter ?", "danger");
     ui.lairChoiceZone.classList.remove('hidden');
     updateUI();
@@ -4313,6 +4313,7 @@ const URBAN_MAP_VIEW_SIZE = { w: 230, h: 260 };
 function updateUrbanMapUI() {
     if (!ui.urbanMapSvg) return;
     const urbanMap = gameState.urbanMap;
+    renderScene('urbanCity');
     if (!urbanMap) { ui.urbanMapSvg.innerHTML = ""; return; }
 
     const { nodes, edges, positions } = buildUrbanMapGraphData(urbanMap);

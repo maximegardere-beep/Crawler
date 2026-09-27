@@ -501,3 +501,62 @@ function isRedHex(hex) {
     document.getElementById('game-over-overlay').classList.add('hidden');
     resetTransientState();
 }
+
+// ===================================================================
+// Étages urbains : décor de combat sur la route ou au fond d'un repaire (jamais l'intérieur du
+// quartier), progression de plongée, vignettes gardien/Sortie/repaire, bandeau « vous êtes ici ».
+// ===================================================================
+{
+    const problems = [];
+    Object.keys(URBAN_COMBAT_BACKDROPS).forEach(k => problems.push(...backdropProblems(`urbain:${k}`, URBAN_COMBAT_BACKDROPS[k])));
+    assert(problems.length === 0, `Décors de combat urbains valides (${problems.join(' ; ')})`);
+
+    resetTransientState();
+    const saved = { urbanMap: gameState.urbanMap, district: gameState.currentDistrict, enemy: gameState.currentEnemy, inCombat: gameState.inCombat };
+    gameState.currentDistrict = Object.keys(districts)[2];
+    gameState.urbanMap = null;
+    assert(resolveCombatBackdrop().key === gameState.currentDistrict, "Étage classique : combat dans le décor du quartier");
+    gameState.urbanMap = {
+        citiesById: { a: { id: 'a', name: 'Faubourg' } }, currentCityId: 'a',
+        lairsById: { L: { id: 'L', combatsRemaining: 3, cleared: false } }
+    };
+    assert(resolveCombatBackdrop().key === 'urban:road' && resolveCombatBackdrop().def === URBAN_COMBAT_BACKDROPS.road, "Étage urbain : combat sur la route");
+    gameState.pendingLairDive = { lairId: 'L', combatsLeft: 3, stage: 'trash' };
+    assert(resolveCombatBackdrop().key === 'urban:lair', "Plongée dans un repaire : combat au fond du repaire");
+
+    assert(JSON.stringify(lairProgressState()) === JSON.stringify({ total: 3, done: 0, boss: false }), "Progression de plongée : premier sbire en cours");
+    gameState.pendingLairDive.combatsLeft = 1;
+    assert(lairProgressState().done === 2, "Progression de plongée : deux sbires vaincus");
+    gameState.pendingLairDive.stage = 'boss';
+    const bossState = lairProgressState();
+    assert(bossState.boss && bossState.done === 3, "Progression de plongée : place au boss");
+    const bossMarkup = composeLairProgress(bossState);
+    assert((bossMarkup.match(/<circle /g) || []).length === 3 && bossMarkup.includes(SCENE_BOSS_CROWN_SVG) && !/undefined|NaN/.test(bossMarkup), "Progression de plongée : un pion par sbire + la couronne du boss");
+    assert(composeLairProgress(null) === '', "Hors plongée : aucune progression affichée");
+
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: 'Sbire', hp: 10, maxHp: 10, atk: 1, def: 0, status: {}, visualArchetype: 'beast' };
+    delete lastBackdropKeys.cbd;
+    renderScene('combat');
+    assert(document.getElementById('scene-backdrop').innerHTML === composeBackdrop(URBAN_COMBAT_BACKDROPS.lair, 'cbd'), "renderScene('combat') en plongée : décor du repaire");
+    assert(document.getElementById('scene-lair-progress').innerHTML.includes('data-boss="1"'), "renderScene('combat') en plongée : progression affichée");
+    gameState.pendingLairDive = null;
+    renderScene('combat');
+    assert(document.getElementById('scene-backdrop').innerHTML === composeBackdrop(URBAN_COMBAT_BACKDROPS.road, 'cbd') && document.getElementById('scene-lair-progress').innerHTML === '', "Embuscade urbaine : décor de route, sans progression de repaire");
+
+    const stairsGuard = composeCardVignette('urbanGuardian', { enemy: { visualArchetype: 'blob', isBoss: true } });
+    const exitGuard = composeCardVignette('urbanGuardian', { enemy: { visualArchetype: 'blob', isBoss: true }, isExit: true });
+    assert(stairsGuard.includes(BACKDROP_PROPS.stairsDown.markup({})) && exitGuard.includes('SORTIE') && exitGuard.includes(SCENE_BOSS_CROWN_SVG), "Gardien urbain : l'escalier ou la porte de Sortie derrière le boss couronné");
+    assert(composeCardVignette('citySafe', { cityName: 'Port Fluvial' }).includes('Port Fluvial'), "Ville sûre : panneau au nom de la ville");
+
+    delete vignetteKeys.ubd;
+    renderScene('urbanCity');
+    assert(!document.getElementById('urban-city-scene').classList.contains('hidden') && document.getElementById('urban-city-scene-vignette').innerHTML.includes('Faubourg'), "Carte Urbaine : bandeau « vous êtes ici » au nom de la ville courante");
+    gameState.urbanMap = null;
+    renderScene('urbanCity');
+    assert(document.getElementById('urban-city-scene').classList.contains('hidden'), "Hors étage urbain : bandeau masqué");
+
+    Object.assign(gameState, { urbanMap: saved.urbanMap, currentDistrict: saved.district, currentEnemy: saved.enemy, inCombat: saved.inCombat });
+    ['cbd', 'ubd'].forEach(p => { delete lastBackdropKeys[p]; delete vignetteKeys[p]; });
+    resetTransientState();
+}

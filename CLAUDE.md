@@ -549,7 +549,8 @@ Tailwind CDN, **aucun build step**.
   `renderCombatScene()` (rendu inchangé), `'merchant'`/`'trainer'` la scène de `#shop-zone` (appelée par
   `updateShopUI()`), `'safehouse'` la scène de `#safehouse-choice-zone` (appelée par `enterRoom()`),
   `'card'` la vignette de la carte active (appelée par `setCardHeader()`), `'stairs'` celle de l'écran
-  d'escalier (`triggerFloorTransition()`) ; un mode inconnu ne fait rien.
+  d'escalier (`triggerFloorTransition()`), `'urbanCity'` le bandeau de la Carte Urbaine, `'gameOver'`
+  l'écran de mort ; un mode inconnu ne fait rien.
   **Vignettes d'exploration (carte active)** : `setCardHeader(icon, title, typeLabel, scene)` accepte un
   4ᵉ argument — nom de vignette (`'treasure'`, `'trap'`…) ou `{ key, enemy }` — qui dessine
   `#card-scene` À LA PLACE de l'emoji `#card-icon` (sans 4ᵉ argument ou nom inconnu : emoji seul, comme
@@ -567,6 +568,20 @@ Tailwind CDN, **aucun build step**.
   `chalkMarks`, `fallenCrown`, `checkedMap`, `dustPuff`, `darkCafeteria`, `stairsDown`, `pactAltar`).
   `combat-scene.js` lit `app.js` et exige que chaque vignette nommée par un `setCardHeader()` existe :
   une faute de frappe dans un nom fait échouer les tests au lieu de retomber silencieusement sur l'emoji.
+  **Étages urbains (scènes)** : sur un étage urbain (`gameState.urbanMap` présent), le combat ne se
+  déroule jamais dans le décor du quartier — `resolveCombatBackdrop()` choisit
+  `URBAN_COMBAT_BACKDROPS.road` (asphalte, glissière, panneau autoroutier, épave : embuscades de trajet
+  et gardiens « postés sur la route ») ou `URBAN_COMBAT_BACKDROPS.lair` (pierre, torches à lueur rouge,
+  crochets, crânes) pendant une plongée (`gameState.pendingLairDive`) ; étage classique inchangé.
+  Pendant une plongée, `#scene-lair-progress` (haut de la scène) affiche un pion par sbire (plein =
+  vaincu, cerclé de rouge = en cours) puis la couronne du boss (`lairProgressState()`/
+  `composeLairProgress()`, total = `lair.combatsRemaining`). Vignettes de carte : `urbanGuardian`
+  (escalier ou porte « SORTIE » à l'étage final, le boss couronné posté DEVANT, entre elle et le
+  crawler), `lairSpotted` (entrée de repaire défoncée, lueur rouge). L'arrivée en ville (`citySafe`,
+  panneau au nom de la ville) ne peut PAS vivre sur la carte active — la Carte Urbaine la recouvre tant
+  qu'aucune situation n'est en cours — : elle s'affiche en bandeau « vous êtes ici » en haut de la
+  Carte Urbaine (`#urban-city-scene`, `renderScene('urbanCity')` appelé par `updateUrbanMapUI()`,
+  préfixe `'ubd'`, masqué hors étage urbain).
   **Écran Game Over** (`renderScene('gameOver', { cause })`, appelé par `gameOver()`, remplace l'ancien
   emoji 💀) : seule scène VUE DE DESSUS — sol du quartier de la mort (même motif de sol que son décor),
   cadavre `SCENE_CORPSE_TOPDOWN_SVG` (sprites.js, face contre terre, sac encore sur le dos) dans

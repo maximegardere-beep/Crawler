@@ -182,7 +182,8 @@ const sceneUi = {
     bandContact: document.getElementById('scene-band-contact'),
     bandRanged: document.getElementById('scene-band-ranged'),
     bandContactLabel: document.getElementById('scene-band-contact-label'),
-    bandRangedLabel: document.getElementById('scene-band-ranged-label')
+    bandRangedLabel: document.getElementById('scene-band-ranged-label'),
+    lairProgress: document.getElementById('scene-lair-progress')
 };
 
 // Hauteur du point d'accroche des chiffres de dégâts, sous le haut de chaque silhouette (unités
@@ -335,11 +336,66 @@ function renderSceneCompanion() {
 // Rendu de la scène de combat, appelé via renderScene('combat') en fin d'updateUI() (app.js) après
 // chaque action (et au moment de l'impact d'un coup, voir animateDieHit()). Ne fait rien hors
 // combat : la scène vit dans #combat-zone, que updateUI() masque déjà dans ce cas.
+// Décor du combat en cours : celui du quartier sur un étage classique ; sur un étage urbain, la route
+// (embuscade, gardien posté sur la route) ou le repaire pendant une plongée (URBAN_COMBAT_BACKDROPS).
+function resolveCombatBackdrop() {
+    if (gameState.urbanMap) {
+        const kind = gameState.pendingLairDive ? 'lair' : 'road';
+        return { key: `urban:${kind}`, def: URBAN_COMBAT_BACKDROPS[kind] };
+    }
+    const key = resolveBackdropKey(gameState.currentDistrict);
+    return { key, def: SCENE_BACKDROPS[key] };
+}
+
+// Progression d'une plongée dans un repaire, en haut de la scène : un pion par sbire (plein = vaincu,
+// cerclé = en cours) puis la couronne du boss. Vide hors plongée ; redessinée seulement si elle change.
+function lairProgressState() {
+    const dive = gameState.pendingLairDive;
+    const lair = dive && gameState.urbanMap && gameState.urbanMap.lairsById[dive.lairId];
+    if (!lair) return null;
+    const total = Math.max(1, lair.combatsRemaining);
+    const done = dive.stage === 'boss' ? total : Math.max(0, total - dive.combatsLeft);
+    return { total, done, boss: dive.stage === 'boss' };
+}
+
+function composeLairProgress(state) {
+    if (!state) return '';
+    const gap = 16;
+    const count = state.total + 1;
+    const x0 = SCENE_WIDTH / 2 - ((count - 1) * gap) / 2;
+    const pips = [];
+    for (let i = 0; i < state.total; i++) {
+        const cx = x0 + i * gap;
+        const current = !state.boss && i === state.done;
+        const cleared = i < state.done;
+        pips.push(`<circle cx="${cx}" cy="17" r="4" fill="${cleared ? '#9ca3af' : '#1f2937'}" stroke="${current ? '#f87171' : '#4b5563'}" stroke-width="${current ? 2 : 1.2}"/>`);
+    }
+    const crownX = x0 + state.total * gap;
+    const crown = `<g transform="translate(${crownX} 22) scale(0.6)" opacity="${state.boss ? 1 : 0.45}">${SCENE_BOSS_CROWN_SVG}</g>`;
+    const w = count * gap + 44;
+    return `<g class="lair-progress" data-done="${state.done}" data-total="${state.total}" data-boss="${state.boss ? 1 : 0}">
+        <rect x="${SCENE_WIDTH / 2 - w / 2}" y="4" width="${w}" height="22" rx="11" fill="#05060c" opacity="0.6"/>
+        <text x="${x0 - 12}" y="20" text-anchor="end" font-size="7" font-weight="bold" letter-spacing="1" fill="#f87171">REPAIRE</text>
+        ${pips.join('')}${crown}
+    </g>`;
+}
+
+let lastLairProgressKey = null;
+function renderLairProgress() {
+    const state = lairProgressState();
+    const key = state ? `${state.done}/${state.total}/${state.boss}` : '';
+    if (key === lastLairProgressKey || !sceneUi.lairProgress) return;
+    sceneUi.lairProgress.innerHTML = composeLairProgress(state);
+    lastLairProgressKey = key;
+}
+
 function renderCombatScene() {
     const enemy = gameState.currentEnemy;
     if (!gameState.inCombat || !enemy) return;
     ensureSceneBuilt();
-    renderSceneBackdrop(sceneUi.backdrop, 'cbd', resolveBackdropKey(gameState.currentDistrict));
+    const backdrop = resolveCombatBackdrop();
+    renderSceneBackdrop(sceneUi.backdrop, 'cbd', backdrop.key, backdrop.def);
+    renderLairProgress();
     renderSceneVitals(enemy);
     renderSceneMob(enemy);
     renderSceneCompanion();
@@ -542,6 +598,9 @@ const CARD_VIGNETTES = {
     victory: (ctx) => mobAt(ctx.enemy, 236, 'down', 0.85) + crawlerAt(CARD_CRAWLER_X),
     bossVictory: (ctx) => mobAt(ctx.enemy, 226, 'down', 0.85) + propAt('fallenCrown', 258, 124) + crawlerAt(CARD_CRAWLER_X),
     pact: () => propAt('pactAltar', 212, 124) + crawlerAt(CARD_CRAWLER_X),
+    citySafe: (ctx) => propAt('citySign', 222, 124, { text: ctx.cityName }) + crawlerAt(CARD_CRAWLER_X),
+    urbanGuardian: (ctx) => propAt(ctx.isExit ? 'exitDoor' : 'stairsDown', 184, 124) + mobAt(ctx.enemy, 236, 'stand') + crawlerAt(CARD_CRAWLER_X),
+    lairSpotted: () => propAt('lairEntrance', 212, 124) + crawlerAt(CARD_CRAWLER_X),
     stairs: () => propAt('stairsDown', 214, 124) + crawlerAt(CARD_CRAWLER_X)
 };
 
@@ -565,7 +624,7 @@ function renderVignetteScene(target, scene) {
     if (!known) return;
     renderSceneBackdrop(target.backdrop, target.prefix, resolveBackdropKey(gameState.currentDistrict));
     const enemy = spec.enemy;
-    const key = [spec.key, enemy ? `${enemy.visualArchetype}:${enemy.effect}:${enemy.isBoss ? 1 : 0}` : ''].join('|');
+    const key = [spec.key, enemy ? `${enemy.visualArchetype}:${enemy.effect}:${enemy.isBoss ? 1 : 0}` : '', spec.cityName || '', spec.isExit ? 1 : 0].join('|');
     if (vignetteKeys[target.prefix] === key) return;
     target.vignette.innerHTML = composeCardVignette(spec.key, spec);
     vignetteKeys[target.prefix] = key;
@@ -573,6 +632,22 @@ function renderVignetteScene(target, scene) {
 
 function renderCardScene(scene) {
     renderVignetteScene({ ...cardSceneUi, prefix: 'kbd', view: CARD_VIEW }, scene);
+}
+
+// Bandeau « vous êtes ici » de la Carte Urbaine : panneau de la ville courante dans le décor du thème
+// de l'étage. Sur un étage urbain, la carte active reste couverte par la Carte Urbaine tant qu'aucune
+// situation n'est en cours : c'est donc ici, et non sur la carte, que l'arrivée en ville se voit.
+const urbanCitySceneUi = {
+    wrap: document.getElementById('urban-city-scene'),
+    svg: document.getElementById('urban-city-scene-svg'),
+    backdrop: document.getElementById('urban-city-scene-backdrop'),
+    vignette: document.getElementById('urban-city-scene-vignette')
+};
+function renderUrbanCityScene() {
+    const map = gameState.urbanMap;
+    const city = map && map.citiesById[map.currentCityId];
+    renderVignetteScene({ ...urbanCitySceneUi, prefix: 'ubd', view: { x: 80, y: 30, w: 280, h: 100 } },
+        city ? { key: 'citySafe', cityName: city.name } : null);
 }
 
 // Écran d'escalier (#floor-transition-overlay) : même mécanique, vue complète (le cadre y est plus large).
@@ -639,13 +714,15 @@ function renderGameOverScene(opts) {
 
 // Point d'entrée unique du rendu des scènes : 'combat' (#combat-zone), 'merchant' | 'trainer'
 // (#shop-zone), 'safehouse' (#safehouse-choice-zone), 'card' (vignette de la carte active, `opts` =
-// nom de vignette ou { key, enemy, disposition }), 'stairs' (écran d'escalier), 'gameOver' (cadavre vu
-// de dessus, `opts` = { cause }) ; tout mode inconnu ne fait rien.
+// nom de vignette ou { key, enemy, disposition }), 'stairs' (écran d'escalier), 'urbanCity' (bandeau
+// « vous êtes ici » de la Carte Urbaine), 'gameOver' (cadavre vu de dessus, `opts` = { cause }) ; tout
+// mode inconnu ne fait rien.
 function renderScene(mode, opts) {
     if (mode === 'combat') renderCombatScene();
     else if (mode === 'merchant' || mode === 'trainer') renderShopScene(mode);
     else if (mode === 'safehouse') renderSafehouseScene();
     else if (mode === 'card') renderCardScene(opts);
     else if (mode === 'stairs') renderStairsScene();
+    else if (mode === 'urbanCity') renderUrbanCityScene();
     else if (mode === 'gameOver') renderGameOverScene(opts);
 }

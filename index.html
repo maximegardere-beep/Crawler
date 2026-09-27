@@ -541,6 +541,13 @@
                         <div class="flex justify-between items-center text-[9px] uppercase tracking-widest text-blue-400 font-bold shrink-0">
                             <span>🗺️ Carte Urbaine</span>
                         </div>
+                        <!-- « Vous êtes ici » : panneau de la ville courante (renderScene('urbanCity'), scene.js). -->
+                        <div id="urban-city-scene" class="hidden relative w-full shrink-0 rounded overflow-hidden border border-blue-900/50" style="aspect-ratio: 280 / 100;">
+                            <svg id="urban-city-scene-svg" viewBox="80 30 280 100" class="absolute inset-0 w-full h-full" aria-hidden="true">
+                                <g id="urban-city-scene-backdrop"></g>
+                                <g id="urban-city-scene-vignette"></g>
+                            </svg>
+                        </div>
                         <p class="text-[9px] text-gray-500 leading-snug shrink-0">Touchez une ville pour vous y rendre. Glissez la carte pour regarder autour.</p>
                         <!-- Mini carte graphique (réutilisable, voir computeGraphLayout()/renderGraphMiniMap()
                              dans app.js) : nœuds = villes connues, arêtes = routes reliant deux villes
@@ -646,6 +653,8 @@
                     <g id="scene-companion" class="hidden"></g>
                     <g id="scene-crawler"></g>
                     <g id="scene-mob"></g>
+                    <!-- Progression d'une plongée dans un repaire (étages urbains) : sbires puis boss. -->
+                    <g id="scene-lair-progress"></g>
                 </svg>
                 <div id="scene-mob-anchor" class="absolute w-0 h-0 pointer-events-none"></div>
                 <div id="scene-crawler-anchor" class="absolute w-0 h-0 pointer-events-none"></div>
@@ -1142,16 +1151,16 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=101"></script>
-    <script src="items.js?v=101"></script>
-    <script src="spells.js?v=101"></script>
-    <script src="districts.js?v=101"></script>
-    <script src="safehouses.js?v=101"></script>
-    <script src="generator.js?v=101"></script>
-    <script src="anomalies.js?v=101"></script>
-    <script src="sprites.js?v=101"></script>
-    <script src="backdrops.js?v=101"></script>
-    <script src="scene.js?v=101"></script>
-    <script src="app.js?v=101"></script>
+    <script src="bestiary.js?v=102"></script>
+    <script src="items.js?v=102"></script>
+    <script src="spells.js?v=102"></script>
+    <script src="districts.js?v=102"></script>
+    <script src="safehouses.js?v=102"></script>
+    <script src="generator.js?v=102"></script>
+    <script src="anomalies.js?v=102"></script>
+    <script src="sprites.js?v=102"></script>
+    <script src="backdrops.js?v=102"></script>
+    <script src="scene.js?v=102"></script>
+    <script src="app.js?v=102"></script>
 </body>
 </html>

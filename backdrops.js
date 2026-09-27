@@ -136,6 +136,14 @@ const BACKDROP_FLOOR_PATTERNS = {
             <circle cx="41" cy="9" r="0.9" fill="${p.floorAlt}"/>
             <path d="M24 2 l4 4 l-2 5" fill="none" stroke="${p.joint}" stroke-width="0.7"/>
         </pattern>`,
+    // Asphalte (routes des étages urbains) : grain fin, quelques fissures.
+    asphalt: (id, p) => `
+        <pattern id="${id}" width="48" height="13" patternUnits="userSpaceOnUse">
+            <rect width="48" height="13" fill="${p.floor}"/>
+            <circle cx="7" cy="3" r="0.6" fill="${p.floorAlt}"/><circle cx="22" cy="9" r="0.7" fill="${p.joint}"/>
+            <circle cx="35" cy="5" r="0.6" fill="${p.floorAlt}"/><circle cx="44" cy="11" r="0.5" fill="${p.joint}"/>
+            <path d="M14 1 l3 4 l-1 4" fill="none" stroke="${p.joint}" stroke-width="0.6"/>
+        </pattern>`,
     planks: (id, p) => `
         <pattern id="${id}" width="40" height="13" patternUnits="userSpaceOnUse">
             <rect width="40" height="13" fill="${p.floor}"/>
@@ -1256,6 +1264,103 @@ const BACKDROP_PROPS = {
         light: () => ({ dx: 0, dy: -40, color: '#a855f7', radius: 46, flicker: true })
     },
 
+    // --- Étages urbains (routes, villes, repaires) ------------------------------------------------------
+    // Panneau d'entrée de ville sur son poteau (nom de la ville). Origine : pied du poteau (au sol).
+    citySign: {
+        markup: (o) => {
+            const text = o.text || 'VILLE';
+            const w = Math.max(56, 16 + text.length * 5.2);
+            return `
+            <rect x="-2" y="-50" width="4" height="50" fill="#3a3e44" stroke="#05060c" stroke-width="1"/>
+            <rect x="${-w / 2}" y="-66" width="${w}" height="18" rx="2" fill="#e8e4d4" stroke="#05060c" stroke-width="1.5"/>
+            <rect x="${-w / 2 + 2}" y="-64" width="${w - 4}" height="14" rx="1" fill="none" stroke="#1e3350" stroke-width="1"/>
+            <text x="0" y="-54.5" text-anchor="middle" font-size="8" font-weight="bold" fill="#1e3350">${text}</text>`;
+        },
+        light: () => null
+    },
+    // Porte de la Sortie du donjon (étage final) : lumière du jour qui filtre. Origine : milieu du bas.
+    exitDoor: {
+        markup: () => `
+            <rect x="-26" y="-74" width="52" height="74" fill="#26272a" stroke="#05060c" stroke-width="1.5"/>
+            <rect x="-20" y="-68" width="40" height="68" fill="#fef3c7" opacity="0.85"/>
+            <path d="M-20 -68 L-6 -60 L-6 -2 L-20 0 Z" fill="#4a5058" stroke="#05060c" stroke-width="1.2"/>
+            <rect x="-22" y="-88" width="44" height="12" rx="2" fill="#15803d" stroke="#05060c" stroke-width="1.2"/>
+            <text class="bd-calm-glow" x="0" y="-79" text-anchor="middle" font-size="8" font-weight="bold" letter-spacing="1" fill="#f0fdf4">SORTIE</text>`,
+        light: () => ({ dx: 6, dy: -34, color: '#fef3c7', radius: 52, flicker: false })
+    },
+    // Entrée de repaire : porte de service défoncée, crânes, lueur rouge au fond. Origine : milieu du bas.
+    lairEntrance: {
+        markup: () => `
+            <path d="M-30 0 V-58 Q0 -76 30 -58 V0 Z" fill="#1a1413" stroke="#05060c" stroke-width="2"/>
+            <path d="M-22 0 V-52 Q0 -66 22 -52 V0 Z" fill="#0a0506"/>
+            <ellipse class="bd-halo-flicker" cx="0" cy="-20" rx="16" ry="20" fill="#7f1d1d" opacity="0.55"/>
+            <path d="M-22 -40 L-34 -30 L-26 -8" fill="#3a2e2a" stroke="#05060c" stroke-width="1.2"/>
+            <path d="M-26 -62 l6 10 M-18 -66 l4 12 M20 -64 l-5 11" stroke="#7f1d1d" stroke-width="2" stroke-linecap="round"/>
+            ${[[-36, 0], [34, 0], [40, -6]].map(([x, y]) => `<g transform="translate(${x} ${y})"><path d="M-5 0 Q-6 -9 0 -9 Q6 -9 5 0 Z" fill="#d8d0b8" stroke="#05060c" stroke-width="0.8"/><circle cx="-2" cy="-5" r="1.3" fill="#05060c"/><circle cx="2" cy="-5" r="1.3" fill="#05060c"/></g>`).join('')}`,
+        light: () => ({ dx: 0, dy: -24, color: '#dc2626', radius: 40, flicker: true })
+    },
+    // Tas de crânes et d'os. Origine : milieu du bas (au sol).
+    skullPile: {
+        markup: (o) => {
+            const skulls = o.small ? [[0, 0]] : [[-9, 0], [9, 0], [0, -8]];
+            return `<path d="M-18 0 L-10 -4 L12 -2 L20 0 Z" fill="#b8b09a" stroke="#05060c" stroke-width="0.8"/>
+            <path d="M-16 -2 L14 -8 M-4 -1 L18 -6" stroke="#d8d0b8" stroke-width="2.2" stroke-linecap="round"/>` +
+                skulls.map(([x, y]) => `<g transform="translate(${x} ${y})"><path d="M-6 0 Q-7 -11 0 -11 Q7 -11 6 0 Z" fill="#d8d0b8" stroke="#05060c" stroke-width="0.9"/><circle cx="-2.4" cy="-6" r="1.6" fill="#05060c"/><circle cx="2.4" cy="-6" r="1.6" fill="#05060c"/></g>`).join('');
+        },
+        light: () => null
+    },
+    // Panneau autoroutier vert suspendu. Origine : centre.
+    highwaySign: {
+        markup: (o) => {
+            const text = o.text || 'SORTIE';
+            const w = Math.max(60, 20 + text.length * 5.6);
+            return `
+            <path d="M${-w / 2 + 8} -30 V-12 M${w / 2 - 8} -30 V-12" stroke="#2f3136" stroke-width="2"/>
+            <rect x="${-w / 2}" y="-12" width="${w}" height="24" rx="2" fill="#1f4a32" stroke="#05060c" stroke-width="1.5"/>
+            <rect x="${-w / 2 + 2}" y="-10" width="${w - 4}" height="20" rx="1.5" fill="none" stroke="#cfd8cf" stroke-width="0.8" opacity="0.7"/>
+            <text x="0" y="3" text-anchor="middle" font-size="8.5" font-weight="bold" fill="#e6ece6" opacity="0.85">${text}</text>`;
+        },
+        light: () => null
+    },
+    // Glissière de sécurité le long de la route. Origine : extrémité gauche (au sol).
+    guardrail: {
+        markup: (o) => {
+            const len = o.length || 360;
+            const posts = [];
+            for (let x = 10; x < len; x += 40) posts.push(`<rect x="${x}" y="-14" width="3" height="14" fill="#3a3e44" stroke="#05060c" stroke-width="0.6"/>`);
+            return `${posts.join('')}<rect x="0" y="-16" width="${len}" height="5" fill="#6b7078" stroke="#05060c" stroke-width="0.8" opacity="0.8"/>`;
+        },
+        light: () => null
+    },
+    // Carcasse de voiture calcinée. Origine : milieu du bas (au sol).
+    wreckedCar: {
+        markup: () => `
+            <path d="M-34 -6 L-30 -16 L-16 -18 L-8 -28 L14 -28 L22 -18 L34 -16 L36 -6 Z" fill="#2b2a2c" stroke="#05060c" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M-6 -26 L-12 -18 L2 -18 L2 -26 Z M5 -26 V-18 L18 -18 L12 -26 Z" fill="#0b0c10"/>
+            <circle cx="-20" cy="-4" r="6" fill="#141518" stroke="#05060c" stroke-width="1.2"/>
+            <circle cx="22" cy="-4" r="6" fill="#141518" stroke="#05060c" stroke-width="1.2"/>
+            <path d="M-26 -14 l8 2 M10 -14 l10 -2" stroke="#4a3a2a" stroke-width="1.5" opacity="0.8"/>`,
+        light: () => null
+    },
+    // Cône de chantier. Origine : milieu du bas (au sol).
+    trafficCone: {
+        markup: () => `
+            <rect x="-7" y="-2" width="14" height="2" fill="#2f3136"/>
+            <path d="M-5 -2 L-1.5 -16 H1.5 L5 -2 Z" fill="#c2410c" stroke="#05060c" stroke-width="0.9"/>
+            <path d="M-3.4 -8 H3.4" stroke="#e5e7eb" stroke-width="1.8" opacity="0.8"/>`,
+        light: () => null
+    },
+    // Marquage central discontinu de la chaussée. Origine : extrémité gauche (au sol).
+    roadLine: {
+        markup: (o) => {
+            const len = o.length || 360;
+            const dashes = [];
+            for (let x = 6; x < len; x += 36) dashes.push(`<rect x="${x}" y="0" width="18" height="1.8" fill="#e5e7eb" opacity="0.35"/>`);
+            return dashes.join('');
+        },
+        light: () => null
+    },
+
     // Rai de lumière filtrée tombant de la verrière. Origine : point haut.
     lightShaft: {
         markup: (o) => `<path d="M-10 0 L10 0 L46 108 L-20 108 Z" fill="${o.color || '#86efac'}" opacity="0.06"/>`,
@@ -1524,6 +1629,49 @@ const SCENE_BACKDROPS = {
     }
 };
 
+// --- Combats des étages urbains -----------------------------------------------------------------------
+// Sur un étage urbain, le combat n'a jamais lieu "dans" le quartier : il se déroule sur la route
+// (embuscade de trajet, gardien posté sur la route) ou au fond d'un repaire (plongée). Deux fiches au
+// même format que SCENE_BACKDROPS, choisies par la scène de combat quand gameState.urbanMap existe.
+const URBAN_COMBAT_BACKDROPS = {
+    road: {
+        label: 'Route',
+        palette: {
+            wall: '#1a1d24', wallAlt: '#171a20', mortar: '#0e1014', ceiling: '#06070c',
+            floor: '#24262b', floorAlt: '#1d1f24', joint: '#131418', pipe: '#2a2d33'
+        },
+        wall: 'concrete', floor: 'asphalt', ceiling: 'night', debris: true,
+        props: [
+            { type: 'highwaySign', x: 118, y: 36, text: 'VILLE SUIVANTE →' },
+            { type: 'streetLamp', x: 28, y: 124 },
+            { type: 'streetLamp', x: 232, y: 124 },
+            { type: 'guardrail', x: 0, y: 124, length: 360 },
+            { type: 'wreckedCar', x: 62, y: 124 },
+            { type: 'trafficCone', x: 150, y: 124 }
+        ],
+        floorProps: [
+            { type: 'floorStripe', x: 0, y: 125.5, length: 360, color: '#6b7078', h: 3 },
+            { type: 'roadLine', x: 0, y: 138, length: 360 }
+        ]
+    },
+    lair: {
+        label: 'Repaire',
+        palette: {
+            wall: '#241a18', wallAlt: '#1f1614', mortar: '#0f0a09', ceiling: '#0c0807',
+            floor: '#221816', floorAlt: '#1c1412', joint: '#0f0a09', pipe: '#2b1f1c'
+        },
+        wall: 'stone', floor: 'flagstones', ceiling: 'pipes', debris: true,
+        props: [
+            { type: 'torch', x: 70, y: 66, lightColor: '#dc2626', radius: 50 },
+            { type: 'torch', x: 290, y: 66, lightColor: '#dc2626', radius: 50, phase: 0.8 },
+            { type: 'hook', x: 176, y: 12, len: 40 },
+            { type: 'hook', x: 204, y: 12, len: 28 },
+            { type: 'skullPile', x: 120, y: 124 },
+            { type: 'skullPile', x: 246, y: 124, small: true }
+        ]
+    }
+};
+
 // --- Salles sécurisées ---------------------------------------------------------------------------------
 // Fiche de base commune (ne dépend pas du quartier : une salle sécurisée est un abri clos) : béton
 // chaud, porte blindée, panneau « ZONE SÛRE », éclairage chaud et apaisé — aucun rouge, aucune
@@ -1655,6 +1803,7 @@ if (typeof module !== 'undefined' && module.exports) {
         BACKDROP_WIDTH, BACKDROP_HEIGHT, BACKDROP_GROUND_Y, BACKDROP_WALL_PATTERNS, BACKDROP_FLOOR_PATTERNS,
         BACKDROP_CEILINGS, BACKDROP_PROPS, BACKDROP_DEBRIS, SCENE_BACKDROPS, SHOP_SIGN_STYLES, TRAINER_BOARD_STYLES,
         SAFEHOUSE_BACKDROP, SAFEHOUSE_SIGNATURES, safehouseBackdropFor,
-        GAME_OVER_VIEW, GAME_OVER_BODY, GAME_OVER_BLOOD_POOL, GAME_OVER_CAUSE_PROPS, evidenceMarker
+        GAME_OVER_VIEW, GAME_OVER_BODY, GAME_OVER_BLOOD_POOL, GAME_OVER_CAUSE_PROPS, evidenceMarker,
+        URBAN_COMBAT_BACKDROPS
     };
 }
