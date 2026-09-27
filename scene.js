@@ -63,8 +63,21 @@ const COMPANION_SPECIALTY_TINTS = {
 const sceneUi = {
     mob: document.getElementById('scene-mob'),
     crawler: document.getElementById('scene-crawler'),
-    companion: document.getElementById('scene-companion')
+    companion: document.getElementById('scene-companion'),
+    mobAnchor: document.getElementById('scene-mob-anchor'),
+    crawlerAnchor: document.getElementById('scene-crawler-anchor'),
+    enemyHpBar: document.getElementById('combat-enemy-hp-bar'),
+    enemyHpText: document.getElementById('combat-enemy-hp-text'),
+    playerHpBar: document.getElementById('combat-player-hp-bar'),
+    playerHpText: document.getElementById('combat-player-hp-text'),
+    playerName: document.getElementById('combat-player-name'),
+    distanceLabel: document.getElementById('combat-distance-label')
 };
+
+// Hauteur du point d'accroche des chiffres de dégâts, sous le haut de chaque silhouette (unités
+// viewBox) : assez bas pour que le chiffre ait la place de monter sans sortir de la scène.
+const DAMAGE_ANCHOR_DROP = 22;
+const CRAWLER_TOP = -92;
 
 // Position d'un groupe SVG : attribut `transform` (repli universel) + propriété CSS `transform`, seule
 // à pouvoir être animée par une transition CSS (voir .scene-fighter dans index.html).
@@ -79,6 +92,17 @@ function applySceneTint(el, tint) {
     el.style.setProperty('--mob-accent', MOB_ACCENT_COLOR);
 }
 
+// Place une ancre HTML (largeur/hauteur nulles) au-dessus d'un point de la scène, en % du cadre :
+// le SVG remplit exactement #combat-scene (même ratio), donc x/360 et y/150 suffisent.
+function placeSceneAnchor(el, x, y) {
+    el.style.left = `${(x / SCENE_WIDTH) * 100}%`;
+    el.style.top = `${(y / 150) * 100}%`;
+}
+
+function hpPercent(hp, maxHp) {
+    return maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0;
+}
+
 let sceneBuilt = false;
 let lastMobSpriteKey = null;
 let lastCompanionKey = null;
@@ -88,6 +112,7 @@ function ensureSceneBuilt() {
     sceneUi.crawler.innerHTML = SCENE_CRAWLER_SVG;
     placeSceneGroup(sceneUi.crawler, CRAWLER_X, SCENE_GROUND_Y);
     placeSceneGroup(sceneUi.companion, COMPANION_X, SCENE_GROUND_Y);
+    placeSceneAnchor(sceneUi.crawlerAnchor, CRAWLER_X, SCENE_GROUND_Y + CRAWLER_TOP + DAMAGE_ANCHOR_DROP);
     sceneBuilt = true;
 }
 
@@ -103,7 +128,28 @@ function renderSceneMob(enemy) {
         lastMobSpriteKey = spriteKey;
     }
     applySceneTint(sceneUi.mob, MOB_EFFECT_TINTS[enemy.effect] || MOB_DEFAULT_TINT);
-    placeSceneGroup(sceneUi.mob, distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance), SCENE_GROUND_Y);
+    const x = distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance);
+    placeSceneGroup(sceneUi.mob, x, SCENE_GROUND_Y);
+    placeSceneAnchor(sceneUi.mobAnchor, x, SCENE_GROUND_Y + sprite.top + DAMAGE_ANCHOR_DROP);
+}
+
+// Barres de vie au-dessus de la scène : nom + PV actuels/max de chaque combattant.
+function renderSceneVitals(enemy) {
+    const enemyMax = enemy.maxHp || enemy.hp;
+    sceneUi.enemyHpBar.style.width = `${hpPercent(enemy.hp, enemyMax)}%`;
+    sceneUi.enemyHpText.innerText = `PV ${Math.round(Math.max(0, enemy.hp))}/${Math.round(enemyMax)}`;
+    sceneUi.playerHpBar.style.width = `${hpPercent(gameState.hp, gameState.maxHp)}%`;
+    sceneUi.playerHpText.innerText = `PV ${Math.round(Math.max(0, gameState.hp))}/${Math.round(gameState.maxHp)}`;
+    sceneUi.playerName.innerText = gameState.playerName || 'Vous';
+}
+
+// Distance affichée sous la scène, dans l'unité du jeu (0 = contact).
+function renderSceneDistance() {
+    const max = config.rangedCombat.maxDistance;
+    const distance = Math.max(0, Math.min(max, gameState.combatDistance || 0));
+    sceneUi.distanceLabel.innerText = distance === 0
+        ? `Distance ${distance}/${max} · au contact`
+        : `Distance ${distance}/${max}`;
 }
 
 function renderSceneCompanion() {
@@ -118,12 +164,15 @@ function renderSceneCompanion() {
     }
 }
 
-// Point d'entrée unique, appelé en fin d'updateUI() (app.js) après chaque action. Ne fait rien hors
-// combat : la scène vit dans #combat-zone, que updateUI() masque déjà dans ce cas.
+// Point d'entrée unique, appelé en fin d'updateUI() (app.js) après chaque action (et au moment de
+// l'impact d'un coup, voir animateDieHit()). Ne fait rien hors combat : la scène vit dans
+// #combat-zone, que updateUI() masque déjà dans ce cas.
 function renderCombatScene() {
     const enemy = gameState.currentEnemy;
     if (!gameState.inCombat || !enemy) return;
     ensureSceneBuilt();
+    renderSceneVitals(enemy);
     renderSceneMob(enemy);
     renderSceneCompanion();
+    renderSceneDistance();
 }

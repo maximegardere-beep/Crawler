@@ -558,16 +558,13 @@ const ui = {
     equippedArmor: document.getElementById('equipped-armor'),
     equippedArmorBadges: document.getElementById('equipped-armor-badges'),
     playerStatusIcons: document.getElementById('player-status-icons'),
-    combatSideEnemy: document.getElementById('combat-side-enemy'),
-    combatSidePlayer: document.getElementById('combat-side-player'),
-    combatEnemyHp: document.getElementById('combat-enemy-hp'),
-    combatEnemyHpRing: document.getElementById('combat-enemy-hp-ring'),
     enemyStatusIcons: document.getElementById('enemy-status-icons'),
     combatEnemyDie: document.getElementById('combat-enemy-die'),
-    combatPlayerHp: document.getElementById('combat-player-hp'),
-    combatPlayerHpRing: document.getElementById('combat-player-hp-ring'),
     combatPlayerStatus: document.getElementById('combat-player-status'),
     combatPlayerDie: document.getElementById('combat-player-die'),
+    // Ancres des chiffres de dégâts flottants, placées sur chaque combattant par scene.js.
+    sceneMobAnchor: document.getElementById('scene-mob-anchor'),
+    sceneCrawlerAnchor: document.getElementById('scene-crawler-anchor'),
     cardStackWrapper: document.getElementById('card-stack-wrapper'),
     advanceHint: document.getElementById('advance-hint'),
     bossChoiceZone: document.getElementById('boss-choice-zone'),
@@ -1118,17 +1115,14 @@ function updateUI() {
         ui.stairAlertBanner.classList.toggle('hidden', timePercentage > 25 || gameState.inCombat);
     }
 
-    // Gestion de l'affichage du combat : rétrécissement de la carte, panneaux latéraux PV/statut
+    // Gestion de l'affichage du combat : la carte d'exploration laisse la place à la zone de combat
+    // (barres de vie, scène, boutons — voir renderCombatScene() dans scene.js pour la scène et les PV).
     if (gameState.inCombat) {
         ui.advanceHint.classList.add('hidden'); // On ne peut pas avancer pendant un combat
         ui.combatZone.classList.remove('hidden');
-        ui.compactVitals.classList.add('hidden'); // Les PV sont déjà affichés à droite de la carte
-        ui.cardStackWrapper.style.maxWidth = '170px'; // La carte se réduit pour laisser place aux panneaux
+        ui.compactVitals.classList.add('hidden'); // Les PV sont déjà affichés au-dessus de la scène
+        ui.cardStackWrapper.classList.add('hidden');
 
-        // Panneau joueur (toujours à jour dès qu'on est en combat)
-        ui.combatSidePlayer.classList.remove('hidden');
-        ui.combatSidePlayer.classList.add('flex', 'flex-col');
-        setHpRing(ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
         let playerIcons = "";
         if (gameState.status.bleed && gameState.status.bleed.rounds > 0) playerIcons += "🔥";
         if (gameState.status.stunned) playerIcons += "💫";
@@ -1139,9 +1133,9 @@ function updateUI() {
         if (gameState.status.corroded && gameState.status.corroded.rounds > 0) playerIcons += "🧪";
         if (gameState.status.feared && gameState.status.feared.rounds > 0) playerIcons += "😱";
         if (gameState.status.adrenaline && gameState.status.adrenaline.rounds > 0) playerIcons += "💉";
-        ui.combatPlayerStatus.innerText = playerIcons || "—";
+        ui.combatPlayerStatus.innerText = playerIcons;
 
-        // Indicateur compagnon (à droite, sous le panneau joueur), si un compagnon est actif
+        // Indicateur compagnon (sous la barre de vie du joueur), si un compagnon est actif
         if (gameState.companion) {
             ui.companionCombatIndicator.classList.remove('hidden');
             ui.companionCombatName.innerText = gameState.companion.name;
@@ -1157,10 +1151,6 @@ function updateUI() {
                 : elite ? `💀 ${gameState.currentEnemy.name}` : gameState.currentEnemy.name;
             ui.enemyName.classList.toggle('text-yellow-400', !!gameState.currentEnemy.isBoss);
             ui.enemyName.classList.toggle('text-red-500', elite);
-
-            ui.combatSideEnemy.classList.remove('hidden');
-            ui.combatSideEnemy.classList.add('flex', 'flex-col');
-            setHpRing(ui.combatEnemyHpRing, ui.combatEnemyHp, gameState.currentEnemy.hp, gameState.currentEnemy.maxHp);
 
             renderEnemyStatusBadges(gameState.currentEnemy);
 
@@ -1259,13 +1249,8 @@ function updateUI() {
         ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending || gameState.stealthChoicePending || !!gameState.urbanMap);
         ui.combatZone.classList.add('hidden');
         ui.compactVitals.classList.remove('hidden'); // On réaffiche les PV compacts hors combat
-        ui.cardStackWrapper.style.maxWidth = '240px'; // Retour à la taille normale hors combat
+        ui.cardStackWrapper.classList.remove('hidden');
         updateCompanionUI(); // Réaffiche/actualise la barre compagnon compacte hors combat
-
-        ui.combatSideEnemy.classList.add('hidden');
-        ui.combatSideEnemy.classList.remove('flex', 'flex-col');
-        ui.combatSidePlayer.classList.add('hidden');
-        ui.combatSidePlayer.classList.remove('flex', 'flex-col');
     }
 
     // Scène de combat en vue latérale (scene.js) : seul point d'entrée de son rendu.
@@ -1368,22 +1353,19 @@ function triggerHeavyImpact() {
     screenImpactFlash();
 }
 
-// Anime un dé de dégâts qui "vole" vers le compteur de PV de sa cible, façon petit coup de poing.
+// Anime un dé de dégâts qui "vole" vers la barre de vie de sa cible, façon petit coup de poing.
 // `direction` : 'left' (le dé du joueur vole vers les PV ennemis, à gauche) ou 'right' (le dé de
-// l'ennemi vole vers les PV du joueur, à droite). `newHpValue` est la valeur déjà décrémentée
-// (le calcul des PV réels a lieu avant l'appel ; cette fonction ne fait que l'afficher au bon moment).
-function animateDieHit(dieEl, direction, value, ringEl, valueEl, newHpValue, maxHpValue) {
+// l'ennemi vole vers les PV du joueur, à droite). Les PV sont déjà décrémentés avant l'appel : au
+// moment de l'impact (environ à mi-vol du dé), la scène et les barres de vie sont redessinées pour
+// que la barre baisse au même instant, même au milieu d'une séquence de coups (voir runCombatBeats()).
+function animateDieHit(dieEl, direction, value) {
     dieEl.innerText = value;
     dieEl.classList.remove('die-pop', 'die-hit-left', 'die-hit-right');
     void dieEl.offsetWidth;
     dieEl.classList.add('die-pop', direction === 'left' ? 'die-hit-left' : 'die-hit-right');
 
-    // Au moment de l'impact (environ à mi-vol du dé), l'anneau de vie touché se met à jour et vibre
     setTimeout(() => {
-        setHpRing(ringEl, valueEl, newHpValue, maxHpValue);
-        valueEl.classList.remove('hp-hit');
-        void valueEl.offsetWidth;
-        valueEl.classList.add('hp-hit');
+        renderCombatScene();
         triggerHaptic('light');
     }, 180);
 }
@@ -1398,8 +1380,8 @@ const FLOATING_DAMAGE_OFFSETS = [-7, 6, -3, 8, -8, 3, -5, 7];
 let floatingDamageOffsetIndex = 0;
 
 // Chiffre de dégâts flottant (chantier "lisibilité combat", Chantier 3) : un chiffre par impact,
-// monte et s'estompe au-dessus du panneau touché (#combat-side-enemy/#combat-side-player, voir leur
-// `position: relative` dans index.html — le chiffre s'y ajoute EN PLUS du dé qui vole déjà,
+// monte et s'estompe au-dessus du combattant touché (ancres #scene-mob-anchor/#scene-crawler-anchor,
+// placées sur chaque silhouette par scene.js — le chiffre s'ajoute EN PLUS du dé qui vole déjà,
 // jamais à sa place). `toPlayer` distingue les dégâts SUBIS par le joueur (rouge/orangé) des dégâts
 // qu'il INFLIGE (blanc/jaune) ; `heavy` grossit le chiffre (×1.4 environ) pour un coup marquant
 // (télégraphe exécuté, ruée d'enrage, phase 3). Se nettoie lui-même après son animation
@@ -4605,7 +4587,7 @@ function renderEnemyStatusBadges(enemy) {
     if (!ui.enemyStatusIcons) return;
     const status = enemy && enemy.status;
     if (!status) {
-        ui.enemyStatusIcons.innerHTML = "—";
+        ui.enemyStatusIcons.innerHTML = "";
         return;
     }
     const badges = [];
@@ -4622,7 +4604,7 @@ function renderEnemyStatusBadges(enemy) {
     add(status.telegraph, "👁️", "Attaque télégraphiée en cours (voir la bannière)");
     ui.enemyStatusIcons.innerHTML = badges.length
         ? badges.map(b => `<span title="${b.title}">${b.icon}</span>`).join('')
-        : "—";
+        : "";
 }
 
 // Jauge de tension anti-kite (chantier "lisibilité combat", Chantier 5) : montre la probabilité
@@ -5195,8 +5177,8 @@ function performPlayerAttack(attackerAtk, options, label) {
     const playerDamage = rollDamage(attackerAtk, effectiveEnemyDef, effectiveOptions);
     enemy.hp -= playerDamage;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
-    animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
-    showFloatingDamage(ui.combatSideEnemy, playerDamage, { toPlayer: false }); // dégâts infligés par le joueur : jamais "heavy" (réservé aux coups marquants du mob/boss)
+    animateDieHit(ui.combatPlayerDie, 'left', playerDamage);
+    showFloatingDamage(ui.sceneMobAnchor, playerDamage, { toPlayer: false }); // dégâts infligés par le joueur : jamais "heavy" (réservé aux coups marquants du mob/boss)
     // Ligne raccourcie (chantier "lisibilité combat", Chantier 8) : retire le remplissage "et
     // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
     // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
@@ -5597,8 +5579,8 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
         }
     }
     applyPlayerDamage(playerDamage);
-    animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
-    showFloatingDamage(ui.combatSidePlayer, playerDamage, { toPlayer: true, heavy }); // `heavy` : télégraphe exécuté/ruée d'enrage/phase 3, voir les appelants
+    animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
+    showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true, heavy }); // `heavy` : télégraphe exécuté/ruée d'enrage/phase 3, voir les appelants
     if (heavy) triggerHeavyImpact(); // Chantier 4 : même flag, mêmes 3 occasions — voir triggerHeavyImpact()
     if (!silent) logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
     if (gameState.companion && gameState.companion.hp <= 0) {
@@ -5923,8 +5905,8 @@ function resolveNonBossCounterAttack(enemy) {
     }
 
     applyPlayerDamage(playerDamage);
-    animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
-    showFloatingDamage(ui.combatSidePlayer, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
+    animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
+    showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
     const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
         : "";

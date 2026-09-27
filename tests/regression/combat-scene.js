@@ -84,3 +84,27 @@ function mobX() {
     updateUI();
     assert(document.getElementById('scene-mob').innerHTML.includes('mf-base'), "Archétype inconnu : une silhouette par défaut est quand même dessinée");
 }
+
+// ===================================================================
+// Barres de vie (nom + PV actuels/max) au-dessus de la scène et distance affichée dessous.
+// ===================================================================
+{
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.hp = 40;
+    gameState.currentEnemy = { name: "Rat Goulot", hp: 15, maxHp: 60, atk: 5, def: 2, status: {} };
+    gameState.combatDistance = 3;
+    updateUI();
+    const el = id => document.getElementById(id);
+    assert(el('combat-enemy-hp-text').innerText === 'PV 15/60', "Barre ennemie : PV actuels/max affichés");
+    assert(el('combat-enemy-hp-bar').style.width === '25%', "Barre ennemie : largeur proportionnelle aux PV restants");
+    assert(el('combat-player-hp-text').innerText === `PV 40/${Math.round(gameState.maxHp)}`, "Barre joueur : PV actuels/max affichés");
+    assert(el('enemy-name').innerText === 'Rat Goulot', "Barre ennemie : nom du mob affiché");
+    assert(el('combat-distance-label').innerText === `Distance 3/${config.rangedCombat.maxDistance}`, "Distance affichée sous la scène");
+
+    gameState.currentEnemy.hp = -4; // un coup de grâce peut faire passer les PV sous zéro
+    gameState.combatDistance = 0;
+    updateUI();
+    assert(el('combat-enemy-hp-text').innerText === 'PV 0/60' && el('combat-enemy-hp-bar').style.width === '0%', "Barre ennemie : jamais de PV négatifs affichés");
+    assert(el('combat-distance-label').innerText.includes('au contact'), "Distance 0 : indiquée comme contact");
+}

@@ -113,16 +113,6 @@
         .die-hit-left  { animation: dieHitLeft 0.5s ease-out; }
         .die-hit-right { animation: dieHitRight 0.5s ease-out; }
 
-        /* Flash + petit "boum" sur le compteur de PV au moment de l'impact */
-        @keyframes hpHitFlash {
-            0%   { transform: scale(1); }
-            30%  { transform: scale(1.35); filter: brightness(1.8); }
-            100% { transform: scale(1); }
-        }
-        .hp-hit {
-            animation: hpHitFlash 0.3s ease-out;
-        }
-
         /* Bannière de télégraphe (chantier "lisibilité combat", Chantier 1) : pulse discret tant que
            l'état est actif, pour attirer l'œil sans distraire en continu. Désactivé sous
            prefers-reduced-motion (simple affichage fixe, la bordure/couleur suffit à signaler l'état). */
@@ -155,8 +145,8 @@
         }
 
         /* Chiffres de dégâts flottants (chantier "lisibilité combat", Chantier 3) : un chiffre par
-           impact, monte et s'estompe au-dessus de la cible touchée (#combat-side-enemy/-player, voir
-           leur "relative" ajouté ci-dessus pour servir de repère). Généré par showFloatingDamage()
+           impact, monte et s'estompe au-dessus de la cible touchée (ancres #scene-mob-anchor/
+           #scene-crawler-anchor de la scène, placées par scene.js). Généré par showFloatingDamage()
            (app.js), qui pose `left` en inline (offset aléatoire ±8px) — la classe ne fixe QUE `top`/
            l'animation. Rouge/orangé = dégâts SUBIS par le joueur, blanc/jaune = dégâts INFLIGÉS par
            le joueur ; taille ×1.4 pour un coup lourd (télégraphe exécuté, ruée d'enrage, phase 3). */
@@ -429,26 +419,7 @@
         <!-- 3. Deck de Cartes -->
         <section class="flex flex-col items-center gap-2 py-1">
             <div class="w-full flex items-center justify-center gap-2">
-                <!-- Colonne Ennemi (visible uniquement en combat) : PV, statut, dé de dégâts subis -->
-                <div id="combat-side-enemy" class="hidden relative w-14 shrink-0 text-center gap-1">
-                    <span class="text-[8px] uppercase tracking-widest text-red-400 block">Ennemi</span>
-                    <div class="hp-ring-wrapper mx-auto" style="width: 36px; height: 36px;">
-                        <svg viewBox="0 0 44 44" width="36" height="36">
-                            <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="4" />
-                            <circle id="combat-enemy-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="4"
-                                    stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
-                        </svg>
-                        <span id="combat-enemy-hp" class="hp-ring-label text-[10px] text-red-300">0</span>
-                    </div>
-                    <!-- Badges d'état ennemi (chantier "lisibilité combat", Chantier 2) : remplace
-                         l'ancien texte concaténé (#combat-enemy-status) par des badges individuels
-                         avec infobulle (title), pour que chaque état reste identifiable au survol.
-                         Rempli par renderEnemyStatusBadges() (app.js), appelée depuis updateUI(). -->
-                    <div id="enemy-status-icons" class="text-xs leading-none flex flex-wrap justify-center gap-0.5">—</div>
-                    <div id="combat-enemy-die" class="die-badge border-red-700 text-red-300 mx-auto mt-1">–</div>
-                </div>
-
-                <!-- Carte active : révèle l'événement du tirage en cours (rétrécit pendant un combat).
+                <!-- Carte active : révèle l'événement du tirage en cours (masquée pendant un combat).
                      Toucher la carte fait maintenant office de bouton "Explorer". -->
                 <div id="card-stack-wrapper" class="relative w-full max-w-[240px] mx-auto cursor-pointer transition-transform active:scale-95" style="aspect-ratio: 5 / 7; transition: max-width 0.3s ease, transform 0.1s ease;">
                     <!-- Pile décorative (dos de cartes empilés, purement visuel) -->
@@ -495,34 +466,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Colonne Joueur (visible uniquement en combat) : PV, statut, dé de dégâts infligés -->
-                <div id="combat-side-player" class="hidden relative w-14 shrink-0 text-center gap-1">
-                    <span class="text-[8px] uppercase tracking-widest text-blue-400 block">Vous</span>
-                    <div class="hp-ring-wrapper mx-auto" style="width: 36px; height: 36px;">
-                        <svg viewBox="0 0 44 44" width="36" height="36">
-                            <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="4" />
-                            <circle id="combat-player-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="4"
-                                    stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
-                        </svg>
-                        <span id="combat-player-hp" class="hp-ring-label text-[10px] text-blue-300">0</span>
-                    </div>
-                    <span id="combat-player-status" class="text-xs leading-none block">—</span>
-                    <div id="combat-player-die" class="die-badge border-blue-700 text-blue-300 mx-auto mt-1">–</div>
-
-                    <!-- Indicateur compagnon (visible seulement si un compagnon est actif) -->
-                    <div id="companion-combat-indicator" class="hidden mt-2 pt-2 border-t border-gray-800">
-                        <span id="companion-combat-name" class="text-[7px] uppercase tracking-widest text-emerald-400 block truncate">-</span>
-                        <div class="hp-ring-wrapper mx-auto" style="width: 26px; height: 26px;">
-                            <svg viewBox="0 0 44 44" width="26" height="26">
-                                <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="5" />
-                                <circle id="companion-combat-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="5"
-                                        stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
-                            </svg>
-                            <span id="companion-combat-hp" class="hp-ring-label text-[8px] text-emerald-300">0</span>
-                        </div>
-                    </div>
-                </div>
             </div>
             <p id="advance-hint" class="text-[10px] text-blue-400 uppercase tracking-widest text-center animate-pulse">
                 👆 Touchez la carte pour explorer (-1H)
@@ -545,11 +488,68 @@
         <div id="combat-zone" class="hidden p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
             <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Zone de Combat</span>
 
+            <!-- Barres de vie (au-dessus de la scène) : le mob à gauche, le crawler à droite, comme dans
+                 la scène. Barres et PV remplis par renderCombatScene() (scene.js) ; nom/badge de phase,
+                 badges d'état et dés restent gérés par updateUI() (app.js). Les deux dés se font face
+                 au centre : chacun "vole" vers la barre adverse (die-hit-left/right). -->
+            <div id="combat-vitals" class="grid grid-cols-2 gap-3 mb-2">
+                <div class="min-w-0 flex flex-col gap-1">
+                    <div class="flex items-end gap-1 min-w-0 min-h-[28px] text-xs font-bold text-red-300">
+                        <span id="enemy-name" class="line-clamp-2 break-words leading-tight">-</span>
+                        <!-- Badge de phase permanent (discret) : visible uniquement à partir de la phase 2
+                             d'un boss (jamais en phase 1, ni sur un mob normal/élite). -->
+                        <span id="boss-phase-badge" class="hidden shrink-0 px-1 py-0.5 rounded bg-fuchsia-950 border border-fuchsia-600 text-fuchsia-300 text-[9px] font-normal"></span>
+                    </div>
+                    <div class="w-full h-2.5 bg-gray-950 rounded-full border border-gray-800 overflow-hidden">
+                        <div id="combat-enemy-hp-bar" class="bg-red-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
+                    </div>
+                    <div class="flex items-center justify-between gap-1">
+                        <span id="combat-enemy-hp-text" class="text-[11px] text-red-300 tabular-nums">0/0</span>
+                        <div id="combat-enemy-die" class="die-badge border-red-700 text-red-300 shrink-0">–</div>
+                    </div>
+                    <!-- Badges d'état ennemi (chantier "lisibilité combat", Chantier 2), remplis par
+                         renderEnemyStatusBadges() (app.js). -->
+                    <div id="enemy-status-icons" class="text-xs leading-none flex flex-wrap gap-0.5 min-h-[12px]"></div>
+                </div>
+                <div class="min-w-0 flex flex-col gap-1 items-stretch text-right">
+                    <div class="flex items-end justify-end min-w-0 min-h-[28px] text-xs font-bold text-blue-300">
+                        <span id="combat-player-name" class="line-clamp-2 break-all leading-tight">Vous</span>
+                    </div>
+                    <div class="w-full h-2.5 bg-gray-950 rounded-full border border-gray-800 overflow-hidden">
+                        <div id="combat-player-hp-bar" class="bg-blue-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
+                    </div>
+                    <div class="flex items-center justify-between gap-1">
+                        <div id="combat-player-die" class="die-badge border-blue-700 text-blue-300 shrink-0">–</div>
+                        <span id="combat-player-hp-text" class="text-[11px] text-blue-300 tabular-nums">0/0</span>
+                    </div>
+                    <span id="combat-player-status" class="text-xs leading-none min-h-[12px]"></span>
+                    <!-- Indicateur compagnon (visible seulement si un compagnon est actif) -->
+                    <div id="companion-combat-indicator" class="hidden flex items-center justify-end gap-1">
+                        <span id="companion-combat-name" class="text-[8px] uppercase tracking-widest text-emerald-400 truncate">-</span>
+                        <div class="hp-ring-wrapper shrink-0" style="width: 26px; height: 26px;">
+                            <svg viewBox="0 0 44 44" width="26" height="26">
+                                <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="5" />
+                                <circle id="companion-combat-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="5"
+                                        stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
+                            </svg>
+                            <span id="companion-combat-hp" class="hp-ring-label text-[8px] text-emerald-300">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bannière de télégraphe (chantier "lisibilité combat", Chantier 1) : affichée EN
+                 PERMANENCE tant que enemy.status.telegraph est actif (pas seulement au tour d'annonce).
+                 Masquée/remplie depuis updateUI() -> updateTelegraphBanner() dans app.js. -->
+            <div id="telegraph-banner" class="hidden mb-2 px-3 py-2 rounded-lg border-2 border-orange-500 bg-orange-950/40 text-center text-xs font-bold text-orange-300 uppercase tracking-wide telegraph-pulse"></div>
+
             <!-- Scène de combat en vue latérale : mob à gauche, crawler ancré à droite, sol horizontal.
                  Rendue par renderCombatScene() (scene.js), appelée en fin d'updateUI() ; la position
                  du mob vient de distanceToX(gameState.combatDistance). Le cadre garde le ratio du
-                 viewBox (360 x 150) quelle que soit la largeur de l'écran. -->
-            <div id="combat-scene" class="relative w-full mb-3 rounded-lg overflow-hidden border border-red-900/40" style="aspect-ratio: 360 / 150;">
+                 viewBox (360 x 150) quelle que soit la largeur de l'écran. Les deux ancres (largeur et
+                 hauteur nulles) suivent chaque combattant : showFloatingDamage() (app.js) y accroche
+                 les chiffres de dégâts. -->
+            <div id="combat-scene" class="relative w-full rounded-lg overflow-hidden border border-red-900/40" style="aspect-ratio: 360 / 150;">
                 <svg id="combat-scene-svg" viewBox="0 0 360 150" class="absolute inset-0 w-full h-full" role="img" aria-label="Scène de combat : le monstre à gauche, vous à droite">
                     <rect x="0" y="0" width="360" height="124" fill="#11141d"/>
                     <rect x="52" y="0" width="16" height="124" fill="#151a26"/>
@@ -561,21 +561,14 @@
                     <g id="scene-crawler"></g>
                     <g id="scene-mob"></g>
                 </svg>
-            </div>
-            <div class="text-center text-sm text-red-300 mb-3 font-bold flex items-center justify-center gap-2">
-                <span id="enemy-name">-</span>
-                <!-- Badge de phase permanent (discret) : visible uniquement à partir de la phase 2 d'un
-                     boss (jamais en phase 1, ni sur un mob normal/élite) — voir updateUI() dans app.js. -->
-                <span id="boss-phase-badge" class="hidden px-1.5 py-0.5 rounded bg-fuchsia-950 border border-fuchsia-600 text-fuchsia-300 text-[9px] normal-case tracking-normal"></span>
+                <div id="scene-mob-anchor" class="absolute w-0 h-0 pointer-events-none"></div>
+                <div id="scene-crawler-anchor" class="absolute w-0 h-0 pointer-events-none"></div>
             </div>
 
-            <!-- Bannière de télégraphe (chantier "lisibilité combat", Chantier 1) : affichée EN
-                 PERMANENCE tant que enemy.status.telegraph est actif (pas seulement au tour d'annonce),
-                 pour que l'information reste visible sans avoir à lire le journal de combat replié.
-                 Masquée/remplie depuis updateUI() -> updateTelegraphBanner() dans app.js. -->
-            <div id="telegraph-banner" class="hidden mb-3 px-3 py-2 rounded-lg border-2 border-orange-500 bg-orange-950/40 text-center text-xs font-bold text-orange-300 uppercase tracking-wide telegraph-pulse"></div>
-
-            <p id="distance-tension-label" class="hidden mb-3 text-center text-[9px] font-bold uppercase tracking-wider"></p>
+            <!-- Distance (sous la scène), remplie par renderCombatScene(), puis la jauge de tension
+                 anti-kite (renderDistanceTension(), app.js). -->
+            <p id="combat-distance-label" class="mt-1 mb-2 text-center text-[11px] text-gray-400 tabular-nums">Distance</p>
+            <p id="distance-tension-label" class="hidden mb-2 text-center text-[9px] font-bold uppercase tracking-wider"></p>
 
             <!-- Barre de Mana en combat : visible uniquement si un sort est équipé, voir updateUI() -->
             <div id="combat-mana-wrapper" class="hidden mb-2">
@@ -1017,15 +1010,15 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=90"></script>
-    <script src="items.js?v=90"></script>
-    <script src="spells.js?v=90"></script>
-    <script src="districts.js?v=90"></script>
-    <script src="safehouses.js?v=90"></script>
-    <script src="generator.js?v=90"></script>
-    <script src="anomalies.js?v=90"></script>
-    <script src="sprites.js?v=90"></script>
-    <script src="scene.js?v=90"></script>
-    <script src="app.js?v=90"></script>
+    <script src="bestiary.js?v=91"></script>
+    <script src="items.js?v=91"></script>
+    <script src="spells.js?v=91"></script>
+    <script src="districts.js?v=91"></script>
+    <script src="safehouses.js?v=91"></script>
+    <script src="generator.js?v=91"></script>
+    <script src="anomalies.js?v=91"></script>
+    <script src="sprites.js?v=91"></script>
+    <script src="scene.js?v=91"></script>
+    <script src="app.js?v=91"></script>
 </body>
 </html>
