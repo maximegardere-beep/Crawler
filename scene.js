@@ -142,20 +142,9 @@ function renderSceneBackdrop(container, prefix, key, def) {
     return true;
 }
 
-// Teintes par effet de mob : variables CSS lues par les classes mf-* (index.html). Un seul accent,
-// rouge, pour les yeux/détails de danger, quel que soit l'effet.
-const MOB_EFFECT_TINTS = {
-    burn: { base: '#6b3a30', dark: '#4a2620' },
-    poison: { base: '#4f6b3a', dark: '#33452a' },
-    slow: { base: '#3a5a6b', dark: '#26414a' },
-    stun: { base: '#6b5a2a', dark: '#4a3f1e' },
-    confusion: { base: '#5a3a6b', dark: '#3f2a4a' },
-    pull: { base: '#3a4a6b', dark: '#26304a' },
-    light: { base: '#7a7550', dark: '#55512f' },
-    corrode: { base: '#4a6b4a', dark: '#304a30' },
-    fear: { base: '#4a2a4a', dark: '#301c30' },
-    bleed: { base: '#5a2a2a', dark: '#3a1c1c' }
-};
+// Teinte neutre de repli (compagnon de spécialité inconnue) et accent par défaut des yeux/détails de danger.
+// Les mobs, eux, ont leur propre palette naturelle (voir resolveMobSprite() plus bas) ; leur effet se voit
+// par une aura (sprites/mob-auras.js), plus par une teinte.
 const MOB_DEFAULT_TINT = { base: '#4a5b6b', dark: '#33404a' };
 const MOB_ACCENT_COLOR = '#c23b3b';
 
@@ -201,7 +190,7 @@ function placeSceneGroup(el, x, y) {
 function applySceneTint(el, tint) {
     el.style.setProperty('--mob-base', tint.base);
     el.style.setProperty('--mob-dark', tint.dark);
-    el.style.setProperty('--mob-accent', MOB_ACCENT_COLOR);
+    el.style.setProperty('--mob-accent', tint.accent || MOB_ACCENT_COLOR);
 }
 
 // Place une ancre HTML (largeur/hauteur nulles) au-dessus d'un point de la scène, en % du cadre :
@@ -388,10 +377,45 @@ function ensureSceneBuilt() {
     sceneBuilt = true;
 }
 
+// --- Mobs : silhouette d'archétype + détail signature + aura d'effet (chantier « sprites & effets », phase 4)
+// Nom de référence d'un mob dans MOB_DETAILS : `baseName` (posé par generateMob()/generateBoss(), avant les
+// suffixes de modificateurs), sinon son nom exact, sinon le plus long nom connu par lequel son nom commence
+// (« Rat Goulot Enflammé et Colossal » -> « Rat Goulot », pour les mobs sauvegardés avant `baseName`).
+function resolveMobDetailKey(enemy) {
+    if (!enemy) return null;
+    if (enemy.baseName && MOB_DETAILS[enemy.baseName]) return enemy.baseName;
+    const name = enemy.name || '';
+    if (MOB_DETAILS[name]) return name;
+    let best = null;
+    Object.keys(MOB_DETAILS).forEach(key => {
+        if (name.startsWith(key) && (!best || key.length > best.length)) best = key;
+    });
+    return best;
+}
+
+// Dessin complet d'un mob (pure) : aura de son effet DERRIÈRE, silhouette de son archétype (goblinoid si
+// inconnu), puis son détail signature par-dessus ; palette = celle du mob, sinon celle de l'archétype.
+// `top` = point le plus haut, détail compris (couronne de boss, chiffres de dégâts, effets de fx.js).
+// `opts.aura === false` : sans aura (mob à terre dans la vignette de victoire).
+function resolveMobSprite(enemy, opts) {
+    const archetype = enemy && SCENE_MOB_SPRITES[enemy.visualArchetype] ? enemy.visualArchetype : 'goblinoid';
+    const base = SCENE_MOB_SPRITES[archetype];
+    const detailKey = resolveMobDetailKey(enemy);
+    const detail = detailKey ? MOB_DETAILS[detailKey] : null;
+    const effect = enemy && enemy.effect;
+    const auraFn = effect && MOB_EFFECT_AURAS[effect];
+    const aura = auraFn && !(opts && opts.aura === false) ? auraFn(MOB_EFFECT_FX_COLORS[effect] || '#f8fafc') : '';
+    return {
+        key: `${archetype}|${detailKey || ''}|${aura ? effect : ''}`,
+        top: Math.min(base.top, detail && detail.top != null ? detail.top : 0),
+        markup: aura + base.markup + (detail ? detail.markup : ''),
+        palette: (detail && detail.palette) || base.palette
+    };
+}
+
 function renderSceneMob(enemy) {
-    const archetypeKey = SCENE_MOB_SPRITES[enemy.visualArchetype] ? enemy.visualArchetype : 'goblinoid';
-    const sprite = SCENE_MOB_SPRITES[archetypeKey];
-    const spriteKey = archetypeKey + (enemy.isBoss ? ':boss' : '');
+    const sprite = resolveMobSprite(enemy);
+    const spriteKey = sprite.key + (enemy.isBoss ? ':boss' : '');
     if (lastMobSpriteKey !== spriteKey) {
         const crown = enemy.isBoss
             ? `<g transform="translate(0 ${sprite.top - 2})">${SCENE_BOSS_CROWN_SVG}</g>`
@@ -399,7 +423,7 @@ function renderSceneMob(enemy) {
         sceneUi.mob.innerHTML = wrapSceneBody(sprite.markup + crown);
         lastMobSpriteKey = spriteKey;
     }
-    applySceneTint(sceneUi.mob, MOB_EFFECT_TINTS[enemy.effect] || MOB_DEFAULT_TINT);
+    applySceneTint(sceneUi.mob, sprite.palette);
     const x = distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance);
     const isNewEnemy = enemy !== lastSceneEnemy;
     if (isNewEnemy) {
@@ -689,15 +713,13 @@ function crawlerAt(x, pose) {
 
 // Silhouette de mob posée (pose 'stand' face au crawler, 'away' dos tourné, 'down' à terre).
 function mobAt(enemy, x, pose, opacity) {
-    const archetypeKey = enemy && SCENE_MOB_SPRITES[enemy.visualArchetype] ? enemy.visualArchetype : 'goblinoid';
-    const sprite = SCENE_MOB_SPRITES[archetypeKey];
-    const tint = (enemy && MOB_EFFECT_TINTS[enemy.effect]) || MOB_DEFAULT_TINT;
+    const sprite = resolveMobSprite(enemy, { aura: pose !== 'down' });
     const crown = enemy && enemy.isBoss && pose !== 'down' ? `<g transform="translate(0 ${sprite.top - 2})">${SCENE_BOSS_CROWN_SVG}</g>` : '';
     const transform = pose === 'down'
         ? `translate(${x} ${SCENE_GROUND_Y - 12}) rotate(-90)`
         : `translate(${x} ${SCENE_GROUND_Y})${pose === 'away' ? ' scale(-1 1)' : ''}`;
     const fade = opacity != null ? ` opacity="${opacity}"` : '';
-    return `<g transform="${transform}" style="${tintStyle({ ...tint, accent: MOB_ACCENT_COLOR })}"${fade}>${sprite.markup}${crown}</g>`;
+    return `<g transform="${transform}" style="${tintStyle(sprite.palette)}"${fade}>${sprite.markup}${crown}</g>`;
 }
 
 // Autre crawler croisé en exploration : silhouette de compagnon agrandie, bras levé (amical) ou

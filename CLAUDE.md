@@ -15,7 +15,10 @@ Tailwind CDN, **aucun build step**.
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
   que le fichier concerné) : `crawler.js` (crawler + cadavre vu de dessus), `npcs.js` (compagnon, marchand,
-  professeur), `mobs.js` (10 archétypes de mob, couronne de boss), `items-generic.js` (registre
+  professeur), `mobs.js` (10 silhouettes d'archétype avec palette naturelle, couronne de boss),
+  `mob-details-a.js`/`mob-details-b.js` (`MOB_DETAILS` : détail signature + palette de chacun des 39 mobs
+  de `baseMobs`, clé = nom exact), `mob-auras.js` (`MOB_EFFECT_AURAS` : une aura par effet de mob),
+  `items-generic.js` (registre
   `ITEM_SPRITES` des sprites d'équipement, dessins génériques de repli par catégorie, cadrages d'icône
   `ITEM_ICON_TRANSFORMS`, couleurs d'enchantement `ENCHANT_COLORS`), puis un dessin par objet, clé = nom
   exact, ajoutés au registre par `Object.assign` : `items-melee.js` (11 armes de mêlée), `items-ranged.js`
@@ -542,7 +545,20 @@ Tailwind CDN, **aucun build step**.
   `COMBAT_LOG_LINES` dernières lignes dans `#combat-last-action` (remis à zéro à chaque nouvel ennemi).
   Secousse du combattant touché : `shakeSceneFighter()`, appelée par `showFloatingDamage()`, dont les
   chiffres s'accrochent aux ancres `#scene-mob-anchor`/`#scene-crawler-anchor` qui suivent la scène.
-  `visualArchetype` (bestiary.js) choisit la silhouette ; archétype inconnu → `goblinoid`.
+  **Bestiaire** (phase 4, dessins livrés par Gemini puis branchés) : `resolveMobSprite(enemy, opts)`
+  (scene.js, pure) compose chaque mob = aura de son effet DERRIÈRE (`MOB_EFFECT_AURAS[enemy.effect]`, couleur
+  `MOB_EFFECT_FX_COLORS`, particules `.mob-aura-a/b/c` coupées sous reduced motion ; `opts.aura === false`
+  pour un mob à terre) + silhouette de son `visualArchetype` (archétype inconnu → `goblinoid`) + détail
+  signature `MOB_DETAILS[nom]` par-dessus ; palette naturelle du mob (sinon de l'archétype) posée en
+  variables CSS `--mob-base/--mob-dark/--mob-accent` — l'ancienne teinte par effet (`MOB_EFFECT_TINTS`) a
+  disparu, l'effet se voit par l'aura. Nom de référence : `enemy.baseName` (posé par `generateMob()` AVANT
+  les suffixes de modificateurs, et par `generateBoss()`), sinon nom exact, sinon plus long nom connu en
+  préfixe (anciennes sauvegardes). `top` renvoyé = détail compris (couronne de boss, chiffres, fx.js via
+  `fxMobSprite()`). Utilisé par `renderSceneMob()` (clé de cache archétype|détail|effet) et `mobAt()`
+  (vignettes d'exploration). Les 13 boss réutilisent la silhouette de leur archétype, couronnée, en
+  attendant leurs sprites uniques (phase 5). `combat-scene.js` exige un détail pour CHAQUE mob de
+  `baseMobs` (et aucun détail orphelin), une aura pour CHAQUE effet, des `bounds` dans ±`MOB_EXTENT`, des
+  palettes valides et aucun `id=`/`<defs>`/gradient/filtre.
   **Décor** (`backdrops.js`, catalogue pur sur le modèle de `sprites/*.js`, chargé avant `scene.js`) :
   `#scene-backdrop`, premier enfant du SVG, donc TOUJOURS derrière combattants, bandes et chiffres.
   Bibliothèques : `BACKDROP_WALL_PATTERNS` / `BACKDROP_FLOOR_PATTERNS` (fonctions `(id, palette)` →

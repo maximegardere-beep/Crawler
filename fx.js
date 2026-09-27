@@ -110,10 +110,7 @@ function fxArcPoint(from, to, arc, p) {
 }
 
 // --- Positions dans la scène -----------------------------------------------------------------------------
-function fxMobSprite() {
-    const enemy = gameState.currentEnemy;
-    return SCENE_MOB_SPRITES[enemy && enemy.visualArchetype] || SCENE_MOB_SPRITES.goblinoid;
-}
+function fxMobSprite() { return resolveMobSprite(gameState.currentEnemy); }
 function fxMobX() { return distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance); }
 function fxMobHitPoint() { return [fxMobX() + 6, SCENE_GROUND_Y + fxMobSprite().top * 0.55]; }
 function fxMobFront() { return [fxMobX() + 14, SCENE_GROUND_Y + fxMobSprite().top * 0.55]; }

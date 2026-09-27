@@ -794,3 +794,61 @@ function isRedHex(hex) {
     assert(combatSkipRequested === false, "Nouvelle action du joueur : la demande de skip précédente est oubliée");
     resetTransientState();
 }
+
+// ============================================================
+// Bestiaire (chantier « sprites & effets », phase 4 : sprites/mobs.js, mob-details-a/b.js, mob-auras.js) :
+// chaque mob de baseMobs a son détail signature et sa palette, chaque effet de mob son aura, tout tient dans
+// ±MOB_EXTENT (même borne que la silhouette) ; un mob ajouté sans détail fait échouer ce test.
+// ============================================================
+{
+    const forbidden = /undefined|NaN|id=|<defs|<image|<filter|Gradient/;
+    const inBounds = b => Array.isArray(b) && b.length === 2 && b[0] >= -MOB_EXTENT && b[1] <= MOB_EXTENT && b[0] < b[1];
+    const isPalette = p => p && ['base', 'dark', 'accent'].every(k => /^#[0-9a-f]{6}$/i.test(p[k]));
+
+    const archetypes = Object.keys(SCENE_MOB_SPRITES);
+    const badArch = archetypes.filter(k => { const s = SCENE_MOB_SPRITES[k]; return !inBounds(s.bounds) || !isPalette(s.palette) || s.top > -40 || s.top < -88 || forbidden.test(s.markup); });
+    assert(badArch.length === 0, `Silhouettes d'archétype : bornes ±${MOB_EXTENT}, palette, hauteur -40..-88, aucun élément interdit (${badArch.join(', ')})`);
+
+    const missing = baseMobs.filter(m => !MOB_DETAILS[m.name]).map(m => m.name);
+    assert(missing.length === 0, `Chaque mob de baseMobs a son détail signature (${missing.join(', ')})`);
+    const orphan = Object.keys(MOB_DETAILS).filter(k => !baseMobs.some(m => m.name === k));
+    assert(orphan.length === 0, `Chaque détail correspond à un mob existant, nom exact (${orphan.join(', ')})`);
+    const badDetail = Object.keys(MOB_DETAILS).filter(k => { const d = MOB_DETAILS[k]; return !inBounds(d.bounds) || !isPalette(d.palette) || (d.top != null && (d.top > -40 || d.top < -92)) || forbidden.test(d.markup); });
+    assert(badDetail.length === 0, `Détails : bornes, palette, hauteur, aucun élément interdit (${badDetail.join(', ')})`);
+
+    const effects = new Set(Object.values(mobModifiers).flat().map(m => m && m.effect).filter(Boolean));
+    Object.values(districtBosses).forEach(b => b.effect && effects.add(b.effect));
+    const noAura = [...effects].filter(e => typeof MOB_EFFECT_AURAS[e] !== 'function');
+    assert(noAura.length === 0, `Chaque effet de mob a son aura (${noAura.join(', ')})`);
+    const badAura = Object.keys(MOB_EFFECT_AURAS).filter(e => { const a = MOB_EFFECT_AURAS[e]('#123456'); return forbidden.test(a) || !a.includes('#123456'); });
+    assert(badAura.length === 0, `Auras : colorées par leur paramètre, aucun élément interdit (${badAura.join(', ')})`);
+
+    // resolveMobSprite() : nom d'origine, suffixes de modificateurs, archétype inconnu, aura, hauteur
+    const rat = resolveMobSprite({ name: 'Rat Goulot Enflammé et Colossal', visualArchetype: 'beast', effect: 'burn' });
+    assert(rat.key === 'beast|Rat Goulot|burn' && rat.markup.includes(MOB_EFFECT_FX_COLORS.burn) && rat.palette === MOB_DETAILS['Rat Goulot'].palette, "Mob renommé par ses modificateurs : son détail, sa palette et l'aura de son effet");
+    assert(rat.markup.indexOf(MOB_EFFECT_FX_COLORS.burn) < rat.markup.indexOf(SCENE_MOB_SPRITES.beast.markup), "L'aura est dessinée derrière le mob");
+    assert(resolveMobSprite({ name: 'Rat Goulot', visualArchetype: 'beast', effect: 'burn' }, { aura: false }).key === 'beast|Rat Goulot|', "Mob à terre : sans aura");
+    const unknown = resolveMobSprite({ name: 'Inconnu', visualArchetype: 'inexistant' });
+    assert(unknown.key === 'goblinoid||' && unknown.palette === SCENE_MOB_SPRITES.goblinoid.palette, "Mob inconnu : silhouette et palette du goblinoïde, sans détail");
+    const ctrl = resolveMobSprite({ baseName: 'Contrôleur de Billets Zombifié', name: 'X', visualArchetype: 'zombie' });
+    assert(ctrl.top === MOB_DETAILS['Contrôleur de Billets Zombifié'].top, "Un détail plus haut que la silhouette relève le `top` (couronne, chiffres de dégâts)");
+
+    // generateMob()/generateBoss() posent le nom d'origine
+    resetTransientState();
+    const districtName = Object.keys(districts)[0];
+    const originalRandom = Math.random;
+    Math.random = () => 0.001; // modificateurs garantis
+    const mob = generateMob(districtName);
+    Math.random = originalRandom;
+    assert(mob.baseName && MOB_DETAILS[mob.baseName] && mob.name.startsWith(mob.baseName), "generateMob() : nom d'origine conservé (baseName) malgré les suffixes");
+    const boss = generateBoss(districtName);
+    assert(boss.baseName === boss.name, "generateBoss() : nom d'origine conservé");
+
+    // Rendu de combat : palette du mob sur la scène, aura dessinée
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: 'Tulipe Géante Enflammé', baseName: 'Tulipe Géante', visualArchetype: 'plant', effect: 'burn', hp: 10, maxHp: 10, atk: 1, def: 1, status: {} };
+    updateUI();
+    const sceneMob = document.getElementById('scene-mob');
+    assert(sceneMob.innerHTML.includes(MOB_EFFECT_FX_COLORS.burn) && sceneMob.innerHTML.includes('scene-pose'), "Scène de combat : aura et groupe de pose du mob");
+    resetTransientState();
+}

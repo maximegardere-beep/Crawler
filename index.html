@@ -312,6 +312,11 @@
         @keyframes goFly { to { transform: rotate(360deg); } }
         /* Vignette de piège : le crawler recule d'un coup à l'apparition de l'événement. */
         /* Enchantements visibles : étincelles qui scintillent lentement autour de l'arme/l'armure. */
+        /* Auras d'effet des mobs (sprites/mob-auras.js) : les particules dérivent lentement, décalées. */
+        .mob-aura-a, .mob-aura-b, .mob-aura-c { transform-box: fill-box; transform-origin: center; animation: mobAuraDrift 2.6s ease-in-out infinite; }
+        .mob-aura-b { animation-delay: -0.9s; }
+        .mob-aura-c { animation-delay: -1.7s; }
+        @keyframes mobAuraDrift { 0%, 100% { opacity: 1; transform: translateY(0) scale(1); } 50% { opacity: 0.45; transform: translateY(-2.5px) scale(0.85); } }
         .ench-spark { transform-box: fill-box; transform-origin: center; animation: enchSpark 2.4s ease-in-out infinite; }
         @keyframes enchSpark { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.6); } }
         .scene-recoil { transform-box: fill-box; transform-origin: 50% 100%; animation: sceneRecoil 0.6s ease-out both; }
@@ -331,7 +336,7 @@
             .scene-hit, .bd-flame, .bd-halo-flicker, .bd-neon-flicker, .bd-spin, .bd-blink, .bd-float, .bd-dust,
             .bd-crackle, .bd-ripple, .bd-mist, .bd-calm-glow, .bd-calm-flame { animation: none; }
             .scene-recoil { animation: none; transform: translateX(3px) rotate(4deg); }
-            .go-blood-spread, .go-fly, .ench-spark { animation: none; }
+            .go-blood-spread, .go-fly, .ench-spark, .mob-aura-a, .mob-aura-b, .mob-aura-c { animation: none; }
             .bd-steam { animation: none; opacity: 0.2; }
         }
 
@@ -1120,25 +1125,28 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=108"></script>
-    <script src="items.js?v=108"></script>
-    <script src="spells.js?v=108"></script>
-    <script src="districts.js?v=108"></script>
-    <script src="safehouses.js?v=108"></script>
-    <script src="generator.js?v=108"></script>
-    <script src="anomalies.js?v=108"></script>
-    <script src="sprites/crawler.js?v=108"></script>
-    <script src="sprites/npcs.js?v=108"></script>
-    <script src="sprites/mobs.js?v=108"></script>
-    <script src="sprites/items-generic.js?v=108"></script>
-    <script src="sprites/items-melee.js?v=108"></script>
-    <script src="sprites/items-ranged.js?v=108"></script>
-    <script src="sprites/items-armor.js?v=108"></script>
-    <script src="sprites/items-signature.js?v=108"></script>
-    <script src="sprites/fx.js?v=108"></script>
-    <script src="backdrops.js?v=108"></script>
-    <script src="scene.js?v=108"></script>
-    <script src="fx.js?v=108"></script>
-    <script src="app.js?v=108"></script>
+    <script src="bestiary.js?v=109"></script>
+    <script src="items.js?v=109"></script>
+    <script src="spells.js?v=109"></script>
+    <script src="districts.js?v=109"></script>
+    <script src="safehouses.js?v=109"></script>
+    <script src="generator.js?v=109"></script>
+    <script src="anomalies.js?v=109"></script>
+    <script src="sprites/crawler.js?v=109"></script>
+    <script src="sprites/npcs.js?v=109"></script>
+    <script src="sprites/mobs.js?v=109"></script>
+    <script src="sprites/mob-details-a.js?v=109"></script>
+    <script src="sprites/mob-details-b.js?v=109"></script>
+    <script src="sprites/mob-auras.js?v=109"></script>
+    <script src="sprites/items-generic.js?v=109"></script>
+    <script src="sprites/items-melee.js?v=109"></script>
+    <script src="sprites/items-ranged.js?v=109"></script>
+    <script src="sprites/items-armor.js?v=109"></script>
+    <script src="sprites/items-signature.js?v=109"></script>
+    <script src="sprites/fx.js?v=109"></script>
+    <script src="backdrops.js?v=109"></script>
+    <script src="scene.js?v=109"></script>
+    <script src="fx.js?v=109"></script>
+    <script src="app.js?v=109"></script>
 </body>
 </html>

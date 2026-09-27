@@ -83,6 +83,7 @@ function generateMob(districtName, eliteBonus = 0) {
     }
     // On fait une copie profonde pour ne pas altérer la base de données
     const finalMob = JSON.parse(JSON.stringify(baseMob));
+    finalMob.baseName = finalMob.name; // Nom d'origine, avant les suffixes de modificateurs (sprite du mob, scene.js)
 
     // 1bis. Mise à l'échelle selon l'étage courant (voir section 0), avant tout modificateur
     applyFloorScaling(finalMob, typeof gameState !== 'undefined' ? gameState.currentFloor : 1);
@@ -206,6 +207,7 @@ function generateBoss(districtName) {
         return null;
     }
     const boss = JSON.parse(JSON.stringify(bossTemplate));
+    boss.baseName = boss.name;
 
     // Mise à l'échelle selon l'étage courant (voir section 0) : un boss de quartier n'a plus des
     // stats strictement identiques d'un étage à l'autre, sa base "intentionnelle" est juste
