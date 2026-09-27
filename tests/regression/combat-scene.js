@@ -399,3 +399,72 @@ function isRedHex(hex) {
         delete lastBackdropKeys.hbd;
     }
 }
+
+// ===================================================================
+// renderScene('card') : vignette d'événement dans la carte active (option A, à la place de l'emoji).
+// Chaque vignette nommée par app.js existe, se rend sans valeur manquante, tient dans le cadre recadré de
+// la carte (CARD_VIEW), et n'est redessinée que si elle change.
+// ===================================================================
+{
+    const fs = require('fs');
+    const path = require('path');
+    const appSource = fs.readFileSync(path.join(__dirname, '..', '..', 'app.js'), 'utf8');
+    const usedKeys = new Set();
+    // Noms de vignette = identifiants camelCase (minuscule en tête), jamais un libellé de type affiché.
+    (appSource.match(/setCardHeader\([^\n]*\);/g) || []).forEach(call => {
+        const m = /key:\s*'([a-z][A-Za-z]+)'/.exec(call) || /,\s*'([a-z][A-Za-z]+)'\s*\);$/.exec(call);
+        if (m) usedKeys.add(m[1]);
+    });
+    const unknownUsed = [...usedKeys].filter(k => !CARD_VIGNETTES[k]);
+    assert(usedKeys.size >= 20, `app.js nomme bien les vignettes de ses événements (${usedKeys.size} trouvées)`);
+    assert(unknownUsed.length === 0, `Chaque vignette nommée par app.js existe dans CARD_VIGNETTES (inconnues : ${unknownUsed.join(', ')})`);
+
+    const sampleMob = { name: 'Rat', visualArchetype: 'beast', effect: 'poison', isBoss: false };
+    const sampleBoss = { name: 'Chef', visualArchetype: 'machine', effect: null, isBoss: true };
+    const broken = [];
+    const outside = [];
+    Object.keys(CARD_VIGNETTES).forEach(key => {
+        [{}, { enemy: sampleMob }, { enemy: sampleBoss }, { enemy: { name: 'X', visualArchetype: 'inconnu' } }].forEach(ctx => {
+            const markup = composeCardVignette(key, ctx);
+            if (!markup || /undefined|NaN/.test(markup)) broken.push(`${key}`);
+        });
+        const markup = composeCardVignette(key, { enemy: sampleMob });
+        // Positions de premier niveau (y > 0, dans la scène) — les translations internes d'un accessoire
+        // sont relatives à son origine (y <= 0).
+        (markup.match(/<g transform="translate\([-\d.]+ [-\d.]+\)/g) || []).forEach(t => {
+            const [x, y] = /translate\(([-\d.]+) ([-\d.]+)/.exec(t).slice(1).map(parseFloat);
+            if (y > 0 && (x < CARD_VIEW.x + 8 || x > CARD_VIEW.x + CARD_VIEW.w - 8)) outside.push(`${key}@${x}`);
+        });
+    });
+    assert(broken.length === 0, `Chaque vignette se rend avec ou sans ennemi (y compris archétype inconnu) sans valeur manquante (${[...new Set(broken)].join(', ')})`);
+    assert(outside.length === 0, `Chaque élément de vignette tient dans le cadre recadré de la carte (${outside.join(', ')})`);
+    assert(composeCardVignette('stealthUnseen', { enemy: sampleMob }).includes('scale(-1 1)'), "Furtivité : le mob tourne le dos au crawler");
+    assert(composeCardVignette('bossSpotted', { enemy: sampleBoss }).includes(SCENE_BOSS_CROWN_SVG), "Boss repéré : couronne sur la silhouette");
+    assert(composeCardVignette('victory', { enemy: sampleMob }).includes('rotate(-90)'), "Victoire : le mob est à terre");
+
+    resetTransientState();
+    const icon = document.getElementById('card-icon');
+    const wrap = document.getElementById('card-scene');
+    const vignette = document.getElementById('card-scene-vignette');
+    delete lastBackdropKeys.kbd;
+    delete vignetteKeys.kbd;
+    setCardHeader('💰', 'Trésor', 'Butin', 'treasure');
+    assert(!wrap.classList.contains('hidden') && icon.classList.contains('hidden'), "setCardHeader() avec vignette : la scène remplace l'emoji");
+    assert(vignette.innerHTML === composeCardVignette('treasure') && document.getElementById('card-scene-backdrop').innerHTML.includes('id="kbd-wall"'), "Vignette dessinée avec le décor du quartier (préfixe 'kbd')");
+    vignette.innerHTML = 'SENTINELLE';
+    setCardHeader('💰', 'Trésor', 'Butin', 'treasure');
+    assert(vignette.innerHTML === 'SENTINELLE', "Même vignette : pas de redessin");
+    setCardHeader('🚪', 'Porte', 'Test');
+    assert(wrap.classList.contains('hidden') && !icon.classList.contains('hidden') && icon.innerText === '🚪', "setCardHeader() sans vignette : l'emoji revient");
+    setCardHeader('?', 'Inconnu', 'Test', 'vignetteInexistante');
+    assert(wrap.classList.contains('hidden') && !icon.classList.contains('hidden'), "Vignette inconnue : repli sur l'emoji");
+    delete lastBackdropKeys.kbd;
+    delete vignetteKeys.kbd;
+
+    const stairsWrap = document.getElementById('floor-transition-scene');
+    delete vignetteKeys.fbd;
+    renderScene('stairs');
+    assert(!stairsWrap.classList.contains('hidden') && document.getElementById('floor-transition-scene-vignette').innerHTML === composeCardVignette('stairs'), "Écran d'escalier : scène de l'escalier à la place de l'emoji");
+    delete vignetteKeys.fbd;
+    delete lastBackdropKeys.fbd;
+}

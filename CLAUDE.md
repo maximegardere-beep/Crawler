@@ -547,8 +547,26 @@ Tailwind CDN, **aucun build step**.
   personnages. Toute fiche est validée automatiquement par `tests/regression/combat-scene.js`.
   **`renderScene(mode)`** est le point d'entrée unique de toutes les scènes : `'combat'` appelle
   `renderCombatScene()` (rendu inchangé), `'merchant'`/`'trainer'` la scène de `#shop-zone` (appelée par
-  `updateShopUI()`), `'safehouse'` la scène de `#safehouse-choice-zone` (appelée par `enterRoom()`) ; un
-  mode inconnu ne fait rien.
+  `updateShopUI()`), `'safehouse'` la scène de `#safehouse-choice-zone` (appelée par `enterRoom()`),
+  `'card'` la vignette de la carte active (appelée par `setCardHeader()`), `'stairs'` celle de l'écran
+  d'escalier (`triggerFloorTransition()`) ; un mode inconnu ne fait rien.
+  **Vignettes d'exploration (carte active)** : `setCardHeader(icon, title, typeLabel, scene)` accepte un
+  4ᵉ argument — nom de vignette (`'treasure'`, `'trap'`…) ou `{ key, enemy }` — qui dessine
+  `#card-scene` À LA PLACE de l'emoji `#card-icon` (sans 4ᵉ argument ou nom inconnu : emoji seul, comme
+  avant). `CARD_VIGNETTES` (scene.js, fonctions pures) : calme (`silence`, `ambiance` drone caméra de
+  l'émission, `knownPath` craie « DÉJÀ VU », `emptyLair` couronne tombée, `floorCleared`, `fled`), butin
+  (`treasure`, `minorFind`, `gold`, `audienceGift` colis parachuté), danger (`trap`, `timeLoss` horloge
+  qui s'emballe, `cafeteria`), rencontre (`crawlerFriendly`/`crawlerHostile`, silhouette de compagnon
+  agrandie), furtivité (`stealthUnseen` mob de dos + crawler caché derrière une caisse, `stealthEvaded`),
+  combat (`combat`, `bossSpotted`, `victory`/`bossVictory` mob à terre via `mobAt(enemy, x, pose)`),
+  `pact` (autel), `stairs`. Décor du quartier courant en fond (préfixe `'kbd'` pour la carte, `'fbd'` pour
+  l'escalier) ; la carte étant étroite, sa vue est RECADRÉE sur la moitié droite de la scène
+  (`CARD_VIEW`, x 140..360) — toute vignette doit y tenir. `renderVignetteScene()` ne redessine que si
+  vignette/ennemi changent (`vignetteKeys`). Les accessoires correspondants vivent dans `BACKDROP_PROPS`
+  (`treasureChest`, `coinPile`, `pouch`, `parachuteCrate`, `cameraDrone`, `spikeTrap`, `bigClock`,
+  `chalkMarks`, `fallenCrown`, `checkedMap`, `dustPuff`, `darkCafeteria`, `stairsDown`, `pactAltar`).
+  `combat-scene.js` lit `app.js` et exige que chaque vignette nommée par un `setCardHeader()` existe :
+  une faute de frappe dans un nom fait échouer les tests au lieu de retomber silencieusement sur l'emoji.
   **Scène des villes spécialisées** (`#shop-scene-svg`, au-dessus des listes d'achat/vente et des
   boutons, qui restent intacts) : même décor du quartier courant (préfixe `'sbd'`, jamais d'identifiant
   partagé avec la scène de combat `'cbd'`), crawler à `CRAWLER_X`, ni barres de vie ni bandes de portée.

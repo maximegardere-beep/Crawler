@@ -1459,11 +1459,14 @@ function logEvent(message, type = "normal") {
 }
 
 // Prépare l'en-tête de la carte active (icône, titre, type) : appelé au début de chaque nouvelle
-// branche d'événement dans resolveCardEvent(), avant que logEvent() ne remplisse le corps.
-function setCardHeader(icon, title, typeLabel) {
+// branche d'événement dans resolveCardEvent(), avant que logEvent() ne remplisse le corps. `scene` :
+// vignette dessinée à la place de l'emoji (nom, ou { key, enemy } — voir CARD_VIGNETTES dans
+// scene.js) ; absente, la carte garde l'emoji.
+function setCardHeader(icon, title, typeLabel, scene) {
     ui.cardIcon.innerText = icon;
     ui.cardTitle.innerText = title;
     ui.cardTypeLabel.innerText = typeLabel;
+    renderScene('card', scene);
 }
 
 // Petite animation de "pop" à chaque nouvelle carte tirée (voir le commentaire CSS de .card-draw-anim)
@@ -1801,7 +1804,7 @@ function resolveCardEvent() {
     // Rien de notable
     cumulative += config.chances.nothing;
     if (d100 < cumulative) {
-        setCardHeader('🌑', 'Silence', 'Exploration');
+        setCardHeader('🌑', 'Silence', 'Exploration', 'silence');
         logEvent(pick(flavorText.nothing), "normal");
         return;
     }
@@ -1819,7 +1822,7 @@ function resolveCardEvent() {
     // Découverte d'objet (générateur procédural)
     cumulative += config.chances.loot;
     if (d100 < cumulative) {
-        setCardHeader('💰', 'Trésor', 'Butin');
+        setCardHeader('💰', 'Trésor', 'Butin', 'treasure');
         logEvent("Vous trébuchez sur quelque chose de brillant...", "info");
         addLoot(getLootPowerScore(null)); // Pas de monstre : estimation par l'étage courant
         return;
@@ -1831,7 +1834,7 @@ function resolveCardEvent() {
         const trap = pick(flavorText.trap);
         const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
         applyPlayerDamage(dmg);
-        setCardHeader('⚠️', 'Piège', 'Danger');
+        setCardHeader('⚠️', 'Piège', 'Danger', 'trap');
         logEvent(`${trap.text} (-${dmg} PV)`, "danger");
         if (gameState.hp <= 0) {
             gameOver(false, 'trap');
@@ -1845,7 +1848,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         const lost = Math.floor(Math.random() * 3) + 1; // 1 à 3 heures perdues en plus
         gameState.timeLeft = Math.max(0, gameState.timeLeft - lost);
-        setCardHeader('⏳', 'Contretemps', 'Danger');
+        setCardHeader('⏳', 'Contretemps', 'Danger', 'timeLoss');
         logEvent(`${pick(flavorText.timeLoss)} (-${lost}H supplémentaires)`, "danger");
         if (gameState.timeLeft <= 0) {
             gameOver(true);
@@ -1859,7 +1862,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         const heal = Math.floor(Math.random() * 8) + 5; // 5 à 12 PV
         const actualHeal = applyPlayerHeal(heal);
-        setCardHeader('🎒', 'Petite Trouvaille', 'Butin');
+        setCardHeader('🎒', 'Petite Trouvaille', 'Butin', 'minorFind');
         logEvent(`${pick(flavorText.minorFind)} (+${actualHeal} PV)`, "success");
         return;
     }
@@ -1870,7 +1873,7 @@ function resolveCardEvent() {
         const baseGold = Math.floor(Math.random() * 16) + 5; // 5 à 20 PO
         const gold = Math.round(baseGold * (1 + gameState.currentFloor * 0.15) * (gameState.anomalyEffects.goldGainMult || 1)); // Proportionnel à l'étage, ECONOMIE_AUSTERE (anomalies.js)
         gameState.gold += gold;
-        setCardHeader('💰', 'Pièces d\'Or', 'Butin');
+        setCardHeader('💰', 'Pièces d\'Or', 'Butin', 'gold');
         logEvent(`${pick(flavorText.goldFind)} (+${gold} PO)`, "success");
         return;
     }
@@ -1879,7 +1882,7 @@ function resolveCardEvent() {
     cumulative += config.chances.audienceGift;
     if (d100 < cumulative) {
         const bonusXp = Math.floor(Math.random() * 6) + 5; // 5 à 10 XP
-        setCardHeader('📢', 'Cadeau du Public', 'Bonus');
+        setCardHeader('📢', 'Cadeau du Public', 'Bonus', 'audienceGift');
         logEvent(pick(flavorText.audienceGift), "success");
         gainXp(bonusXp);
         return;
@@ -1890,7 +1893,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         if (gameState.companion) {
             // Déjà accompagné : ce tirage se résout comme un moment calme, pas de rencontre superposée
-            setCardHeader('🌑', 'Silence', 'Exploration');
+            setCardHeader('🌑', 'Silence', 'Exploration', 'silence');
             logEvent(pick(flavorText.nothing), "normal");
             return;
         }
@@ -1900,11 +1903,11 @@ function resolveCardEvent() {
         gameState.companionChoicePending = true;
 
         if (candidate.disposition === 'friendly') {
-            setCardHeader('🧍', candidate.name, 'Crawler Rencontré');
+            setCardHeader('🧍', candidate.name, 'Crawler Rencontré', 'crawlerFriendly');
             logEvent(`Vous croisez ${candidate.name}, un autre crawler. Il semble pacifique et vous propose son aide.`, "info");
             ui.companionChoiceFriendly.classList.remove('hidden');
         } else {
-            setCardHeader('🗡️', candidate.name, 'Crawler Hostile');
+            setCardHeader('🗡️', candidate.name, 'Crawler Hostile', 'crawlerHostile');
             logEvent(`Vous croisez ${candidate.name}, un autre crawler. Il vous toise avec hostilité...`, "danger");
             ui.companionChoiceHostile.classList.remove('hidden');
         }
@@ -1913,7 +1916,7 @@ function resolveCardEvent() {
     }
 
     // Reste : moment purement narratif, sans effet mécanique
-    setCardHeader('🎬', 'Ambiance', 'Exploration');
+    setCardHeader('🎬', 'Ambiance', 'Exploration', 'ambiance');
     logEvent(pick(flavorText.flavorOnly), "normal");
 }
 
@@ -1956,7 +1959,7 @@ function handleStealthEncounter() {
 
     gameState.pendingStealthEncounter = enemy;
     gameState.stealthChoicePending = true;
-    setCardHeader('🥷', enemy ? enemy.name : 'Ombre', 'Non Repéré');
+    setCardHeader('🥷', enemy ? enemy.name : 'Ombre', 'Non Repéré', { key: 'stealthUnseen', enemy });
     logEvent(`Vous repérez ${enemy ? `[${enemy.name}]` : "une présence"} avant qu'il ne vous voie.`, "info");
     logEvent("Tenter de l'esquiver en silence, ou frapper en traître ?", "info");
     ui.stealthChoiceZone.classList.remove('hidden');
@@ -1973,7 +1976,7 @@ function attemptStealthEvasion() {
 
     const evadeChance = Math.min(70 + (gameState.anomalyEffects.stealthCapBonus || 0), 40 + (gameState.skills.stealth.level - 1) * 8); // NOCTURNE (anomalies.js)
     if (Math.random() * 100 < evadeChance) {
-        setCardHeader('🥷', 'Évitement Réussi', 'Furtivité');
+        setCardHeader('🥷', 'Évitement Réussi', 'Furtivité', { key: 'stealthEvaded', enemy });
         logEvent(`Vous évitez [${enemy.name}] sans un bruit.`, "success");
         gainSkillXp('stealth', 5);
         updateUI();
@@ -2432,6 +2435,7 @@ function triggerFloorTransition() {
     }
 
     if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.remove('hidden');
+    renderScene('stairs');
     updateUI();
 }
 
@@ -2468,6 +2472,7 @@ function updateAnomalyStatusUI() {
 // gameState.pactChoicePending (inclus dans isActionBlocked()), comme un choix de boss/marchand/repaire.
 function triggerPactChoice() {
     gameState.pactChoicePending = true;
+    setCardHeader('🤝', 'Pacte du Crawler', 'Anomalie', 'pact');
     if (ui.pactChoiceOverlay) ui.pactChoiceOverlay.classList.remove('hidden');
     logEvent("🤝 Le Pacte du Crawler vous est proposé : bénédiction ATQ, ou bénédiction PV ?", "danger");
 }
@@ -4348,7 +4353,7 @@ function enterRoom(room) {
 
     if (room.type === 'boss') {
         if (room.defeated) {
-            setCardHeader('🏚️', 'Antre Silencieuse', 'Exploration');
+            setCardHeader('🏚️', 'Antre Silencieuse', 'Exploration', 'emptyLair');
             logEvent("L'antre est silencieuse désormais ; le boss a déjà été vaincu.", "normal");
             return;
         }
@@ -4396,7 +4401,7 @@ function enterRoom(room) {
         }
         resolveCardEvent();
     } else {
-        setCardHeader('🌑', 'Chemin Connu', 'Exploration');
+        setCardHeader('🌑', 'Chemin Connu', 'Exploration', 'knownPath');
         logEvent("Vous retraversez un couloir déjà exploré, rien de neuf.", "normal");
     }
 }
@@ -4452,7 +4457,7 @@ function leaveSafehouse() {
 function triggerCafetRoom(room) {
     const trapDmg = Math.floor(Math.random() * 12) + 10; // 10 à 21 PV : nettement au-dessus d'un piège normal (~5-15)
     applyPlayerDamage(trapDmg);
-    setCardHeader('🕯️', 'Cafétéria Assombrie', 'Danger');
+    setCardHeader('🕯️', 'Cafétéria Assombrie', 'Danger', 'cafeteria');
     logEvent(`Un piège vicieux se déclenche dans l'obscurité de la cafétéria abandonnée ! (-${trapDmg} PV)`, "danger");
     if (gameState.hp <= 0) {
         gameOver(false, 'trap');
@@ -4474,7 +4479,7 @@ function triggerBossEncounter(room) {
     gameState.pendingBossEncounter = { roomId: room.id, guardsStairs: room.guardsStairs === true };
     gameState.bossChoicePending = true;
 
-    setCardHeader('👑', boss.name, room.guardsStairs ? "Gardien de l'Escalier" : 'Boss de Quartier');
+    setCardHeader('👑', boss.name, room.guardsStairs ? "Gardien de l'Escalier" : 'Boss de Quartier', { key: 'bossSpotted', enemy: boss });
     logEvent(
         room.guardsStairs
             ? `🎬 Vous découvrez l'escalier vers l'étage ${gameState.currentFloor + 1}, gardé par ${boss.name} !`
@@ -4724,7 +4729,7 @@ function initiateCombat(forcedEnemy = null) {
     // de boss gardent leur en-tête dédié, plus riche ("Gardien de l'Escalier"/"Boss de Quartier"), déjà
     // posé par triggerBossEncounter() juste avant.
     if (enemy && !enemy.isBoss) {
-        setCardHeader(isEliteMob(enemy) ? '💀' : '⚔️', enemy.name, 'Danger');
+        setCardHeader(isEliteMob(enemy) ? '💀' : '⚔️', enemy.name, 'Danger', { key: 'combat', enemy });
     } else if (!enemy) {
         setCardHeader('⚔️', 'Combat', 'Danger');
     }
@@ -6285,7 +6290,7 @@ function attemptFlee() {
         gameState.pendingSneakAttack = false; // Ne doit pas se reporter sur un combat futur
         gameState.fleesThisRun = (gameState.fleesThisRun || 0) + 1; // Voir generateEpitaph() : mention spéciale à 3+ fuites
         gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
-        setCardHeader('🏃', 'Fuite Réussie', 'Exploration');
+        setCardHeader('🏃', 'Fuite Réussie', 'Exploration', 'fled');
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
         if (gameState.pendingTravel) {
             logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
@@ -6316,11 +6321,11 @@ function winCombat() {
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
 
     if (wasBoss) {
-        setCardHeader('👑', 'Victoire !', 'Boss Vaincu');
+        setCardHeader('👑', 'Victoire !', 'Boss Vaincu', { key: 'bossVictory', enemy: defeatedEnemy });
         logEvent(`👑 Vous avez triomphé de ${defeatedEnemy.name} !`, "success");
         triggerHaptic('heavy');
     } else {
-        setCardHeader('🏆', 'Victoire !', 'Combat');
+        setCardHeader('🏆', 'Victoire !', 'Combat', { key: 'victory', enemy: defeatedEnemy });
         logEvent("Vous remportez le combat !", "success");
         triggerHaptic('medium');
     }
@@ -6509,7 +6514,7 @@ function performExploreStep() {
 function autoTravelToNearestFrontier() {
     const frontierRoomId = findNearestFrontierRoom(gameState.floorMap.currentRoomId);
     if (!frontierRoomId) {
-        setCardHeader('🗺️', 'Étage Entièrement Exploré', 'Exploration');
+        setCardHeader('🗺️', 'Étage Entièrement Exploré', 'Exploration', 'floorCleared');
         logEvent("Vous avez arpenté chaque recoin accessible de cet étage. Direction l'escalier ?", "info");
         updateUI();
         return;

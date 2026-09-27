@@ -1100,6 +1100,162 @@ const BACKDROP_PROPS = {
         light: () => null
     },
 
+    // --- Vignettes d'exploration (scène de la carte active) ------------------------------------------
+    // Coffre ouvert, trésor qui luit. Origine : milieu du bas (au sol).
+    treasureChest: {
+        markup: () => `
+            <path d="M-20 -22 L-17 -40 L17 -40 L20 -22 Z" fill="#6b4a2a" stroke="#05060c" stroke-width="1.5"/>
+            <path d="M-17 -40 L17 -40" stroke="#c9a34a" stroke-width="2"/>
+            <rect x="-20" y="-22" width="40" height="22" fill="#5a3d22" stroke="#05060c" stroke-width="1.5"/>
+            <path d="M-20 -14 H20 M-10 -22 V0 M10 -22 V0" stroke="#c9a34a" stroke-width="1.8"/>
+            <ellipse cx="0" cy="-22" rx="17" ry="4" fill="#fcd34d" stroke="#05060c" stroke-width="1"/>
+            <g class="bd-blink"${backdropAnimDelay({ phase: 0.4 })}><path d="M-6 -30 l1.5 -4 l1.5 4 l4 1.5 l-4 1.5 l-1.5 4 l-1.5 -4 l-4 -1.5 Z" fill="#fef3c7"/></g>
+            <g class="bd-blink"><path d="M8 -34 l1 -3 l1 3 l3 1 l-3 1 l-1 3 l-1 -3 l-3 -1 Z" fill="#fef3c7"/></g>`,
+        light: () => ({ dx: 0, dy: -26, color: '#fbbf24', radius: 44, flicker: false })
+    },
+    // Tas de pièces d'or. Origine : milieu du bas (au sol).
+    coinPile: {
+        markup: () => {
+            const coins = [[-14, -3], [-6, -3], [2, -3], [10, -3], [-10, -8], [-2, -8], [6, -8], [-6, -13], [2, -13], [-2, -18]];
+            return coins.map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="5" ry="2.6" fill="#e0b43a" stroke="#05060c" stroke-width="0.9"/>`).join('') + `
+            <g transform="translate(17 -9) rotate(70)"><ellipse rx="5" ry="2.6" fill="#e0b43a" stroke="#05060c" stroke-width="0.9"/></g>
+            <g class="bd-blink"><path d="M-4 -26 l1 -3 l1 3 l3 1 l-3 1 l-1 3 l-1 -3 l-3 -1 Z" fill="#fef3c7"/></g>`;
+        },
+        light: () => ({ dx: 0, dy: -10, color: '#fbbf24', radius: 30, flicker: false })
+    },
+    // Sacoche entrouverte : rouleau de bandage, pomme. Origine : milieu du bas (au sol).
+    pouch: {
+        markup: () => `
+            <path d="M-16 0 Q-18 -18 -10 -22 H10 Q18 -18 16 0 Z" fill="#6b5a3a" stroke="#05060c" stroke-width="1.5"/>
+            <path d="M-12 -22 Q0 -30 12 -22" fill="#57492f" stroke="#05060c" stroke-width="1.2"/>
+            <rect x="-9" y="-30" width="10" height="9" rx="4.5" fill="#e8e1c8" stroke="#05060c" stroke-width="1"/>
+            <path d="M-7 -26 H-1" stroke="#b8b2a0" stroke-width="0.8"/>
+            <circle cx="6" cy="-26" r="4.5" fill="#6a9a3a" stroke="#05060c" stroke-width="1"/>
+            <path d="M6 -30 l1 -3" stroke="#3a2a1c" stroke-width="1"/>`,
+        light: () => null
+    },
+    // Colis parachuté par le public (clin d'œil à l'émission de Dungeon Crawler Carl). Origine : centre
+    // de la caisse (en l'air, flotte doucement).
+    parachuteCrate: {
+        markup: () => `
+            <g class="bd-float">
+                <path d="M-26 -38 Q0 -62 26 -38 Q13 -42 0 -38 Q-13 -42 -26 -38 Z" fill="#6b4fa0" stroke="#05060c" stroke-width="1.5"/>
+                <path d="M-13 -40 Q0 -54 13 -40" fill="none" stroke="#8b6fc0" stroke-width="1.2"/>
+                <path d="M-26 -38 L-9 -10 M26 -38 L9 -10 M0 -38 V-10" stroke="#b8b2a0" stroke-width="0.8"/>
+                <rect x="-11" y="-10" width="22" height="18" rx="1.5" fill="#caa23a" stroke="#05060c" stroke-width="1.5"/>
+                <path d="M-11 -1 H11 M0 -10 V8" stroke="#8a6a24" stroke-width="1.5"/>
+                <path d="M0 -3.5 c-2 -3 -6 -1 -3 2 l3 3 l3 -3 c3 -3 -1 -5 -3 -2 Z" fill="#fef3c7"/>
+            </g>`,
+        light: () => ({ dx: 0, dy: -2, color: '#c084fc', radius: 36, flicker: false })
+    },
+    // Drone caméra de l'émission qui filme le crawler (voyant REC). Origine : centre (en l'air).
+    cameraDrone: {
+        markup: () => `
+            <g class="bd-float">
+                <path d="M-16 -6 H16" stroke="#2f3136" stroke-width="2"/>
+                <ellipse cx="-16" cy="-8" rx="7" ry="1.5" fill="#9ca3af" opacity="0.6"/>
+                <ellipse cx="16" cy="-8" rx="7" ry="1.5" fill="#9ca3af" opacity="0.6"/>
+                <rect x="-9" y="-6" width="18" height="10" rx="3" fill="#3a3e44" stroke="#05060c" stroke-width="1.2"/>
+                <circle cx="-4" cy="6" r="4" fill="#1e2328" stroke="#05060c" stroke-width="1"/>
+                <circle cx="-4" cy="6" r="1.8" fill="#60a5fa"/>
+                <circle class="bd-blink" cx="5" cy="-2" r="1.6" fill="#ef4444"/>
+            </g>`,
+        light: () => null
+    },
+    // Piège à pointes jaillissant d'une dalle. Origine : milieu du bas (au sol).
+    spikeTrap: {
+        markup: () => {
+            const spikes = [-18, -9, 0, 9, 18].map(x => `<path d="M${x - 3} -2 L${x} -18 L${x + 3} -2 Z" fill="#9ca3af" stroke="#05060c" stroke-width="1"/>`).join('');
+            return `<rect x="-24" y="-3" width="48" height="4" fill="#2f3136" stroke="#05060c" stroke-width="1"/>${spikes}
+            <path d="M-6 -12 l-4 -6 M8 -14 l5 -5" stroke="#fef3c7" stroke-width="1.2" stroke-linecap="round"/>`;
+        },
+        light: () => null
+    },
+    // Grande horloge murale dont l'aiguille s'emballe. Origine : centre.
+    bigClock: {
+        markup: () => `
+            <circle r="24" fill="#d8d6cc" stroke="#05060c" stroke-width="2"/>
+            <circle r="20" fill="none" stroke="#6b7078" stroke-width="1" stroke-dasharray="1.5 8.97"/>
+            <path d="M0 0 L-8 -8" stroke="#05060c" stroke-width="2.5" stroke-linecap="round"/>
+            <g class="bd-spin" style="animation-duration:1.6s"><path d="M0 0 V-18" stroke="#b45309" stroke-width="1.6" stroke-linecap="round"/><circle r="0.1" cx="0" cy="18" fill="none"/></g>
+            <circle r="2" fill="#05060c"/>`,
+        light: () => null
+    },
+    // Marques à la craie d'un chemin déjà parcouru. Origine : centre.
+    chalkMarks: {
+        markup: () => `
+            <g fill="none" stroke="#e7e2d0" stroke-width="1.4" stroke-linecap="round" opacity="0.55">
+                <path d="M-30 0 H6 M-2 -6 L6 0 L-2 6"/>
+                <path d="M16 -8 l8 8 M24 -8 l-8 8"/>
+            </g>
+            <text x="-12" y="16" text-anchor="middle" font-size="7" font-weight="bold" letter-spacing="1" fill="#e7e2d0" opacity="0.45">DÉJÀ VU</text>`,
+        light: () => null
+    },
+    // Couronne de boss tombée au sol. Origine : milieu du bas (au sol).
+    fallenCrown: {
+        markup: () => `
+            <g transform="rotate(-22)">
+                <path d="M-11 0 L-10 -11 L-4 -5 L0 -14 L4 -5 L10 -11 L11 0 Z" fill="#caa23a" stroke="#05060c" stroke-width="1.5" stroke-linejoin="round"/>
+            </g>
+            <path d="M8 -2 l6 -2 M12 1 l5 1" stroke="#caa23a" stroke-width="1.2" stroke-linecap="round"/>`,
+        light: () => null
+    },
+    // Plan de l'étage épinglé, toutes les zones cochées. Origine : centre.
+    checkedMap: {
+        markup: () => `
+            <rect x="-22" y="-16" width="44" height="32" fill="#cbbf9f" stroke="#05060c" stroke-width="1.5" transform="rotate(-3)"/>
+            <path d="M0 -14 V14 M-20 0 H20" stroke="#8a7a5a" stroke-width="1"/>
+            <g fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M-15 -7 l3 3 l6 -6"/><path d="M5 -7 l3 3 l6 -6"/><path d="M-15 7 l3 3 l6 -6"/><path d="M5 7 l3 3 l6 -6"/>
+            </g>
+            <circle cx="0" cy="-17" r="2" fill="#b45309" stroke="#05060c" stroke-width="0.8"/>`,
+        light: () => null
+    },
+    // Nuage de poussière soulevé par une fuite précipitée. Origine : milieu du bas (au sol).
+    dustPuff: {
+        markup: () => `
+            <g class="bd-dust" fill="#9a8f7a" opacity="0.5">
+                <circle cx="-10" cy="-5" r="6"/><circle cx="0" cy="-8" r="8"/><circle cx="11" cy="-4" r="5"/>
+            </g>
+            <path d="M18 -26 H34 M14 -18 H36 M20 -10 H32" stroke="#9a8f7a" stroke-width="1.2" stroke-linecap="round" opacity="0.5"/>`,
+        light: () => null
+    },
+    // Cafétéria plongée dans le noir : plateau renversé, deux yeux dans l'ombre. Origine : milieu du bas.
+    darkCafeteria: {
+        markup: () => `
+            <rect x="-40" y="-26" width="80" height="4" fill="#3a3e44" stroke="#05060c" stroke-width="1"/>
+            <path d="M-34 -22 V0 M34 -22 V0" stroke="#2f3136" stroke-width="3"/>
+            <g transform="translate(-10 -4) rotate(18)"><rect x="-12" y="-3" width="24" height="5" rx="1" fill="#6b7078" stroke="#05060c" stroke-width="1"/></g>
+            <circle cx="14" cy="-2" r="3" fill="#b8b2a0" stroke="#05060c" stroke-width="0.8"/>
+            <g class="bd-blink" style="animation-duration:4s"><circle cx="-6" cy="-44" r="1.8" fill="#fde68a"/><circle cx="2" cy="-44" r="1.8" fill="#fde68a"/></g>`,
+        light: () => null
+    },
+    // Escalier qui descend vers l'étage suivant, lumière au fond. Origine : milieu du bas (au sol).
+    stairsDown: {
+        markup: () => {
+            const steps = [0, 1, 2, 3, 4].map(i => `<rect x="${-30 + i * 6}" y="${-40 + i * 8}" width="${60 - i * 12}" height="8" fill="${['#3a3e44', '#34373c', '#2e3135', '#282a2e', '#212326'][i]}" stroke="#05060c" stroke-width="1"/>`).join('');
+            return `<path d="M-36 -48 H36 V0 H-36 Z" fill="#111317" stroke="#05060c" stroke-width="1.5"/>
+            <ellipse cx="0" cy="-6" rx="16" ry="5" fill="#93c5fd" opacity="0.35"/>${steps}
+            <path d="M-36 -48 V0 M36 -48 V0" stroke="#4a5058" stroke-width="3"/>
+            <path class="bd-calm-glow" d="M-7 -62 L0 -55 L7 -62 M-7 -69 L0 -62 L7 -69" fill="none" stroke="#93c5fd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>`;
+        },
+        light: () => ({ dx: 0, dy: -10, color: '#60a5fa', radius: 40, flicker: false })
+    },
+    // Autel du Pacte du Crawler : deux cierges et un contrat signé. Origine : milieu du bas (au sol).
+    pactAltar: {
+        markup: () => `
+            <rect x="-26" y="-24" width="52" height="24" fill="#3b2f45" stroke="#05060c" stroke-width="1.5"/>
+            <rect x="-30" y="-28" width="60" height="5" fill="#4a3b52" stroke="#05060c" stroke-width="1.2"/>
+            <rect x="-10" y="-36" width="20" height="9" fill="#e8e1c8" stroke="#05060c" stroke-width="0.8" transform="rotate(-6)"/>
+            <path d="M-6 -33 h10 M-6 -30 h7" stroke="#6b6150" stroke-width="0.8"/>
+            <circle cx="5" cy="-30" r="1.8" fill="#991b1b"/>
+            <rect x="-26" y="-40" width="4" height="12" fill="#e8e1c8" stroke="#05060c" stroke-width="0.6"/>
+            <rect x="22" y="-40" width="4" height="12" fill="#e8e1c8" stroke="#05060c" stroke-width="0.6"/>
+            <path class="bd-flame" d="M-24 -48 c2 3 2 5 0 7 c-2 -2 -2 -4 0 -7 Z" fill="#c084fc"/>
+            <path class="bd-flame" style="animation-delay:-0.6s" d="M24 -48 c2 3 2 5 0 7 c-2 -2 -2 -4 0 -7 Z" fill="#c084fc"/>`,
+        light: () => ({ dx: 0, dy: -40, color: '#a855f7', radius: 46, flicker: true })
+    },
+
     // Rai de lumière filtrée tombant de la verrière. Origine : point haut.
     lightShaft: {
         markup: (o) => `<path d="M-10 0 L10 0 L46 108 L-20 108 Z" fill="${o.color || '#86efac'}" opacity="0.06"/>`,
