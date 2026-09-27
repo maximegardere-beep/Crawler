@@ -18,7 +18,7 @@ function makeEl() {
             replace(oldC, newC) { if (this._set.has(oldC)) { this._set.delete(oldC); this._set.add(newC); } }
         },
         // setProperty/getPropertyValue : nécessaires pour les variables CSS (--xyz) posées par
-        // scene.js (renderMobSprite()) — un vrai CSSStyleDeclaration les expose déjà, ce stub minimal
+        // scene.js (teintes des silhouettes) — un vrai CSSStyleDeclaration les expose déjà, ce stub minimal
         // se contente de lire/écrire la même propriété qu'un accès direct (style.xyz).
         style: {
             setProperty(prop, value) { this[prop] = value; },

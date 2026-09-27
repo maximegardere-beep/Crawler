@@ -68,14 +68,11 @@ const mobModifiers = {
 // Hystérique) ont été retouchées ponctuellement pour corriger les écarts les plus visibles — pas de
 // règle générale appliquée à tout le catalogue, ça reste à faire à l'occasion d'un futur rework.
 //
-// `visualArchetype` (chantier "refonte graphique", branche `graphique`) : silhouette réutilisable
-// parmi celles de sprites.js (MOB_ARCHETYPES) — donnée pure, lue par scene.js, jamais par le moteur
-// de jeu. Survit au clonage/renommage avec modificateurs (generateMob() clone l'entrée AVANT
-// d'ajouter un suffixe à `.name`), voir CLAUDE.md. L'archétype "shade" (ombres/fantômes/gaz —
-// Livre Maudit, Bibliothécaire Fantôme, Ombre Suspicieuse, Miroir Brisé, Nuage de Chlore Ambulant,
-// Encre Vivante...) est en plus marqué FLOTTANT côté scene.js (MOB_ARCHETYPE_FLOATS, chantier
-// "normalisation visuelle") : le sprite plane au-dessus de son ombre portée plutôt que d'y toucher,
-// lisible comme une lévitation volontaire.
+// `visualArchetype` : clé de la silhouette de profil utilisée dans la scène de combat (voir
+// SCENE_MOB_SPRITES dans sprites.js) — donnée purement visuelle, jamais lue par le moteur de jeu.
+// Survit au clonage/renommage avec modificateurs (generateMob() clone l'entrée AVANT d'ajouter un
+// suffixe à `.name`). La silhouette "shade" (ombres/fantômes/gaz) est dessinée en lévitation au-dessus
+// de son ombre au sol.
 const baseMobs = [
     { name: "Rat Goulot", hp: 30, atk: 5, def: 2, xpReward: 10, allowedTags: ["mental", "physical", "elemental"], visualArchetype: "beast" },
     { name: "Distributeur de Snacks Hanté", hp: 70, atk: 11, def: 10, xpReward: 40, allowedTags: ["elemental", "physical"], visualArchetype: "machine" },
@@ -137,7 +134,7 @@ function findMobByName(name) {
 // "fear"/"adrenaline", les plus proches thématiquement).
 //
 // `visualArchetype` (voir baseMobs ci-dessus, même convention) : un boss réutilise une silhouette
-// existante, affichée plus grande et couronnée par scene.js (jamais de silhouette dédiée par boss).
+// existante, couronnée dans la scène de combat (jamais de silhouette dédiée par boss).
 const districtBosses = {
     "Tunnels de Métro Abandonnés": { name: "Le Chef de Gare Nécrosé", hp: 220, atk: 15, def: 10, xpReward: 90, effect: "stun", isBoss: true, visualArchetype: "zombie",
         signatureItem: { name: "Sifflet du Chef de Gare Nécrosé", category: "weapons", baseDmg: 30, baseValue: 90, canEnchant: false, mechanics: ["stun"], signature: true } },

@@ -1268,6 +1268,9 @@ function updateUI() {
         ui.combatSidePlayer.classList.remove('flex', 'flex-col');
     }
 
+    // Scène de combat en vue latérale (scene.js) : seul point d'entrée de son rendu.
+    renderCombatScene();
+
     // "Lieux connus" (donjon classique) reste un panneau séparé ; la "Carte Urbaine" (étage urbain)
     // s'affiche elle en overlay directement sur la carte active plutôt qu'en panneau séparé, pour
     // que le déplacement entre villes reste au même endroit que l'exploration classique. Elle se

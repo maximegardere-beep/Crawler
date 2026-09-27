@@ -265,6 +265,15 @@
             line-height: 1;
         }
 
+        /* --- Scène de combat en vue latérale (scene.js / sprites.js) ---
+           Teintes des silhouettes : variables CSS posées par scene.js selon l'effet du mob ou la
+           spécialité du compagnon (valeurs neutres par défaut). */
+        .mf-base { fill: var(--mob-base, #4a5b6b); stroke: #05060c; stroke-width: 2.5; stroke-linejoin: round; }
+        .mf-dark { fill: var(--mob-dark, #33404a); stroke: #05060c; stroke-width: 2; stroke-linejoin: round; }
+        .mf-accent { fill: var(--mob-accent, #c23b3b); }
+        .mf-line { fill: none; stroke: var(--mob-dark, #33404a); stroke-width: 4; stroke-linecap: round; }
+        .scene-ground-shadow { fill: #000; opacity: 0.4; }
+
         /* --- Overlay d'ambiance (états critiques du joueur) ---
            Chaque effet est une couche indépendante empilable (plusieurs classes peuvent être
            actives à la fois, ex: bas PV + saignement) : voir applyScreenStateEffects() dans app.js. */
@@ -535,6 +544,24 @@
         <!-- 4. Zone de Combat (visible uniquement pendant un affrontement, juste sous la carte) -->
         <div id="combat-zone" class="hidden p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
             <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Zone de Combat</span>
+
+            <!-- Scène de combat en vue latérale : mob à gauche, crawler ancré à droite, sol horizontal.
+                 Rendue par renderCombatScene() (scene.js), appelée en fin d'updateUI() ; la position
+                 du mob vient de distanceToX(gameState.combatDistance). Le cadre garde le ratio du
+                 viewBox (360 x 150) quelle que soit la largeur de l'écran. -->
+            <div id="combat-scene" class="relative w-full mb-3 rounded-lg overflow-hidden border border-red-900/40" style="aspect-ratio: 360 / 150;">
+                <svg id="combat-scene-svg" viewBox="0 0 360 150" class="absolute inset-0 w-full h-full" role="img" aria-label="Scène de combat : le monstre à gauche, vous à droite">
+                    <rect x="0" y="0" width="360" height="124" fill="#11141d"/>
+                    <rect x="52" y="0" width="16" height="124" fill="#151a26"/>
+                    <rect x="172" y="0" width="16" height="124" fill="#151a26"/>
+                    <rect x="292" y="0" width="16" height="124" fill="#151a26"/>
+                    <rect x="0" y="124" width="360" height="26" fill="#1c2233"/>
+                    <line x1="0" y1="124" x2="360" y2="124" stroke="#2c3550" stroke-width="2"/>
+                    <g id="scene-companion" class="hidden"></g>
+                    <g id="scene-crawler"></g>
+                    <g id="scene-mob"></g>
+                </svg>
+            </div>
             <div class="text-center text-sm text-red-300 mb-3 font-bold flex items-center justify-center gap-2">
                 <span id="enemy-name">-</span>
                 <!-- Badge de phase permanent (discret) : visible uniquement à partir de la phase 2 d'un
@@ -990,13 +1017,15 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=89"></script>
-    <script src="items.js?v=89"></script>
-    <script src="spells.js?v=89"></script>
-    <script src="districts.js?v=89"></script>
-    <script src="safehouses.js?v=89"></script>
-    <script src="generator.js?v=89"></script>
-    <script src="anomalies.js?v=89"></script>
-    <script src="app.js?v=89"></script>
+    <script src="bestiary.js?v=90"></script>
+    <script src="items.js?v=90"></script>
+    <script src="spells.js?v=90"></script>
+    <script src="districts.js?v=90"></script>
+    <script src="safehouses.js?v=90"></script>
+    <script src="generator.js?v=90"></script>
+    <script src="anomalies.js?v=90"></script>
+    <script src="sprites.js?v=90"></script>
+    <script src="scene.js?v=90"></script>
+    <script src="app.js?v=90"></script>
 </body>
 </html>

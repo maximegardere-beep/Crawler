@@ -10,6 +10,7 @@
 const { counts } = require('./regression/_helpers.js');
 require('./regression/meta-reset.js');
 require('./regression/combat.js');
+require('./regression/combat-scene.js');
 require('./regression/combat-scaling.js');
 require('./regression/combat-boss.js');
 require('./regression/combat-enrage.js');
