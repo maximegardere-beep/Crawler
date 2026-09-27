@@ -197,25 +197,6 @@
             }
         }
 
-        /* Jauge de tension anti-kite (chantier "lisibilité combat", Chantier 5) : appliquée à
-           #combat-distance-fill dès que le mob est tenu à distance sans pouvoir attaquer
-           (enemy.kitingRounds > mobKitingBaseline(enemy), voir renderDistanceTension() dans app.js) —
-           la teinte de la barre glisse du gris/bleu habituel vers le rouge/orangé en pulsant, pour
-           que la tension monte visuellement avant même que l'enrage ne se déclenche. */
-        @keyframes distanceTensionPulse {
-            0%, 100% { background-color: #f97316; box-shadow: 0 0 4px 0 rgba(249,115,22,0.5); }
-            50%      { background-color: #dc2626; box-shadow: 0 0 10px 2px rgba(220,38,38,0.7); }
-        }
-        .distance-tension {
-            animation: distanceTensionPulse 1s ease-in-out infinite;
-        }
-        @media (prefers-reduced-motion: reduce) {
-            .distance-tension {
-                animation: none;
-                background-color: #dc2626;
-            }
-        }
-
         /* Hiérarchie visuelle des impacts (chantier "lisibilité combat", Chantier 4) : réservées aux
            coups qui doivent se distinguer d'une frappe normale EN UNE MICROSECONDE — télégraphe
            exécuté, ruée d'enrage, chaque frappe de phase 3 (les 3 déclenchées via le flag `heavy` déjà
@@ -283,15 +264,6 @@
             font-weight: bold;
             line-height: 1;
         }
-        /* Chantier "polish", Axe B : l'anneau PV des panneaux relocalisés dans la scène (statuts/dé)
-           est remplacé par les nouvelles barres (#scene-player-hp-wrap/#scene-enemy-hp-wrap) —
-           sélecteur d'ENFANT DIRECT uniquement : ne masque jamais l'anneau du compagnon, imbriqué
-           plus profondément dans #companion-combat-indicator, ni un anneau PV ailleurs dans l'appli
-           (profil joueur, écran de victoire...). */
-        #combat-side-enemy > .hp-ring-wrapper,
-        #combat-side-player > .hp-ring-wrapper {
-            display: none;
-        }
 
         /* --- Overlay d'ambiance (états critiques du joueur) ---
            Chaque effet est une couche indépendante empilable (plusieurs classes peuvent être
@@ -345,188 +317,6 @@
            sur Chrome/Firefox, mais Safari utilise son propre pseudo-élément dédié). */
         #player-profile > summary::-webkit-details-marker {
             display: none;
-        }
-
-        /* --- Scène de combat (couloir SVG) — chantier "refonte graphique", branche `graphique` ---
-           Vignette sombre en surcouche du couloir (ambiance "couloir en perspective sombre" de la
-           maquette validée). Correctif : légère lueur ambrée au centre (répond à la lueur de
-           l'arche dans buildCorridorSvg()), combinée au dégradé sombre des bords — reste dans le
-           thème sombre, juste un peu plus de couleur. Pas de variation par quartier, voir scene.js. */
-        #scene-vignette {
-            background:
-                radial-gradient(ellipse at 50% 40%, rgba(202,162,58,0.10) 0%, transparent 35%),
-                radial-gradient(ellipse at 50% 45%, transparent 40%, rgba(2,3,6,0.8) 100%);
-        }
-        /* Ombres portées (chantier "normalisation visuelle") : simple ellipse aplatie, jamais un
-           import SVG — suffisant pour un ancrage au sol discret. Largeur/position posées par sprite
-           (statique pour joueur/compagnon, recalculée à chaque rendu pour le mob par scene.js). */
-        .scene-shadow {
-            aspect-ratio: 1 / 0.28;
-            border-radius: 50%;
-            background: radial-gradient(ellipse, rgba(0,0,0,0.55) 0%, transparent 75%);
-            transform: translateX(-50%);
-            transition: left 0.5s ease-out, bottom 0.5s ease-out, width 0.5s ease-out;
-        }
-        /* Sprites (joueur + archétypes de mobs, voir sprites.js) : contours épais sombres, un seul
-           accent rouge (--mob-accent) réservé aux détails de danger — jamais utilisé sur le joueur.
-           Teintes de base/ombre posées par instance via renderMobSprite() (scene.js), selon l'effet
-           du mob généré ; valeurs neutres par défaut si scene.js n'a encore rien posé. */
-        #scene-mob-sprite svg, #scene-player-sprite svg {
-            width: 100%;
-            height: auto;
-            display: block;
-            overflow: visible;
-            filter: drop-shadow(0 6px 5px rgba(0,0,0,0.5));
-        }
-        .mob-fill-base { fill: var(--mob-base, #6b7280); stroke: #05060c; stroke-width: 4; }
-        .mob-fill-dark { fill: var(--mob-dark, #454c58); stroke: #05060c; stroke-width: 3; }
-        .mob-fill-accent { fill: var(--mob-accent, #c23b3b); }
-        .mob-stroke-thick { stroke: var(--mob-dark, #454c58); stroke-width: 10; stroke-linecap: round; }
-        /* Présence vivante du joueur (chantier "normalisation visuelle") : respiration lente en
-           continu, recul bref superposé lors des dégâts reçus (playPlayerHitRecoil(), scene.js,
-           câblé sur applyPlayerDamage() — seul point de passage des PV perdus, voir CLAUDE.md). Les
-           deux animations ciblent `transform` : le recul (courte, non-infinite) prend simplement le
-           dessus pendant ses ~0.3s, la respiration reprend ensuite d'elle-même. */
-        @keyframes scenePlayerBreathe {
-            0%, 100% { transform: translateY(0); }
-            50%      { transform: translateY(-1.5%); }
-        }
-        #scene-player-sprite {
-            animation: scenePlayerBreathe 3.4s ease-in-out infinite;
-        }
-        @keyframes scenePlayerRecoil {
-            0%   { transform: translateY(0) scale(1); }
-            30%  { transform: translateY(1.5%) scale(0.97); }
-            100% { transform: translateY(0) scale(1); }
-        }
-        #scene-player-sprite.scene-player-hit {
-            animation: scenePlayerRecoil 0.3s ease-out;
-        }
-        @media (prefers-reduced-motion: reduce) {
-            #scene-player-sprite {
-                animation: none;
-            }
-            #scene-player-sprite.scene-player-hit {
-                animation: none;
-            }
-        }
-        .scene-boss-crown {
-            position: absolute;
-            top: -13%;
-            left: 15%;
-            width: 70%;
-        }
-        /* Sélecteur d'enfant direct (>) : ne cible QUE la silhouette du mob, jamais la couronne
-           imbriquée dans .scene-boss-crown (qui garde son propre drop-shadow neutre ci-dessus). */
-        #scene-mob-sprite.scene-sprite-boss > svg {
-            filter: drop-shadow(0 6px 5px rgba(0,0,0,0.5)) drop-shadow(0 0 10px rgba(202,162,58,0.35));
-        }
-        /* Télégraphe (chantier "refonte graphique", Étape 4) : halo rouge pulsé sur le mob tant que
-           enemy.status.telegraph est actif — même état que la bannière #telegraph-banner existante
-           (updateTelegraphBanner() dans app.js), lu indépendamment ici par renderMobSprite() (scene.js).
-           Désactivé sous prefers-reduced-motion (halo fixe, sans pulse). */
-        @keyframes sceneTelegraphPulse {
-            0%, 100% { filter: drop-shadow(0 6px 5px rgba(0,0,0,0.5)) drop-shadow(0 0 0px rgba(239,68,68,0)); }
-            50%      { filter: drop-shadow(0 6px 5px rgba(0,0,0,0.5)) drop-shadow(0 0 16px rgba(239,68,68,0.95)); }
-        }
-        #scene-mob-sprite.scene-telegraph > svg {
-            animation: sceneTelegraphPulse 0.9s ease-in-out infinite;
-        }
-        @media (prefers-reduced-motion: reduce) {
-            #scene-mob-sprite.scene-telegraph > svg {
-                animation: none;
-                filter: drop-shadow(0 6px 5px rgba(0,0,0,0.5)) drop-shadow(0 0 12px rgba(239,68,68,0.95));
-            }
-        }
-
-        /* --- Effets d'attaque (chantier "refonte graphique", correctif) — voir
-           scene.js -> playAttackAnimation(). Un seul type d'élément par effet, créé/retiré à la
-           volée dans #scene-fx-layer, jamais persistant dans le DOM. */
-
-        /* Coup au corps à corps (arme/mains nues) : secousse brève du sprite mob + éclair de choc. */
-        @keyframes sceneMeleeShake {
-            0%, 100% { transform: translateX(0); }
-            20% { transform: translateX(-4%); }
-            40% { transform: translateX(3%); }
-            60% { transform: translateX(-2%); }
-            80% { transform: translateX(1%); }
-        }
-        #scene-mob-sprite.scene-melee-hit {
-            animation: sceneMeleeShake 0.3s ease-in-out;
-        }
-        .scene-slash {
-            position: absolute;
-            width: 46%;
-            height: 46%;
-            border: 5px solid #f4f4f5;
-            border-left-color: transparent;
-            border-bottom-color: transparent;
-            border-radius: 50%;
-            transform: translate(-50%, -50%) rotate(45deg) scale(0.4);
-            opacity: 0;
-            filter: drop-shadow(0 0 4px rgba(244,244,245,0.8));
-            animation: sceneSlash 0.3s ease-out forwards;
-        }
-        @keyframes sceneSlash {
-            0%   { opacity: 0; transform: translate(-50%, -50%) rotate(30deg) scale(0.3); }
-            35%  { opacity: 1; transform: translate(-50%, -50%) rotate(55deg) scale(1); }
-            100% { opacity: 0; transform: translate(-50%, -50%) rotate(65deg) scale(1.15); }
-        }
-
-        /* Projectile physique (Tir) : simple trait qui file du joueur vers la cible. */
-        .scene-projectile-physical {
-            position: absolute;
-            width: 14px;
-            height: 4px;
-            margin: -2px 0 0 -7px;
-            background: #cbb27a;
-            border: 1px solid #05060c;
-            border-radius: 2px;
-            transition: left 0.35s linear, top 0.35s linear;
-        }
-
-        /* Lueur magique générique (corps à corps ou point d'impact du projectile à distance) : un
-           halo qui explose puis s'estompe, sans accent rouge (réservé au danger côté mob). */
-        .scene-magic-glow {
-            position: absolute;
-            width: 40%;
-            height: 40%;
-            transform: translate(-50%, -50%) scale(0.3);
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(147,197,253,0.9) 0%, rgba(129,140,248,0.5) 45%, transparent 75%);
-            opacity: 0;
-            animation: sceneMagicGlow 0.45s ease-out forwards;
-        }
-        @keyframes sceneMagicGlow {
-            0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
-            40%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); }
-        }
-
-        /* Projectile magique (sort à distance) : orbe lumineux avec traînée, même trajet que le
-           projectile physique. */
-        .scene-projectile-magic {
-            position: absolute;
-            width: 16px;
-            height: 16px;
-            margin: -8px 0 0 -8px;
-            border-radius: 50%;
-            background: radial-gradient(circle, #e0e7ff 0%, #818cf8 55%, transparent 80%);
-            box-shadow: 0 0 10px 3px rgba(129,140,248,0.8);
-            transition: left 0.4s linear, top 0.4s linear;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            #scene-mob-sprite.scene-melee-hit {
-                animation: none;
-            }
-            .scene-slash, .scene-magic-glow {
-                animation: sceneFadeOnly 0.2s ease-out forwards;
-            }
-        }
-        @keyframes sceneFadeOnly {
-            from { opacity: 0.9; }
-            to   { opacity: 0; }
         }
     </style>
 </head>
@@ -625,105 +415,6 @@
             <div id="stair-alert-banner" class="hidden px-3 py-1.5 rounded-lg border-2 border-red-600 bg-red-950/40 text-center text-xs font-bold text-red-300 uppercase tracking-wide stair-alert-pulse">
                 ⏳ Trouvez l'escalier !
             </div>
-        </section>
-
-        <!-- 2bis. Scène de combat (couloir SVG) — chantier "refonte graphique", branche `graphique`.
-             Visible uniquement pendant un combat (voir scene.js -> renderScene(), appelée depuis
-             updateUI() dans app.js — seul point d'accroche côté moteur). Couloir neutre pour
-             l'instant : pas encore de variation visuelle par quartier (à valider plus tard). -->
-        <section id="scene-view" class="hidden gap-2 py-1 w-full">
-            <div id="scene-corridor" class="relative w-full rounded-xl overflow-hidden border border-amber-900/40" style="aspect-ratio: 4 / 3; background:#0a0d14;">
-                <svg id="scene-corridor-svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" class="absolute inset-0 w-full h-full"></svg>
-
-                <!-- Ombres portées (chantier "normalisation visuelle") : ellipses discrètes ANCRÉES
-                     sur le sol, sous chaque sprite correspondant — jamais sur un archétype flottant
-                     décalé (voir scene.js -> MOB_ARCHETYPE_FLOATS), où l'écart shadow/sprite EST le
-                     signal visuel de lévitation. z-index juste sous leur sprite respectif. -->
-                <div id="scene-mob-shadow" class="scene-shadow absolute" style="z-index: 9;"></div>
-                <!-- width recalibrée au gabarit du sprite corps entier (jambes plus fines que
-                     l'ancien buste large) : voir #scene-player-sprite juste en dessous. -->
-                <div id="scene-player-shadow" class="scene-shadow absolute" style="width: 16%; left: 78%; bottom: 0%; z-index: 19;"></div>
-                <div id="scene-companion-shadow" class="scene-shadow absolute hidden" style="width: 12%; left: 48.5%; bottom: 2%; z-index: 14;"></div>
-
-                <!-- Sprite joueur (vu de dos, corps entier — voir sprites.js, viewBox 100x160).
-                     bottom: 0 pile (les pieds sont désormais dessinés dans le SVG lui-même, plus de
-                     débord de crop à masquer comme sur l'ancien buste). width/right calibrés pour
-                     garder le MÊME centre horizontal (78%, aligné sur #scene-player-hp-wrap et
-                     #scene-player-shadow ci-dessus) sans passer par `transform` — l'animation de
-                     respiration/recul (voir plus haut, scenePlayerBreathe/scenePlayerRecoil) écrit
-                     déjà `transform`, un translateX(-50%) statique y serait écrasé à chaque frame.
-                     right = 22 - width/2 (centre = 100 - right - width/2 = 78) : si la silhouette est
-                     retouchée et change de largeur, recalculer right avec cette formule plutôt que de
-                     changer left/transform. z-index le plus élevé des sprites : reste TOUJOURS au
-                     premier plan, quel que soit l'écart de combat. -->
-                <div id="scene-player-sprite" class="absolute" style="width: 24%; right: 10%; bottom: 0%; z-index: 20;"></div>
-
-                <!-- Barre de vie du joueur (chantier "polish", Axe B) : remplace le bandeau du haut
-                     ET l'ancien anneau du panneau relocalisé (masqué, voir index.html/scene.js) —
-                     position FIXE au-dessus de la tête du joueur (celui-ci ne change jamais de
-                     profondeur, contrairement au mob). -->
-                <div id="scene-player-hp-wrap" class="absolute" style="width: 32%; left: 78%; bottom: 58%; transform: translateX(-50%); z-index: 25;">
-                    <div class="flex justify-between text-[8px] uppercase tracking-widest text-blue-400">
-                        <span>Crawler</span>
-                        <span id="scene-player-hp-text">0/0</span>
-                    </div>
-                    <div class="w-full h-2 bg-gray-950 rounded-full border border-gray-800 overflow-hidden">
-                        <div id="scene-player-hp-bar" class="bg-blue-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
-                    </div>
-                </div>
-
-                <!-- Sprite compagnon (chantier "refonte graphique", Étape 4) : visible seulement si
-                     gameState.companion est actif, teinté selon sa spécialité (voir scene.js). -->
-                <div id="scene-companion-sprite" class="absolute hidden" style="width: 15%; right: 44%; bottom: 3%; z-index: 15;"></div>
-
-                <!-- Sprite mob (archétype selon gameState.currentEnemy.visualArchetype, voir
-                     bestiary.js/sprites.js) : position (bottom/left/width) recalculée à chaque rendu
-                     par scene.js -> renderMobSprite(), ANCRÉE sur le sol réel de la perspective du
-                     couloir (trapèze du sol dans buildCorridorSvg()) selon gameState.combatDistance —
-                     jamais de `top` fixé en parallèle (l'ancrage bas + la hauteur automatique du SVG
-                     suffisent, voir CLAUDE.md). Gabarit et z-index (10) toujours inférieurs au
-                     joueur : reste visuellement en retrait même à l'écart nul. -->
-                <div id="scene-mob-sprite" class="absolute transition-all duration-500 ease-out" style="width: 22%; left: 22%; bottom: 0%; z-index: 10;"></div>
-
-                <!-- Couche d'effets d'attaque (coup CAC, projectile, lueur magique — voir
-                     scene.js -> playAttackAnimation()) : au-dessus des sprites (z-index 22),
-                     sous les badges PV (25) et la vignette (30). pointer-events-none : ne bloque
-                     jamais les clics. -->
-                <div id="scene-fx-layer" class="absolute inset-0 pointer-events-none" style="z-index: 22;"></div>
-
-                <!-- Emplacements des panneaux PV existants (badges de statut + dé + indicateur
-                     compagnon) : DÉPLACÉS ici une seule fois par scene.js (ensureSceneDom()), jamais
-                     dupliqués/réécrits — app.js continue de les gérer exactement comme avant, sans le
-                     savoir. Conserve au passage le point d'ancrage `position: relative` dont dépend
-                     showFloatingDamage() (app.js) pour les chiffres de dégâts flottants. Le slot
-                     ennemi est repositionné à chaque rendu par scene.js pour SUIVRE le mob (correctif :
-                     les dégâts flottants partaient d'un coin fixe, jamais de la position réelle).
-                     L'ancien anneau PV (dans le panneau relocalisé) est masqué en CSS (voir
-                     index.html) : #scene-enemy-hp-wrap ci-dessous, avec un gabarit proportionnel au
-                     mob, le remplace comme unique affichage PV côté mob (Axe B, "polish"). -->
-                <div id="scene-enemy-badge-slot" class="absolute transition-all duration-500 ease-out flex flex-col items-center gap-0.5" style="z-index: 25;">
-                    <div id="scene-enemy-hp-wrap" style="width: 26%;">
-                        <div class="flex justify-between text-[8px] uppercase tracking-widest text-red-400">
-                            <span id="scene-enemy-name-text" class="truncate">Ennemi</span>
-                            <span id="scene-enemy-hp-text" class="shrink-0">0/0</span>
-                        </div>
-                        <div class="w-full h-2 bg-gray-950 rounded-full border border-gray-800 overflow-hidden">
-                            <div id="scene-enemy-hp-bar" class="bg-red-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
-                        </div>
-                    </div>
-                </div>
-                <div id="scene-player-badge-slot" class="absolute" style="bottom: 3%; left: 4%; z-index: 25;"></div>
-
-                <div id="scene-vignette" class="absolute inset-0 pointer-events-none" style="z-index: 30;"></div>
-            </div>
-
-            <!-- Boîte de dialogue (correctif : remplace l'ancienne carte pleine hauteur, jugée trop
-                 imposante) — bandeau en largeur sous le visuel. Réutilise le style "mini-card"
-                 (parchemin) déjà existant : #card-body (chips ATQ/DEF/effet + bouton Examiner, gérés
-                 par renderCombatMobPanel() dans app.js) y est DÉPLACÉ dynamiquement à l'entrée en
-                 combat par scene.js, puis replacé dans la carte d'exploration à la sortie — jamais
-                 dupliqué, aucun changement app.js nécessaire (voir relocateDialogueBody()). -->
-            <div id="scene-dialogue-box" class="mini-card rounded-lg px-3 py-2 w-full max-h-28 overflow-y-auto"></div>
         </section>
 
         <!-- 3. Deck de Cartes -->
@@ -857,17 +548,6 @@
                  Masquée/remplie depuis updateUI() -> updateTelegraphBanner() dans app.js. -->
             <div id="telegraph-banner" class="hidden mb-3 px-3 py-2 rounded-lg border-2 border-orange-500 bg-orange-950/40 text-center text-xs font-bold text-orange-300 uppercase tracking-wide telegraph-pulse"></div>
 
-            <!-- Barre de distance texte/emoji retirée (chantier "refonte graphique", branche
-                 `graphique`) : la position du mob dans la scène (scene.js) porte désormais cette
-                 information visuellement. #combat-distance-fill reste présent mais masqué :
-                 renderDistanceTension() (app.js) s'appuie encore dessus (classList) pour la jauge de
-                 tension anti-kite, dont le texte (#distance-tension-label) reste affiché seul,
-                 juste sous le télégraphe. Aucun changement app.js nécessaire pour ce retrait. -->
-            <div id="combat-distance-wrapper" class="hidden">
-                <div id="combat-distance-fill"></div>
-                <span id="combat-distance-enemy-icon"></span>
-                <span id="combat-distance-player-icon"></span>
-            </div>
             <p id="distance-tension-label" class="hidden mb-3 text-center text-[9px] font-bold uppercase tracking-wider"></p>
 
             <!-- Barre de Mana en combat : visible uniquement si un sort est équipé, voir updateUI() -->
@@ -1310,15 +990,13 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=88"></script>
-    <script src="items.js?v=88"></script>
-    <script src="spells.js?v=88"></script>
-    <script src="districts.js?v=88"></script>
-    <script src="safehouses.js?v=88"></script>
-    <script src="generator.js?v=88"></script>
-    <script src="anomalies.js?v=88"></script>
-    <script src="sprites.js?v=88"></script>
-    <script src="scene.js?v=88"></script>
-    <script src="app.js?v=88"></script>
+    <script src="bestiary.js?v=89"></script>
+    <script src="items.js?v=89"></script>
+    <script src="spells.js?v=89"></script>
+    <script src="districts.js?v=89"></script>
+    <script src="safehouses.js?v=89"></script>
+    <script src="generator.js?v=89"></script>
+    <script src="anomalies.js?v=89"></script>
+    <script src="app.js?v=89"></script>
 </body>
 </html>

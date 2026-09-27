@@ -648,11 +648,7 @@ const ui = {
     btnRetreat: document.getElementById('btn-retreat'),
     btnEngage: document.getElementById('btn-engage'),
     btnFlee: document.getElementById('btn-flee'),
-    combatDistanceWrapper: document.getElementById('combat-distance-wrapper'),
-    combatDistanceFill: document.getElementById('combat-distance-fill'),
     distanceTensionLabel: document.getElementById('distance-tension-label'),
-    combatDistancePlayerIcon: document.getElementById('combat-distance-player-icon'),
-    combatDistanceEnemyIcon: document.getElementById('combat-distance-enemy-icon'),
     equippedRanged: document.getElementById('equipped-ranged'),
     btnDevTestKit: document.getElementById('btn-dev-testkit'),
     btnDevJumpUrban: document.getElementById('btn-dev-jump-urban'),
@@ -1185,12 +1181,10 @@ function updateUI() {
         updateTelegraphBanner();
 
         // --- Distance de combat : verrouille/déverrouille Arme, Tir et Mains nues selon l'écart
-        // actuel (0 = corps à corps possible, >0 = seul le Tir porte). La barre est TOUJOURS
-        // affichée pendant un combat, même à 0, pour que l'état du duel reste visible en permanence.
-        // Aucune notion de posture : ces règles ne dépendent que de l'écart courant et de l'équipement.
+        // actuel (0 = corps à corps possible, >0 = seul le Tir porte). Aucune notion de posture : ces
+        // règles ne dépendent que de l'écart courant et de l'équipement.
         const distance = gameState.combatDistance || 0;
         const atMelee = distance <= 0;
-        const enemyIsMelee = gameState.currentEnemy ? !mobWantsFar(gameState.currentEnemy) : false;
         if (ui.btnAttackWeapon) {
             const weaponUsable = atMelee && !!gameState.equipment.weapon;
             ui.btnAttackWeapon.disabled = !weaponUsable;
@@ -1258,38 +1252,6 @@ function updateUI() {
             ui.btnFlee.classList.toggle('opacity-40', !fleeUsable);
             ui.btnFlee.classList.toggle('pointer-events-none', !fleeUsable);
         }
-
-        // Icônes joueur/ennemi sur la barre : le mob est TOUJOURS à gauche, le joueur TOUJOURS à
-        // droite, tous deux reflétant symétriquement le même écart courant de part et d'autre du
-        // centre — HOME_EDGE est la position de chaque camp à l'écart maximal, ADJACENT_GAP l'écart
-        // minimal entre les deux icônes à écart nul (corps à corps), pour qu'elles restent
-        // visuellement distinctes sans se superposer.
-        if (ui.combatDistancePlayerIcon && ui.combatDistanceEnemyIcon && ui.combatDistanceFill) {
-            const maxDist = config.rangedCombat.maxDistance || 1;
-            const ratio = Math.max(0, Math.min(1, distance / maxDist));
-            const HOME_EDGE = 8;
-            const ADJACENT_GAP = 5;
-            const half = 50 - ADJACENT_GAP / 2;
-            const enemyPos = half - ratio * (half - HOME_EDGE);
-            const playerPos = 100 - enemyPos;
-            ui.combatDistancePlayerIcon.style.left = `${playerPos}%`;
-            ui.combatDistanceEnemyIcon.style.left = `${enemyPos}%`;
-
-            // La barre remplie relie directement les deux icônes : elle EST l'écart entre elles,
-            // et non plus une simple jauge indépendante — leur mouvement et son étendue restent
-            // ainsi toujours corrélés.
-            const leftPos = Math.min(enemyPos, playerPos);
-            const rightPos = Math.max(enemyPos, playerPos);
-            ui.combatDistanceFill.style.left = `${leftPos}%`;
-            ui.combatDistanceFill.style.width = `${rightPos - leftPos}%`;
-            // Bleu si l'écart profite au joueur (mob de mêlée tenu à distance), rouge s'il le subit
-            // (mob à distance qui tient sa portée sans qu'on puisse le rattraper), gris à écart nul.
-            const playerBenefits = enemyIsMelee && distance > 0;
-            const playerSuffers = !enemyIsMelee && distance > 0;
-            ui.combatDistanceFill.classList.toggle('bg-cyan-600', playerBenefits);
-            ui.combatDistanceFill.classList.toggle('bg-red-600', playerSuffers);
-            ui.combatDistanceFill.classList.toggle('bg-gray-600', !playerBenefits && !playerSuffers);
-        }
     } else {
         // Étage urbain : le tapotement de la carte n'a aucun effet (explore() se bloque déjà sur
         // gameState.floorMap === null), donc l'invite "Touchez la carte pour explorer" n'a plus lieu
@@ -1305,12 +1267,6 @@ function updateUI() {
         ui.combatSidePlayer.classList.add('hidden');
         ui.combatSidePlayer.classList.remove('flex', 'flex-col');
     }
-
-    // Scène de combat (chantier "refonte graphique", branche `graphique`) : seul point d'accroche
-    // côté moteur, tout le reste (DOM, styles, état) vit dans scene.js. Garde défensive : scene.js
-    // est chargé juste avant app.js (voir index.html/tests/load_game.js), donc déjà défini au tout
-    // premier appel d'updateUI() ci-dessous — le typeof reste une sécurité, pas une nécessité.
-    if (typeof renderScene === 'function') renderScene();
 
     // "Lieux connus" (donjon classique) reste un panneau séparé ; la "Carte Urbaine" (étage urbain)
     // s'affiche elle en overlay directement sur la carte active plutôt qu'en panneau séparé, pour
@@ -2763,7 +2719,6 @@ function applyPlayerDamage(amount) {
     if (!amount || amount <= 0) return;
     gameState.hp = Math.max(0, gameState.hp - amount);
     gameState.floorStats.damageTaken += amount;
-    if (typeof playPlayerHitRecoil === 'function') playPlayerHitRecoil(); // Effet visuel (scene.js), voir CLAUDE.md
 }
 
 // Point de passage UNIQUE pour tout gain de PV du joueur (potion, trouvaille, régénération passive,
@@ -4677,10 +4632,9 @@ function renderEnemyStatusBadges(enemy) {
 //     valeurs RÉELLES que noteMobKitingRound() (config.distanceEnrage), jamais redupliquées en dur.
 //   - sinon (compteur à sa base) : tout masqué, rien à montrer.
 function renderDistanceTension(enemy) {
-    if (!ui.distanceTensionLabel || !ui.combatDistanceFill) return;
+    if (!ui.distanceTensionLabel) return;
     const cfg = config.distanceEnrage;
     const status = enemy && enemy.status;
-    ui.combatDistanceFill.classList.remove('distance-tension');
     if (!enemy || !status) {
         ui.distanceTensionLabel.classList.add('hidden');
         return;
@@ -4701,7 +4655,6 @@ function renderDistanceTension(enemy) {
         const chancePct = Math.round(Math.min(cfg.baseChance + cfg.chancePerRound * kitingRounds, cfg.maxChance) * 100);
         ui.distanceTensionLabel.innerText = `😤 Enrage imminent : ${chancePct}%`;
         ui.distanceTensionLabel.className = 'mt-1 text-center text-[9px] font-bold uppercase tracking-wider text-orange-400';
-        ui.combatDistanceFill.classList.add('distance-tension');
         return;
     }
     ui.distanceTensionLabel.classList.add('hidden');
@@ -6064,7 +6017,6 @@ function attackWeapon() {
     if (landed) {
         gainSkillXp('weapon', SKILL_XP_PER_USE);
         applyWeaponMechanic(equippedGear); // Ne fait rien si le combat vient de se terminer ou si l'arme n'a pas de mécanique
-        if (typeof playAttackAnimation === 'function') playAttackAnimation('melee'); // Effet visuel (scene.js), voir CLAUDE.md
     }
 }
 
@@ -6101,7 +6053,6 @@ function attackRanged() {
     if (landed) {
         gainSkillXp('weapon', SKILL_XP_PER_USE);
         applyWeaponMechanic(equippedGear);
-        if (typeof playAttackAnimation === 'function') playAttackAnimation('rangedPhysical'); // Effet visuel (scene.js), voir CLAUDE.md
     }
 }
 
@@ -6118,10 +6069,7 @@ function attackUnarmed() {
     const skill = gameState.skills.unarmed;
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
     const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75, varianceRange: 0.10, defReduction }, "à mains nues");
-    if (landed) {
-        gainSkillXp('unarmed', SKILL_XP_PER_USE);
-        if (typeof playAttackAnimation === 'function') playAttackAnimation('melee'); // Effet visuel (scene.js), voir CLAUDE.md
-    }
+    if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
 }
 
 // S'approcher : action dédiée au rapprochement, à la place d'une attaque. Toujours disponible dès
@@ -6298,10 +6246,7 @@ function attackMagic() {
         { atkMultiplier, varianceRange: 0.35, defReduction: 0.15 }, // Les sorts ignorent un peu de DEF (thématique), pas toute
         `avec [${spell.spellName}]`
     );
-    if (used) {
-        gainSkillXp('magic', SKILL_XP_PER_USE);
-        if (typeof playAttackAnimation === 'function') playAttackAnimation(needsMelee ? 'magicMelee' : 'magicRanged'); // Effet visuel (scene.js), voir CLAUDE.md
-    }
+    if (used) gainSkillXp('magic', SKILL_XP_PER_USE);
 }
 
 // Tentative de fuite : quitte le combat sans le gagner ni obtenir de loot/XP.
