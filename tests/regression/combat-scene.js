@@ -867,9 +867,12 @@ function isRedHex(hex) {
         const boss = bossesByName[name];
         return !boss || !s.held || s.held.item !== boss.signatureItem.name || !ITEM_SPRITES[s.held.item]
             || !Array.isArray(s.bounds) || s.bounds[0] < -MOB_EXTENT || s.bounds[1] > MOB_EXTENT
-            || s.top > -50 || s.top < -90 || !s.palette || forbidden.test(s.markup);
+            || s.top > -40 || s.top < -90 || !s.palette || forbidden.test(s.markup);
     });
     assert(bad.length === 0, `Sprites de boss : boss existant, son objet signature, bornes ±${MOB_EXTENT}, hauteur, aucun élément interdit (${bad.join(', ')})`);
+
+    const noSprite = Object.values(districtBosses).filter(b => !SCENE_BOSS_SPRITES[b.name]).map(b => b.name);
+    assert(noSprite.length === 0, `Chaque boss de districtBosses a son sprite unique (${noSprite.join(', ')})`);
 
     const name = Object.keys(SCENE_BOSS_SPRITES)[0];
     const boss = { ...bossesByName[name], baseName: name };

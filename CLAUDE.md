@@ -561,8 +561,8 @@ Tailwind CDN, **aucun build step**.
   (`resolveBossSpriteKey()` : `baseName` ou nom exact) remplace silhouette + détail par son propre dessin
   (`{ top, bounds, palette, markup, held }`), avec son objet signature repris TEL QUEL de `ITEM_SPRITES`
   (`bossHeldMarkup()`, placé par `held.transform`, derrière le corps si `held.layer === 'back'`) ; la
-  couronne et l'aura restent ajoutées par le jeu. Un boss sans sprite unique garde la silhouette couronnée
-  de son archétype. `combat-scene.js` exige un détail pour CHAQUE mob de
+  couronne et l'aura restent ajoutées par le jeu. Les 13 boss ont leur sprite (exigé par `combat-scene.js`) ;
+  un futur boss sans sprite unique garderait la silhouette couronnée de son archétype. `combat-scene.js` exige un détail pour CHAQUE mob de
   `baseMobs` (et aucun détail orphelin), une aura pour CHAQUE effet, des `bounds` dans ±`MOB_EXTENT`, des
   palettes valides et aucun `id=`/`<defs>`/gradient/filtre.
   **Décor** (`backdrops.js`, catalogue pur sur le modèle de `sprites/*.js`, chargé avant `scene.js`) :
