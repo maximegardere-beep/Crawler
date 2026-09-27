@@ -13,7 +13,11 @@ Tailwind CDN, **aucun build step**.
 - `safehouses.js` — types de salles sécurisées (narratif seul pour l'instant)
 - `generator.js` — génération procédurale (mobs, objets, parchemins de sorts, boss, compagnons)
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
-- `sprites.js` — silhouettes SVG des scènes (crawler, compagnon, 10 archétypes de mob, couronne de boss, PNJ marchand/professeur, cadavre vu de dessus)
+- `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
+  que le fichier concerné) : `crawler.js` (crawler + cadavre vu de dessus), `npcs.js` (compagnon, marchand,
+  professeur), `mobs.js` (10 archétypes de mob, couronne de boss). Tous chargés avant `backdrops.js`/`scene.js`,
+  même ordre dans `index.html` et `tests/load_game.js` (`GAME_FILES`) — un nouveau fichier doit être ajouté
+  aux DEUX.
 - `backdrops.js` — décors des scènes : catalogue pur (motifs de mur/sol, plafonds, accessoires, fiches de décor `SCENE_BACKDROPS`, enseignes/tableaux des villes spécialisées)
 - `scene.js` — rendu des scènes en vue latérale et de leur décor (`distanceToX()`, `composeBackdrop()`, point d'entrée unique `renderScene(mode)`)
 - `tests/` — voir plus bas
@@ -532,7 +536,7 @@ Tailwind CDN, **aucun build step**.
   Secousse du combattant touché : `shakeSceneFighter()`, appelée par `showFloatingDamage()`, dont les
   chiffres s'accrochent aux ancres `#scene-mob-anchor`/`#scene-crawler-anchor` qui suivent la scène.
   `visualArchetype` (bestiary.js) choisit la silhouette ; archétype inconnu → `goblinoid`.
-  **Décor** (`backdrops.js`, catalogue pur sur le modèle de `sprites.js`, chargé avant `scene.js`) :
+  **Décor** (`backdrops.js`, catalogue pur sur le modèle de `sprites/*.js`, chargé avant `scene.js`) :
   `#scene-backdrop`, premier enfant du SVG, donc TOUJOURS derrière combattants, bandes et chiffres.
   Bibliothèques : `BACKDROP_WALL_PATTERNS` / `BACKDROP_FLOOR_PATTERNS` (fonctions `(id, palette)` →
   `<pattern>`), `BACKDROP_CEILINGS`, `BACKDROP_PROPS` (`{ markup(opts, palette), light(opts) }`, origine
@@ -592,7 +596,7 @@ Tailwind CDN, **aucun build step**.
   ville, à chaque arrivée en ville sûre et au début d'un étage urbain).
   **Écran Game Over** (`renderScene('gameOver', { cause })`, appelé par `gameOver()`, remplace l'ancien
   emoji 💀) : seule scène VUE DE DESSUS — sol du quartier de la mort (même motif de sol que son décor),
-  cadavre `SCENE_CORPSE_TOPDOWN_SVG` (sprites.js, face contre terre, sac encore sur le dos) dans
+  cadavre `SCENE_CORPSE_TOPDOWN_SVG` (sprites/crawler.js, face contre terre, sac encore sur le dos) dans
   `GAME_OVER_BLOOD_POOL` (s'étale une fois, `.go-blood-spread`), deux plots jaunes de scène de crime
   (`evidenceMarker()`), mouches (`.go-fly`), et un indice par cause (`GAME_OVER_CAUSE_PROPS` : empreintes
   griffues pour `combat`, plaque à pointes pour `trap`, traînée de sang pour `bleed`, brûlure + grimoire
@@ -650,7 +654,7 @@ Tailwind CDN, **aucun build step**.
 
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
-  charge les 11 fichiers sources dans l'ordre.
+  charge les fichiers sources dans l'ordre (`GAME_FILES`).
 - `npm test` (= `node tests/regression.test.js`), `npm run test:long` (= `node tests/long_playthrough.js`),
   `npm run test:all` (les deux à la suite, s'arrête au premier échec) — voir `package.json`.
 - **Rapide** (`npm test`, quelques secondes) : à lancer avant CHAQUE push. `tests/regression.test.js`

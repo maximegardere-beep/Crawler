@@ -1,6 +1,6 @@
 // scene.js - Rendu de la scène de combat en vue 2D latérale (mob à gauche, crawler à droite, sol
 // horizontal) et de son décor (catalogue dans backdrops.js). Module de RENDU pur : lit
-// gameState/config, ne les modifie jamais. Chargé juste avant app.js (après sprites.js et
+// gameState/config, ne les modifie jamais. Chargé juste avant app.js (après sprites/*.js et
 // backdrops.js) ; son seul point d'entrée côté moteur est renderScene(mode) — 'combat' en fin
 // d'updateUI(), 'explore' depuis setSceneHeader(), 'merchant'/'trainer' depuis updateShopUI(),
 // 'safehouse' depuis enterRoom(), 'stairs'/'gameOver' depuis les écrans correspondants.
@@ -13,7 +13,7 @@ const SCENE_GROUND_Y = 124;
 const SCENE_MARGIN = 6;
 
 // Crawler ancré à droite, jamais déplacé. CRAWLER_FRONT_EXTENT : distance entre son centre et son
-// point le plus avancé côté mob (botte/main avant, voir SCENE_CRAWLER_SVG dans sprites.js).
+// point le plus avancé côté mob (botte/main avant, voir SCENE_CRAWLER_SVG dans sprites/crawler.js).
 const CRAWLER_X = 306;
 const CRAWLER_FRONT_EXTENT = 15;
 // Compagnon éventuel, derrière le crawler (côté droit).
@@ -512,7 +512,7 @@ function renderSafehouseScene() {
 // --- Scène d'exploration (#explore-scene, remplace l'ancienne carte à jouer) --------------------------
 // Chaque événement d'exploration (setSceneHeader() dans app.js) peut nommer une vignette : décor du
 // quartier courant en fond (préfixe 'ebd') + mise en scène de l'événement (accessoires de backdrops.js,
-// silhouettes de sprites.js). Sans vignette, l'emoji de l'événement s'affiche à la place. Même repère
+// silhouettes de sprites/*.js). Sans vignette, l'emoji de l'événement s'affiche à la place. Même repère
 // 360 x 150 que la scène de combat, vue complète ; le crawler reste à droite, à la même place qu'en
 // combat, pour que le passage exploration -> combat reste continu.
 const exploreSceneUi = {

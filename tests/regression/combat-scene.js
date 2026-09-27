@@ -1,4 +1,4 @@
-// combat-scene.js — scène de combat en vue latérale (scene.js/sprites.js) : conversion distance ->
+// combat-scene.js — scène de combat en vue latérale (scene.js/sprites/*.js) : conversion distance ->
 // abscisse, bornes de la scène, absence de chevauchement au contact, rafraîchissement dans la même
 // tick que tout changement d'écart, et couverture du bestiaire par les silhouettes.
 const { assert, resetTransientState } = require('./_helpers.js');

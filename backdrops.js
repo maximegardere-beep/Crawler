@@ -1,5 +1,5 @@
 // backdrops.js - Décors des scènes (combat, puis boutiques/salles sécurisées). Catalogue pur, sur le
-// modèle de sprites.js : aucun DOM, aucun gameState. Uniquement des générateurs de chaînes SVG et des
+// modèle de sprites/*.js : aucun DOM, aucun gameState. Uniquement des générateurs de chaînes SVG et des
 // fiches de décor ; scene.js les assemble (composeBackdrop()) et décide quand redessiner.
 //
 // Repère : celui du viewBox des scènes (360 x 150), sol à y = BACKDROP_GROUND_Y. Le décor est toujours

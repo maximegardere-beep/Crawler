@@ -69,7 +69,7 @@ const mobModifiers = {
 // règle générale appliquée à tout le catalogue, ça reste à faire à l'occasion d'un futur rework.
 //
 // `visualArchetype` : clé de la silhouette de profil utilisée dans la scène de combat (voir
-// SCENE_MOB_SPRITES dans sprites.js) — donnée purement visuelle, jamais lue par le moteur de jeu.
+// SCENE_MOB_SPRITES dans sprites/mobs.js) — donnée purement visuelle, jamais lue par le moteur de jeu.
 // Survit au clonage/renommage avec modificateurs (generateMob() clone l'entrée AVANT d'ajouter un
 // suffixe à `.name`). La silhouette "shade" (ombres/fantômes/gaz) est dessinée en lévitation au-dessus
 // de son ombre au sol.

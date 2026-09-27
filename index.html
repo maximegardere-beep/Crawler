@@ -242,7 +242,7 @@
             line-height: 1;
         }
 
-        /* --- Scène de combat en vue latérale (scene.js / sprites.js) ---
+        /* --- Scène de combat en vue latérale (scene.js / sprites/*.js) ---
            Teintes des silhouettes : variables CSS posées par scene.js selon l'effet du mob ou la
            spécialité du compagnon (valeurs neutres par défaut). */
         .mf-base { fill: var(--mob-base, #4a5b6b); stroke: #05060c; stroke-width: 2.5; stroke-linejoin: round; }
@@ -1114,16 +1114,18 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=103"></script>
-    <script src="items.js?v=103"></script>
-    <script src="spells.js?v=103"></script>
-    <script src="districts.js?v=103"></script>
-    <script src="safehouses.js?v=103"></script>
-    <script src="generator.js?v=103"></script>
-    <script src="anomalies.js?v=103"></script>
-    <script src="sprites.js?v=103"></script>
-    <script src="backdrops.js?v=103"></script>
-    <script src="scene.js?v=103"></script>
-    <script src="app.js?v=103"></script>
+    <script src="bestiary.js?v=104"></script>
+    <script src="items.js?v=104"></script>
+    <script src="spells.js?v=104"></script>
+    <script src="districts.js?v=104"></script>
+    <script src="safehouses.js?v=104"></script>
+    <script src="generator.js?v=104"></script>
+    <script src="anomalies.js?v=104"></script>
+    <script src="sprites/crawler.js?v=104"></script>
+    <script src="sprites/npcs.js?v=104"></script>
+    <script src="sprites/mobs.js?v=104"></script>
+    <script src="backdrops.js?v=104"></script>
+    <script src="scene.js?v=104"></script>
+    <script src="app.js?v=104"></script>
 </body>
 </html>
