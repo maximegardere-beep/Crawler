@@ -231,6 +231,80 @@ const BACKDROP_CEILINGS = {
     }
 };
 
+// --- Mises en scène des villes spécialisées (scène marchand / professeur) --------------------------
+// Une enseigne néon par spécialité de marchand (clé = city.specialty) : libellé, couleur, icône (tracé
+// centré sur 0,0, ~12 unités) et marchandises posées sur le comptoir (origine : centre du plateau).
+const SHOP_SIGN_STYLES = {
+    weapons: {
+        label: 'ARMES', color: '#f87171',
+        icon: 'M-5 5 L5 -5 M2 -6 L6 -2 M-6 3 L-3 6',
+        goods: `
+            <path d="M-42 -3 H-16" stroke="#9ca3af" stroke-width="2.2"/>
+            <path d="M-16 -7 V1" stroke="#6b5a3a" stroke-width="2.5"/>
+            <path d="M-16 -3 H-9" stroke="#4a3a24" stroke-width="3"/>
+            <path d="M8 -2 H24 M8 -2 l-3 -2 l3 -2" fill="none" stroke="#9ca3af" stroke-width="1.8"/>`
+    },
+    ranged: {
+        label: 'TIR', color: '#fbbf24',
+        icon: 'M-3 -6 Q5 0 -3 6 M-3 -6 V6 M-6 0 H6 M3 -2 L6 0 L3 2',
+        goods: `
+            <rect x="-38" y="-15" width="9" height="15" rx="1.5" fill="#4a3a24" stroke="#05060c" stroke-width="1"/>
+            <path d="M-36 -15 l-2 -8 M-33.5 -15 v-9 M-31 -15 l2 -8" stroke="#9ca3af" stroke-width="1.2"/>
+            <path d="M6 -2 Q18 -16 30 -2" fill="none" stroke="#6b5a3a" stroke-width="2"/>
+            <path d="M6 -2 H30" stroke="#b8b2a0" stroke-width="0.7"/>`
+    },
+    armors: {
+        label: 'ARMURES', color: '#60a5fa',
+        icon: 'M0 -6 L6 -3 Q6 4 0 7 Q-6 4 -6 -3 Z',
+        goods: `
+            <path d="M-40 0 Q-40 -15 -27 -15 Q-14 -15 -14 0 Z" fill="#5b6470" stroke="#05060c" stroke-width="1.2"/>
+            <path d="M-35 -7 H-19" stroke="#05060c" stroke-width="1.2"/>
+            <path d="M6 0 L6 -12 Q16 -16 26 -12 L26 0 Z" fill="#4a5058" stroke="#05060c" stroke-width="1.2"/>`
+    },
+    scrolls: {
+        label: 'GRIMOIRES', color: '#c084fc',
+        icon: 'M-6 -4 H4 Q7 -4 7 -1 Q7 2 4 2 H-6 Z M-4 5 H5',
+        goods: `
+            <rect x="-42" y="-6" width="20" height="5" rx="2.5" fill="#cbbf9f" stroke="#05060c" stroke-width="0.8"/>
+            <rect x="-38" y="-11" width="18" height="5" rx="2.5" fill="#b8ad8c" stroke="#05060c" stroke-width="0.8"/>
+            <path d="M14 0 V-7 Q14 -10 11 -12 V-15 H17 V-12 Q14 -10 14 -7" fill="#5b2d7a" stroke="#05060c" stroke-width="1"/>
+            <rect x="8" y="-8" width="12" height="8" rx="2" fill="#5b2d7a" stroke="#05060c" stroke-width="1"/>`
+    }
+};
+
+// Un tableau noir par compétence de professeur (clé = city.specialty) : libellé et croquis à la craie
+// (origine : centre du tableau).
+const TRAINER_BOARD_STYLES = {
+    weapon: {
+        label: 'ARME',
+        doodle: `
+            <path d="M-44 12 L-16 -12 M-21 -15 L-13 -7 M-46 8 L-40 14" />
+            <path d="M-4 -8 q14 -4 18 10 M10 0 l4 2 l1 -4" />`
+    },
+    unarmed: {
+        label: 'MAINS NUES',
+        doodle: `
+            <rect x="-40" y="-12" width="18" height="16" rx="4" />
+            <path d="M-40 -6 H-26 M-40 -1 H-26 M-22 -8 h6 M-22 -2 h9 M-22 4 h6" />
+            <path d="M0 6 q8 -18 20 -6" />`
+    },
+    magic: {
+        label: 'MAGIE',
+        doodle: `
+            <circle cx="-26" cy="-2" r="14" />
+            <path d="M-26 -16 L-18 9 L-39 -7 H-13 L-34 9 Z" />
+            <path d="M0 -10 l3 6 l6 1 l-5 4 l1 6 l-5 -3 l-5 3 l1 -6 l-5 -4 l6 -1 Z" />`
+    },
+    stealth: {
+        label: 'FURTIVITÉ',
+        doodle: `
+            <path d="M-44 -2 Q-30 -14 -16 -2 Q-30 10 -44 -2 Z" />
+            <circle cx="-30" cy="-2" r="3" />
+            <path d="M-46 10 L-14 -14" />
+            <path d="M0 8 h4 M8 2 h4 M16 -4 h4" />`
+    }
+};
+
 // --- Accessoires -----------------------------------------------------------------------------------
 // Origine : point de fixation au mur. `phase` (secondes, optionnel) décale l'animation pour que deux
 // accessoires identiques ne scintillent pas à l'unisson.
@@ -764,6 +838,58 @@ const BACKDROP_PROPS = {
         },
         light: () => null
     },
+    // --- Villes spécialisées ----------------------------------------------------------------------------
+    // Enseigne néon d'un marchand : icône + libellé de sa spécialité (voir SHOP_SIGN_STYLES). Origine :
+    // centre.
+    shopSign: {
+        markup: (o) => {
+            const style = SHOP_SIGN_STYLES[o.specialty] || SHOP_SIGN_STYLES.weapons;
+            // Largeur calée sur le libellé : icône à gauche, texte jamais chevauchant.
+            const w = o.w || Math.max(70, 38 + style.label.length * 7.4);
+            return `
+            <rect x="${-w / 2}" y="-13" width="${w}" height="26" rx="4" fill="#0b0d12" stroke="#05060c" stroke-width="1.5"/>
+            <g class="bd-neon">
+                <path d="${style.icon}" transform="translate(${-w / 2 + 15} 0)" fill="none" stroke="${style.color}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.25"/>
+                <path d="${style.icon}" transform="translate(${-w / 2 + 15} 0)" fill="none" stroke="${style.color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+                <text x="${-w / 2 + 28}" y="3.5" font-size="10" font-weight="bold" letter-spacing="1" fill="${style.color}" opacity="0.9">${style.label}</text>
+            </g>`;
+        },
+        light: (o) => ({ dx: 0, dy: 0, color: (SHOP_SIGN_STYLES[o.specialty] || SHOP_SIGN_STYLES.weapons).color, radius: 46, flicker: false })
+    },
+    // Comptoir de marchand, marchandises de sa spécialité posées dessus. Origine : milieu du bas (au sol).
+    // `h` : hauteur du plateau (35 par défaut).
+    shopCounter: {
+        markup: (o) => {
+            const w = o.w || 110;
+            const h = o.h || 35;
+            const style = SHOP_SIGN_STYLES[o.specialty] || SHOP_SIGN_STYLES.weapons;
+            const panels = [];
+            for (let x = -w / 2 + w / 4; x < w / 2; x += w / 4) panels.push(`<path d="M${x} ${-h + 7} V-2" stroke="#2a2016" stroke-width="1.2"/>`);
+            return `
+            <rect x="${-w / 2 + 2}" y="${-h + 5}" width="${w - 4}" height="${h - 5}" fill="#3b2c1f" stroke="#05060c" stroke-width="1.5"/>
+            ${panels.join('')}
+            <rect x="${-w / 2}" y="${-h}" width="${w}" height="5" rx="1" fill="#5a4430" stroke="#05060c" stroke-width="1.5"/>
+            <g transform="translate(0 ${-h})">${style.goods}</g>`;
+        },
+        light: () => null
+    },
+    // Tableau noir d'un professeur : croquis à la craie de sa compétence (voir TRAINER_BOARD_STYLES).
+    // Origine : centre.
+    chalkboard: {
+        markup: (o) => {
+            const style = TRAINER_BOARD_STYLES[o.skill] || TRAINER_BOARD_STYLES.weapon;
+            const w = o.w || 124;
+            const h = o.h || 58;
+            return `
+            <rect x="${-w / 2}" y="${-h / 2}" width="${w}" height="${h}" fill="#1c2621" stroke="#4a3a24" stroke-width="3.5"/>
+            <g fill="none" stroke="#d9ded4" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" opacity="0.6">${style.doodle}</g>
+            <text x="${w / 2 - 8}" y="${h / 2 - 8}" text-anchor="end" font-size="8" font-weight="bold" letter-spacing="1" fill="#d9ded4" opacity="0.55">${style.label}</text>
+            <rect x="${-w / 2 + 6}" y="${h / 2 + 1.5}" width="${w - 12}" height="3" fill="#3b2f22" stroke="#05060c" stroke-width="0.8"/>
+            <rect x="${-w / 2 + 16}" y="${h / 2}" width="6" height="2" fill="#e5e0cf"/>`;
+        },
+        light: () => null
+    },
+
     // Rai de lumière filtrée tombant de la verrière. Origine : point haut.
     lightShaft: {
         markup: (o) => `<path d="M-10 0 L10 0 L46 108 L-20 108 Z" fill="${o.color || '#86efac'}" opacity="0.06"/>`,
@@ -1035,6 +1161,6 @@ const SCENE_BACKDROPS = {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         BACKDROP_WIDTH, BACKDROP_HEIGHT, BACKDROP_GROUND_Y, BACKDROP_WALL_PATTERNS, BACKDROP_FLOOR_PATTERNS,
-        BACKDROP_CEILINGS, BACKDROP_PROPS, BACKDROP_DEBRIS, SCENE_BACKDROPS
+        BACKDROP_CEILINGS, BACKDROP_PROPS, BACKDROP_DEBRIS, SCENE_BACKDROPS, SHOP_SIGN_STYLES, TRAINER_BOARD_STYLES
     };
 }
