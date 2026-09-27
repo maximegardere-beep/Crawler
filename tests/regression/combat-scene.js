@@ -637,3 +637,56 @@ function isRedHex(hex) {
     gameState.equipment = saved.equipment;
     gameState.lastAttackKind = saved.last;
 }
+
+// ===================================================================
+// Sprites propres à chaque objet (sprites/items-melee|ranged|armor|signature.js) : chaque objet du
+// catalogue (items.js) et chaque objet signature de boss (bestiary.js) a SON dessin, du bon type — un
+// futur objet ajouté sans dessin fait échouer ce test au lieu de retomber silencieusement sur le
+// générique. Enchantements visibles (étincelles, pastilles d'icône), icônes d'inventaire.
+// ===================================================================
+{
+    const KIND_BY_CATEGORY = { weapons: 'melee', ranged: 'ranged', armors: 'armor' };
+    const catalog = [];
+    ['weapons', 'ranged', 'armors'].forEach(cat => baseItems[cat].forEach(item => catalog.push({ ...item, category: cat })));
+    Object.values(districtBosses).forEach(boss => { if (boss.signatureItem) catalog.push(boss.signatureItem); });
+    const missing = [];
+    const wrongKind = [];
+    catalog.forEach(item => {
+        const sprite = ITEM_SPRITES[item.name];
+        if (!sprite) { missing.push(item.name); return; }
+        if (sprite.kind !== KIND_BY_CATEGORY[item.category]) wrongKind.push(`${item.name} (${sprite.kind})`);
+    });
+    assert(missing.length === 0, `Chaque objet du catalogue et chaque objet signature a son sprite (manquants : ${missing.join(', ')})`);
+    assert(wrongKind.length === 0, `Le type de chaque sprite correspond à la catégorie de l'objet (${wrongKind.join(', ')})`);
+    const orphans = Object.keys(ITEM_SPRITES).filter(k => !k.startsWith('generic:') && !catalog.some(i => i.name === k));
+    assert(orphans.length === 0, `Chaque sprite correspond à un objet existant (orphelins : ${orphans.join(', ')})`);
+    const badTip = Object.keys(ITEM_SPRITES).filter(k => !Array.isArray(ITEM_SPRITES[k].tip) || ITEM_SPRITES[k].tip.length !== 2);
+    assert(badTip.length === 0, `Chaque sprite a son point d'enchantement (tip) (${badTip.join(', ')})`);
+
+    const generated = generateItem(5, 'ranged');
+    assert(resolveItemSpriteKey(generated) === generated.baseName && !resolveItemSpriteKey(generated).startsWith('generic:'), "Un objet généré retrouve son propre sprite par son nom d'origine");
+
+    // Icônes d'inventaire
+    const icons = catalog.map(item => itemIconSvg(item, 32));
+    assert(icons.every(svg => svg.startsWith('<svg') && svg.includes('viewBox="-24 -24 48 48"') && !/undefined|NaN/.test(svg)), "Chaque objet a une icône d'inventaire valide");
+    const enchanted = { name: 'Pied-de-biche Empoisonné et Lourd', baseName: 'Pied-de-biche', category: 'weapons', mechanics: ['poison', 'stun'] };
+    const icon = itemIconSvg(enchanted, 32);
+    assert(icon.includes(ENCHANT_COLORS.poison) && icon.includes(ENCHANT_COLORS.stun), "Icône : une pastille par enchantement, à sa couleur");
+    assert(itemIconSvg({ name: 'Parchemin', category: 'scrolls' }) === '', "Parchemin : pas d'icône d'équipement");
+
+    // Enchantements visibles sur le crawler
+    resetTransientState();
+    const savedEq = { ...gameState.equipment };
+    gameState.equipment.weapon = enchanted;
+    gameState.equipment.armor = { name: 'Cape en Lambeaux du Maître des Illusions', category: 'armors', mechanics: ['darkness'] };
+    gameState.lastAttackKind = 'weapon';
+    const markup = currentCrawler().markup;
+    const held = markup.slice(markup.indexOf('crawler-held'));
+    assert(held.includes('ench-spark') && held.includes(ENCHANT_COLORS.poison), "Arme enchantée en main : étincelles à la couleur de l'enchantement");
+    assert(markup.indexOf('crawler-armor') < markup.indexOf(CRAWLER_PARTS.torso), "Cape (couche 'back') : dessinée derrière le torse");
+    gameState.equipment.weapon = { name: 'Pied-de-biche', baseName: 'Pied-de-biche', category: 'weapons' };
+    gameState.equipment.armor = null;
+    assert(!currentCrawler().markup.includes('ench-spark'), "Objet sans enchantement : aucune étincelle");
+    gameState.equipment = savedEq;
+    resetTransientState();
+}

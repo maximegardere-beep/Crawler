@@ -270,6 +270,11 @@ function crawlerPosture() {
     return posture;
 }
 
+// Couleurs des enchantements d'un objet (une par mécanique, 3 au plus).
+function enchantColors(item) {
+    return ((item && item.mechanics) || []).slice(0, 3).map(m => ENCHANT_COLORS[m] || ENCHANT_DEFAULT_COLOR);
+}
+
 function crawlerLoadout() {
     const eq = gameState.equipment || {};
     return {
@@ -277,17 +282,45 @@ function crawlerLoadout() {
         weapon: resolveItemSpriteKey(eq.weapon),
         ranged: resolveItemSpriteKey(eq.ranged),
         armor: resolveItemSpriteKey(eq.armor),
-        glow: eq.spell ? (CRAWLER_SPELL_GLOWS[eq.spell.icon] || CRAWLER_DEFAULT_GLOW) : null
+        glow: eq.spell ? (CRAWLER_SPELL_GLOWS[eq.spell.icon] || CRAWLER_DEFAULT_GLOW) : null,
+        ench: { weapon: enchantColors(eq.weapon), ranged: enchantColors(eq.ranged), armor: enchantColors(eq.armor) }
     };
 }
 
 function crawlerLoadoutKey(l) {
-    return [l.posture, l.weapon, l.ranged, l.armor, l.glow].join('|');
+    const ench = l.ench || {};
+    return [l.posture, l.weapon, l.ranged, l.armor, l.glow, (ench.weapon || []).join(','), (ench.ranged || []).join(','), (ench.armor || []).join(',')].join('|');
 }
 
-function itemArt(key) {
+// Étincelles d'enchantement autour du `tip` d'un sprite : une par mécanique, à sa couleur, qui
+// scintillent lentement (.ench-spark, figées sous prefers-reduced-motion).
+const ENCHANT_SPARK_OFFSETS = [[-4, -3], [4, 2], [-1, 6]];
+function enchantSparks(sprite, colors) {
+    if (!sprite || !colors || colors.length === 0) return '';
+    const [tx, ty] = sprite.tip || [0, 0];
+    return `<g class="ench-fx">${colors.map((c, i) => {
+        const [dx, dy] = ENCHANT_SPARK_OFFSETS[i];
+        const x = tx + dx;
+        const y = ty + dy;
+        return `<path class="ench-spark" style="animation-delay:-${(i * 0.8).toFixed(1)}s" d="M${x} ${y - 2.6} L${x + 0.8} ${y - 0.8} L${x + 2.6} ${y} L${x + 0.8} ${y + 0.8} L${x} ${y + 2.6} L${x - 0.8} ${y + 0.8} L${x - 2.6} ${y} L${x - 0.8} ${y - 0.8} Z" fill="${c}" stroke="#05060c" stroke-width="0.4"/>`;
+    }).join('')}</g>`;
+}
+
+// Dessin d'un objet (par sa clé de sprite), avec ses éventuelles étincelles d'enchantement.
+function itemArt(key, colors) {
     const sprite = key && ITEM_SPRITES[key];
-    return sprite ? sprite.art : '';
+    return sprite ? sprite.art + enchantSparks(sprite, colors) : '';
+}
+
+// Icône d'inventaire / de boutique d'un objet : même dessin que sur le crawler, recadré (ITEM_ICON_TRANSFORMS
+// ou `icon` du sprite), avec une pastille par enchantement en bas à droite. Chaîne <svg> autonome.
+function itemIconSvg(item, size = 28) {
+    const key = resolveItemSpriteKey(item);
+    const sprite = key && ITEM_SPRITES[key];
+    if (!sprite) return '';
+    const transform = sprite.icon || ITEM_ICON_TRANSFORMS[sprite.kind] || '';
+    const dots = enchantColors(item).map((c, i) => `<circle cx="${18 - i * 7}" cy="18" r="3.2" fill="${c}" stroke="#05060c" stroke-width="1"/>`).join('');
+    return `<svg class="item-icon shrink-0" viewBox="-24 -24 48 48" width="${size}" height="${size}" aria-hidden="true"><g transform="${transform}">${sprite.art}</g>${dots}</svg>`;
 }
 
 // Compose le crawler en couches (voir CRAWLER_PARTS/CRAWLER_ARMS) avec son équipement : objet tenu dans
@@ -298,19 +331,23 @@ function composeCrawler(l) {
     const [hx, hy] = arm.hand;
     const holdsWeapon = l.posture === 'weapon';
     const holdsRanged = l.posture === 'ranged' || l.posture === 'rangedLowered';
+    const ench = l.ench || {};
     const stowedRanged = l.ranged && !holdsRanged
         ? `<g class="crawler-stowed-ranged" transform="translate(14 -54) rotate(55) scale(0.8)">${itemArt(l.ranged)}</g>` : '';
     const stowedWeapon = l.weapon && !holdsWeapon
         ? `<g class="crawler-stowed-weapon" transform="translate(5 -36) rotate(160) scale(0.7)">${itemArt(l.weapon)}</g>` : '';
-    const armor = l.armor ? `<g class="crawler-armor">${itemArt(l.armor)}</g>` : '';
+    const armorSprite = l.armor && ITEM_SPRITES[l.armor];
+    const armorMarkup = l.armor ? `<g class="crawler-armor">${itemArt(l.armor, ench.armor)}</g>` : '';
+    const armorBack = armorSprite && armorSprite.layer === 'back' ? armorMarkup : '';
+    const armor = armorSprite && armorSprite.layer !== 'back' ? armorMarkup : '';
     let held = '';
-    if (holdsWeapon && l.weapon) held = `<g class="crawler-held" transform="translate(${hx} ${hy}) rotate(-12)">${itemArt(l.weapon)}</g>`;
-    if (holdsRanged && l.ranged) held = `<g class="crawler-held" transform="translate(${hx} ${hy}) rotate(${l.posture === 'rangedLowered' ? -35 : 0})">${itemArt(l.ranged)}</g>`;
+    if (holdsWeapon && l.weapon) held = `<g class="crawler-held" transform="translate(${hx} ${hy}) rotate(-12)">${itemArt(l.weapon, ench.weapon)}</g>`;
+    if (holdsRanged && l.ranged) held = `<g class="crawler-held" transform="translate(${hx} ${hy}) rotate(${l.posture === 'rangedLowered' ? -35 : 0})">${itemArt(l.ranged, ench.ranged)}</g>`;
     if (l.posture === 'magic') {
         const c = l.glow || CRAWLER_DEFAULT_GLOW;
         held = `<g class="crawler-spell-glow"><circle cx="${hx - 3}" cy="${hy - 6}" r="7" fill="${c}" opacity="0.3"/><circle cx="${hx - 3}" cy="${hy - 6}" r="3.2" fill="${c}" opacity="0.85"/></g>`;
     }
-    return `<g class="crawler" data-posture="${l.posture}">${CRAWLER_PARTS.base}${stowedRanged}${stowedWeapon}${CRAWLER_PARTS.torso}${armor}` +
+    return `<g class="crawler" data-posture="${l.posture}">${CRAWLER_PARTS.base}${armorBack}${stowedRanged}${stowedWeapon}${CRAWLER_PARTS.torso}${armor}` +
         `${arm.arm}${held}${arm.after || ''}${CRAWLER_PARTS.head}${arm.front || ''}</g>`;
 }
 

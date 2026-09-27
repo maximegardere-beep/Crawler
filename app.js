@@ -1501,14 +1501,18 @@ function toggleMapPanel(forceOpen) {
 function updateInventoryUI() {
     const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
     ui.inventoryCount.innerText = equipmentCount;
-    ui.equippedWeapon.innerText = gameState.equipment.weapon ? formatItemDisplayName(gameState.equipment.weapon) : "Aucune";
-    ui.equippedArmor.innerText = gameState.equipment.armor ? formatItemDisplayName(gameState.equipment.armor) : "Aucune";
+    // Objets équipés : icône (même dessin que sur le crawler, voir itemIconSvg() dans scene.js) + nom.
+    const equippedLabel = (item) => item
+        ? `<span class="inline-flex items-center gap-1 align-middle">${itemIconSvg(item, 22)}<span>${formatItemDisplayName(item)}</span></span>`
+        : "Aucune";
+    ui.equippedWeapon.innerHTML = equippedLabel(gameState.equipment.weapon);
+    ui.equippedArmor.innerHTML = equippedLabel(gameState.equipment.armor);
     if (ui.equippedArmorBadges) {
         ui.equippedArmorBadges.innerHTML = gameState.equipment.armor
             ? buildMechanicBadgesHtml(gameState.equipment.armor, IMPLEMENTED_ARMOR_MECHANICS)
             : "";
     }
-    if (ui.equippedRanged) ui.equippedRanged.innerText = gameState.equipment.ranged ? formatItemDisplayName(gameState.equipment.ranged) : "Aucune";
+    if (ui.equippedRanged) ui.equippedRanged.innerHTML = equippedLabel(gameState.equipment.ranged);
 
     // --- Armes / armures / armes à distance : cartes façon carte à jouer, dans le déroulant ---
     ui.inventoryEquipmentCards.innerHTML = "";
@@ -1536,7 +1540,7 @@ function updateInventoryUI() {
             // armes gardent leur affichage inchangé, leurs enchantements sont déjà tous fonctionnels.
             const armorBadges = !isWeapon && !isRanged ? buildMechanicBadgesHtml(item, IMPLEMENTED_ARMOR_MECHANICS) : "";
             card.innerHTML = `
-                <div class="text-xl leading-none">${icon}</div>
+                <div class="flex justify-center leading-none">${itemIconSvg(item, 40) || `<span class="text-xl">${icon}</span>`}</div>
                 <div class="text-[10px] font-bold leading-tight">${item.name}</div>
                 ${item.rarity ? `<div class="text-[8px] font-bold uppercase tracking-wider" style="color:${rarityColor}">${item.rarity}</div>` : ""}
                 <div class="text-[9px] text-stone-600">${statLine}</div>
@@ -4212,7 +4216,7 @@ function updateShopUI() {
             const affordable = gameState.gold >= item.price;
             row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-yellow-600 hover:bg-yellow-950/20 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-800 disabled:hover:bg-gray-900/80";
             row.disabled = !affordable;
-            row.innerHTML = `<span class="truncate">${formatItemDisplayName(item)}</span><span class="text-yellow-400 shrink-0">${item.price} PO</span>`;
+            row.innerHTML = `<span class="flex items-center gap-1.5 min-w-0">${itemIconSvg(item, 24)}<span class="truncate">${formatItemDisplayName(item)}</span></span><span class="text-yellow-400 shrink-0">${item.price} PO</span>`;
             row.addEventListener('click', () => buyShopItem(index));
             ui.shopStockList.appendChild(row);
         });
@@ -4229,7 +4233,7 @@ function updateShopUI() {
             const price = Math.max(1, Math.round((item.baseValue || 0) * SELL_VALUE_RATIO));
             const row = document.createElement('button');
             row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
-            row.innerHTML = `<span class="truncate">${formatItemDisplayName(item)}</span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
+            row.innerHTML = `<span class="flex items-center gap-1.5 min-w-0">${itemIconSvg(item, 24)}<span class="truncate">${formatItemDisplayName(item)}</span></span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
             row.addEventListener('click', () => { sellItem(index); updateShopUI(); });
             ui.shopSellList.appendChild(row);
         });

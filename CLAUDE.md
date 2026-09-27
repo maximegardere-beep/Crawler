@@ -16,8 +16,11 @@ Tailwind CDN, **aucun build step**.
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
   que le fichier concerné) : `crawler.js` (crawler + cadavre vu de dessus), `npcs.js` (compagnon, marchand,
   professeur), `mobs.js` (10 archétypes de mob, couronne de boss), `items-generic.js` (registre
-  `ITEM_SPRITES` des sprites d'équipement + dessins génériques de repli par catégorie ; les dessins propres
-  à chaque objet viendront dans d'autres `items-*.js`, par `Object.assign`). Tous chargés avant `backdrops.js`/`scene.js`,
+  `ITEM_SPRITES` des sprites d'équipement, dessins génériques de repli par catégorie, cadrages d'icône
+  `ITEM_ICON_TRANSFORMS`, couleurs d'enchantement `ENCHANT_COLORS`), puis un dessin par objet, clé = nom
+  exact, ajoutés au registre par `Object.assign` : `items-melee.js` (11 armes de mêlée), `items-ranged.js`
+  (8 armes à distance), `items-armor.js` (12 armures), `items-signature.js` (13 objets signature de boss).
+  Tous chargés avant `backdrops.js`/`scene.js`,
   même ordre dans `index.html` et `tests/load_game.js` (`GAME_FILES`) — un nouveau fichier doit être ajouté
   aux DEUX.
 - `backdrops.js` — décors des scènes : catalogue pur (motifs de mur/sol, plafonds, accessoires, fiches de décor `SCENE_BACKDROPS`, enseignes/tableaux des villes spécialisées)
@@ -579,8 +582,17 @@ Tailwind CDN, **aucun build step**.
   main). Sprite d'un objet : `resolveItemSpriteKey(item)` — `item.baseName` (nom d'origine, posé par
   `generateItem()`/`generateWelcomeGiftItem()`/`generateTestKitItem()`), sinon nom exact (objets
   signature), sinon plus long nom connu par lequel le nom commence (anciennes sauvegardes sans
-  `baseName`), sinon `generic:<catégorie>`. `combat-scene.js` vérifie postures, ordre des couches,
-  résolution des sprites et que chaque attaque fixe la posture.
+  `baseName`), sinon `generic:<catégorie>`. **Sprites d'objets** (phase 2) : `{ kind, art, tip, layer?,
+  icon? }` — `kind` 'melee' (prise à l'origine, tête vers le haut), 'ranged' (bouche vers la gauche),
+  'armor' (dessinée dans le repère du crawler, `layer: 'back'` pour le dos/une cape, derrière le torse) ;
+  `tip` = point où scintillent les **enchantements** (`enchantSparks()` : une étincelle `.ench-spark` par
+  mécanique, à sa couleur `ENCHANT_COLORS`, sur l'arme tenue et l'armure). **Icônes** : `itemIconSvg(item,
+  size)` (scene.js) réutilise le même dessin, recadré (`sprite.icon` ou `ITEM_ICON_TRANSFORMS[kind]`, repère
+  -24..24, écrit `scale(s) translate(-cx -cy)`), avec une pastille par enchantement — utilisée pour
+  l'équipement porté, les cartes de l'inventaire et les listes achat/vente de la boutique (parchemins :
+  aucune icône). `combat-scene.js` vérifie postures, ordre des couches, résolution des sprites, que chaque
+  attaque fixe la posture, et que CHAQUE objet de `baseItems` et CHAQUE objet signature de `districtBosses`
+  a son propre sprite du bon type (un objet ajouté sans dessin fait échouer les tests).
   **Scène d'exploration** (`#explore-scene`, remplace l'ancienne carte à jouer) : `setSceneHeader(icon,
   title, typeLabel, scene)` pose le type (pastille en haut à gauche), le titre et la vignette — nom
   (`'treasure'`, `'trap'`…) ou `{ key, enemy }` ; sans 4ᵉ argument ou nom inconnu, l'emoji `#explore-icon`
