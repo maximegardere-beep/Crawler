@@ -341,14 +341,16 @@ function composeCrawler(l) {
     const armorBack = armorSprite && armorSprite.layer === 'back' ? armorMarkup : '';
     const armor = armorSprite && armorSprite.layer !== 'back' ? armorMarkup : '';
     let held = '';
-    if (holdsWeapon && l.weapon) held = `<g class="crawler-held" transform="translate(${hx} ${hy}) rotate(-12)">${itemArt(l.weapon, ench.weapon)}</g>`;
-    if (holdsRanged && l.ranged) held = `<g class="crawler-held" transform="translate(${hx} ${hy}) rotate(${l.posture === 'rangedLowered' ? -35 : 0})">${itemArt(l.ranged, ench.ranged)}</g>`;
+    // `data-t` : transformation de repos de l'objet tenu, que fx.js complète pendant un coup.
+    const heldAt = rot => `class="crawler-held" data-t="translate(${hx} ${hy}) rotate(${rot})" transform="translate(${hx} ${hy}) rotate(${rot})"`;
+    if (holdsWeapon && l.weapon) held = `<g ${heldAt(-12)}>${itemArt(l.weapon, ench.weapon)}</g>`;
+    if (holdsRanged && l.ranged) held = `<g ${heldAt(l.posture === 'rangedLowered' ? -35 : 0)}>${itemArt(l.ranged, ench.ranged)}</g>`;
     if (l.posture === 'magic') {
         const c = l.glow || CRAWLER_DEFAULT_GLOW;
         held = `<g class="crawler-spell-glow"><circle cx="${hx - 3}" cy="${hy - 6}" r="7" fill="${c}" opacity="0.3"/><circle cx="${hx - 3}" cy="${hy - 6}" r="3.2" fill="${c}" opacity="0.85"/></g>`;
     }
     return `<g class="crawler" data-posture="${l.posture}">${CRAWLER_PARTS.base}${armorBack}${stowedRanged}${stowedWeapon}${CRAWLER_PARTS.torso}${armor}` +
-        `${arm.arm}${held}${arm.after || ''}${CRAWLER_PARTS.head}${arm.front || ''}</g>`;
+        `${arm.arm}${held}${arm.after || ''}${CRAWLER_PARTS.head}${arm.front ? `<g class="crawler-front">${arm.front}</g>` : ''}</g>`;
 }
 
 // Crawler de l'état courant, avec sa clé (pour ne redessiner que quand la posture ou l'équipement change).
@@ -368,10 +370,11 @@ function renderCrawlerInto(el) {
 }
 
 // Chaque silhouette est enveloppée dans un <g class="scene-body"> : le groupe extérieur porte la
-// position (translate, animée par transition), le groupe intérieur la secousse d'impact — deux
-// transformations indépendantes qui ne s'écrasent jamais.
+// position (translate, animée par transition), le groupe intérieur la secousse d'impact, et un dernier
+// groupe <g class="scene-pose"> l'élan des attaques (fx.js) — trois transformations indépendantes qui ne
+// s'écrasent jamais.
 function wrapSceneBody(markup) {
-    return `<g class="scene-body">${markup}</g>`;
+    return `<g class="scene-body"><g class="scene-pose">${markup}</g></g>`;
 }
 
 function ensureSceneBuilt() {
@@ -431,13 +434,20 @@ function shakeSceneFighter(target) {
     body.classList.add('scene-hit');
 }
 
+// PV « tenus » pendant un effet d'attaque (fx.js) : la barre du combattant touché ne baisse qu'à
+// l'impact, pas au moment où le coup part (les dégâts, eux, sont déjà appliqués). `enemy` = l'ennemi
+// concerné (un autre ennemi n'est jamais affecté), `player` = vrai si les PV du crawler sont tenus.
+const sceneVitalsHold = { enemy: null, enemyHp: 0, player: false, playerHp: 0 };
+
 // Barres de vie au-dessus de la scène : nom + PV actuels/max de chaque combattant.
 function renderSceneVitals(enemy) {
     const enemyMax = enemy.maxHp || enemy.hp;
-    sceneUi.enemyHpBar.style.width = `${hpPercent(enemy.hp, enemyMax)}%`;
-    sceneUi.enemyHpText.innerText = `PV ${Math.round(Math.max(0, enemy.hp))}/${Math.round(enemyMax)}`;
-    sceneUi.playerHpBar.style.width = `${hpPercent(gameState.hp, gameState.maxHp)}%`;
-    sceneUi.playerHpText.innerText = `PV ${Math.round(Math.max(0, gameState.hp))}/${Math.round(gameState.maxHp)}`;
+    const enemyHp = sceneVitalsHold.enemy === enemy ? sceneVitalsHold.enemyHp : enemy.hp;
+    const playerHp = sceneVitalsHold.player ? sceneVitalsHold.playerHp : gameState.hp;
+    sceneUi.enemyHpBar.style.width = `${hpPercent(enemyHp, enemyMax)}%`;
+    sceneUi.enemyHpText.innerText = `PV ${Math.round(Math.max(0, enemyHp))}/${Math.round(enemyMax)}`;
+    sceneUi.playerHpBar.style.width = `${hpPercent(playerHp, gameState.maxHp)}%`;
+    sceneUi.playerHpText.innerText = `PV ${Math.round(Math.max(0, playerHp))}/${Math.round(gameState.maxHp)}`;
     sceneUi.playerName.innerText = gameState.playerName || 'Vous';
 }
 

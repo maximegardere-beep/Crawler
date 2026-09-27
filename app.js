@@ -5096,6 +5096,8 @@ function getEffectiveDef() {
 // agir ce tour-ci (combat terminé entre-temps, ou étourdi).
 function tryPlayerAction() {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
+    // Un skip demandé pendant le tour précédent ne doit jamais escamoter l'effet de CETTE attaque (fx.js).
+    combatSkipRequested = false;
 
     // Reset avant toute chose : seul un backfire posé PENDANT cette action doit pouvoir être tenu
     // responsable d'une mort ce même tour (voir attackMagic()/gameOver()).
@@ -5234,7 +5236,14 @@ function performPlayerAttack(attackerAtk, options, label) {
     enemy.hp -= playerDamage;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage);
-    showFloatingDamage(ui.sceneMobAnchor, playerDamage, { toPlayer: false }); // dégâts infligés par le joueur : jamais "heavy" (réservé aux coups marquants du mob/boss)
+    // Effet d'attaque en 3 temps (fx.js, chantier « sprites & effets ») : le chiffre, la secousse et la
+    // baisse de la barre de vie du mob attendent l'impact. Attaque furtive et charge sont les seuls coups
+    // « lourds » du joueur (chiffre grossi, secousse d'écran + flash).
+    const heavyHit = sneakNote !== "" || gameState.engageDefHalved;
+    playPlayerAttackFx(gameState.lastAttackKind, { heavy: heavyHit, charge: gameState.engageDefHalved, heldEnemyHp: enemy.hp + playerDamage }, () => {
+        showFloatingDamage(ui.sceneMobAnchor, playerDamage, { toPlayer: false, heavy: heavyHit });
+        if (heavyHit) triggerHeavyImpact();
+    });
     // Ligne raccourcie (chantier "lisibilité combat", Chantier 8) : retire le remplissage "et
     // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
     // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
@@ -5634,10 +5643,15 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
             companionAbsorbNote = ` (${gameState.companion.name} encaisse ${absorbed} dégâts à votre place)`;
         }
     }
+    const hpBefore = gameState.hp;
     applyPlayerDamage(playerDamage);
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
-    showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true, heavy }); // `heavy` : télégraphe exécuté/ruée d'enrage/phase 3, voir les appelants
-    if (heavy) triggerHeavyImpact(); // Chantier 4 : même flag, mêmes 3 occasions — voir triggerHeavyImpact()
+    // Effet d'attaque du mob (fx.js) : chiffre, secousse et flash à l'impact ; `silent` = multi-coups,
+    // joué sans élan pour tenir dans beatMultiHit.
+    playMobAttackFx(enemy, { heavy, fast: silent, heldPlayerHp: hpBefore }, () => {
+        showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true, heavy }); // `heavy` : télégraphe exécuté/ruée d'enrage/phase 3, voir les appelants
+        if (heavy) triggerHeavyImpact(); // Chantier 4 : même flag, mêmes 3 occasions — voir triggerHeavyImpact()
+    });
     if (!silent) logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
     if (gameState.companion && gameState.companion.hp <= 0) {
         logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
@@ -5960,9 +5974,12 @@ function resolveNonBossCounterAttack(enemy) {
         }
     }
 
+    const hpBefore = gameState.hp;
     applyPlayerDamage(playerDamage);
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
-    showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
+    playMobAttackFx(enemy, { heldPlayerHp: hpBefore }, () => {
+        showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
+    });
     const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
         : "";
@@ -6279,6 +6296,7 @@ function attackMagic() {
 
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
+        playSpellBackfireFx(); // la lueur crachote et s'éteint en fumée (fx.js)
         logEvent(`[${spell.spellName}] part de travers et fait un flop retentissant. Aucun dégât (mana quand même dépensé).`, "danger");
         gameState.lastPlayerActionWasBackfire = true; // Voir gameOver()/generateEpitaph() : attribution du décès si la riposte qui suit est fatale
         resolveEnemyReaction(); // Un mob de mêlée hors de portée ne peut pas punir ce tour perdu, mais tente de se rapprocher

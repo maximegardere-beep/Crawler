@@ -19,12 +19,14 @@ Tailwind CDN, **aucun build step**.
   `ITEM_SPRITES` des sprites d'équipement, dessins génériques de repli par catégorie, cadrages d'icône
   `ITEM_ICON_TRANSFORMS`, couleurs d'enchantement `ENCHANT_COLORS`), puis un dessin par objet, clé = nom
   exact, ajoutés au registre par `Object.assign` : `items-melee.js` (11 armes de mêlée), `items-ranged.js`
-  (8 armes à distance), `items-armor.js` (12 armures), `items-signature.js` (13 objets signature de boss).
-  Tous chargés avant `backdrops.js`/`scene.js`,
+  (8 armes à distance), `items-armor.js` (12 armures), `items-signature.js` (13 objets signature de boss),
+  et `fx.js` (catalogue des effets d'attaque : style de coup par arme, projectiles, sorts, attaques de mob,
+  éclats d'impact). Tous chargés avant `backdrops.js`/`scene.js`,
   même ordre dans `index.html` et `tests/load_game.js` (`GAME_FILES`) — un nouveau fichier doit être ajouté
   aux DEUX.
 - `backdrops.js` — décors des scènes : catalogue pur (motifs de mur/sol, plafonds, accessoires, fiches de décor `SCENE_BACKDROPS`, enseignes/tableaux des villes spécialisées)
 - `scene.js` — rendu des scènes en vue latérale et de leur décor (`distanceToX()`, `composeBackdrop()`, point d'entrée unique `renderScene(mode)`)
+- `fx.js` — effets d'attaque de la scène de combat (moteur en 3 temps, chargé après `scene.js`, avant `app.js`)
 - `tests/` — voir plus bas
 
 ## Architecture (résumé)
@@ -593,6 +595,30 @@ Tailwind CDN, **aucun build step**.
   aucune icône). `combat-scene.js` vérifie postures, ordre des couches, résolution des sprites, que chaque
   attaque fixe la posture, et que CHAQUE objet de `baseItems` et CHAQUE objet signature de `districtBosses`
   a son propre sprite du bon type (un objet ajouté sans dessin fait échouer les tests).
+  **Effets d'attaque** (phase 3, `fx.js` + catalogue `sprites/fx.js`) : chaque attaque se joue en 3 temps
+  — anticipation (l'attaquant s'arme : `.scene-pose`, objet tenu `.crawler-held` via sa transformation de
+  repos `data-t`, poing avant `.crawler-front`, lueur `.crawler-spell-glow`), action (traînée d'arme en
+  croissant à la couleur du 1er enchantement, estoc, projectile(s) avec traînée, jet continu, sort) puis
+  impact (micro-gel `FX_HITSTOP_MS` 40 ms + éclat `FX_IMPACTS`). Points d'entrée appelés par app.js :
+  `playPlayerAttackFx(kind, opts, onImpact)` (depuis `performPlayerAttack()`, `kind` =
+  `gameState.lastAttackKind`), `playMobAttackFx(enemy, opts, onImpact)` (depuis `executeBossStrike()` et
+  `resolveNonBossCounterAttack()` ; tir si écart > 0, sinon attaque au contact de son archétype, à la
+  couleur de son effet `MOB_EFFECT_FX_COLORS`) et `playSpellBackfireFx()` (sort raté). **Purement visuel** :
+  les dégâts sont appliqués AVANT l'effet ; `onImpact` affiche le chiffre, la secousse du combattant et,
+  pour un coup lourd, secousse d'écran + flash (`triggerHeavyImpact()` — côté joueur : attaque furtive et
+  charge seulement ; côté mob : télégraphe exécuté, ruée d'enrage, phase 3). Les barres de vie de la scène
+  attendent l'impact (`sceneVitalsHold`, scene.js, posé/levé par fx.js). Règles : impact toujours avant
+  `FX_MAX_IMPACT_MS` (260 ms < `COMBAT_BEAT_MS`, pour voir le coup fatal avant victoire/Game Over) ; un
+  nouvel effet du même attaquant termine le précédent (multi-coups, `opts.fast` sans élan) ; le skip
+  (`combatSkipRequested`, remis à faux par `tryPlayerAction()`) termine l'effet en cours ; sous
+  `prefers-reduced-motion`, rien ne bouge mais traînée / trajectoire (pointillés) sont dessinées d'un coup
+  puis s'estompent ; sans `requestAnimationFrame` (tests Node), rien n'est dessiné et `onImpact` est
+  immédiat. Aucun `Math.random()` (zigzag des éclairs : `fxJitter()`). Spécifications pures et testées :
+  `playerAttackFxSpec(kind)`, `mobAttackFxSpec(enemy, ranged)`. Catalogue : `MELEE_SWING_STYLES`
+  (slash/smash/thrust, angles `FX_SWING_ANGLES`) et `MELEE_IMPACTS` par arme, `RANGED_PROJECTILES` →
+  `FX_PROJECTILES`, `FX_SPELLS` par icône de sort, `MOB_ATTACK_STYLES`/`MOB_RANGED_PROJECTILES` par
+  archétype. `combat-scene.js` exige une entrée pour CHAQUE arme dessinée, chaque sort, chaque archétype
+  et chaque effet de mob.
   **Scène d'exploration** (`#explore-scene`, remplace l'ancienne carte à jouer) : `setSceneHeader(icon,
   title, typeLabel, scene)` pose le type (pastille en haut à gauche), le titre et la vignette — nom
   (`'treasure'`, `'trap'`…) ou `{ key, enemy }` ; sans 4ᵉ argument ou nom inconnu, l'emoji `#explore-icon`

@@ -690,3 +690,107 @@ function isRedHex(hex) {
     gameState.equipment = savedEq;
     resetTransientState();
 }
+
+// ============================================================
+// Effets d'attaque (chantier « sprites & effets », phase 3 : sprites/fx.js + fx.js)
+// ============================================================
+{
+    const noBad = str => typeof str === 'string' && !/undefined|NaN/.test(str);
+
+    // Catalogue : chaque arme dessinée a son style de coup / son projectile, chaque sort et chaque mob son effet
+    const meleeKeys = Object.keys(ITEM_SPRITES).filter(k => ITEM_SPRITES[k].kind === 'melee');
+    const rangedKeys = Object.keys(ITEM_SPRITES).filter(k => ITEM_SPRITES[k].kind === 'ranged');
+    const noSwing = meleeKeys.filter(k => !FX_SWING_ANGLES[MELEE_SWING_STYLES[k]]);
+    assert(noSwing.length === 0, `Chaque arme de mêlée dessinée a un style de coup (${noSwing.join(', ')})`);
+    const noProj = rangedKeys.filter(k => !FX_PROJECTILES[RANGED_PROJECTILES[k]]);
+    assert(noProj.length === 0, `Chaque arme à distance dessinée a son projectile (${noProj.join(', ')})`);
+    const noSpell = spellCatalog.filter(s => !FX_SPELLS[s.icon]).map(s => s.name);
+    assert(noSpell.length === 0, `Chaque sort de spells.js a son effet (${noSpell.join(', ')})`);
+    const archetypes = Object.keys(SCENE_MOB_SPRITES);
+    const noMobFx = archetypes.filter(a => !MOB_ATTACK_STYLES[a] || !FX_PROJECTILES[MOB_RANGED_PROJECTILES[a]] || !MOB_STYLE_IMPACTS[MOB_ATTACK_STYLES[a]]);
+    assert(noMobFx.length === 0, `Chaque archétype de mob a son attaque au contact et son tir (${noMobFx.join(', ')})`);
+    const effects = [...new Set(Object.values(mobModifiers).flat().map(m => m && m.effect).filter(Boolean))];
+    const noColor = effects.filter(e => !MOB_EFFECT_FX_COLORS[e]);
+    assert(noColor.length === 0, `Chaque effet de mob a sa couleur d'effet (${noColor.join(', ')})`);
+
+    // Chaque éclat référencé existe et se dessine sans valeur manquante
+    const impacts = new Set([...Object.values(MELEE_IMPACTS), ...Object.values(FX_PROJECTILES).map(p => p.impact),
+        ...Object.values(FX_SPELLS).map(s => s.impact), ...Object.values(MOB_STYLE_IMPACTS), 'hit', 'slash', 'smash', 'pow']);
+    const missingImpact = [...impacts].filter(n => typeof FX_IMPACTS[n] !== 'function');
+    assert(missingImpact.length === 0, `Chaque éclat d'impact référencé existe (${missingImpact.join(', ')})`);
+    assert(Object.keys(FX_IMPACTS).every(n => noBad(FX_IMPACTS[n]('#ff0000')) && FX_IMPACTS[n]().length > 0), "Chaque éclat se dessine (avec ou sans couleur) sans valeur manquante");
+    assert(Object.values(FX_PROJECTILES).every(p => p.speed > 0 && (p.beam || noBad(p.art) && p.art.length > 0)), "Chaque projectile a une vitesse et un dessin (ou un jet)");
+    assert(Object.values(FX_SPELLS).every(s => s.style !== 'bolt' && s.style !== 'meteor' || FX_PROJECTILES[s.projectile]), "Sorts à projectile : projectile connu");
+
+    // Géométrie pure
+    assert(noBad(fxCrescentPath(290, 78, 30, 8, -120, 8)) && fxCrescentPath(290, 78, 30, 8, -120, 8).endsWith('Z'), "Traînée en croissant : tracé fermé sans valeur manquante");
+    assert(noBad(fxStreakPath(250, 70, 100, 90, 3)) && noBad(fxStreakPath(10, 10, 10, 10, 3)), "Traînée droite : tracé valide, même de longueur nulle");
+    assert(noBad(fxZigzagPath(280, 50, 120, 90, 5)) && fxZigzagPath(0, 0, 60, 0, 5).split('L').length === 7, "Éclair : zigzag de 6 segments");
+    const mid = fxArcPoint([0, 100], [100, 100], 20, 0.5);
+    assert(mid.x === 50 && mid.y === 80 && Math.abs(mid.angle) < 1e-9, "Trajectoire en cloche : sommet à mi-course, vol horizontal au sommet");
+
+    // Spécifications (pures) : ce que joue chaque attaque
+    resetTransientState();
+    const savedEq = { ...gameState.equipment };
+    gameState.equipment.weapon = { name: 'Couteau en Beurre Tranchant', baseName: 'Couteau en Beurre', category: 'weapons', mechanics: ['bleed'] };
+    let spec = playerAttackFxSpec('weapon');
+    assert(spec.type === 'melee' && spec.style === 'thrust' && spec.color === ENCHANT_COLORS.bleed, "Arme de mêlée : style de l'objet, traînée à la couleur de son enchantement");
+    gameState.equipment.weapon = { name: 'Bâton de Dynamite', baseName: 'Bâton de Dynamite', category: 'weapons' };
+    spec = playerAttackFxSpec('weapon');
+    assert(spec.impact === 'explosion' && spec.color === FX_COLORS.smash, "Dynamite : explosion à l'impact, traînée par défaut sans enchantement");
+    gameState.equipment.ranged = { name: 'Pistolet à Eau Surpuissant', baseName: 'Pistolet à Eau Surpuissant', category: 'ranged' };
+    spec = playerAttackFxSpec('ranged');
+    assert(spec.type === 'ranged' && spec.projectile === 'water' && Array.isArray(spec.muzzle), "Arme à distance : son projectile, tiré depuis la bouche du sprite");
+    gameState.equipment.spell = { spellName: 'Météore Miniature', icon: '☄️', spellCategory: 'ranged' };
+    spec = playerAttackFxSpec('magic');
+    assert(spec.type === 'magic' && spec.style === 'meteor' && spec.impact === 'explosion', "Sort : effet de son icône");
+    gameState.equipment.spell = { spellName: 'Sort inconnu', icon: '🦄', spellCategory: 'melee' };
+    assert(playerAttackFxSpec('magic').style === 'cone', "Sort inconnu : effet de repli selon sa catégorie");
+    assert(playerAttackFxSpec('unarmed').impact === 'pow', "Mains nues : « PAF » à l'impact");
+    gameState.equipment.weapon = null;
+    assert(playerAttackFxSpec('weapon').type === 'unarmed', "Arme déséquipée : repli sur les poings");
+    gameState.equipment = savedEq;
+    const beast = { visualArchetype: 'beast', effect: 'poison' };
+    assert(mobAttackFxSpec(beast, false).style === 'bite' && mobAttackFxSpec(beast, false).color === MOB_EFFECT_FX_COLORS.poison, "Mob au contact : attaque de son archétype, à la couleur de son effet");
+    assert(mobAttackFxSpec(beast, true).type === 'ranged' && mobAttackFxSpec(beast, true).projectile === 'spit', "Mob à distance : le tir de son archétype");
+    assert(mobAttackFxSpec({ visualArchetype: 'inconnu' }, false).style === MOB_ATTACK_STYLES.goblinoid, "Archétype inconnu : attaque du goblinoïde");
+
+    // Rythme : l'impact tombe toujours avant la fin de combat / le Game Over
+    assert(FX_MAX_IMPACT_MS < COMBAT_BEAT_MS, "L'impact d'un effet tombe avant le beat de fin de combat");
+
+    // Poses animables : groupe de pose, objet tenu avec sa transformation de repos, poing avant séparé
+    assert(wrapSceneBody('X') === '<g class="scene-body"><g class="scene-pose">X</g></g>', "Silhouette : groupe de pose sous le groupe de secousse");
+    const weaponCrawler = composeCrawler({ posture: 'weapon', weapon: 'Pied-de-biche', ench: {} });
+    const t = /class="crawler-held" data-t="([^"]+)" transform="([^"]+)"/.exec(weaponCrawler);
+    assert(t && t[1] === t[2], "Objet tenu : transformation de repos (data-t) = transformation affichée");
+    assert(composeCrawler({ posture: 'boxer', ench: {} }).includes('<g class="crawler-front">'), "Boxeur : poing avant dans son propre groupe (direct animé)");
+
+    // Sans requestAnimationFrame (Node) : aucun effet dessiné, l'impact est immédiat
+    resetTransientState();
+    let impacted = 0;
+    playPlayerAttackFx('weapon', { heldEnemyHp: 10 }, () => { impacted++; });
+    playMobAttackFx({ visualArchetype: 'beast' }, { heavy: true }, () => { impacted++; });
+    playSpellBackfireFx();
+    assert(impacted === 2 && sceneVitalsHold.enemy === null && sceneVitalsHold.player === false, "Sans animation possible : impact immédiat, aucune barre de vie tenue");
+
+    // Barres de vie tenues jusqu'à l'impact (renderSceneVitals)
+    const mob = generateMob(gameState.currentDistrict);
+    initiateCombat(mob);
+    gameState.currentEnemy.hp = 5;
+    sceneVitalsHold.enemy = gameState.currentEnemy; sceneVitalsHold.enemyHp = 40;
+    sceneVitalsHold.player = true; sceneVitalsHold.playerHp = 7;
+    renderScene('combat');
+    assert(sceneUi.enemyHpText.innerText.startsWith('PV 40/') && sceneUi.playerHpText.innerText.startsWith('PV 7/'), "Barres tenues : PV d'avant le coup affichés");
+    sceneVitalsHold.enemy = { other: true };
+    sceneVitalsHold.player = false;
+    renderScene('combat');
+    assert(sceneUi.enemyHpText.innerText.startsWith('PV 5/'), "Une tenue posée pour un autre ennemi est ignorée");
+    sceneVitalsHold.enemy = null;
+
+    // Un skip demandé au tour précédent n'escamote pas l'effet de l'attaque suivante
+    combatSkipRequested = true;
+    gameState.equipment.weapon = gameState.equipment.weapon || { name: 'Pied-de-biche', baseName: 'Pied-de-biche', category: 'weapons', baseDmg: 5 };
+    tryPlayerAction();
+    assert(combatSkipRequested === false, "Nouvelle action du joueur : la demande de skip précédente est oubliée");
+    resetTransientState();
+}
