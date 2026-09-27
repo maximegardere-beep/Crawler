@@ -13,7 +13,7 @@ const SCENE_GROUND_Y = 124;
 const SCENE_MARGIN = 6;
 
 // Crawler ancré à droite, jamais déplacé. CRAWLER_FRONT_EXTENT : distance entre son centre et son
-// point le plus avancé côté mob (botte/main avant, voir SCENE_CRAWLER_SVG dans sprites/crawler.js).
+// point le plus avancé côté mob (botte/main avant, voir CRAWLER_PARTS dans sprites/crawler.js).
 const CRAWLER_X = 306;
 const CRAWLER_FRONT_EXTENT = 15;
 // Compagnon éventuel, derrière le crawler (côté droit).
@@ -237,6 +237,99 @@ let lastMobSpriteKey = null;
 let lastSceneEnemy = null;
 let lastCompanionKey = null;
 
+// --- Crawler équipé ------------------------------------------------------------------------------------
+// Clé du sprite d'un objet dans ITEM_SPRITES (sprites/items-*.js) : son nom d'origine (`baseName`, posé
+// à la génération), sinon son nom exact (objets signature), sinon le plus long nom connu par lequel son
+// nom commence (anciennes sauvegardes, sans `baseName`), sinon le dessin générique de sa catégorie.
+function resolveItemSpriteKey(item) {
+    if (!item) return null;
+    if (item.baseName && ITEM_SPRITES[item.baseName]) return item.baseName;
+    if (item.name && ITEM_SPRITES[item.name]) return item.name;
+    const name = item.name || '';
+    let best = null;
+    Object.keys(ITEM_SPRITES).forEach(key => {
+        if (!key.startsWith('generic:') && name.startsWith(key) && (!best || key.length > best.length)) best = key;
+    });
+    return best || `generic:${item.category || 'weapons'}`;
+}
+
+// Posture = dernière attaque utilisée (gameState.lastAttackKind) : l'arme de mêlée, l'arme à distance, le
+// sort (paume ouverte) ou les poings (garde du boxeur). Si l'objet correspondant n'est plus équipé, ou
+// avant toute attaque : arme de mêlée, sinon arme à distance, sinon sort, sinon les poings. En combat au
+// contact, une arme à distance se tient canon baissé (on ne peut pas tirer à cet écart).
+function crawlerPosture() {
+    const eq = gameState.equipment || {};
+    const kind = gameState.lastAttackKind;
+    let posture;
+    if (kind === 'weapon' && eq.weapon) posture = 'weapon';
+    else if (kind === 'ranged' && eq.ranged) posture = 'ranged';
+    else if (kind === 'magic' && eq.spell) posture = 'magic';
+    else if (kind === 'unarmed') posture = 'boxer';
+    else posture = eq.weapon ? 'weapon' : eq.ranged ? 'ranged' : eq.spell ? 'magic' : 'boxer';
+    if (posture === 'ranged' && gameState.inCombat && (gameState.combatDistance || 0) <= 0) posture = 'rangedLowered';
+    return posture;
+}
+
+function crawlerLoadout() {
+    const eq = gameState.equipment || {};
+    return {
+        posture: crawlerPosture(),
+        weapon: resolveItemSpriteKey(eq.weapon),
+        ranged: resolveItemSpriteKey(eq.ranged),
+        armor: resolveItemSpriteKey(eq.armor),
+        glow: eq.spell ? (CRAWLER_SPELL_GLOWS[eq.spell.icon] || CRAWLER_DEFAULT_GLOW) : null
+    };
+}
+
+function crawlerLoadoutKey(l) {
+    return [l.posture, l.weapon, l.ranged, l.armor, l.glow].join('|');
+}
+
+function itemArt(key) {
+    const sprite = key && ITEM_SPRITES[key];
+    return sprite ? sprite.art : '';
+}
+
+// Compose le crawler en couches (voir CRAWLER_PARTS/CRAWLER_ARMS) avec son équipement : objet tenu dans
+// la main de la posture, l'autre arme rangée (mêlée à la hanche, distance en travers du sac), armure en
+// surimpression du torse. Pure : ne dépend que de `loadout`.
+function composeCrawler(l) {
+    const arm = CRAWLER_ARMS[l.posture] || CRAWLER_ARMS.rest;
+    const [hx, hy] = arm.hand;
+    const holdsWeapon = l.posture === 'weapon';
+    const holdsRanged = l.posture === 'ranged' || l.posture === 'rangedLowered';
+    const stowedRanged = l.ranged && !holdsRanged
+        ? `<g class="crawler-stowed-ranged" transform="translate(14 -54) rotate(55) scale(0.8)">${itemArt(l.ranged)}</g>` : '';
+    const stowedWeapon = l.weapon && !holdsWeapon
+        ? `<g class="crawler-stowed-weapon" transform="translate(5 -36) rotate(160) scale(0.7)">${itemArt(l.weapon)}</g>` : '';
+    const armor = l.armor ? `<g class="crawler-armor">${itemArt(l.armor)}</g>` : '';
+    let held = '';
+    if (holdsWeapon && l.weapon) held = `<g class="crawler-held" transform="translate(${hx} ${hy}) rotate(-12)">${itemArt(l.weapon)}</g>`;
+    if (holdsRanged && l.ranged) held = `<g class="crawler-held" transform="translate(${hx} ${hy}) rotate(${l.posture === 'rangedLowered' ? -35 : 0})">${itemArt(l.ranged)}</g>`;
+    if (l.posture === 'magic') {
+        const c = l.glow || CRAWLER_DEFAULT_GLOW;
+        held = `<g class="crawler-spell-glow"><circle cx="${hx - 3}" cy="${hy - 6}" r="7" fill="${c}" opacity="0.3"/><circle cx="${hx - 3}" cy="${hy - 6}" r="3.2" fill="${c}" opacity="0.85"/></g>`;
+    }
+    return `<g class="crawler" data-posture="${l.posture}">${CRAWLER_PARTS.base}${stowedRanged}${stowedWeapon}${CRAWLER_PARTS.torso}${armor}` +
+        `${arm.arm}${held}${arm.after || ''}${CRAWLER_PARTS.head}${arm.front || ''}</g>`;
+}
+
+// Crawler de l'état courant, avec sa clé (pour ne redessiner que quand la posture ou l'équipement change).
+function currentCrawler() {
+    const l = crawlerLoadout();
+    return { key: crawlerLoadoutKey(l), markup: composeCrawler(l) };
+}
+
+// Met à jour le crawler d'une scène (groupe `el`) si sa posture ou son équipement a changé.
+const lastCrawlerKeys = new Map();
+function renderCrawlerInto(el) {
+    if (!el) return;
+    const c = currentCrawler();
+    if (lastCrawlerKeys.get(el) === c.key) return;
+    el.innerHTML = wrapSceneBody(c.markup);
+    lastCrawlerKeys.set(el, c.key);
+}
+
 // Chaque silhouette est enveloppée dans un <g class="scene-body"> : le groupe extérieur porte la
 // position (translate, animée par transition), le groupe intérieur la secousse d'impact — deux
 // transformations indépendantes qui ne s'écrasent jamais.
@@ -246,7 +339,6 @@ function wrapSceneBody(markup) {
 
 function ensureSceneBuilt() {
     if (sceneBuilt) return;
-    sceneUi.crawler.innerHTML = wrapSceneBody(SCENE_CRAWLER_SVG);
     placeSceneGroup(sceneUi.crawler, CRAWLER_X, SCENE_GROUND_Y);
     placeSceneGroup(sceneUi.companion, COMPANION_X, SCENE_GROUND_Y);
     placeSceneAnchor(sceneUi.crawlerAnchor, CRAWLER_X, SCENE_GROUND_Y + CRAWLER_TOP + DAMAGE_ANCHOR_DROP);
@@ -396,6 +488,7 @@ function renderCombatScene() {
     const backdrop = resolveCombatBackdrop();
     renderSceneBackdrop(sceneUi.backdrop, 'cbd', backdrop.key, backdrop.def);
     renderLairProgress();
+    renderCrawlerInto(sceneUi.crawler);
     renderSceneVitals(enemy);
     renderSceneMob(enemy);
     renderSceneCompanion();
@@ -462,7 +555,6 @@ function composeShopSetpiece(role, specialty, prefix) {
 
 function ensureShopSceneBuilt() {
     if (shopSceneBuilt) return;
-    shopSceneUi.crawler.innerHTML = wrapSceneBody(SCENE_CRAWLER_SVG);
     placeSceneGroup(shopSceneUi.crawler, CRAWLER_X, SCENE_GROUND_Y);
     shopSceneBuilt = true;
 }
@@ -472,6 +564,7 @@ function renderShopScene(mode) {
     const city = gameState.urbanMap.citiesById[gameState.pendingShopCityId];
     if (!city) return;
     ensureShopSceneBuilt();
+    renderCrawlerInto(shopSceneUi.crawler);
     renderSceneBackdrop(shopSceneUi.backdrop, 'sbd', resolveBackdropKey(gameState.currentDistrict));
     const key = `${mode}:${city.specialty}`;
     if (lastShopSetpieceKey === key) return;
@@ -498,10 +591,10 @@ function renderSafehouseScene() {
     const room = map && map.roomsById && map.roomsById[gameState.pendingSafehouseRoomId];
     if (!room) return;
     if (!safehouseSceneBuilt) {
-        safehouseSceneUi.crawler.innerHTML = wrapSceneBody(SCENE_CRAWLER_SVG);
         placeSceneGroup(safehouseSceneUi.crawler, CRAWLER_X, SCENE_GROUND_Y);
         safehouseSceneBuilt = true;
     }
+    renderCrawlerInto(safehouseSceneUi.crawler);
     const typeName = room.safehouse ? room.safehouse.name : '';
     if (renderSceneBackdrop(safehouseSceneUi.backdrop, 'hbd', `safehouse:${typeName}`, safehouseBackdropFor(typeName))) {
         safehouseSceneUi.svg.setAttribute('aria-label', `${typeName || 'Salle sécurisée'} : porte blindée, zone sûre, vous à droite`);
@@ -542,7 +635,8 @@ function tintStyle(tint) {
 function crawlerAt(x, pose) {
     const p = pose || {};
     const fade = p.opacity != null ? ` opacity="${p.opacity}"` : '';
-    const body = p.cls ? `<g class="${p.cls}">${SCENE_CRAWLER_SVG}</g>` : SCENE_CRAWLER_SVG;
+    const crawler = currentCrawler().markup;
+    const body = p.cls ? `<g class="${p.cls}">${crawler}</g>` : crawler;
     return `<g transform="translate(${x} ${SCENE_GROUND_Y})"${fade}>${body}</g>`;
 }
 
@@ -624,14 +718,25 @@ function renderVignetteScene(target, scene) {
     if (!known) return;
     renderSceneBackdrop(target.backdrop, target.prefix, resolveBackdropKey(gameState.currentDistrict));
     const enemy = spec.enemy;
-    const key = [spec.key, enemy ? `${enemy.visualArchetype}:${enemy.effect}:${enemy.isBoss ? 1 : 0}` : '', spec.cityName || '', spec.isExit ? 1 : 0].join('|');
+    const key = [spec.key, enemy ? `${enemy.visualArchetype}:${enemy.effect}:${enemy.isBoss ? 1 : 0}` : '', spec.cityName || '', spec.isExit ? 1 : 0, currentCrawler().key].join('|');
     if (vignetteKeys[target.prefix] === key) return;
     target.vignette.innerHTML = composeExploreVignette(spec.key, spec);
     vignetteKeys[target.prefix] = key;
 }
 
+let lastExploreSpec = null;
 function renderExploreScene(scene) {
-    renderVignetteScene({ ...exploreSceneUi, prefix: 'ebd', view: FULL_SCENE_VIEW, overlayIcon: true }, scene);
+    lastExploreSpec = scene === undefined ? null : scene;
+    renderVignetteScene({ ...exploreSceneUi, prefix: 'ebd', view: FULL_SCENE_VIEW, overlayIcon: true }, lastExploreSpec);
+}
+
+// Après toute action (updateUI) : le crawler des scènes déjà affichées suit sa posture et son équipement
+// (équiper un objet depuis l'inventaire, par exemple) sans attendre le prochain événement. Chaque rendu
+// est mis en cache par clé : rien n'est redessiné si rien n'a changé.
+function refreshSceneCrawlers() {
+    if (lastExploreSpec) renderVignetteScene({ ...exploreSceneUi, prefix: 'ebd', view: FULL_SCENE_VIEW, overlayIcon: true }, lastExploreSpec);
+    if (shopSceneBuilt) renderCrawlerInto(shopSceneUi.crawler);
+    if (safehouseSceneBuilt) renderCrawlerInto(safehouseSceneUi.crawler);
 }
 
 // Écran d'escalier (#floor-transition-overlay) : même mécanique.
@@ -699,7 +804,7 @@ function renderGameOverScene(opts) {
 // Point d'entrée unique du rendu des scènes : 'combat' (#combat-zone), 'explore' (scène d'exploration,
 // `opts` = nom de vignette ou { key, enemy, ... }), 'merchant' | 'trainer' (#shop-zone), 'safehouse'
 // (#safehouse-choice-zone), 'stairs' (écran d'escalier), 'gameOver' (cadavre vu de dessus, `opts` =
-// { cause }) ; tout mode inconnu ne fait rien.
+// { cause }), 'crawlers' (remet à jour le crawler des scènes affichées) ; tout mode inconnu ne fait rien.
 function renderScene(mode, opts) {
     if (mode === 'combat') renderCombatScene();
     else if (mode === 'explore') renderExploreScene(opts);
@@ -707,4 +812,5 @@ function renderScene(mode, opts) {
     else if (mode === 'safehouse') renderSafehouseScene();
     else if (mode === 'stairs') renderStairsScene();
     else if (mode === 'gameOver') renderGameOverScene(opts);
+    else if (mode === 'crawlers') refreshSceneCrawlers();
 }

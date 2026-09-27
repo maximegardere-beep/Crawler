@@ -15,7 +15,9 @@ Tailwind CDN, **aucun build step**.
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
   que le fichier concerné) : `crawler.js` (crawler + cadavre vu de dessus), `npcs.js` (compagnon, marchand,
-  professeur), `mobs.js` (10 archétypes de mob, couronne de boss). Tous chargés avant `backdrops.js`/`scene.js`,
+  professeur), `mobs.js` (10 archétypes de mob, couronne de boss), `items-generic.js` (registre
+  `ITEM_SPRITES` des sprites d'équipement + dessins génériques de repli par catégorie ; les dessins propres
+  à chaque objet viendront dans d'autres `items-*.js`, par `Object.assign`). Tous chargés avant `backdrops.js`/`scene.js`,
   même ordre dans `index.html` et `tests/load_game.js` (`GAME_FILES`) — un nouveau fichier doit être ajouté
   aux DEUX.
 - `backdrops.js` — décors des scènes : catalogue pur (motifs de mur/sol, plafonds, accessoires, fiches de décor `SCENE_BACKDROPS`, enseignes/tableaux des villes spécialisées)
@@ -561,6 +563,24 @@ Tailwind CDN, **aucun build step**.
   `updateShopUI()`), `'safehouse'` la scène de `#safehouse-choice-zone` (appelée par `enterRoom()`),
   `'explore'` la scène d'exploration (appelée par `setSceneHeader()`), `'stairs'` celle de l'écran
   d'escalier (`triggerFloorTransition()`), `'gameOver'` l'écran de mort ; un mode inconnu ne fait rien.
+  **Crawler équipé** (chantier « sprites & effets », phase 1) : le crawler est composé en COUCHES
+  (`CRAWLER_PARTS` base/torse/tête + un bras avant par posture `CRAWLER_ARMS`, sprites/crawler.js) par
+  `composeCrawler(loadout)` (scene.js, pure), utilisé par TOUTES les scènes (combat, exploration,
+  marchand/professeur, salle sécurisée, escalier) via `currentCrawler()`/`renderCrawlerInto()` (redessin
+  seulement si la clé posture+équipement change ; `renderScene('crawlers')`, appelé par `updateUI()`,
+  rafraîchit les scènes hors combat déjà affichées). **Posture = dernière attaque utilisée**
+  (`gameState.lastAttackKind`, posé par `attackWeapon/attackRanged/attackUnarmed/attackMagic/
+  attemptEngage` juste après `tryPlayerAction()`, sauvegardé avec le reste) : `weapon` (arme de mêlée
+  levée), `ranged` (arme à distance pointée ; `rangedLowered` canon baissé en combat au contact),
+  `magic` (paume ouverte + lueur à la couleur du sort, `CRAWLER_SPELL_GLOWS` par icône), `boxer` (mains
+  nues, garde haute, un poing devant le visage) — `crawlerPosture()` retombe sur arme > distance > sort >
+  poings si l'objet de la dernière attaque n'est plus équipé. L'arme non tenue est rangée (mêlée à la
+  hanche, distance en travers du sac), l'armure est portée en surimpression du torse (jamais la tête ni la
+  main). Sprite d'un objet : `resolveItemSpriteKey(item)` — `item.baseName` (nom d'origine, posé par
+  `generateItem()`/`generateWelcomeGiftItem()`/`generateTestKitItem()`), sinon nom exact (objets
+  signature), sinon plus long nom connu par lequel le nom commence (anciennes sauvegardes sans
+  `baseName`), sinon `generic:<catégorie>`. `combat-scene.js` vérifie postures, ordre des couches,
+  résolution des sprites et que chaque attaque fixe la posture.
   **Scène d'exploration** (`#explore-scene`, remplace l'ancienne carte à jouer) : `setSceneHeader(icon,
   title, typeLabel, scene)` pose le type (pastille en haut à gauche), le titre et la vignette — nom
   (`'treasure'`, `'trap'`…) ou `{ key, enemy }` ; sans 4ᵉ argument ou nom inconnu, l'emoji `#explore-icon`

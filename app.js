@@ -78,6 +78,7 @@ const gameState = {
     bossChoicePending: false, // Une salle de boss vient d'être trouvée, décision combattre/repérer en attente
     safehouseChoicePending: false, // Une salle sécurisée vient d'être trouvée, décision repos/repartir en attente
     pendingSafehouseRoomId: null, // Room id de la salle sécurisée dont le choix est actuellement affiché
+    lastAttackKind: null, // 'weapon' | 'ranged' | 'magic' | 'unarmed' : dernière attaque utilisée, fixe la posture du crawler dans les scènes (voir crawlerPosture() dans scene.js)
     stealthChoicePending: false, // Un ennemi non repéré attend une décision (esquiver/attaque furtive)
     pendingStealthEncounter: null, // L'ennemi généré, en attente de cette décision
     pendingSneakAttack: false, // Consommé par le tout premier coup porté (bonus x2)
@@ -1262,6 +1263,7 @@ function updateUI() {
 
     // Scène de combat en vue latérale (scene.js) : seul point d'entrée de son rendu.
     renderScene('combat');
+    renderScene('crawlers'); // posture/équipement du crawler dans les scènes hors combat
 
     // "Lieux connus" (donjon classique) reste un panneau séparé ; la "Carte Urbaine" (étage urbain) est
     // un panneau sous la scène, ouvert/fermé par #btn-toggle-map (ouvert par défaut, mapPanelOpen). Elle
@@ -6031,6 +6033,7 @@ function attackWeapon() {
         return;
     }
     if (!tryPlayerAction()) return;
+    gameState.lastAttackKind = 'weapon'; // Posture du crawler (scene.js) : l'arme de mêlée en main
 
     // Arme arrachée par un effet magnétique en cours : l'attaque à l'arme est indisponible
     if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) {
@@ -6068,6 +6071,7 @@ function attackRanged() {
         return;
     }
     if (!tryPlayerAction()) return;
+    gameState.lastAttackKind = 'ranged'; // Posture du crawler (scene.js) : l'arme à distance en main
 
     if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) {
         gameState.status.disarmed.rounds -= 1;
@@ -6100,6 +6104,7 @@ function attackUnarmed() {
         return;
     }
     if (!tryPlayerAction()) return;
+    gameState.lastAttackKind = 'unarmed'; // Posture du crawler (scene.js) : garde du boxeur
 
     const skill = gameState.skills.unarmed;
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
@@ -6214,6 +6219,7 @@ function attemptEngage() {
 
     gameState.engageDefHalved = true;
     const weapon = gameState.equipment.weapon;
+    gameState.lastAttackKind = weapon ? 'weapon' : 'unarmed'; // Charge : l'arme de mêlée, sinon les poings
     const weaponBonus = weapon ? (weapon.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
     const defReduction = weapon ? 0 : 0.35; // Pas d'arme équipée : mêmes mains nues qu'attackUnarmed()
@@ -6252,6 +6258,7 @@ function attackMagic() {
         return;
     }
     if (!tryPlayerAction()) return;
+    gameState.lastAttackKind = 'magic'; // Posture du crawler (scene.js) : paume ouverte, lueur du sort
 
     gameState.mana -= spell.manaCost;
 

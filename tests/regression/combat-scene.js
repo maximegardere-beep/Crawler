@@ -287,7 +287,7 @@ function backdropProblems(key, def) {
     assert(merchantMarkup.includes(SCENE_MERCHANT_SVG) && merchantMarkup.includes('data-role="merchant"'), "Scène marchand : PNJ marchand derrière le comptoir");
     assert(merchantMarkup.indexOf(SCENE_MERCHANT_SVG) < merchantMarkup.lastIndexOf('<g transform="translate(96 124)">'), "Scène marchand : le comptoir est dessiné devant le PNJ");
     assert(shopBackdrop.innerHTML === composeBackdrop(SCENE_BACKDROPS[gameState.currentDistrict], 'sbd'), "Scène marchand : décor du quartier courant en fond, identifiants préfixés 'sbd' (jamais ceux de la scène de combat)");
-    assert(document.getElementById('shop-scene-crawler').innerHTML.includes(SCENE_CRAWLER_SVG), "Scène marchand : le crawler est présent");
+    assert(document.getElementById('shop-scene-crawler').innerHTML.includes(currentCrawler().markup), "Scène marchand : le crawler est présent");
     assert(!/scene-band|combat-(enemy|player)-hp/.test(merchantMarkup + shopBackdrop.innerHTML), "Scène marchand : ni bande de portée ni barre de vie");
 
     setpiece.innerHTML = 'SENTINELLE';
@@ -382,7 +382,7 @@ function isRedHex(hex) {
         room.safehouse = safehouseTypes[4];
         enterRoom(room);
         assert(sceneBackdrop.innerHTML === composeBackdrop(safehouseBackdropFor(safehouseTypes[4].name), 'hbd'), "enterRoom() : la scène de la salle sécurisée affiche le décor de son type (préfixe 'hbd')");
-        assert(document.getElementById('safehouse-scene-crawler').innerHTML.includes(SCENE_CRAWLER_SVG), "Scène de salle sécurisée : le crawler est présent");
+        assert(document.getElementById('safehouse-scene-crawler').innerHTML.includes(currentCrawler().markup), "Scène de salle sécurisée : le crawler est présent");
         assert(!/scene-band|combat-(enemy|player)-hp/.test(sceneBackdrop.innerHTML), "Scène de salle sécurisée : ni bande de portée ni barre de vie");
         assert(document.getElementById('scene-backdrop').innerHTML === combatBefore, "Scène de salle sécurisée : le décor de combat n'est pas touché");
         leaveSafehouse();
@@ -552,4 +552,88 @@ function isRedHex(hex) {
     Object.assign(gameState, { urbanMap: saved.urbanMap, currentDistrict: saved.district, currentEnemy: saved.enemy, inCombat: saved.inCombat });
     ['cbd'].forEach(p => { delete lastBackdropKeys[p]; delete vignetteKeys[p]; });
     resetTransientState();
+}
+
+// ===================================================================
+// Crawler équipé (sprites/crawler.js + sprites/items-*.js) : la posture suit la dernière attaque
+// utilisée, l'objet tenu est dans la main, l'autre arme rangée, l'armure portée ; chaque objet retrouve
+// son sprite par son nom d'origine (baseName), même dans une ancienne sauvegarde.
+// ===================================================================
+{
+    // Résolution du sprite d'un objet
+    ITEM_SPRITES['Objet de Test'] = { kind: 'melee', art: '<g/>' };
+    assert(resolveItemSpriteKey(null) === null, "resolveItemSpriteKey() : aucun objet -> aucun sprite");
+    assert(resolveItemSpriteKey({ name: 'Objet de Test Vibrant et Explosif', baseName: 'Objet de Test', category: 'weapons' }) === 'Objet de Test', "resolveItemSpriteKey() : nom d'origine (baseName) prioritaire");
+    assert(resolveItemSpriteKey({ name: 'Objet de Test Vibrant', category: 'weapons' }) === 'Objet de Test', "resolveItemSpriteKey() : ancienne sauvegarde sans baseName -> retrouvé par le début du nom");
+    assert(resolveItemSpriteKey({ name: 'Truc Inconnu', category: 'ranged' }) === 'generic:ranged' && resolveItemSpriteKey({ name: 'Truc', category: 'armors' }) === 'generic:armors', "resolveItemSpriteKey() : objet sans dessin -> dessin générique de sa catégorie");
+    delete ITEM_SPRITES['Objet de Test'];
+    ['weapons', 'ranged', 'armors'].forEach(cat => {
+        const item = generateItem(5, cat);
+        assert(item.baseName && item.name.startsWith(item.baseName) && baseItems[cat].some(b => b.name === item.baseName), `generateItem('${cat}') : baseName = nom d'origine de l'objet`);
+    });
+    const broken = Object.keys(ITEM_SPRITES).filter(k => !['melee', 'ranged', 'armor'].includes(ITEM_SPRITES[k].kind) || /undefined|NaN/.test(ITEM_SPRITES[k].art));
+    assert(broken.length === 0, `Chaque sprite d'équipement a un type et un dessin valides (${broken.join(', ')})`);
+
+    resetTransientState();
+    const saved = { equipment: { ...gameState.equipment }, last: gameState.lastAttackKind };
+    const melee = { name: 'Pied-de-biche', baseName: 'Pied-de-biche', category: 'weapons', baseDmg: 8 };
+    const ranged = { name: 'Lance-Pierre de Chantier', baseName: 'Lance-Pierre de Chantier', category: 'ranged', baseDmg: 10 };
+    const armor = { name: 'Armure de Carton', baseName: 'Armure de Carton', category: 'armors', baseArmor: 8 };
+    const spell = { name: 'Foudre', spellName: 'Foudre', icon: '🌩️', category: 'scrolls' };
+    gameState.equipment.weapon = melee; gameState.equipment.ranged = ranged; gameState.equipment.armor = armor; gameState.equipment.spell = spell;
+
+    gameState.lastAttackKind = null;
+    assert(crawlerPosture() === 'weapon', "Posture avant toute attaque : l'arme de mêlée en main");
+    gameState.lastAttackKind = 'ranged';
+    assert(crawlerPosture() === 'ranged', "Posture après un tir : l'arme à distance en main");
+    gameState.inCombat = true; gameState.combatDistance = 0;
+    assert(crawlerPosture() === 'rangedLowered', "Arme à distance au contact : canon baissé (on ne peut pas tirer)");
+    gameState.inCombat = false;
+    gameState.lastAttackKind = 'magic';
+    assert(crawlerPosture() === 'magic', "Posture après un sort : attaque magique");
+    gameState.lastAttackKind = 'unarmed';
+    assert(crawlerPosture() === 'boxer', "Posture après un coup à mains nues : garde du boxeur");
+    gameState.lastAttackKind = 'ranged'; gameState.equipment.ranged = null;
+    assert(crawlerPosture() === 'weapon', "Dernière arme plus équipée : repli sur l'arme de mêlée");
+    gameState.equipment.weapon = null; gameState.equipment.spell = null; gameState.lastAttackKind = null;
+    assert(crawlerPosture() === 'boxer', "Aucune arme ni sort : garde du boxeur");
+
+    gameState.equipment.weapon = melee; gameState.equipment.ranged = ranged; gameState.equipment.spell = spell;
+    gameState.lastAttackKind = 'weapon';
+    let markup = currentCrawler().markup;
+    assert(markup.includes('class="crawler-held"') && markup.includes('class="crawler-stowed-ranged"') && !markup.includes('crawler-stowed-weapon'), "Posture arme : l'arme de mêlée en main, l'arme à distance rangée dans le dos");
+    assert(markup.includes('class="crawler-armor"') && markup.includes(itemArt(resolveItemSpriteKey(armor))), "L'armure équipée est portée par le crawler");
+    assert(markup.indexOf('crawler-armor') < markup.indexOf('crawler-held') && markup.indexOf('crawler-held') < markup.indexOf(CRAWLER_PARTS.head), "Ordre : armure sur le torse, puis objet tenu, puis tête (jamais masquée)");
+    gameState.lastAttackKind = 'ranged';
+    markup = currentCrawler().markup;
+    assert(markup.includes('class="crawler-stowed-weapon"') && !markup.includes('crawler-stowed-ranged'), "Posture tir : l'arme de mêlée rangée à la hanche");
+    gameState.lastAttackKind = 'magic';
+    markup = currentCrawler().markup;
+    assert(markup.includes('crawler-spell-glow') && markup.includes(CRAWLER_SPELL_GLOWS['🌩️']), "Posture magie : lueur du sort équipé dans la paume (couleur de Foudre)");
+    gameState.lastAttackKind = 'unarmed';
+    markup = currentCrawler().markup;
+    assert(markup.indexOf(CRAWLER_PARTS.head) < markup.lastIndexOf(CRAWLER_ARMS.boxer.front), "Garde du boxeur : un poing devant le visage");
+    assert(!/undefined|NaN/.test(markup), "Crawler composé sans valeur manquante");
+
+    // Chaque attaque fixe la posture.
+    const mob = () => ({ name: 'Sac de Frappe', hp: 999, maxHp: 999, atk: 1, def: 0, status: {} });
+    [['unarmed', () => attackUnarmed()], ['weapon', () => attackWeapon()]].forEach(([kind, act]) => {
+        resetTransientState();
+        gameState.equipment.weapon = melee;
+        gameState.lastAttackKind = null;
+        initiateCombat(mob());
+        gameState.combatDistance = 0;
+        act();
+        assert(gameState.lastAttackKind === kind, `Attaque '${kind}' : la posture suit la dernière attaque utilisée`);
+    });
+    resetTransientState();
+    gameState.equipment.ranged = ranged;
+    initiateCombat(mob());
+    gameState.combatDistance = 3;
+    attackRanged();
+    assert(gameState.lastAttackKind === 'ranged', "Tir : la posture suit la dernière attaque utilisée");
+
+    resetTransientState();
+    gameState.equipment = saved.equipment;
+    gameState.lastAttackKind = saved.last;
 }
