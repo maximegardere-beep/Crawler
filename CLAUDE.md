@@ -13,6 +13,8 @@ Tailwind CDN, **aucun build step**.
 - `safehouses.js` — types de salles sécurisées (narratif seul pour l'instant)
 - `generator.js` — génération procédurale (mobs, objets, parchemins de sorts, boss, compagnons)
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
+- `sprites.js` — silhouettes SVG de profil de la scène de combat (crawler, compagnon, 10 archétypes de mob, couronne de boss)
+- `scene.js` — rendu de la scène de combat en vue latérale (`distanceToX()`, `renderCombatScene()`)
 - `tests/` — voir plus bas
 
 ## Architecture (résumé)
@@ -503,6 +505,26 @@ Tailwind CDN, **aucun build step**.
   layout déjà bon (la grille urbaine) pour écarter les points trop proches sans le déformer — voir
   Étages urbains ci-dessus pour son usage concret.
 
+- **Scène de combat (vue 2D latérale)** : `#combat-zone` (index.html), de haut en bas : barres de vie
+  (nom + PV actuels/max, mob à gauche, crawler à droite, badges d'état, dés), bannière de télégraphe,
+  scène SVG (`#combat-scene-svg`, viewBox 360x150), distance "x/8" + jauge de tension, journal court,
+  mana, boutons (≥ 44 px), infos du mob (`renderCombatMobPanel()` → `#combat-mob-info`). La carte
+  d'exploration est masquée en combat. **Rendu séparé de la logique** : `scene.js` ne fait que lire
+  `gameState`/`config` ; son seul point d'entrée est `renderCombatScene()`, appelée en fin
+  d'`updateUI()` (et à l'impact d'un coup via `animateDieHit()`). `distanceToX(distance, max)` est
+  l'UNIQUE conversion distance de jeu → abscisse : linéaire, bornée, crawler fixe à droite
+  (`CRAWLER_X`), mob entre `MOB_X_FAR` et `MOB_X_CONTACT` — ce dernier calculé depuis les gabarits
+  (`CRAWLER_FRONT_EXTENT`, `MOB_EXTENT`, `CONTACT_GAP`) pour qu'aucun chevauchement ne soit possible
+  au contact. La distance de jeu reste un entier 0..`maxDistance` : seul le rendu est continu
+  (transition CSS sur `transform`, coupée à l'apparition d'un nouvel ennemi). Toute silhouette de mob
+  doit tenir dans ±`MOB_EXTENT` (tests dans `combat-scene.js`). Deux bandes de portée permanentes au
+  sol (`computeRangeBands()`) : contact (écart 0) et tir (écart > 0, aucune portée maximale dans le
+  jeu), celle où se trouve le mob est renforcée. Journal court : `logEvent()` garde, en combat, les
+  `COMBAT_LOG_LINES` dernières lignes dans `#combat-last-action` (remis à zéro à chaque nouvel ennemi).
+  Secousse du combattant touché : `shakeSceneFighter()`, appelée par `showFloatingDamage()`, dont les
+  chiffres s'accrochent aux ancres `#scene-mob-anchor`/`#scene-crawler-anchor` qui suivent la scène.
+  `visualArchetype` (bestiary.js) choisit la silhouette ; archétype inconnu → `goblinoid`.
+
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).
 2. `node --check fichier.js` avant tout commit.
@@ -531,13 +553,13 @@ Tailwind CDN, **aucun build step**.
 
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
-  charge les 8 fichiers sources dans l'ordre.
+  charge les 10 fichiers sources dans l'ordre.
 - `npm test` (= `node tests/regression.test.js`), `npm run test:long` (= `node tests/long_playthrough.js`),
   `npm run test:all` (les deux à la suite, s'arrête au premier échec) — voir `package.json`.
 - **Rapide** (`npm test`, quelques secondes) : à lancer avant CHAQUE push. `tests/regression.test.js`
   est un AGRÉGATEUR (depuis la Tâche 2 du chantier "fiabilisation" — l'ancien fichier monolithique
   faisait ~172 Ko) : il ne fait que `require()` chaque module de `tests/regression/*.js`, regroupés
-  par domaine (`meta-reset.js`, `combat.js`, `combat-scaling.js`, `combat-boss.js`,
+  par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
   `urban-map.js`, `urban-shops.js`, `urban-lairs.js`), dans l'ordre où chacun apparaît en tête de
