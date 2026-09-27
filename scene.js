@@ -87,6 +87,12 @@ function composeBackdrop(def, prefix) {
     const haloClass = l => (l.flicker ? ' class="bd-halo-flicker"' : '');
     const wallHalos = lights.map((l, i) => `<ellipse${haloClass(l)} cx="${l.x}" cy="${l.y}" rx="${l.radius}" ry="${l.radius * 0.85}" fill="url(#${prefix}-glow-${i})"/>`).join('');
     const floorHalos = lights.map((l, i) => `<ellipse${haloClass(l)} cx="${l.x}" cy="${G + 5}" rx="${l.radius * 1.1}" ry="7" fill="url(#${prefix}-glow-${i})"/>`).join('');
+    // Accessoires au sol (rails, flèches peintes, brume, vapeur) : dessinés APRÈS le sol, dans
+    // l'avant-plan du décor — toujours derrière les combattants.
+    const floorProps = (def.floorProps || []).map(prop => {
+        const kind = BACKDROP_PROPS[prop.type];
+        return kind ? `<g transform="translate(${prop.x} ${prop.y})">${kind.markup(prop, p)}</g>` : '';
+    }).join('');
     const debris = def.debris
         ? BACKDROP_DEBRIS.map(([x, y, r]) => `<ellipse cx="${x}" cy="${y}" rx="${r * 1.4}" ry="${r}" fill="${p.floorAlt}" stroke="#05060c" stroke-width="0.6"/>`).join('')
         : '';
@@ -117,7 +123,7 @@ function composeBackdrop(def, prefix) {
             <rect x="0" y="${G}" width="${W}" height="${H - G}" fill="url(#${prefix}-floor)"/>
             <rect x="0" y="${G}" width="${W}" height="3" fill="#000" opacity="0.35"/>
             <line x1="0" y1="${G}" x2="${W}" y2="${G}" stroke="#05060c" stroke-width="2"/>
-            ${floorHalos}${debris}
+            ${floorHalos}${debris}${floorProps}
             <rect x="0" y="0" width="${W}" height="${H}" fill="url(#${prefix}-vignette)"/>
         </g>`;
 }

@@ -179,9 +179,12 @@ function backdropProblems(key, def) {
     if (!BACKDROP_WALL_PATTERNS[def.wall]) problems.push(`${key}: motif de mur inconnu (${def.wall})`);
     if (!BACKDROP_FLOOR_PATTERNS[def.floor]) problems.push(`${key}: motif de sol inconnu (${def.floor})`);
     if (!BACKDROP_CEILINGS[def.ceiling]) problems.push(`${key}: plafond inconnu (${def.ceiling})`);
-    (def.props || []).forEach(prop => {
+    [...(def.props || []), ...(def.floorProps || [])].forEach(prop => {
         if (!BACKDROP_PROPS[prop.type]) problems.push(`${key}: accessoire inconnu (${prop.type})`);
         if (!(prop.x >= 0 && prop.x <= BACKDROP_WIDTH && prop.y >= 0 && prop.y <= BACKDROP_HEIGHT)) problems.push(`${key}: accessoire ${prop.type} hors de la scène`);
+    });
+    (def.floorProps || []).forEach(prop => {
+        if (prop.y < BACKDROP_GROUND_Y) problems.push(`${key}: accessoire au sol ${prop.type} placé au-dessus du sol`);
     });
     const markup = composeBackdrop(def, 'test');
     if (/undefined|NaN/.test(markup)) problems.push(`${key}: rendu avec une valeur manquante (undefined/NaN)`);
@@ -228,4 +231,32 @@ function backdropProblems(key, def) {
     assert(renderSceneBackdrop(fake, 'essai', 'default') === true && renderSceneBackdrop(fake, 'essai', 'default') === false, "renderSceneBackdrop() : un seul dessin tant que la clé ne change pas");
     delete lastBackdropKeys.cbd;
     gameState.currentDistrict = savedDistrict;
+}
+
+// ===================================================================
+// Un décor par quartier : chaque quartier de districts.js (aussi thème des étages urbains) a sa fiche,
+// avec 3 accessoires signature au moins (types distincts) et une source de lumière — un futur quartier
+// ajouté sans décor fait échouer ce test au lieu de tomber silencieusement sur le décor par défaut.
+// ===================================================================
+{
+    const missing = Object.keys(districts).filter(name => !Object.prototype.hasOwnProperty.call(SCENE_BACKDROPS, name));
+    assert(missing.length === 0, `Chaque quartier de districts.js a son décor (manquants : ${missing.join(', ')})`);
+    const orphans = Object.keys(SCENE_BACKDROPS).filter(key => key !== 'default' && !districts[key]);
+    assert(orphans.length === 0, `Chaque fiche de décor correspond à un quartier existant (orphelines : ${orphans.join(', ')})`);
+
+    const weak = [];
+    Object.keys(districts).forEach(name => {
+        const def = SCENE_BACKDROPS[name];
+        if (!def) return;
+        const all = [...(def.props || []), ...(def.floorProps || [])];
+        const types = new Set(all.map(prop => prop.type));
+        const lit = all.some(prop => BACKDROP_PROPS[prop.type] && BACKDROP_PROPS[prop.type].light(prop));
+        if (types.size < 3) weak.push(`${name}: ${types.size} type(s) d'accessoire`);
+        if (!lit) weak.push(`${name}: aucune source de lumière`);
+        if (resolveBackdropKey(name) !== name) weak.push(`${name}: la fiche n'est pas sélectionnée`);
+    });
+    assert(weak.length === 0, `Décors de quartier complets (${weak.join(' ; ')})`);
+
+    const distinctWalls = new Set(Object.keys(districts).map(name => SCENE_BACKDROPS[name] && `${SCENE_BACKDROPS[name].wall}|${SCENE_BACKDROPS[name].palette.wall}`));
+    assert(distinctWalls.size === Object.keys(districts).length, "Deux quartiers ne partagent jamais le même mur (motif + couleur)");
 }

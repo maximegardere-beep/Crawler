@@ -530,13 +530,18 @@ Tailwind CDN, **aucun build step**.
   Bibliothèques : `BACKDROP_WALL_PATTERNS` / `BACKDROP_FLOOR_PATTERNS` (fonctions `(id, palette)` →
   `<pattern>`), `BACKDROP_CEILINGS`, `BACKDROP_PROPS` (`{ markup(opts, palette), light(opts) }`, origine
   = point de fixation au mur ; `light()` décrit la source dont `composeBackdrop()` tire un halo au mur et
-  au sol). Fiche = palette + mur + sol + plafond + accessoires + débris ; `SCENE_BACKDROPS.default`
-  s'applique à tout quartier sans fiche (`resolveBackdropKey(gameState.currentDistrict)`, clé = nom
-  exact de `districts.js`, aussi thème des étages urbains). `composeBackdrop(def, prefix)` (pure) produit
+  au sol). Fiche = palette + mur + sol + plafond + accessoires muraux (`props`) + accessoires au sol
+  (`floorProps` : rails, flèches, brume, vapeur — dessinés après le sol, toujours derrière les
+  combattants) + débris. Une fiche par quartier (clé = nom exact de `districts.js`, aussi thème des
+  étages urbains, lu via `resolveBackdropKey(gameState.currentDistrict)`) ; `SCENE_BACKDROPS.default`
+  ne sert que de repli. `combat-scene.js` exige que CHAQUE quartier de `districts.js` ait sa fiche
+  (≥ 3 types d'accessoires, ≥ 1 source de lumière, mur distinct des autres quartiers) : ajouter un
+  quartier sans décor fait échouer les tests. `composeBackdrop(def, prefix)` (pure) produit
   3 couches — fond (mur, ombres, plafond), milieu (halos, accessoires), avant-plan (sol, halos au sol,
   débris, vignette) — avec des identifiants préfixés par scène. `renderSceneBackdrop()` ne redessine
   que si la clé change (`lastBackdropKeys`), jamais à chaque `updateUI()`. Animations CSS uniquement
-  (`.bd-flame`, `.bd-halo-flicker`, `.bd-neon-flicker`), coupées sous `prefers-reduced-motion`. Aucun
+  (`.bd-flame`, `.bd-halo-flicker`, `.bd-neon-flicker`, `.bd-spin`, `.bd-blink`, `.bd-steam`,
+  `.bd-float`, `.bd-dust`, `.bd-crackle`, `.bd-ripple`, `.bd-mist`), coupées sous `prefers-reduced-motion`. Aucun
   `Math.random()` dans un décor (positions fixes, voir `BACKDROP_DEBRIS`). Le décor ne touche jamais à
   `distanceToX()`, aux gabarits ni aux bandes de portée ; il reste plus sombre et moins saturé que les
   personnages. Toute fiche est validée automatiquement par `tests/regression/combat-scene.js`.

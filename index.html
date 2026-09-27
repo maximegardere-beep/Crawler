@@ -298,13 +298,36 @@
             70% { opacity: 0.92; }
         }
         .bd-neon-flicker { animation: bdNeonFlicker 6s linear infinite; }
+        .bd-spin { transform-box: fill-box; transform-origin: center; animation: bdSpin 14s linear infinite; }
+        .bd-spin-rev { animation-direction: reverse; animation-duration: 9s; }
+        @keyframes bdSpin { to { transform: rotate(360deg); } }
+        .bd-blink { animation: bdBlink 1.6s ease-in-out infinite; }
+        @keyframes bdBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .bd-steam { transform-box: fill-box; transform-origin: 50% 100%; opacity: 0; animation: bdSteam 3.3s ease-out infinite; }
+        @keyframes bdSteam {
+            0% { transform: translateY(0) scale(0.6); opacity: 0; }
+            20% { opacity: 0.35; }
+            100% { transform: translateY(-26px) scale(1.5); opacity: 0; }
+        }
+        .bd-float { transform-box: fill-box; transform-origin: center; animation: bdFloat 3.6s ease-in-out infinite alternate; }
+        @keyframes bdFloat { from { transform: translateY(0) rotate(-2deg); } to { transform: translateY(-4px) rotate(3deg); } }
+        .bd-dust { animation: bdDust 7s ease-in-out infinite alternate; }
+        @keyframes bdDust { from { transform: translate(0, 0); } to { transform: translate(7px, -5px); } }
+        .bd-crackle { animation: bdCrackle 1.7s steps(1) infinite; }
+        @keyframes bdCrackle { 0%, 100% { opacity: 0.9; } 18% { opacity: 0; } 30% { opacity: 1; } 55% { opacity: 0; } 72% { opacity: 0.7; } }
+        .bd-ripple { animation: bdRipple 4.2s ease-in-out infinite alternate; }
+        @keyframes bdRipple { from { transform: translateX(-5px); opacity: 0.6; } to { transform: translateX(5px); opacity: 1; } }
+        .bd-mist { animation: bdMist 14s ease-in-out infinite alternate; }
+        @keyframes bdMist { from { transform: translateX(-12px); } to { transform: translateX(12px); } }
         @keyframes bdNeonFlicker {
             0%, 62%, 66%, 70%, 100% { opacity: 1; }
             64%, 68% { opacity: 0.25; }
         }
         @media (prefers-reduced-motion: reduce) {
             #scene-mob, #scene-mob-anchor { transition: none; }
-            .scene-hit, .bd-flame, .bd-halo-flicker, .bd-neon-flicker { animation: none; }
+            .scene-hit, .bd-flame, .bd-halo-flicker, .bd-neon-flicker, .bd-spin, .bd-blink, .bd-float, .bd-dust,
+            .bd-crackle, .bd-ripple, .bd-mist { animation: none; }
+            .bd-steam { animation: none; opacity: 0.2; }
         }
 
         /* --- Overlay d'ambiance (états critiques du joueur) ---
@@ -1066,16 +1089,16 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=96"></script>
-    <script src="items.js?v=96"></script>
-    <script src="spells.js?v=96"></script>
-    <script src="districts.js?v=96"></script>
-    <script src="safehouses.js?v=96"></script>
-    <script src="generator.js?v=96"></script>
-    <script src="anomalies.js?v=96"></script>
-    <script src="sprites.js?v=96"></script>
-    <script src="backdrops.js?v=96"></script>
-    <script src="scene.js?v=96"></script>
-    <script src="app.js?v=96"></script>
+    <script src="bestiary.js?v=97"></script>
+    <script src="items.js?v=97"></script>
+    <script src="spells.js?v=97"></script>
+    <script src="districts.js?v=97"></script>
+    <script src="safehouses.js?v=97"></script>
+    <script src="generator.js?v=97"></script>
+    <script src="anomalies.js?v=97"></script>
+    <script src="sprites.js?v=97"></script>
+    <script src="backdrops.js?v=97"></script>
+    <script src="scene.js?v=97"></script>
+    <script src="app.js?v=97"></script>
 </body>
 </html>
