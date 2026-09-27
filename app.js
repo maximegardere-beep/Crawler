@@ -4573,7 +4573,7 @@ function renderCombatMobPanel() {
             ${effectChip}
             ${modifierChips}
         </div>
-        <button id="btn-examine-mob" class="mt-2 w-full text-[10px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">🔍 Examiner</button>
+        <button id="btn-examine-mob" class="mt-2 w-full min-h-[44px] text-[10px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">🔍 Examiner</button>
         <div id="mob-examine-details" class="hidden mt-2 text-[10px] leading-snug text-stone-600 italic space-y-1"></div>
     `;
 
