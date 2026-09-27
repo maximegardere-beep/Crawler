@@ -558,6 +558,8 @@ const ui = {
     equippedArmor: document.getElementById('equipped-armor'),
     equippedArmorBadges: document.getElementById('equipped-armor-badges'),
     playerStatusIcons: document.getElementById('player-status-icons'),
+    combatLastAction: document.getElementById('combat-last-action'),
+    combatMobInfo: document.getElementById('combat-mob-info'),
     enemyStatusIcons: document.getElementById('enemy-status-icons'),
     combatEnemyDie: document.getElementById('combat-enemy-die'),
     combatPlayerStatus: document.getElementById('combat-player-status'),
@@ -1399,10 +1401,15 @@ function showFloatingDamage(containerEl, amount, { heavy = false, toPlayer = fal
     containerEl.appendChild(el);
 }
 
+// Nombre de lignes gardées dans le journal court de combat (#combat-last-action) ; il n'en montre
+// que ce que sa hauteur fixe permet, la plus récente toujours entière en bas.
+const COMBAT_LOG_LINES = 3;
+// Ennemi du combat dont le journal court affiche les lignes : un nouvel ennemi le remet à zéro.
+let combatLogEnemy = null;
+
 // Fonction pour ajouter un message : sur la carte active (fond clair) ET dans le journal complet (fond sombre).
-// Pendant un combat, la carte n'affiche plus le flot de logs (trop de bruit visuel) : elle montre à
-// la place un résumé fixe de l'ennemi (voir renderCombatMobPanel) et un bouton "Examiner". Le
-// journal complet, lui, continue toujours de tout recevoir, combat ou non.
+// Pendant un combat, la carte est masquée : le message va dans le journal court de la zone de combat
+// (dernières actions) à la place. Le journal complet, lui, continue toujours de tout recevoir.
 function logEvent(message, type = "normal") {
     if (!gameState.inCombat) {
         // Couleurs adaptées au fond clair de la carte (papier crème)
@@ -1433,6 +1440,20 @@ function logEvent(message, type = "normal") {
     logLine.innerText = `>> ${message}`;
     ui.fullLog.appendChild(logLine);
     ui.fullLog.scrollTop = ui.fullLog.scrollHeight;
+
+    if (gameState.inCombat && ui.combatLastAction) {
+        if (combatLogEnemy !== gameState.currentEnemy) {
+            ui.combatLastAction.innerHTML = '';
+            combatLogEnemy = gameState.currentEnemy;
+        }
+        const shortLine = document.createElement('p');
+        shortLine.className = logColors[type] || logColors.normal;
+        shortLine.innerText = message;
+        ui.combatLastAction.appendChild(shortLine);
+        while (ui.combatLastAction.children.length > COMBAT_LOG_LINES) {
+            ui.combatLastAction.removeChild(ui.combatLastAction.firstElementChild);
+        }
+    }
 }
 
 // Prépare l'en-tête de la carte active (icône, titre, type) : appelé au début de chaque nouvelle
@@ -4524,9 +4545,9 @@ const EFFECT_LABELS = {
 
 let mobExamineOpen = false; // État transitoire du bouton "Examiner" (pas de sauvegarde nécessaire)
 
-// Construit le panneau compact affiché sur la carte pendant un combat : plus aucun texte de log
-// n'y défile (voir logEvent) — seulement des icônes/chiffres résumant l'ennemi, plus un bouton
-// "Examiner" qui déplie les détails textuels (description des modificateurs, effet) à la demande.
+// Construit le panneau compact des infos du mob, sous la scène de combat (#combat-mob-info) :
+// seulement des icônes/chiffres résumant l'ennemi, plus un bouton "Examiner" qui déplie les
+// détails textuels (description des modificateurs, effet) à la demande.
 function renderCombatMobPanel() {
     const enemy = gameState.currentEnemy;
     if (!enemy) return;
@@ -4543,7 +4564,7 @@ function renderCombatMobPanel() {
         : '';
     const modifierChips = modifiers.map(m => `<span class="px-1.5 py-0.5 rounded bg-stone-200 border border-stone-400 text-stone-700">🏷️ ${m.name}</span>`).join('');
 
-    ui.cardBody.innerHTML = `
+    ui.combatMobInfo.innerHTML = `
         <div class="flex flex-wrap justify-center gap-1 text-[10px] font-bold">
             ${eliteChip}
             <span class="px-1.5 py-0.5 rounded bg-stone-200 border border-stone-400 text-stone-700">${rangeIcon} ${rangeLabel}</span>

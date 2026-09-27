@@ -41,6 +41,8 @@ function makeEl() {
         },
         appendChild(child) { this._children.push(child); return child; },
         removeChild(child) { this._children = this._children.filter(c => c !== child); },
+        get children() { return this._children; },
+        get firstElementChild() { return this._children[0] || null; },
         get innerHTML() { return this._innerHTML || ""; },
         set innerHTML(v) { this._innerHTML = v; this._children = []; },
         querySelector(sel) {

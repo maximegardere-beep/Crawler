@@ -108,3 +108,32 @@ function mobX() {
     assert(el('combat-enemy-hp-text').innerText === 'PV 0/60' && el('combat-enemy-hp-bar').style.width === '0%', "Barre ennemie : jamais de PV négatifs affichés");
     assert(el('combat-distance-label').innerText.includes('au contact'), "Distance 0 : indiquée comme contact");
 }
+
+// ===================================================================
+// Journal court de combat : dernières lignes seulement, remis à zéro à chaque nouvel ennemi ; infos
+// du mob sous la scène (plus dans la carte d'exploration, masquée en combat).
+// ===================================================================
+{
+    const shortLog = document.getElementById('combat-last-action');
+    const lines = () => shortLog.children.map(c => c.innerText);
+
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
+    ['a', 'b', 'c', 'd', 'e'].forEach(m => logEvent(m));
+    assert(lines().join(',') === 'c,d,e', "Journal court : seules les 3 dernières lignes sont gardées, la plus récente en dernier");
+
+    gameState.currentEnemy = { name: "Autre Mob", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
+    logEvent('nouveau combat');
+    assert(lines().join(',') === 'nouveau combat', "Journal court : un nouvel ennemi repart d'un journal vide");
+
+    gameState.inCombat = false;
+    logEvent('hors combat');
+    assert(!lines().includes('hors combat'), "Journal court : les messages hors combat n'y vont pas");
+
+    const cardBefore = document.getElementById('card-body').innerHTML;
+    gameState.inCombat = true;
+    renderCombatMobPanel();
+    assert(document.getElementById('combat-mob-info').innerHTML.includes('Examiner'), "Infos du mob (et bouton Examiner) affichées sous la scène");
+    assert(document.getElementById('card-body').innerHTML === cardBefore, "renderCombatMobPanel() ne touche plus la carte d'exploration");
+}

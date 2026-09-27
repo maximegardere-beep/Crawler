@@ -570,6 +570,15 @@
             <p id="combat-distance-label" class="mt-1 mb-2 text-center text-[11px] text-gray-400 tabular-nums">Distance</p>
             <p id="distance-tension-label" class="hidden mb-2 text-center text-[9px] font-bold uppercase tracking-wider"></p>
 
+            <!-- Journal court : les dernières lignes du combat (logEvent(), app.js), la plus récente en
+                 bas. Hauteur fixe pour que les boutons ne bougent pas sous le doigt ; les lignes plus
+                 anciennes sont rognées par le haut. Le journal complet reste disponible plus haut. -->
+            <div id="combat-last-action" class="mb-2 h-[3.25rem] overflow-hidden flex flex-col justify-end gap-0.5 px-2 py-1 rounded bg-gray-950/70 border border-gray-800 text-[11px] leading-snug" aria-live="polite"></div>
+
+            <!-- Infos du mob (portée, ATQ/DEF, effet, modificateurs + bouton Examiner), remplies par
+                 renderCombatMobPanel() (app.js). -->
+            <div id="combat-mob-info" class="mini-card mb-3 rounded-lg px-2 py-2 text-[11px]"></div>
+
             <!-- Barre de Mana en combat : visible uniquement si un sort est équipé, voir updateUI() -->
             <div id="combat-mana-wrapper" class="hidden mb-2">
                 <div class="flex justify-between text-[9px] text-purple-400 uppercase tracking-wider mb-1">
@@ -1010,15 +1019,15 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=91"></script>
-    <script src="items.js?v=91"></script>
-    <script src="spells.js?v=91"></script>
-    <script src="districts.js?v=91"></script>
-    <script src="safehouses.js?v=91"></script>
-    <script src="generator.js?v=91"></script>
-    <script src="anomalies.js?v=91"></script>
-    <script src="sprites.js?v=91"></script>
-    <script src="scene.js?v=91"></script>
-    <script src="app.js?v=91"></script>
+    <script src="bestiary.js?v=92"></script>
+    <script src="items.js?v=92"></script>
+    <script src="spells.js?v=92"></script>
+    <script src="districts.js?v=92"></script>
+    <script src="safehouses.js?v=92"></script>
+    <script src="generator.js?v=92"></script>
+    <script src="anomalies.js?v=92"></script>
+    <script src="sprites.js?v=92"></script>
+    <script src="scene.js?v=92"></script>
+    <script src="app.js?v=92"></script>
 </body>
 </html>
