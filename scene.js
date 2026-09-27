@@ -1,6 +1,8 @@
 // scene.js - Rendu de la scène de combat en vue 2D latérale (mob à gauche, crawler à droite, sol
-// horizontal). Module de RENDU pur : lit gameState/config, ne les modifie jamais. Chargé juste avant
-// app.js ; son seul point d'entrée côté moteur est renderCombatScene(), appelée en fin d'updateUI().
+// horizontal) et de son décor (catalogue dans backdrops.js). Module de RENDU pur : lit
+// gameState/config, ne les modifie jamais. Chargé juste avant app.js (après sprites.js et
+// backdrops.js) ; son seul point d'entrée côté moteur est renderCombatScene(), appelée en fin
+// d'updateUI().
 //
 // Coordonnées : celles du viewBox de #combat-scene-svg (index.html), 360 x 150 unités. Le SVG
 // s'adapte à la largeur de l'écran ; toutes les positions ci-dessous restent donc en unités viewBox.
@@ -48,6 +50,88 @@ function computeRangeBands(maxDistance) {
     };
 }
 
+// --- Décor (catalogue dans backdrops.js) ---------------------------------------------------------
+// Fiche de décor d'un quartier : son nom exact (districts.js, aussi utilisé comme thème des étages
+// urbains), sinon le décor par défaut.
+function resolveBackdropKey(district) {
+    return Object.prototype.hasOwnProperty.call(SCENE_BACKDROPS, district) ? district : 'default';
+}
+
+// Assemble une fiche de décor en SVG, en 3 couches toujours placées AVANT (donc derrière) les
+// combattants : fond (mur, ombres, plafond), milieu (halos muraux, accessoires), avant-plan (sol,
+// halos au sol, débris, vignette). `prefix` rend uniques les identifiants de motifs/dégradés, pour
+// que plusieurs scènes puissent coexister dans la page. Pure : ne lit que la fiche et le catalogue.
+function composeBackdrop(def, prefix) {
+    const p = def.palette;
+    const W = BACKDROP_WIDTH;
+    const H = BACKDROP_HEIGHT;
+    const G = BACKDROP_GROUND_Y;
+    const wallPattern = BACKDROP_WALL_PATTERNS[def.wall] || BACKDROP_WALL_PATTERNS.stone;
+    const floorPattern = BACKDROP_FLOOR_PATTERNS[def.floor] || BACKDROP_FLOOR_PATTERNS.flagstones;
+    const ceiling = BACKDROP_CEILINGS[def.ceiling] || BACKDROP_CEILINGS.vault;
+
+    const lights = [];
+    const props = (def.props || []).map(prop => {
+        const kind = BACKDROP_PROPS[prop.type];
+        if (!kind) return '';
+        const light = kind.light(prop);
+        if (light) lights.push({ x: prop.x + light.dx, y: prop.y + light.dy, color: light.color, radius: light.radius, flicker: light.flicker });
+        return `<g transform="translate(${prop.x} ${prop.y})">${kind.markup(prop, p)}</g>`;
+    }).join('');
+
+    const glowDefs = lights.map((l, i) => `
+            <radialGradient id="${prefix}-glow-${i}">
+                <stop offset="0%" stop-color="${l.color}" stop-opacity="0.32"/>
+                <stop offset="100%" stop-color="${l.color}" stop-opacity="0"/>
+            </radialGradient>`).join('');
+    const haloClass = l => (l.flicker ? ' class="bd-halo-flicker"' : '');
+    const wallHalos = lights.map((l, i) => `<ellipse${haloClass(l)} cx="${l.x}" cy="${l.y}" rx="${l.radius}" ry="${l.radius * 0.85}" fill="url(#${prefix}-glow-${i})"/>`).join('');
+    const floorHalos = lights.map((l, i) => `<ellipse${haloClass(l)} cx="${l.x}" cy="${G + 5}" rx="${l.radius * 1.1}" ry="7" fill="url(#${prefix}-glow-${i})"/>`).join('');
+    const debris = def.debris
+        ? BACKDROP_DEBRIS.map(([x, y, r]) => `<ellipse cx="${x}" cy="${y}" rx="${r * 1.4}" ry="${r}" fill="${p.floorAlt}" stroke="#05060c" stroke-width="0.6"/>`).join('')
+        : '';
+
+    return `
+        <defs>
+            ${wallPattern(`${prefix}-wall`, p)}
+            ${floorPattern(`${prefix}-floor`, p)}
+            ${glowDefs}
+            <linearGradient id="${prefix}-wallshade" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#000" stop-opacity="0.35"/>
+                <stop offset="0.25" stop-color="#000" stop-opacity="0"/>
+                <stop offset="0.75" stop-color="#000" stop-opacity="0"/>
+                <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+            </linearGradient>
+            <radialGradient id="${prefix}-vignette" cx="50%" cy="55%" r="70%">
+                <stop offset="60%" stop-color="#000" stop-opacity="0"/>
+                <stop offset="100%" stop-color="#000" stop-opacity="0.55"/>
+            </radialGradient>
+        </defs>
+        <g class="bd-back">
+            <rect x="0" y="0" width="${W}" height="${G}" fill="url(#${prefix}-wall)"/>
+            <rect x="0" y="0" width="${W}" height="${G}" fill="url(#${prefix}-wallshade)"/>
+            ${ceiling(p)}
+        </g>
+        <g class="bd-mid">${wallHalos}${props}</g>
+        <g class="bd-front">
+            <rect x="0" y="${G}" width="${W}" height="${H - G}" fill="url(#${prefix}-floor)"/>
+            <rect x="0" y="${G}" width="${W}" height="3" fill="#000" opacity="0.35"/>
+            <line x1="0" y1="${G}" x2="${W}" y2="${G}" stroke="#05060c" stroke-width="2"/>
+            ${floorHalos}${debris}
+            <rect x="0" y="0" width="${W}" height="${H}" fill="url(#${prefix}-vignette)"/>
+        </g>`;
+}
+
+// Dernière clé de décor dessinée, par scène (préfixe) : le décor n'est redessiné que si elle change
+// (quartier ou mode), jamais à chaque updateUI(). Renvoie true si un redessin a eu lieu.
+const lastBackdropKeys = {};
+function renderSceneBackdrop(container, prefix, key) {
+    if (!container || lastBackdropKeys[prefix] === key) return false;
+    container.innerHTML = composeBackdrop(SCENE_BACKDROPS[key], prefix);
+    lastBackdropKeys[prefix] = key;
+    return true;
+}
+
 // Teintes par effet de mob : variables CSS lues par les classes mf-* (index.html). Un seul accent,
 // rouge, pour les yeux/détails de danger, quel que soit l'effet.
 const MOB_EFFECT_TINTS = {
@@ -73,6 +157,7 @@ const COMPANION_SPECIALTY_TINTS = {
 };
 
 const sceneUi = {
+    backdrop: document.getElementById('scene-backdrop'),
     mob: document.getElementById('scene-mob'),
     crawler: document.getElementById('scene-crawler'),
     companion: document.getElementById('scene-companion'),
@@ -244,6 +329,7 @@ function renderCombatScene() {
     const enemy = gameState.currentEnemy;
     if (!gameState.inCombat || !enemy) return;
     ensureSceneBuilt();
+    renderSceneBackdrop(sceneUi.backdrop, 'cbd', resolveBackdropKey(gameState.currentDistrict));
     renderSceneVitals(enemy);
     renderSceneMob(enemy);
     renderSceneCompanion();

@@ -166,3 +166,66 @@ function mobX() {
     updateUI();
     assert(!contact.contains('is-active') && ranged.contains('is-active'), "Écart > 0 : la bande de tir est renforcée");
 }
+
+// ===================================================================
+// Décors (backdrops.js + composeBackdrop()) : fiches valides, rendu sans valeur manquante, repli sur
+// le décor par défaut, redessin uniquement quand la clé de décor change.
+// ===================================================================
+function backdropProblems(key, def) {
+    const problems = [];
+    ['wall', 'wallAlt', 'mortar', 'ceiling', 'floor', 'floorAlt', 'joint'].forEach(c => {
+        if (!def.palette || typeof def.palette[c] !== 'string') problems.push(`${key}: couleur ${c} manquante`);
+    });
+    if (!BACKDROP_WALL_PATTERNS[def.wall]) problems.push(`${key}: motif de mur inconnu (${def.wall})`);
+    if (!BACKDROP_FLOOR_PATTERNS[def.floor]) problems.push(`${key}: motif de sol inconnu (${def.floor})`);
+    if (!BACKDROP_CEILINGS[def.ceiling]) problems.push(`${key}: plafond inconnu (${def.ceiling})`);
+    (def.props || []).forEach(prop => {
+        if (!BACKDROP_PROPS[prop.type]) problems.push(`${key}: accessoire inconnu (${prop.type})`);
+        if (!(prop.x >= 0 && prop.x <= BACKDROP_WIDTH && prop.y >= 0 && prop.y <= BACKDROP_HEIGHT)) problems.push(`${key}: accessoire ${prop.type} hors de la scène`);
+    });
+    const markup = composeBackdrop(def, 'test');
+    if (/undefined|NaN/.test(markup)) problems.push(`${key}: rendu avec une valeur manquante (undefined/NaN)`);
+    ['class="bd-back"', 'class="bd-mid"', 'class="bd-front"', 'id="test-wall"', 'id="test-floor"'].forEach(part => {
+        if (!markup.includes(part)) problems.push(`${key}: rendu incomplet (${part} absent)`);
+    });
+    return problems;
+}
+{
+    assert(SCENE_WIDTH === BACKDROP_WIDTH && SCENE_GROUND_Y === BACKDROP_GROUND_Y, "Décor et scène partagent la même géométrie (largeur, ligne de sol)");
+
+    const problems = [];
+    Object.keys(SCENE_BACKDROPS).forEach(key => problems.push(...backdropProblems(key, SCENE_BACKDROPS[key])));
+    assert(problems.length === 0, `Toutes les fiches de décor sont valides (${problems.join(' ; ')})`);
+
+    // Chaque brique de la bibliothèque se rend seule, avec ses options par défaut.
+    const palette = SCENE_BACKDROPS.default.palette;
+    const libProblems = [];
+    Object.keys(BACKDROP_WALL_PATTERNS).forEach(k => { if (/undefined|NaN/.test(BACKDROP_WALL_PATTERNS[k]('x', palette))) libProblems.push(`mur ${k}`); });
+    Object.keys(BACKDROP_FLOOR_PATTERNS).forEach(k => { if (/undefined|NaN/.test(BACKDROP_FLOOR_PATTERNS[k]('x', palette))) libProblems.push(`sol ${k}`); });
+    Object.keys(BACKDROP_CEILINGS).forEach(k => { if (/undefined|NaN/.test(BACKDROP_CEILINGS[k](palette))) libProblems.push(`plafond ${k}`); });
+    Object.keys(BACKDROP_PROPS).forEach(k => { if (/undefined|NaN/.test(BACKDROP_PROPS[k].markup({ type: k }, palette))) libProblems.push(`accessoire ${k}`); });
+    assert(libProblems.length === 0, `Chaque motif/plafond/accessoire se rend avec ses options par défaut (${libProblems.join(', ')})`);
+
+    const defaultMarkup = composeBackdrop(SCENE_BACKDROPS.default, 'cbd');
+    assert((defaultMarkup.match(/class="bd-flame"/g) || []).length === 2 && (defaultMarkup.match(/bd-halo-flicker/g) || []).length === 4, "Décor par défaut : deux torches animées, chacune avec un halo au mur et au sol");
+
+    assert(resolveBackdropKey('Quartier Inexistant') === 'default' && resolveBackdropKey(undefined) === 'default' && resolveBackdropKey('constructor') === 'default', "Quartier inconnu (ou absent) : décor par défaut");
+
+    resetTransientState();
+    delete lastBackdropKeys.cbd;
+    const savedDistrict = gameState.currentDistrict;
+    gameState.inCombat = true;
+    gameState.currentDistrict = 'Quartier Inexistant';
+    gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
+    updateUI();
+    const backdrop = document.getElementById('scene-backdrop');
+    assert(backdrop.innerHTML === defaultMarkup, "Combat dans un quartier inconnu : la scène affiche le décor par défaut");
+    backdrop.innerHTML = 'SENTINELLE';
+    updateUI();
+    assert(backdrop.innerHTML === 'SENTINELLE', "Le décor n'est pas redessiné à chaque updateUI() si le quartier n'a pas changé");
+
+    const fake = { innerHTML: '' };
+    assert(renderSceneBackdrop(fake, 'essai', 'default') === true && renderSceneBackdrop(fake, 'essai', 'default') === false, "renderSceneBackdrop() : un seul dessin tant que la clé ne change pas");
+    delete lastBackdropKeys.cbd;
+    gameState.currentDistrict = savedDistrict;
+}

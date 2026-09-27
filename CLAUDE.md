@@ -14,7 +14,8 @@ Tailwind CDN, **aucun build step**.
 - `generator.js` — génération procédurale (mobs, objets, parchemins de sorts, boss, compagnons)
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
 - `sprites.js` — silhouettes SVG de profil de la scène de combat (crawler, compagnon, 10 archétypes de mob, couronne de boss)
-- `scene.js` — rendu de la scène de combat en vue latérale (`distanceToX()`, `renderCombatScene()`)
+- `backdrops.js` — décors des scènes : catalogue pur (motifs de mur/sol, plafonds, accessoires, fiches de décor `SCENE_BACKDROPS`)
+- `scene.js` — rendu de la scène de combat en vue latérale et de son décor (`distanceToX()`, `composeBackdrop()`, `renderCombatScene()`)
 - `tests/` — voir plus bas
 
 ## Architecture (résumé)
@@ -524,6 +525,21 @@ Tailwind CDN, **aucun build step**.
   Secousse du combattant touché : `shakeSceneFighter()`, appelée par `showFloatingDamage()`, dont les
   chiffres s'accrochent aux ancres `#scene-mob-anchor`/`#scene-crawler-anchor` qui suivent la scène.
   `visualArchetype` (bestiary.js) choisit la silhouette ; archétype inconnu → `goblinoid`.
+  **Décor** (`backdrops.js`, catalogue pur sur le modèle de `sprites.js`, chargé avant `scene.js`) :
+  `#scene-backdrop`, premier enfant du SVG, donc TOUJOURS derrière combattants, bandes et chiffres.
+  Bibliothèques : `BACKDROP_WALL_PATTERNS` / `BACKDROP_FLOOR_PATTERNS` (fonctions `(id, palette)` →
+  `<pattern>`), `BACKDROP_CEILINGS`, `BACKDROP_PROPS` (`{ markup(opts, palette), light(opts) }`, origine
+  = point de fixation au mur ; `light()` décrit la source dont `composeBackdrop()` tire un halo au mur et
+  au sol). Fiche = palette + mur + sol + plafond + accessoires + débris ; `SCENE_BACKDROPS.default`
+  s'applique à tout quartier sans fiche (`resolveBackdropKey(gameState.currentDistrict)`, clé = nom
+  exact de `districts.js`, aussi thème des étages urbains). `composeBackdrop(def, prefix)` (pure) produit
+  3 couches — fond (mur, ombres, plafond), milieu (halos, accessoires), avant-plan (sol, halos au sol,
+  débris, vignette) — avec des identifiants préfixés par scène. `renderSceneBackdrop()` ne redessine
+  que si la clé change (`lastBackdropKeys`), jamais à chaque `updateUI()`. Animations CSS uniquement
+  (`.bd-flame`, `.bd-halo-flicker`, `.bd-neon-flicker`), coupées sous `prefers-reduced-motion`. Aucun
+  `Math.random()` dans un décor (positions fixes, voir `BACKDROP_DEBRIS`). Le décor ne touche jamais à
+  `distanceToX()`, aux gabarits ni aux bandes de portée ; il reste plus sombre et moins saturé que les
+  personnages. Toute fiche est validée automatiquement par `tests/regression/combat-scene.js`.
 
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).
@@ -553,7 +569,7 @@ Tailwind CDN, **aucun build step**.
 
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
-  charge les 10 fichiers sources dans l'ordre.
+  charge les 11 fichiers sources dans l'ordre.
 - `npm test` (= `node tests/regression.test.js`), `npm run test:long` (= `node tests/long_playthrough.js`),
   `npm run test:all` (les deux à la suite, s'arrête au premier échec) — voir `package.json`.
 - **Rapide** (`npm test`, quelques secondes) : à lancer avant CHAQUE push. `tests/regression.test.js`
