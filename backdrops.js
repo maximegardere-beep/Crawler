@@ -890,6 +890,216 @@ const BACKDROP_PROPS = {
         light: () => null
     },
 
+    // --- Salles sécurisées ---------------------------------------------------------------------------
+    // Éclairage chaud et apaisé : aucune couleur rouge, animations lentes (bd-calm-flame / bd-calm-glow),
+    // halos qui "respirent" (light.calm) au lieu de vaciller.
+    // Porte blindée à volant, dans son encadrement. Origine : milieu du bas (au sol).
+    armoredDoor: {
+        markup: (o) => {
+            const w = o.w || 46;
+            const h = o.h || 76;
+            const rivets = [];
+            for (let y = -h + 6; y <= -6; y += (h - 12) / 5) {
+                rivets.push(`<circle cx="${-w / 2 + 3.5}" cy="${y}" r="1.1"/>`, `<circle cx="${w / 2 - 3.5}" cy="${y}" r="1.1"/>`);
+            }
+            const spokes = [0, 60, 120].map(a => `<path d="M-8 0 H8" transform="rotate(${a})"/>`).join('');
+            return `
+            <rect x="${-w / 2 - 6}" y="${-h - 6}" width="${w + 12}" height="${h + 6}" fill="#26272a" stroke="#05060c" stroke-width="1.5"/>
+            <rect x="${-w / 2}" y="${-h}" width="${w}" height="${h}" rx="2" fill="#4a5058" stroke="#05060c" stroke-width="1.5"/>
+            <rect x="${-w / 2 + 6}" y="${-h + 8}" width="${w - 12}" height="${h - 16}" rx="1.5" fill="none" stroke="#3a3f46" stroke-width="1.5"/>
+            <g fill="#6b7078">${rivets.join('')}</g>
+            <rect x="${-w / 2 - 4}" y="${-h + 10}" width="5" height="9" rx="1" fill="#34373c" stroke="#05060c" stroke-width="1"/>
+            <rect x="${-w / 2 - 4}" y="-19" width="5" height="9" rx="1" fill="#34373c" stroke="#05060c" stroke-width="1"/>
+            <g transform="translate(0 ${-h / 2})" fill="none" stroke="#8a9098" stroke-width="2" stroke-linecap="round">
+                <circle r="8.5"/>${spokes}<circle r="2" fill="#8a9098"/>
+            </g>
+            <path d="M${-w / 2 + 4} -3 H${w / 2 - 4}" stroke="#a38a2a" stroke-width="2" stroke-dasharray="4 4" opacity="0.6"/>`;
+        },
+        light: () => null
+    },
+    // Panneau lumineux « ZONE SÛRE » (vert doux, respiration lente). Origine : centre.
+    safeZonePanel: {
+        markup: (o) => {
+            const w = o.w || 90;
+            const color = o.color || '#86efac';
+            return `
+            <rect x="${-w / 2}" y="-10" width="${w}" height="20" rx="3" fill="#0b120e" stroke="#05060c" stroke-width="1.5"/>
+            <g class="bd-calm-glow"${backdropAnimDelay(o)}>
+                <path d="M${-w / 2 + 7} 1 L${-w / 2 + 13} -5 L${-w / 2 + 19} 1 M${-w / 2 + 9} 0 V5 H${-w / 2 + 17} V0" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" opacity="0.9"/>
+                <text x="${-w / 2 + 24}" y="3.5" font-size="9" font-weight="bold" letter-spacing="1" fill="${color}" opacity="0.9">ZONE SÛRE</text>
+            </g>`;
+        },
+        light: (o) => ({ dx: 0, dy: 0, color: o.color || '#4ade80', radius: 40, calm: true })
+    },
+    // Enseigne néon apaisée (texte + icône facultative), sans grésillement. Origine : centre.
+    calmNeon: {
+        markup: (o) => {
+            const color = o.color || '#fbbf24';
+            const w = o.w || Math.max(60, 30 + (o.text || '').length * 7.4);
+            const textX = o.icon ? -w / 2 + 25 : 0;
+            const anchor = o.icon ? '' : ' text-anchor="middle"';
+            const icon = o.icon
+                ? `<path d="${o.icon}" transform="translate(${-w / 2 + 13} 0)" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>`
+                : '';
+            return `
+            <rect x="${-w / 2}" y="-11" width="${w}" height="22" rx="4" fill="#0f0b08" stroke="#05060c" stroke-width="1.5"/>
+            <g class="bd-calm-glow"${backdropAnimDelay(o)}>
+                ${icon}
+                <text x="${textX}" y="3.5"${anchor} font-size="10" font-weight="bold" letter-spacing="1" fill="none" stroke="${color}" stroke-width="2.2" opacity="0.25">${o.text || ''}</text>
+                <text x="${textX}" y="3.5"${anchor} font-size="10" font-weight="bold" letter-spacing="1" fill="${color}" opacity="0.9">${o.text || ''}</text>
+            </g>`;
+        },
+        light: (o) => ({ dx: 0, dy: 0, color: o.color || '#fbbf24', radius: o.radius || 44, calm: true })
+    },
+    // Ampoule nue suspendue au plafond. Origine : point d'accroche au plafond.
+    hangingBulb: {
+        markup: (o) => {
+            const len = o.length || 30;
+            return `
+            <path d="M0 0 V${len}" stroke="#05060c" stroke-width="1"/>
+            <rect x="-2.5" y="${len}" width="5" height="4" fill="#3a3226" stroke="#05060c" stroke-width="0.8"/>
+            <circle cx="0" cy="${len + 8}" r="4.5" fill="#fde68a" stroke="#05060c" stroke-width="0.8" opacity="0.9"/>`;
+        },
+        light: (o) => ({ dx: 0, dy: (o.length || 30) + 8, color: '#fbbf24', radius: o.radius || 46, calm: true })
+    },
+    // Tonneau cerclé. Origine : milieu du bas (au sol).
+    barrel: {
+        markup: (o) => {
+            const w = o.w || 26;
+            const h = o.h || 32;
+            return `
+            <path d="M${-w / 2 + 2} ${-h} Q${-w / 2 - 2} ${-h / 2} ${-w / 2 + 2} 0 H${w / 2 - 2} Q${w / 2 + 2} ${-h / 2} ${w / 2 - 2} ${-h} Z" fill="#5a4028" stroke="#05060c" stroke-width="1.5"/>
+            <path d="M-3 ${-h + 1} V-1 M5 ${-h + 1} V-1 M-10 ${-h + 3} V-3" stroke="#3f2c1a" stroke-width="1"/>
+            <path d="M${-w / 2 + 0.5} ${-h * 0.72} H${w / 2 - 0.5} M${-w / 2 + 0.5} ${-h * 0.28} H${w / 2 - 0.5}" stroke="#2f3136" stroke-width="2.5"/>
+            <ellipse cx="0" cy="${-h}" rx="${w / 2 - 2}" ry="2.5" fill="#4a3420" stroke="#05060c" stroke-width="1"/>
+            ${o.mug ? `<rect x="-4" y="${-h - 9}" width="7" height="8" rx="1" fill="#c9a34a" stroke="#05060c" stroke-width="0.8"/><path d="M3 ${-h - 7} h2 v4 h-2" fill="none" stroke="#05060c" stroke-width="0.8"/><path d="M-4 ${-h - 9} h7" stroke="#f5f0e0" stroke-width="1.6"/>` : ''}`;
+        },
+        light: () => null
+    },
+    // Matelas éventré posé au sol : ressorts apparents, rembourrage qui déborde, oreiller. Origine :
+    // milieu du bas (au sol).
+    mattress: {
+        markup: (o) => {
+            const w = o.w || 96;
+            return `
+            <rect x="${-w / 2}" y="-15" width="${w}" height="15" rx="4" fill="#6b6a55" stroke="#05060c" stroke-width="1.5"/>
+            <path d="M${-w / 2 + 4} -9 H${w / 2 - 4}" stroke="#565543" stroke-width="1" stroke-dasharray="3 5"/>
+            <path d="M${-w / 2 + 6} -15 q6 -6 14 -1" fill="#8a8872" stroke="#05060c" stroke-width="1"/>
+            <path d="M-8 -15 q4 -9 8 -2 q3 -8 9 -1 q5 -5 7 1" fill="#d6d0b8" stroke="#05060c" stroke-width="1"/>
+            <path d="M-2 -17 c-3 -5 5 -5 2 -10 M6 -16 c-3 -5 5 -5 2 -10" fill="none" stroke="#9ca3af" stroke-width="1.2"/>
+            <path d="M${w / 2 - 22} -11 l6 -4 l5 3 l-4 5 Z" fill="#3f3e32" stroke="#05060c" stroke-width="0.8"/>`;
+        },
+        light: () => null
+    },
+    // Croix de premiers secours murale (verte, jamais rouge), faiblement éclairée. Origine : centre.
+    firstAidSign: {
+        markup: (o) => `
+            <rect x="-15" y="-15" width="30" height="30" rx="3" fill="#15803d" stroke="#05060c" stroke-width="1.5"/>
+            <g class="bd-calm-glow"${backdropAnimDelay(o)}>
+                <path d="M-4 -10 H4 V-4 H10 V4 H4 V10 H-4 V4 H-10 V-4 H-4 Z" fill="#f0fdf4" stroke="#05060c" stroke-width="0.8" opacity="0.92"/>
+            </g>`,
+        light: () => ({ dx: 0, dy: 0, color: '#4ade80', radius: 36, calm: true })
+    },
+    // Trousse de secours posée au sol. Origine : milieu du bas (au sol).
+    medkit: {
+        markup: () => `
+            <rect x="-15" y="-15" width="30" height="15" rx="2.5" fill="#d8d6cc" stroke="#05060c" stroke-width="1.5"/>
+            <path d="M-6 -15 v-4 h12 v4" fill="none" stroke="#05060c" stroke-width="1.8"/>
+            <path d="M-2 -12 H2 V-9 H5 V-5 H2 V-2 H-2 V-5 H-5 V-9 H-2 Z" fill="#15803d"/>`,
+        light: () => null
+    },
+    // Bidon rouillé où couve un feu de camp. Origine : milieu du bas (au sol).
+    fireBarrel: {
+        markup: (o) => `
+            <rect x="-13" y="-30" width="26" height="30" rx="2" fill="#5b4632" stroke="#05060c" stroke-width="1.5"/>
+            <path d="M-13 -21 H13 M-13 -9 H13" stroke="#3a2c1f" stroke-width="2"/>
+            <circle cx="-5" cy="-15" r="1.6" fill="#f59e0b" opacity="0.8"/>
+            <circle cx="4" cy="-4" r="1.3" fill="#f59e0b" opacity="0.7"/>
+            <g class="bd-calm-flame"${backdropAnimDelay(o)}>
+                <path d="M-10 -30 C-11 -40 -5 -42 -4 -50 C0 -44 2 -46 3 -54 C7 -46 12 -42 10 -30 Z" fill="#d97706" stroke="#05060c" stroke-width="0.8"/>
+                <path d="M-5 -30 C-5 -36 -1 -38 0 -43 C3 -38 6 -36 5 -30 Z" fill="#fcd34d"/>
+            </g>`,
+        light: () => ({ dx: 0, dy: -40, color: '#f59e0b', radius: 54, calm: true })
+    },
+    // Groupe de bougies fondues. Origine : milieu du bas (au sol).
+    candles: {
+        markup: (o) => {
+            const sizes = [[-16, 10], [-8, 17], [0, 12], [8, 20], [16, 9]];
+            return sizes.map(([x, h], i) => `
+            <rect x="${x - 2.5}" y="${-h}" width="5" height="${h}" rx="1" fill="#e8e1c8" stroke="#05060c" stroke-width="0.8"/>
+            <path d="M${x} ${-h} v-2" stroke="#05060c" stroke-width="0.8"/>
+            <path class="bd-calm-flame" style="animation-delay:-${(i * 0.7 + (o.phase || 0)).toFixed(1)}s" d="M${x} ${-h - 8} C${x + 2.2} ${-h - 5} ${x + 2.2} ${-h - 3} ${x} ${-h - 2} C${x - 2.2} ${-h - 3} ${x - 2.2} ${-h - 5} ${x} ${-h - 8} Z" fill="#fcd34d"/>`).join('') +
+                `<path d="M-20 0 q3 -3 6 0 M10 0 q4 -3 8 0" fill="#e8e1c8" stroke="#05060c" stroke-width="0.6"/>`;
+        },
+        light: () => ({ dx: 0, dy: -20, color: '#fbbf24', radius: 40, calm: true })
+    },
+    // Prières et symboles griffonnés à la craie sur le mur. Origine : centre.
+    prayerGraffiti: {
+        markup: () => `
+            <g fill="none" stroke="#e7e2d0" stroke-width="1.2" stroke-linecap="round" opacity="0.5">
+                <path d="M-6 -22 V2 M-14 -14 H2"/>
+                <path d="M-40 -18 q4 -3 8 0 t8 0 t8 0 M-42 -8 q5 -3 10 0 t10 0 M-40 4 q4 -2 8 0 t8 0"/>
+                <path d="M14 -20 q5 -3 10 0 t10 0 M16 -10 q4 -2 8 0 t8 0 t8 0 M14 2 q5 -3 10 0"/>
+                <circle cx="-6" cy="14" r="5"/>
+            </g>
+            <text x="22" y="16" text-anchor="middle" font-size="7" font-weight="bold" letter-spacing="1" fill="#e7e2d0" opacity="0.45">PITIÉ</text>`,
+        light: () => null
+    },
+    // Rangée de casiers métalliques, deux portes ouvertes. Origine : milieu du bas (au sol).
+    lockers: {
+        markup: () => {
+            const doors = [-24, 0, 24].map((x, i) => {
+                const body = `<rect x="${x - 11}" y="-66" width="22" height="66" fill="#3f4a55" stroke="#05060c" stroke-width="1.5"/>`;
+                const vents = `<path d="M${x - 5} -60 h10 M${x - 5} -57 h10 M${x - 5} -54 h10" stroke="#2a323a" stroke-width="1"/>`;
+                if (i === 0) return body + vents + `<rect x="${x + 5}" y="-36" width="2" height="7" fill="#8a9098"/>`;
+                const inside = `<rect x="${x - 9}" y="-64" width="18" height="62" fill="#181d22"/><path d="M${x - 9} -44 H${x + 9}" stroke="#2a323a" stroke-width="1.5"/>`;
+                const hang = i === 1
+                    ? `<path d="M${x - 3} -40 l-3 18 h12 l-3 -18 Z" fill="#4a5a44" stroke="#05060c" stroke-width="0.8"/>`
+                    : `<rect x="${x - 4}" y="-12" width="8" height="10" rx="1.5" fill="#6b6150" stroke="#05060c" stroke-width="0.8"/>`;
+                const door = `<path d="M${x + 11} -66 L${x + 19} -63 L${x + 19} -3 L${x + 11} 0 Z" fill="#4f5b67" stroke="#05060c" stroke-width="1.2"/>`;
+                return body + inside + hang + door;
+            }).join('');
+            return doors + `<rect x="-36" y="-3" width="72" height="3" fill="#2a323a" stroke="#05060c" stroke-width="0.8"/>`;
+        },
+        light: () => null
+    },
+    // Bureau métallique avec lampe de bureau et papiers. Origine : milieu du bas (au sol).
+    metalDesk: {
+        markup: () => `
+            <rect x="-36" y="-32" width="72" height="5" fill="#59616b" stroke="#05060c" stroke-width="1.5"/>
+            <rect x="-34" y="-27" width="4" height="27" fill="#3f454d" stroke="#05060c" stroke-width="1"/>
+            <rect x="8" y="-27" width="26" height="27" fill="#4a525b" stroke="#05060c" stroke-width="1.2"/>
+            <path d="M8 -18 H34 M8 -9 H34 M18 -23 h6 M18 -14 h6 M18 -5 h6" stroke="#05060c" stroke-width="1"/>
+            <path d="M-24 -32 l3 -3 h14 l2 3" fill="#d6d0b8" stroke="#05060c" stroke-width="0.8"/>
+            <path d="M22 -32 V-44 L14 -50" fill="none" stroke="#2f3136" stroke-width="2"/>
+            <path d="M8 -52 L18 -54 L16 -46 Z" fill="#3a5a44" stroke="#05060c" stroke-width="1"/>
+            <ellipse cx="11" cy="-47" rx="3" ry="1.6" fill="#fde68a" opacity="0.9"/>`,
+        light: () => ({ dx: 10, dy: -44, color: '#fbbf24', radius: 36, calm: true })
+    },
+    // Chaise de bureau qui grince. Origine : milieu du bas (au sol).
+    officeChair: {
+        markup: () => `
+            <path d="M-10 0 L0 -6 L10 0 M0 -6 V-18" fill="none" stroke="#2f3136" stroke-width="2"/>
+            <rect x="-10" y="-22" width="20" height="5" rx="2" fill="#3a3e44" stroke="#05060c" stroke-width="1.2"/>
+            <path d="M8 -20 L12 -44" stroke="#2f3136" stroke-width="2.4"/>
+            <rect x="7" y="-48" width="9" height="20" rx="3" transform="rotate(10 11 -38)" fill="#3a3e44" stroke="#05060c" stroke-width="1.2"/>`,
+        light: () => null
+    },
+    // Armoire à pharmacie murale, porte entrouverte sur des flacons. Origine : centre.
+    pharmacyCabinet: {
+        markup: () => `
+            <rect x="-24" y="-26" width="48" height="52" rx="2" fill="#c9c6bb" stroke="#05060c" stroke-width="1.5"/>
+            <rect x="-21" y="-23" width="42" height="46" fill="#1e2328"/>
+            <path d="M-21 -6 H21 M-21 9 H21" stroke="#8a8f96" stroke-width="1.5"/>
+            <rect x="-17" y="-15" width="5" height="9" rx="1" fill="#b98a3a" stroke="#05060c" stroke-width="0.6"/>
+            <rect x="-10" y="-13" width="4" height="7" rx="1" fill="#6b8f71" stroke="#05060c" stroke-width="0.6"/>
+            <rect x="-15" y="1" width="8" height="8" rx="1" fill="#d8d6cc" stroke="#05060c" stroke-width="0.6"/>
+            <rect x="-4" y="3" width="4" height="6" rx="1" fill="#5b7fa6" stroke="#05060c" stroke-width="0.6"/>
+            <path d="M0 -23 L24 -28 L24 28 L0 23 Z" fill="#d8d5ca" stroke="#05060c" stroke-width="1.2"/>
+            <path d="M10 -6 H14 V-2 H18 V2 H14 V6 H10 V2 H6 V-2 H10 Z" fill="#15803d"/>`,
+        light: () => null
+    },
+
     // Rai de lumière filtrée tombant de la verrière. Origine : point haut.
     lightShaft: {
         markup: (o) => `<path d="M-10 0 L10 0 L46 108 L-20 108 Z" fill="${o.color || '#86efac'}" opacity="0.06"/>`,
@@ -1158,9 +1368,72 @@ const SCENE_BACKDROPS = {
     }
 };
 
+// --- Salles sécurisées ---------------------------------------------------------------------------------
+// Fiche de base commune (ne dépend pas du quartier : une salle sécurisée est un abri clos) : béton
+// chaud, porte blindée, panneau « ZONE SÛRE », éclairage chaud et apaisé — aucun rouge, aucune
+// animation rapide. Les accessoires signature de chaque type (safehouses.js, clé = nom exact) viennent
+// s'ajouter à gauche, entre le bord et la porte ; la zone du crawler, à droite, reste dégagée.
+const SAFEHOUSE_BACKDROP = {
+    label: 'Salle sécurisée',
+    palette: {
+        wall: '#2f2a24', wallAlt: '#2a251f', mortar: '#1b1814', ceiling: '#17140f',
+        floor: '#2e261d', floorAlt: '#282119', joint: '#1a1510', pipe: '#34302a'
+    },
+    wall: 'concrete', floor: 'planks', ceiling: 'beams', debris: false,
+    props: [
+        { type: 'armoredDoor', x: 214, y: 124 },
+        { type: 'safeZonePanel', x: 214, y: 30 },
+        { type: 'sconce', x: 262, y: 58, color: '#fde68a' }
+    ]
+};
+
+const SAFEHOUSE_SIGNATURES = {
+    "Taverne Clandestine": [
+        { type: 'calmNeon', x: 92, y: 40, text: 'TAVERNE', color: '#fbbf24', icon: 'M-5 -5 H3 V6 H-5 Z M3 -2 H6 V3 H3' },
+        { type: 'barrel', x: 62, y: 124 },
+        { type: 'barrel', x: 104, y: 124, mug: true }
+    ],
+    "Hôtel de Fortune": [
+        { type: 'hangingBulb', x: 96, y: 8, length: 26 },
+        { type: 'mattress', x: 94, y: 124 }
+    ],
+    "Poste de Secours": [
+        { type: 'firstAidSign', x: 82, y: 54 },
+        { type: 'medkit', x: 118, y: 124 }
+    ],
+    "Bivouac de Fortune": [
+        { type: 'fireBarrel', x: 96, y: 124 },
+        { type: 'crate', x: 136, y: 124 }
+    ],
+    "Chapelle Improvisée": [
+        { type: 'prayerGraffiti', x: 94, y: 58 },
+        { type: 'candles', x: 94, y: 124 }
+    ],
+    "Vestiaire Abandonné": [
+        { type: 'hangingBulb', x: 150, y: 8, length: 22 },
+        { type: 'lockers', x: 90, y: 124 }
+    ],
+    "Bureau de Contremaître": [
+        { type: 'metalDesk', x: 82, y: 124 },
+        { type: 'officeChair', x: 136, y: 124 }
+    ],
+    "Infirmerie de Chantier": [
+        { type: 'pharmacyCabinet', x: 92, y: 62 },
+        { type: 'hangingBulb', x: 150, y: 8, length: 22 }
+    ]
+};
+
+// Fiche complète d'une salle sécurisée : base commune + accessoires signature de son type (type
+// inconnu : base seule). Pure — même format que SCENE_BACKDROPS, dessinée par composeBackdrop().
+function safehouseBackdropFor(typeName) {
+    const signature = Object.prototype.hasOwnProperty.call(SAFEHOUSE_SIGNATURES, typeName) ? SAFEHOUSE_SIGNATURES[typeName] : [];
+    return { ...SAFEHOUSE_BACKDROP, props: [...SAFEHOUSE_BACKDROP.props, ...signature] };
+}
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         BACKDROP_WIDTH, BACKDROP_HEIGHT, BACKDROP_GROUND_Y, BACKDROP_WALL_PATTERNS, BACKDROP_FLOOR_PATTERNS,
-        BACKDROP_CEILINGS, BACKDROP_PROPS, BACKDROP_DEBRIS, SCENE_BACKDROPS, SHOP_SIGN_STYLES, TRAINER_BOARD_STYLES
+        BACKDROP_CEILINGS, BACKDROP_PROPS, BACKDROP_DEBRIS, SCENE_BACKDROPS, SHOP_SIGN_STYLES, TRAINER_BOARD_STYLES,
+        SAFEHOUSE_BACKDROP, SAFEHOUSE_SIGNATURES, safehouseBackdropFor
     };
 }

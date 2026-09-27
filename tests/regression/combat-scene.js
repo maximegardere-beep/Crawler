@@ -324,3 +324,78 @@ function backdropProblems(key, def) {
     delete lastBackdropKeys.sbd;
     lastShopSetpieceKey = null;
 }
+
+// ===================================================================
+// renderScene('safehouse') : scène de salle sécurisée (#safehouse-choice-zone). Base commune (porte
+// blindée, panneau « ZONE SÛRE ») + accessoire signature propre à CHAQUE type de safehouses.js, éclairage
+// chaud et apaisé : aucun rouge, aucune animation rapide.
+// ===================================================================
+function isRedHex(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    if (max < 0.3 || max === min || max !== r) return false;
+    const saturation = (max - min) / max;
+    const hue = 60 * (((g - b) / (max - min)) % 6);
+    return saturation > 0.45 && (hue < 15 || hue > 340);
+}
+{
+    assert(isRedHex('#c23b3b') && isRedHex('#ef4444') && !isRedHex('#f59e0b') && !isRedHex('#5a4028') && !isRedHex('#15803d'), "isRedHex() : détecte le rouge, pas l'orange des flammes ni le brun du bois");
+
+    const problems = [];
+    const missing = [];
+    const reds = [];
+    const fast = [];
+    const signatureKeys = new Set();
+    safehouseTypes.forEach(type => {
+        const signature = SAFEHOUSE_SIGNATURES[type.name];
+        if (!signature || signature.length === 0) { missing.push(type.name); return; }
+        signatureKeys.add(signature.map(prop => prop.type).sort().join('+'));
+        const def = safehouseBackdropFor(type.name);
+        problems.push(...backdropProblems(type.name, def));
+        const markup = composeBackdrop(def, 'hbd');
+        signature.forEach(prop => {
+            if (!markup.includes(BACKDROP_PROPS[prop.type].markup(prop, def.palette))) missing.push(`${type.name}: ${prop.type} absent du rendu`);
+        });
+        if (!markup.includes('ZONE SÛRE') || !def.props.some(prop => prop.type === 'armoredDoor')) missing.push(`${type.name}: base commune incomplète`);
+        (markup.match(/#[0-9a-fA-F]{6}\b/g) || []).filter(isRedHex).forEach(c => reds.push(`${type.name}: ${c}`));
+        (markup.match(/bd-(flame|halo-flicker|neon-flicker|blink|crackle|steam|spin)\b/g) || []).forEach(c => fast.push(`${type.name}: ${c}`));
+    });
+    assert(missing.length === 0, `Chaque type de salle sécurisée a son accessoire signature, en plus de la porte blindée et du panneau ZONE SÛRE (${missing.join(' ; ')})`);
+    assert(problems.length === 0, `Fiches de salle sécurisée valides (${problems.join(' ; ')})`);
+    assert(signatureKeys.size === safehouseTypes.length, "Deux types de salle sécurisée n'ont jamais les mêmes accessoires signature");
+    assert(reds.length === 0, `Salles sécurisées : aucune couleur rouge (${reds.join(', ')})`);
+    assert(fast.length === 0, `Salles sécurisées : seulement des animations lentes (${fast.join(', ')})`);
+    const orphanSignatures = Object.keys(SAFEHOUSE_SIGNATURES).filter(name => !safehouseTypes.some(t => t.name === name));
+    assert(orphanSignatures.length === 0, `Chaque signature correspond à un type de safehouses.js (orphelines : ${orphanSignatures.join(', ')})`);
+    assert(safehouseBackdropFor('Type Inconnu').props.length === SAFEHOUSE_BACKDROP.props.length, "Type de salle inconnu : base commune seule");
+    assert(!/bd-calm-glow/.test(Object.keys(SCENE_BACKDROPS).map(k => composeBackdrop(SCENE_BACKDROPS[k], 'cbd')).join('')), "Les halos apaisés n'apparaissent jamais dans les décors de combat");
+
+    resetTransientState();
+    const room = Object.values(gameState.floorMap.roomsById).find(r => r.type === 'safe');
+    assert(!!room, "Scène de salle sécurisée : l'étage courant contient une salle sécurisée");
+    if (room) {
+        const saved = { safehouse: room.safehouse, visited: room.visited };
+        const sceneBackdrop = document.getElementById('safehouse-scene-backdrop');
+        const combatBefore = document.getElementById('scene-backdrop').innerHTML;
+        delete lastBackdropKeys.hbd;
+        room.safehouse = safehouseTypes[4];
+        enterRoom(room);
+        assert(sceneBackdrop.innerHTML === composeBackdrop(safehouseBackdropFor(safehouseTypes[4].name), 'hbd'), "enterRoom() : la scène de la salle sécurisée affiche le décor de son type (préfixe 'hbd')");
+        assert(document.getElementById('safehouse-scene-crawler').innerHTML.includes(SCENE_CRAWLER_SVG), "Scène de salle sécurisée : le crawler est présent");
+        assert(!/scene-band|combat-(enemy|player)-hp/.test(sceneBackdrop.innerHTML), "Scène de salle sécurisée : ni bande de portée ni barre de vie");
+        assert(document.getElementById('scene-backdrop').innerHTML === combatBefore, "Scène de salle sécurisée : le décor de combat n'est pas touché");
+        leaveSafehouse();
+        sceneBackdrop.innerHTML = 'SENTINELLE';
+        enterRoom(room);
+        assert(sceneBackdrop.innerHTML === 'SENTINELLE', "Même type de salle : pas de redessin du décor");
+        leaveSafehouse();
+        room.safehouse = safehouseTypes[0];
+        enterRoom(room);
+        assert(sceneBackdrop.innerHTML.includes('TAVERNE'), "Autre type de salle : le décor est redessiné avec sa signature");
+        leaveSafehouse();
+        room.safehouse = saved.safehouse;
+        room.visited = saved.visited;
+        delete lastBackdropKeys.hbd;
+    }
+}

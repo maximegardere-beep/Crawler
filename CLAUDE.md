@@ -547,7 +547,8 @@ Tailwind CDN, **aucun build step**.
   personnages. Toute fiche est validée automatiquement par `tests/regression/combat-scene.js`.
   **`renderScene(mode)`** est le point d'entrée unique de toutes les scènes : `'combat'` appelle
   `renderCombatScene()` (rendu inchangé), `'merchant'`/`'trainer'` la scène de `#shop-zone` (appelée par
-  `updateShopUI()`), `'safehouse'` est réservé (pas encore dessiné) ; un mode inconnu ne fait rien.
+  `updateShopUI()`), `'safehouse'` la scène de `#safehouse-choice-zone` (appelée par `enterRoom()`) ; un
+  mode inconnu ne fait rien.
   **Scène des villes spécialisées** (`#shop-scene-svg`, au-dessus des listes d'achat/vente et des
   boutons, qui restent intacts) : même décor du quartier courant (préfixe `'sbd'`, jamais d'identifiant
   partagé avec la scène de combat `'cbd'`), crawler à `CRAWLER_X`, ni barres de vie ni bandes de portée.
@@ -558,6 +559,17 @@ Tailwind CDN, **aucun build step**.
   (`chalkboard`, croquis + libellé `TRAINER_BOARD_STYLES[city.specialty]`, une entrée par compétence de
   `gameState.skills`) + PNJ `SCENE_TRAINER_SVG` qui le désigne de sa baguette. Redessinée seulement quand
   `rôle:spécialité` change (`lastShopSetpieceKey`).
+  **Scène de salle sécurisée** (`#safehouse-scene-svg`, au-dessus des boutons Repos/Repartir, inchangés) :
+  décor PROPRE à l'abri, jamais celui du quartier (les décors de quartier contiennent du rouge) —
+  `safehouseBackdropFor(type)` (backdrops.js, pure) = `SAFEHOUSE_BACKDROP` (béton chaud, porte blindée
+  `armoredDoor`, panneau `safeZonePanel` « ZONE SÛRE », applique) + `SAFEHOUSE_SIGNATURES[room.safehouse.name]`
+  (accessoires signature par type de `safehouses.js`, à gauche de la porte ; type inconnu → base seule),
+  dessinée par le même `composeBackdrop()` (préfixe `'hbd'`, `renderSceneBackdrop(..., def)` accepte une
+  fiche hors `SCENE_BACKDROPS`), redessinée seulement quand le type change. Éclairage apaisé : halos
+  `light.calm` (classe `.bd-calm-glow`, respiration 6 s) et flammes `.bd-calm-flame` (3,4 s), coupés sous
+  `prefers-reduced-motion`. `combat-scene.js` exige une signature pour CHAQUE type de `safehouses.js`
+  (rendue, distincte des autres), aucune couleur rouge (`isRedHex()`) ni animation rapide
+  (`bd-flame`/`bd-halo-flicker`/`bd-neon-flicker`…) : ajouter un type sans signature fait échouer les tests.
 
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).

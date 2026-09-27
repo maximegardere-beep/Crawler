@@ -2,7 +2,8 @@
 // horizontal) et de son décor (catalogue dans backdrops.js). Module de RENDU pur : lit
 // gameState/config, ne les modifie jamais. Chargé juste avant app.js (après sprites.js et
 // backdrops.js) ; son seul point d'entrée côté moteur est renderScene(mode) — 'combat' en fin
-// d'updateUI(), 'merchant'/'trainer' depuis updateShopUI() (scène de #shop-zone).
+// d'updateUI(), 'merchant'/'trainer' depuis updateShopUI() (scène de #shop-zone), 'safehouse' depuis
+// enterRoom() (scène de #safehouse-choice-zone).
 //
 // Coordonnées : celles du viewBox de #combat-scene-svg (index.html), 360 x 150 unités. Le SVG
 // s'adapte à la largeur de l'écran ; toutes les positions ci-dessous restent donc en unités viewBox.
@@ -75,7 +76,7 @@ function composeBackdrop(def, prefix) {
         const kind = BACKDROP_PROPS[prop.type];
         if (!kind) return '';
         const light = kind.light(prop);
-        if (light) lights.push({ x: prop.x + light.dx, y: prop.y + light.dy, color: light.color, radius: light.radius, flicker: light.flicker });
+        if (light) lights.push({ x: prop.x + light.dx, y: prop.y + light.dy, color: light.color, radius: light.radius, flicker: light.flicker, calm: light.calm });
         return `<g transform="translate(${prop.x} ${prop.y})">${kind.markup(prop, p)}</g>`;
     }).join('');
 
@@ -84,7 +85,9 @@ function composeBackdrop(def, prefix) {
                 <stop offset="0%" stop-color="${l.color}" stop-opacity="0.32"/>
                 <stop offset="100%" stop-color="${l.color}" stop-opacity="0"/>
             </radialGradient>`).join('');
-    const haloClass = l => (l.flicker ? ' class="bd-halo-flicker"' : '');
+    // Halo qui vacille (flamme, néon), qui "respire" lentement (lumière apaisée des salles
+    // sécurisées), ou fixe.
+    const haloClass = l => (l.flicker ? ' class="bd-halo-flicker"' : l.calm ? ' class="bd-calm-glow"' : '');
     const wallHalos = lights.map((l, i) => `<ellipse${haloClass(l)} cx="${l.x}" cy="${l.y}" rx="${l.radius}" ry="${l.radius * 0.85}" fill="url(#${prefix}-glow-${i})"/>`).join('');
     const floorHalos = lights.map((l, i) => `<ellipse${haloClass(l)} cx="${l.x}" cy="${G + 5}" rx="${l.radius * 1.1}" ry="7" fill="url(#${prefix}-glow-${i})"/>`).join('');
     // Accessoires au sol (rails, flèches peintes, brume, vapeur) : dessinés APRÈS le sol, dans
@@ -129,11 +132,12 @@ function composeBackdrop(def, prefix) {
 }
 
 // Dernière clé de décor dessinée, par scène (préfixe) : le décor n'est redessiné que si elle change
-// (quartier ou mode), jamais à chaque updateUI(). Renvoie true si un redessin a eu lieu.
+// (quartier ou mode), jamais à chaque updateUI(). Renvoie true si un redessin a eu lieu. `def` : fiche
+// à dessiner si elle ne vient pas de SCENE_BACKDROPS (salle sécurisée).
 const lastBackdropKeys = {};
-function renderSceneBackdrop(container, prefix, key) {
+function renderSceneBackdrop(container, prefix, key, def) {
     if (!container || lastBackdropKeys[prefix] === key) return false;
-    container.innerHTML = composeBackdrop(SCENE_BACKDROPS[key], prefix);
+    container.innerHTML = composeBackdrop(def || SCENE_BACKDROPS[key], prefix);
     lastBackdropKeys[prefix] = key;
     return true;
 }
@@ -422,10 +426,36 @@ function renderShopScene(mode) {
     lastShopSetpieceKey = key;
 }
 
+// --- Scène de salle sécurisée (#safehouse-choice-zone) -----------------------------------------------
+// Décor propre à l'abri (safehouseBackdropFor() dans backdrops.js : base commune + accessoires signature
+// du type tiré dans safehouses.js), jamais celui du quartier ; crawler à droite, sans barres de vie ni
+// bandes de portée. Redessiné seulement quand le type change (préfixe 'hbd').
+const safehouseSceneUi = {
+    svg: document.getElementById('safehouse-scene-svg'),
+    backdrop: document.getElementById('safehouse-scene-backdrop'),
+    crawler: document.getElementById('safehouse-scene-crawler')
+};
+let safehouseSceneBuilt = false;
+
+function renderSafehouseScene() {
+    const map = gameState.floorMap;
+    const room = map && map.roomsById && map.roomsById[gameState.pendingSafehouseRoomId];
+    if (!room) return;
+    if (!safehouseSceneBuilt) {
+        safehouseSceneUi.crawler.innerHTML = wrapSceneBody(SCENE_CRAWLER_SVG);
+        placeSceneGroup(safehouseSceneUi.crawler, CRAWLER_X, SCENE_GROUND_Y);
+        safehouseSceneBuilt = true;
+    }
+    const typeName = room.safehouse ? room.safehouse.name : '';
+    if (renderSceneBackdrop(safehouseSceneUi.backdrop, 'hbd', `safehouse:${typeName}`, safehouseBackdropFor(typeName))) {
+        safehouseSceneUi.svg.setAttribute('aria-label', `${typeName || 'Salle sécurisée'} : porte blindée, zone sûre, vous à droite`);
+    }
+}
+
 // Point d'entrée unique du rendu des scènes : 'combat' (#combat-zone), 'merchant' | 'trainer'
-// (#shop-zone). 'safehouse' est réservé à la scène de salle sécurisée (pas encore dessinée) ; tout
-// mode inconnu ne fait rien.
+// (#shop-zone), 'safehouse' (#safehouse-choice-zone) ; tout mode inconnu ne fait rien.
 function renderScene(mode) {
     if (mode === 'combat') renderCombatScene();
     else if (mode === 'merchant' || mode === 'trainer') renderShopScene(mode);
+    else if (mode === 'safehouse') renderSafehouseScene();
 }

@@ -4383,6 +4383,7 @@ function enterRoom(room) {
         ui.btnRestSafehouse.disabled = !canRest;
         ui.btnRestSafehouse.title = canRest ? "" : "Pas assez de temps pour vous reposer";
         ui.safehouseChoiceZone.classList.remove('hidden');
+        renderScene('safehouse');
         updateUI();
         return;
     }
