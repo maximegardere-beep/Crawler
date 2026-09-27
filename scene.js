@@ -1,8 +1,8 @@
 // scene.js - Rendu de la scène de combat en vue 2D latérale (mob à gauche, crawler à droite, sol
 // horizontal) et de son décor (catalogue dans backdrops.js). Module de RENDU pur : lit
 // gameState/config, ne les modifie jamais. Chargé juste avant app.js (après sprites.js et
-// backdrops.js) ; son seul point d'entrée côté moteur est renderCombatScene(), appelée en fin
-// d'updateUI().
+// backdrops.js) ; son seul point d'entrée côté moteur est renderScene(mode) — 'combat' en fin
+// d'updateUI(), 'merchant'/'trainer' depuis updateShopUI() (scène de #shop-zone).
 //
 // Coordonnées : celles du viewBox de #combat-scene-svg (index.html), 360 x 150 unités. Le SVG
 // s'adapte à la largeur de l'écran ; toutes les positions ci-dessous restent donc en unités viewBox.
@@ -328,9 +328,9 @@ function renderSceneCompanion() {
     }
 }
 
-// Point d'entrée unique, appelé en fin d'updateUI() (app.js) après chaque action (et au moment de
-// l'impact d'un coup, voir animateDieHit()). Ne fait rien hors combat : la scène vit dans
-// #combat-zone, que updateUI() masque déjà dans ce cas.
+// Rendu de la scène de combat, appelé via renderScene('combat') en fin d'updateUI() (app.js) après
+// chaque action (et au moment de l'impact d'un coup, voir animateDieHit()). Ne fait rien hors
+// combat : la scène vit dans #combat-zone, que updateUI() masque déjà dans ce cas.
 function renderCombatScene() {
     const enemy = gameState.currentEnemy;
     if (!gameState.inCombat || !enemy) return;
@@ -341,4 +341,91 @@ function renderCombatScene() {
     renderSceneCompanion();
     renderRangeBands();
     renderSceneDistance();
+}
+
+// --- Scène des villes spécialisées (#shop-zone) ------------------------------------------------------
+// Même décor de quartier que le combat (préfixe 'sbd', pour ne jamais partager un identifiant de
+// motif avec la scène de combat), le crawler à la même place à droite, mais ni barres de vie ni bandes
+// de portée : une mise en scène fixe à gauche (enseigne + comptoir + marchand, ou tableau noir +
+// professeur), redessinée seulement quand le rôle ou la spécialité change.
+const shopSceneUi = {
+    svg: document.getElementById('shop-scene-svg'),
+    backdrop: document.getElementById('shop-scene-backdrop'),
+    setpiece: document.getElementById('shop-scene-setpiece'),
+    crawler: document.getElementById('shop-scene-crawler')
+};
+
+let shopSceneBuilt = false;
+let lastShopSetpieceKey = null;
+
+// Positions (unités viewBox) des éléments de mise en scène, à gauche du crawler.
+const SHOP_SIGN_POS = { x: 92, y: 34 };
+const SHOP_MERCHANT_X = 86;
+const SHOP_COUNTER = { x: 96, w: 112, h: 44 };
+const TRAINER_BOARD_POS = { x: 118, y: 62 };
+const SHOP_TRAINER_X = 202;
+
+function placedProp(type, x, y, opts) {
+    return `<g transform="translate(${x} ${y})">${BACKDROP_PROPS[type].markup(opts, null)}</g>`;
+}
+
+function spriteAt(markup, x) {
+    return `<g transform="translate(${x} ${SCENE_GROUND_Y})">${markup}</g>`;
+}
+
+// Mise en scène d'un rôle, en SVG. Pure : ne dépend que du rôle et de la spécialité (clés inconnues ->
+// premier style du catalogue, voir shopSign/shopCounter/chalkboard dans backdrops.js).
+function composeShopSetpiece(role, specialty, prefix) {
+    if (role === 'merchant') {
+        const style = SHOP_SIGN_STYLES[specialty] || SHOP_SIGN_STYLES.weapons;
+        const opts = { specialty };
+        return `
+        <defs>
+            <radialGradient id="${prefix}-sign-glow">
+                <stop offset="0%" stop-color="${style.color}" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="${style.color}" stop-opacity="0"/>
+            </radialGradient>
+        </defs>
+        <g class="shop-setpiece" data-role="merchant" data-specialty="${specialty}">
+            <ellipse cx="${SHOP_SIGN_POS.x}" cy="${SHOP_SIGN_POS.y}" rx="70" ry="42" fill="url(#${prefix}-sign-glow)"/>
+            ${placedProp('shopSign', SHOP_SIGN_POS.x, SHOP_SIGN_POS.y, opts)}
+            ${spriteAt(SCENE_MERCHANT_SVG, SHOP_MERCHANT_X)}
+            ${placedProp('shopCounter', SHOP_COUNTER.x, SCENE_GROUND_Y, { specialty, w: SHOP_COUNTER.w, h: SHOP_COUNTER.h })}
+        </g>`;
+    }
+    return `
+        <g class="shop-setpiece" data-role="trainer" data-specialty="${specialty}">
+            ${placedProp('chalkboard', TRAINER_BOARD_POS.x, TRAINER_BOARD_POS.y, { skill: specialty })}
+            ${spriteAt(SCENE_TRAINER_SVG, SHOP_TRAINER_X)}
+        </g>`;
+}
+
+function ensureShopSceneBuilt() {
+    if (shopSceneBuilt) return;
+    shopSceneUi.crawler.innerHTML = wrapSceneBody(SCENE_CRAWLER_SVG);
+    placeSceneGroup(shopSceneUi.crawler, CRAWLER_X, SCENE_GROUND_Y);
+    shopSceneBuilt = true;
+}
+
+function renderShopScene(mode) {
+    if (!gameState.pendingShopCityId || !gameState.urbanMap) return;
+    const city = gameState.urbanMap.citiesById[gameState.pendingShopCityId];
+    if (!city) return;
+    ensureShopSceneBuilt();
+    renderSceneBackdrop(shopSceneUi.backdrop, 'sbd', resolveBackdropKey(gameState.currentDistrict));
+    const key = `${mode}:${city.specialty}`;
+    if (lastShopSetpieceKey === key) return;
+    shopSceneUi.setpiece.innerHTML = composeShopSetpiece(mode, city.specialty, 'sbd');
+    shopSceneUi.svg.setAttribute('aria-label', mode === 'merchant'
+        ? `Échoppe du marchand (${(SHOP_SIGN_STYLES[city.specialty] || SHOP_SIGN_STYLES.weapons).label.toLowerCase()}), vous à droite`
+        : `Salle du professeur (${(TRAINER_BOARD_STYLES[city.specialty] || TRAINER_BOARD_STYLES.weapon).label.toLowerCase()}), vous à droite`);
+    lastShopSetpieceKey = key;
+}
+
+// Point d'entrée unique du rendu des scènes : 'combat' (#combat-zone), 'merchant' | 'trainer'
+// (#shop-zone). 'safehouse' est réservé à la scène de salle sécurisée (pas encore dessinée) ; tout
+// mode inconnu ne fait rien.
+function renderScene(mode) {
+    if (mode === 'combat') renderCombatScene();
+    else if (mode === 'merchant' || mode === 'trainer') renderShopScene(mode);
 }

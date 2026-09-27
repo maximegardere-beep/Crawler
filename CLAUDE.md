@@ -13,9 +13,9 @@ Tailwind CDN, **aucun build step**.
 - `safehouses.js` — types de salles sécurisées (narratif seul pour l'instant)
 - `generator.js` — génération procédurale (mobs, objets, parchemins de sorts, boss, compagnons)
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
-- `sprites.js` — silhouettes SVG de profil de la scène de combat (crawler, compagnon, 10 archétypes de mob, couronne de boss)
-- `backdrops.js` — décors des scènes : catalogue pur (motifs de mur/sol, plafonds, accessoires, fiches de décor `SCENE_BACKDROPS`)
-- `scene.js` — rendu de la scène de combat en vue latérale et de son décor (`distanceToX()`, `composeBackdrop()`, `renderCombatScene()`)
+- `sprites.js` — silhouettes SVG de profil des scènes (crawler, compagnon, 10 archétypes de mob, couronne de boss, PNJ marchand/professeur)
+- `backdrops.js` — décors des scènes : catalogue pur (motifs de mur/sol, plafonds, accessoires, fiches de décor `SCENE_BACKDROPS`, enseignes/tableaux des villes spécialisées)
+- `scene.js` — rendu des scènes en vue latérale et de leur décor (`distanceToX()`, `composeBackdrop()`, point d'entrée unique `renderScene(mode)`)
 - `tests/` — voir plus bas
 
 ## Architecture (résumé)
@@ -511,8 +511,8 @@ Tailwind CDN, **aucun build step**.
   scène SVG (`#combat-scene-svg`, viewBox 360x150), distance "x/8" + jauge de tension, journal court,
   mana, boutons (≥ 44 px), infos du mob (`renderCombatMobPanel()` → `#combat-mob-info`). La carte
   d'exploration est masquée en combat. **Rendu séparé de la logique** : `scene.js` ne fait que lire
-  `gameState`/`config` ; son seul point d'entrée est `renderCombatScene()`, appelée en fin
-  d'`updateUI()` (et à l'impact d'un coup via `animateDieHit()`). `distanceToX(distance, max)` est
+  `gameState`/`config` ; son seul point d'entrée est `renderScene(mode)` ('combat' en fin
+  d'`updateUI()` et à l'impact d'un coup via `animateDieHit()`, voir plus bas). `distanceToX(distance, max)` est
   l'UNIQUE conversion distance de jeu → abscisse : linéaire, bornée, crawler fixe à droite
   (`CRAWLER_X`), mob entre `MOB_X_FAR` et `MOB_X_CONTACT` — ce dernier calculé depuis les gabarits
   (`CRAWLER_FRONT_EXTENT`, `MOB_EXTENT`, `CONTACT_GAP`) pour qu'aucun chevauchement ne soit possible
@@ -545,6 +545,19 @@ Tailwind CDN, **aucun build step**.
   `Math.random()` dans un décor (positions fixes, voir `BACKDROP_DEBRIS`). Le décor ne touche jamais à
   `distanceToX()`, aux gabarits ni aux bandes de portée ; il reste plus sombre et moins saturé que les
   personnages. Toute fiche est validée automatiquement par `tests/regression/combat-scene.js`.
+  **`renderScene(mode)`** est le point d'entrée unique de toutes les scènes : `'combat'` appelle
+  `renderCombatScene()` (rendu inchangé), `'merchant'`/`'trainer'` la scène de `#shop-zone` (appelée par
+  `updateShopUI()`), `'safehouse'` est réservé (pas encore dessiné) ; un mode inconnu ne fait rien.
+  **Scène des villes spécialisées** (`#shop-scene-svg`, au-dessus des listes d'achat/vente et des
+  boutons, qui restent intacts) : même décor du quartier courant (préfixe `'sbd'`, jamais d'identifiant
+  partagé avec la scène de combat `'cbd'`), crawler à `CRAWLER_X`, ni barres de vie ni bandes de portée.
+  Mise en scène à gauche, `composeShopSetpiece(role, specialty, prefix)` (pure) : marchand = enseigne néon
+  (`shopSign`, style `SHOP_SIGN_STYLES[city.specialty]` — icône, libellé et couleur distincts pour
+  weapons/ranged/armors/scrolls, largeur calée sur le libellé) + PNJ `SCENE_MERCHANT_SVG` derrière un
+  comptoir (`shopCounter`, marchandises de la spécialité posées dessus) ; professeur = tableau noir
+  (`chalkboard`, croquis + libellé `TRAINER_BOARD_STYLES[city.specialty]`, une entrée par compétence de
+  `gameState.skills`) + PNJ `SCENE_TRAINER_SVG` qui le désigne de sa baguette. Redessinée seulement quand
+  `rôle:spécialité` change (`lastShopSetpieceKey`).
 
 ## Conventions de travail
 1. Lire les fichiers actuels avant modification (git natif ici, pas de resync manuel nécessaire).

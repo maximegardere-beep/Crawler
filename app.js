@@ -1118,7 +1118,7 @@ function updateUI() {
     }
 
     // Gestion de l'affichage du combat : la carte d'exploration laisse la place à la zone de combat
-    // (barres de vie, scène, boutons — voir renderCombatScene() dans scene.js pour la scène et les PV).
+    // (barres de vie, scène, boutons — voir renderScene('combat') dans scene.js pour la scène et les PV).
     if (gameState.inCombat) {
         ui.advanceHint.classList.add('hidden'); // On ne peut pas avancer pendant un combat
         ui.combatZone.classList.remove('hidden');
@@ -1256,7 +1256,7 @@ function updateUI() {
     }
 
     // Scène de combat en vue latérale (scene.js) : seul point d'entrée de son rendu.
-    renderCombatScene();
+    renderScene('combat');
 
     // "Lieux connus" (donjon classique) reste un panneau séparé ; la "Carte Urbaine" (étage urbain)
     // s'affiche elle en overlay directement sur la carte active plutôt qu'en panneau séparé, pour
@@ -1367,7 +1367,7 @@ function animateDieHit(dieEl, direction, value) {
     dieEl.classList.add('die-pop', direction === 'left' ? 'die-hit-left' : 'die-hit-right');
 
     setTimeout(() => {
-        renderCombatScene();
+        renderScene('combat');
         triggerHaptic('light');
     }, 180);
 }
@@ -4170,6 +4170,7 @@ function updateShopUI() {
     ui.shopMerchantContent.classList.toggle('flex', isMerchant);
     ui.shopTrainerContent.classList.toggle('hidden', isMerchant);
     ui.shopTrainerContent.classList.toggle('flex', !isMerchant);
+    renderScene(isMerchant ? 'merchant' : 'trainer');
 
     if (isMerchant) {
         ui.shopStockList.innerHTML = "";

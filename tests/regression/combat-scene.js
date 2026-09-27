@@ -260,3 +260,67 @@ function backdropProblems(key, def) {
     const distinctWalls = new Set(Object.keys(districts).map(name => SCENE_BACKDROPS[name] && `${SCENE_BACKDROPS[name].wall}|${SCENE_BACKDROPS[name].palette.wall}`));
     assert(distinctWalls.size === Object.keys(districts).length, "Deux quartiers ne partagent jamais le même mur (motif + couleur)");
 }
+
+// ===================================================================
+// renderScene(mode) : scène des villes spécialisées (#shop-zone). Décor du quartier courant, crawler à
+// droite, mise en scène du rôle à gauche (enseigne + comptoir + marchand, ou tableau + professeur), sans
+// barres de vie ni bandes de portée ; redessinée seulement quand le rôle ou la spécialité change.
+// ===================================================================
+{
+    resetTransientState();
+    const saved = { urbanMap: gameState.urbanMap, district: gameState.currentDistrict };
+    const setpiece = document.getElementById('shop-scene-setpiece');
+    const shopBackdrop = document.getElementById('shop-scene-backdrop');
+    const cities = {
+        m: { id: 'm', name: 'Échoppe', role: 'merchant', specialty: 'armors', stock: [] },
+        t: { id: 't', name: 'École', role: 'trainer', specialty: 'stealth' }
+    };
+    gameState.urbanMap = { citiesById: cities };
+    gameState.currentDistrict = Object.keys(districts)[0];
+    delete lastBackdropKeys.sbd;
+    lastShopSetpieceKey = null;
+
+    gameState.pendingShopCityId = 'm';
+    updateShopUI();
+    const merchantMarkup = setpiece.innerHTML;
+    assert(merchantMarkup.includes('ARMURES') && merchantMarkup.includes(SHOP_SIGN_STYLES.armors.color), "Scène marchand : enseigne néon de sa spécialité (libellé + couleur), posée par updateShopUI()");
+    assert(merchantMarkup.includes(SCENE_MERCHANT_SVG) && merchantMarkup.includes('data-role="merchant"'), "Scène marchand : PNJ marchand derrière le comptoir");
+    assert(merchantMarkup.indexOf(SCENE_MERCHANT_SVG) < merchantMarkup.lastIndexOf('<g transform="translate(96 124)">'), "Scène marchand : le comptoir est dessiné devant le PNJ");
+    assert(shopBackdrop.innerHTML === composeBackdrop(SCENE_BACKDROPS[gameState.currentDistrict], 'sbd'), "Scène marchand : décor du quartier courant en fond, identifiants préfixés 'sbd' (jamais ceux de la scène de combat)");
+    assert(document.getElementById('shop-scene-crawler').innerHTML.includes(SCENE_CRAWLER_SVG), "Scène marchand : le crawler est présent");
+    assert(!/scene-band|combat-(enemy|player)-hp/.test(merchantMarkup + shopBackdrop.innerHTML), "Scène marchand : ni bande de portée ni barre de vie");
+
+    setpiece.innerHTML = 'SENTINELLE';
+    renderScene('merchant');
+    assert(setpiece.innerHTML === 'SENTINELLE', "Scène marchand : pas de redessin tant que rôle et spécialité ne changent pas");
+
+    const signColors = new Set(Object.keys(SHOP_SIGN_STYLES).map(k => SHOP_SIGN_STYLES[k].color));
+    const signLabels = new Set(Object.keys(SHOP_SIGN_STYLES).map(k => SHOP_SIGN_STYLES[k].label));
+    const signIcons = new Set(Object.keys(SHOP_SIGN_STYLES).map(k => SHOP_SIGN_STYLES[k].icon));
+    const shopCategories = Object.keys(SHOP_CATEGORY_LABELS);
+    assert(shopCategories.every(k => SHOP_SIGN_STYLES[k]) && signColors.size === shopCategories.length && signLabels.size === shopCategories.length && signIcons.size === shopCategories.length,
+        "Chaque spécialité de marchand a son enseigne, avec icône, libellé et couleur distincts");
+    const signMarkups = shopCategories.map(k => composeShopSetpiece('merchant', k, 'x'));
+    assert(signMarkups.every((m, i) => m.includes(SHOP_SIGN_STYLES[shopCategories[i]].label) && !/undefined|NaN/.test(m)), "Chaque enseigne de marchand se rend sans valeur manquante");
+
+    gameState.pendingShopCityId = 't';
+    updateShopUI();
+    const trainerMarkup = setpiece.innerHTML;
+    assert(trainerMarkup.includes('FURTIVITÉ') && trainerMarkup.includes(SCENE_TRAINER_SVG) && trainerMarkup.includes('#1c2621'), "Scène professeur : PNJ devant un tableau noir marqué de sa compétence");
+    assert(!trainerMarkup.includes(SCENE_MERCHANT_SVG), "Scène professeur : le marchand a disparu (redessin au changement de rôle)");
+    const skills = Object.keys(gameState.skills);
+    assert(skills.every(k => TRAINER_BOARD_STYLES[k]) && new Set(skills.map(k => TRAINER_BOARD_STYLES[k].label)).size === skills.length,
+        "Chaque compétence formable a son tableau, avec un libellé distinct");
+    assert(!/undefined|NaN/.test(composeShopSetpiece('trainer', 'inconnue', 'x') + composeShopSetpiece('merchant', 'inconnue', 'x')), "Spécialité inconnue : repli sur un style existant, sans valeur manquante");
+
+    const combatBackdrop = document.getElementById('scene-backdrop').innerHTML;
+    renderScene('safehouse');
+    renderScene('mode-inconnu');
+    assert(setpiece.innerHTML === trainerMarkup && document.getElementById('scene-backdrop').innerHTML === combatBackdrop, "renderScene() : un mode sans scène ne touche à rien");
+
+    gameState.urbanMap = saved.urbanMap;
+    gameState.currentDistrict = saved.district;
+    gameState.pendingShopCityId = null;
+    delete lastBackdropKeys.sbd;
+    lastShopSetpieceKey = null;
+}
