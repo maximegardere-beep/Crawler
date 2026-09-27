@@ -137,3 +137,32 @@ function mobX() {
     assert(document.getElementById('combat-mob-info').innerHTML.includes('Examiner'), "Infos du mob (et bouton Examiner) affichées sous la scène");
     assert(document.getElementById('card-body').innerHTML === cardBefore, "renderCombatMobPanel() ne touche plus la carte d'exploration");
 }
+
+// ===================================================================
+// Bandes de portée : contiguës, dans la scène, chacune contenant les positions du mob qu'elle couvre ;
+// la bande où se trouve le mob est renforcée.
+// ===================================================================
+{
+    const max = config.rangedCombat.maxDistance;
+    const bands = computeRangeBands(max);
+    const inside = (b, x) => x >= b.x1 && x <= b.x2;
+    assert(bands.ranged.x2 === bands.contact.x1, "Bandes de portée contiguës (aucun trou ni recouvrement)");
+    assert(bands.ranged.x1 >= 0 && bands.contact.x2 <= SCENE_WIDTH, "Bandes de portée entièrement dans la scène");
+    assert(bands.contact.x2 <= CRAWLER_X - CRAWLER_FRONT_EXTENT, "La bande de contact s'arrête à l'avant du crawler");
+    assert(inside(bands.contact, distanceToX(0, max)) && !inside(bands.contact, distanceToX(1, max)), "Bande de contact : couvre l'écart nul, et lui seul");
+    let rangedCovers = true;
+    for (let d = 1; d <= max; d++) if (!inside(bands.ranged, distanceToX(d, max))) rangedCovers = false;
+    assert(rangedCovers, "Bande de tir : couvre toutes les positions à écart > 0");
+
+    resetTransientState();
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
+    const contact = document.getElementById('scene-band-contact').classList;
+    const ranged = document.getElementById('scene-band-ranged').classList;
+    gameState.combatDistance = 0;
+    updateUI();
+    assert(contact.contains('is-active') && !ranged.contains('is-active'), "Écart nul : la bande de contact est renforcée");
+    gameState.combatDistance = 5;
+    updateUI();
+    assert(!contact.contains('is-active') && ranged.contains('is-active'), "Écart > 0 : la bande de tir est renforcée");
+}

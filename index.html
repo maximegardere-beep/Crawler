@@ -263,6 +263,12 @@
         .mf-accent { fill: var(--mob-accent, #c23b3b); }
         .mf-line { fill: none; stroke: var(--mob-dark, #33404a); stroke-width: 4; stroke-linecap: round; }
         .scene-ground-shadow { fill: #000; opacity: 0.4; }
+        .scene-band { opacity: 0.25; transition: opacity 0.3s ease; }
+        .scene-band.is-active { opacity: 0.85; }
+        .scene-band-contact { fill: #d97706; }
+        .scene-band-ranged { fill: #0891b2; }
+        .scene-band-label { font-size: 9px; letter-spacing: 0.08em; fill: #4b5563; font-weight: bold; }
+        .scene-band-label.is-active { fill: #d1d5db; }
 
         /* --- Overlay d'ambiance (états critiques du joueur) ---
            Chaque effet est une couche indépendante empilable (plusieurs classes peuvent être
@@ -551,6 +557,12 @@
                     <rect x="292" y="0" width="16" height="124" fill="#151a26"/>
                     <rect x="0" y="124" width="360" height="26" fill="#1c2233"/>
                     <line x1="0" y1="124" x2="360" y2="124" stroke="#2c3550" stroke-width="2"/>
+                    <!-- Bandes de portée au sol (toujours visibles) : bornes posées une fois par
+                         computeRangeBands() (scene.js), la bande où se trouve le mob est renforcée. -->
+                    <rect id="scene-band-ranged" class="scene-band scene-band-ranged" x="0" y="128" width="0" height="6" rx="3"/>
+                    <rect id="scene-band-contact" class="scene-band scene-band-contact" x="0" y="128" width="0" height="6" rx="3"/>
+                    <text id="scene-band-ranged-label" class="scene-band-label" x="0" y="146" text-anchor="middle">TIR</text>
+                    <text id="scene-band-contact-label" class="scene-band-label" x="0" y="146" text-anchor="middle">CONTACT</text>
                     <g id="scene-companion" class="hidden"></g>
                     <g id="scene-crawler"></g>
                     <g id="scene-mob"></g>
@@ -1020,15 +1032,15 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=93"></script>
-    <script src="items.js?v=93"></script>
-    <script src="spells.js?v=93"></script>
-    <script src="districts.js?v=93"></script>
-    <script src="safehouses.js?v=93"></script>
-    <script src="generator.js?v=93"></script>
-    <script src="anomalies.js?v=93"></script>
-    <script src="sprites.js?v=93"></script>
-    <script src="scene.js?v=93"></script>
-    <script src="app.js?v=93"></script>
+    <script src="bestiary.js?v=94"></script>
+    <script src="items.js?v=94"></script>
+    <script src="spells.js?v=94"></script>
+    <script src="districts.js?v=94"></script>
+    <script src="safehouses.js?v=94"></script>
+    <script src="generator.js?v=94"></script>
+    <script src="anomalies.js?v=94"></script>
+    <script src="sprites.js?v=94"></script>
+    <script src="scene.js?v=94"></script>
+    <script src="app.js?v=94"></script>
 </body>
 </html>

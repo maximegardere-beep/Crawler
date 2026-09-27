@@ -36,6 +36,18 @@ function distanceToX(distance, maxDistance) {
     return MOB_X_CONTACT - ratio * (MOB_X_CONTACT - MOB_X_FAR);
 }
 
+// Bandes de portée au sol, toujours visibles (pure, testée) : "contact" couvre la position du mob à
+// l'écart nul (Arme, Mains nues, sort de corps à corps), "tir" toutes les positions à écart > 0 (Tir,
+// sort à distance — aucune portée maximale dans le jeu). La frontière passe à mi-chemin entre les
+// positions des écarts 0 et 1 ; la bande de contact s'arrête à l'avant du crawler.
+function computeRangeBands(maxDistance) {
+    const boundary = (distanceToX(0, maxDistance) + distanceToX(1, maxDistance)) / 2;
+    return {
+        ranged: { x1: SCENE_MARGIN, x2: boundary },
+        contact: { x1: boundary, x2: CRAWLER_X - CRAWLER_FRONT_EXTENT }
+    };
+}
+
 // Teintes par effet de mob : variables CSS lues par les classes mf-* (index.html). Un seul accent,
 // rouge, pour les yeux/détails de danger, quel que soit l'effet.
 const MOB_EFFECT_TINTS = {
@@ -71,7 +83,11 @@ const sceneUi = {
     playerHpBar: document.getElementById('combat-player-hp-bar'),
     playerHpText: document.getElementById('combat-player-hp-text'),
     playerName: document.getElementById('combat-player-name'),
-    distanceLabel: document.getElementById('combat-distance-label')
+    distanceLabel: document.getElementById('combat-distance-label'),
+    bandContact: document.getElementById('scene-band-contact'),
+    bandRanged: document.getElementById('scene-band-ranged'),
+    bandContactLabel: document.getElementById('scene-band-contact-label'),
+    bandRangedLabel: document.getElementById('scene-band-ranged-label')
 };
 
 // Hauteur du point d'accroche des chiffres de dégâts, sous le haut de chaque silhouette (unités
@@ -103,6 +119,21 @@ function hpPercent(hp, maxHp) {
     return maxHp > 0 ? Math.max(0, Math.min(100, (hp / maxHp) * 100)) : 0;
 }
 
+function placeRangeBand(rect, label, band) {
+    rect.setAttribute('x', band.x1);
+    rect.setAttribute('width', band.x2 - band.x1);
+    label.setAttribute('x', (band.x1 + band.x2) / 2);
+}
+
+// La bande où se trouve le mob est renforcée : c'est celle des attaques qui portent en ce moment.
+function renderRangeBands() {
+    const atContact = (gameState.combatDistance || 0) <= 0;
+    sceneUi.bandContact.classList.toggle('is-active', atContact);
+    sceneUi.bandContactLabel.classList.toggle('is-active', atContact);
+    sceneUi.bandRanged.classList.toggle('is-active', !atContact);
+    sceneUi.bandRangedLabel.classList.toggle('is-active', !atContact);
+}
+
 let sceneBuilt = false;
 let lastMobSpriteKey = null;
 let lastCompanionKey = null;
@@ -113,6 +144,9 @@ function ensureSceneBuilt() {
     placeSceneGroup(sceneUi.crawler, CRAWLER_X, SCENE_GROUND_Y);
     placeSceneGroup(sceneUi.companion, COMPANION_X, SCENE_GROUND_Y);
     placeSceneAnchor(sceneUi.crawlerAnchor, CRAWLER_X, SCENE_GROUND_Y + CRAWLER_TOP + DAMAGE_ANCHOR_DROP);
+    const bands = computeRangeBands(config.rangedCombat.maxDistance);
+    placeRangeBand(sceneUi.bandContact, sceneUi.bandContactLabel, bands.contact);
+    placeRangeBand(sceneUi.bandRanged, sceneUi.bandRangedLabel, bands.ranged);
     sceneBuilt = true;
 }
 
@@ -174,5 +208,6 @@ function renderCombatScene() {
     renderSceneVitals(enemy);
     renderSceneMob(enemy);
     renderSceneCompanion();
+    renderRangeBands();
     renderSceneDistance();
 }
