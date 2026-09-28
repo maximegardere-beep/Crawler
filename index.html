@@ -716,6 +716,20 @@
             </div>
         </div>
 
+        <!-- Escalier libre (voir offerStairsChoice() dans app.js) : descendre tout de suite, ou rester sur
+             l'étage pour y revenir plus tard (lieu connu / ville de la Carte Urbaine). -->
+        <div id="stairs-choice-zone" class="hidden p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-amber-900/60 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Escalier</span>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-descend-stairs" class="min-h-[44px] px-3 py-3 bg-gray-900 border border-amber-600/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-300 uppercase tracking-wider transition-all">
+                    🪜 Descendre
+                </button>
+                <button id="btn-stay-on-floor" class="min-h-[44px] px-3 py-3 bg-gray-900 border border-gray-700/80 hover:border-gray-400 hover:bg-gray-800/30 rounded text-xs text-gray-300 uppercase tracking-wider transition-all">
+                    🧭 Rester sur l'étage
+                </button>
+            </div>
+        </div>
+
         <!-- Salle sécurisée (voir enterRoom()/restAtSafehouse()/leaveSafehouse() dans app.js) : choix
              explicite sieste / sommeil réparateur (payants en temps) / partir (gratuit), jamais de soin
              automatique. -->
@@ -1128,30 +1142,30 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=28"></script>
-    <script src="items.js?v=28"></script>
-    <script src="spells.js?v=28"></script>
-    <script src="districts.js?v=28"></script>
-    <script src="safehouses.js?v=28"></script>
-    <script src="generator.js?v=28"></script>
-    <script src="anomalies.js?v=28"></script>
-    <script src="sprites/crawler.js?v=28"></script>
-    <script src="sprites/npcs.js?v=28"></script>
-    <script src="sprites/mobs.js?v=28"></script>
-    <script src="sprites/mob-details-a.js?v=28"></script>
-    <script src="sprites/mob-details-b.js?v=28"></script>
-    <script src="sprites/mob-auras.js?v=28"></script>
-    <script src="sprites/bosses-a.js?v=28"></script>
-    <script src="sprites/bosses-b.js?v=28"></script>
-    <script src="sprites/items-generic.js?v=28"></script>
-    <script src="sprites/items-melee.js?v=28"></script>
-    <script src="sprites/items-ranged.js?v=28"></script>
-    <script src="sprites/items-armor.js?v=28"></script>
-    <script src="sprites/items-signature.js?v=28"></script>
-    <script src="sprites/fx.js?v=28"></script>
-    <script src="backdrops.js?v=28"></script>
-    <script src="scene.js?v=28"></script>
-    <script src="fx.js?v=28"></script>
-    <script src="app.js?v=28"></script>
+    <script src="bestiary.js?v=29"></script>
+    <script src="items.js?v=29"></script>
+    <script src="spells.js?v=29"></script>
+    <script src="districts.js?v=29"></script>
+    <script src="safehouses.js?v=29"></script>
+    <script src="generator.js?v=29"></script>
+    <script src="anomalies.js?v=29"></script>
+    <script src="sprites/crawler.js?v=29"></script>
+    <script src="sprites/npcs.js?v=29"></script>
+    <script src="sprites/mobs.js?v=29"></script>
+    <script src="sprites/mob-details-a.js?v=29"></script>
+    <script src="sprites/mob-details-b.js?v=29"></script>
+    <script src="sprites/mob-auras.js?v=29"></script>
+    <script src="sprites/bosses-a.js?v=29"></script>
+    <script src="sprites/bosses-b.js?v=29"></script>
+    <script src="sprites/items-generic.js?v=29"></script>
+    <script src="sprites/items-melee.js?v=29"></script>
+    <script src="sprites/items-ranged.js?v=29"></script>
+    <script src="sprites/items-armor.js?v=29"></script>
+    <script src="sprites/items-signature.js?v=29"></script>
+    <script src="sprites/fx.js?v=29"></script>
+    <script src="backdrops.js?v=29"></script>
+    <script src="scene.js?v=29"></script>
+    <script src="fx.js?v=29"></script>
+    <script src="app.js?v=29"></script>
 </body>
 </html>

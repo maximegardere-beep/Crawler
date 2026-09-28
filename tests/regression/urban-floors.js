@@ -137,7 +137,9 @@ const { assert, resetTransientState } = require('./_helpers.js');
     gameState.currentEnemy.hp = -9999;
     winCombat();
     assert(gameState.currentFloor === floorBefore, "winCombat() : n'avance pas encore l'étage, l'écran d'escalier s'affiche d'abord (voir triggerFloorTransition())");
-    assert(ui.floorTransitionOverlay.classList.contains('hidden') === false, "winCombat() : affiche bien l'écran d'escalier");
+    assert(gameState.stairsChoicePending === true && gameState.pendingStairsChoice.cityId === stairsCity.id, "winCombat() : propose d'abord Descendre / Rester (ville du gardien)");
+    descendStairs();
+    assert(ui.floorTransitionOverlay.classList.contains('hidden') === false, "descendStairs() : affiche bien l'écran d'escalier");
     assert(stairsCity.defeated === true, "winCombat() : marque déjà la ville gardienne vaincue à ce stade");
 
     continueFromFloorTransition();

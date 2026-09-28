@@ -238,9 +238,21 @@ Tailwind CDN, **aucun build step**.
   supprimer la pression du temps ni la mort par épuisement, toujours possible. Alerte visuelle
   discrète (`#stair-alert-banner`, pulse `prefers-reduced-motion`-safe) affichée par `updateUI()` dès
   `timeLeft/maxTime <= 25%`, jamais en combat.
+- **Choix d'escalier** (`offerStairsChoice(context)`, demandé par l'utilisateur) : un escalier libre
+  (gardien vaincu dans `winCombat()`, classique ET urbain, ou ville-escalier non gardée / déjà vaincue
+  atteinte par `arriveAtCity()`) ne mène plus directement à l'écran d'escalier : `#stairs-choice-zone`
+  propose « Descendre » (`descendStairs()` → `triggerFloorTransition()`) ou « Rester sur l'étage »
+  (`stayOnFloor()`, aucun effet, le temps continue de s'écouler). Bloque via
+  `gameState.stairsChoicePending` (inclus dans `isActionBlocked()`) ; `gameState.pendingStairsChoice` =
+  `{ kind: 'room', roomId }` (étage classique : la salle devient DÈS l'offre le lieu connu « Escalier
+  libre », `stairs-<roomId>`, pour y revenir quoi qu'il arrive, même après une restauration de
+  sauvegarde) ou `{ kind: 'city', cityId }` (étage urbain : la ville reste sur la Carte Urbaine). Le
+  choix est reproposé à chaque retour : `enterRoom()` sur la salle d'un gardien d'escalier vaincu (au
+  lieu de l'« antre silencieuse », gardée pour les boss de quartier) et `arriveAtCity()`. La Sortie de
+  l'étage final n'y passe jamais : victoire immédiate (choix de l'utilisateur).
 - **Écran d'escalier** (`triggerFloorTransition()`/`continueFromFloorTransition()`) : affiché à la
-  place d'un passage direct à l'étage suivant, dès qu'un gardien tombe (`winCombat()`, classique ET
-  urbain) ou qu'une ville-escalier non gardée est atteinte (`arriveAtCity()`). Titre sarcastique tiré
+  place d'un passage direct à l'étage suivant, au clic sur « Descendre » (voir Choix d'escalier
+  ci-dessus). Titre sarcastique tiré
   au sort (`FLOOR_TRANSITION_TITLES`) + résumé du tally de l'étage qui vient de se terminer
   (`gameState.floorStats` : `mobsKilled`/`damageTaken`/`itemsFound`/`xpGained`), alimenté au fil de la
   partie par des hooks UNIQUES — `winCombat()`, `gainXp()`, `addLoot()` (seulement si l'objet est
@@ -793,7 +805,8 @@ Tailwind CDN, **aucun build step**.
   génération d'étage). Pas nécessaire pour un ajout de contenu isolé (item, quartier, texte).
   Son auto-résolveur doit connaître TOUT état bloquant existant (`xyzChoicePending`) : en oublier un
   fige la simulation dessus jusqu'à épuisement du temps imparti (voir `shopChoicePending`/
-  `lairChoicePending`/`floorTransitionPending`/`pactChoicePending`, ajoutés après coup).
+  `lairChoicePending`/`floorTransitionPending`/`pactChoicePending`/`stairsChoicePending` — la simulation
+  descend toujours —, ajoutés après coup).
 - Les deux n'affichent que les échecs + un résumé final (pas une ligne par test réussi).
 - **CI** (`.github/workflows/ci.yml`) : sur chaque push (toute branche) et chaque pull request,
   `actions/checkout` + `actions/setup-node` (Node 20) puis `npm test` et `npm run test:long` — pas de

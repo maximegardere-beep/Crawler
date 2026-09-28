@@ -106,6 +106,8 @@ const gameState = {
     pendingLairId: null, // Repaire (gameState.urbanMap.lairsById) dont le choix est actuellement affiché
     pendingLairDive: null, // { lairId, combatsLeft, stage: 'trash'|'boss' } pendant une plongée en cours (voir winCombat())
     floorTransitionPending: false, // L'écran d'escalier (félicitations) est affiché, voir triggerFloorTransition()
+    stairsChoicePending: false, // Choix « Descendre / Rester sur l'étage » affiché, voir offerStairsChoice()
+    pendingStairsChoice: null, // Escalier concerné : { kind: 'room', roomId } ou { kind: 'city', cityId }
     hasWon: false, // Vrai une fois la Sortie de l'étage final franchie (voir winGame())
     companion: null, // Compagnon actuellement recruté (ou null)
     pendingCompanionCandidate: null, // Candidat en attente de décision (recruter/laisser/fuir/attaquer)
@@ -573,6 +575,9 @@ const ui = {
     sceneCrawlerAnchor: document.getElementById('scene-crawler-anchor'),
     advanceHint: document.getElementById('advance-hint'),
     bossChoiceZone: document.getElementById('boss-choice-zone'),
+    stairsChoiceZone: document.getElementById('stairs-choice-zone'),
+    btnDescendStairs: document.getElementById('btn-descend-stairs'),
+    btnStayOnFloor: document.getElementById('btn-stay-on-floor'),
     btnFightBoss: document.getElementById('btn-fight-boss'),
     btnRetreatBoss: document.getElementById('btn-retreat-boss'),
     safehouseChoiceZone: document.getElementById('safehouse-choice-zone'),
@@ -803,6 +808,12 @@ function restoreSaveForName(name) {
     gameState.floorTransitionPending = false;
     gameState.pactChoicePending = false;
     gameState.pendingNextFloorAnomalies = null;
+    gameState.safehouseChoicePending = false;
+    gameState.pendingSafehouseRoomId = null;
+    // Escalier en attente : la salle du gardien est déjà un lieu connu (voir offerStairsChoice()), et une
+    // ville-escalier reste sur la Carte Urbaine — le choix sera reproposé en y retournant.
+    gameState.stairsChoicePending = false;
+    gameState.pendingStairsChoice = null;
 
     gameState.saveEnabled = true; // Réactive l'autosave après une restauration réussie
     return true;
@@ -2110,7 +2121,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending;
 }
 
 // Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
@@ -2544,6 +2555,61 @@ function continueFromFloorTransition() {
     if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
     gameState.floorTransitionPending = false;
     advanceToNextFloor();
+}
+
+// Escalier libre (gardien vaincu, ou ville-escalier sans gardien) : au lieu de passer tout de suite à
+// l'étage suivant, propose « Descendre » (écran d'escalier, voir triggerFloorTransition()) ou « Rester
+// sur l'étage » (finir d'explorer, se soigner…). Bloque via gameState.stairsChoicePending (inclus dans
+// isActionBlocked()), comme un choix de boss. `context` : { kind: 'room', roomId } (étage classique —
+// la salle devient tout de suite un lieu connu, pour pouvoir y revenir quoi qu'il arrive) ou
+// { kind: 'city', cityId } (étage urbain — la ville reste sur la Carte Urbaine). Le choix est reproposé
+// à chaque retour (enterRoom()/arriveAtCity()). La Sortie de l'étage final n'y passe jamais (victoire
+// immédiate, choix de l'utilisateur).
+function offerStairsChoice(context) {
+    gameState.stairsChoicePending = true;
+    gameState.pendingStairsChoice = context;
+    if (context.kind === 'room' && gameState.floorMap) {
+        const room = gameState.floorMap.roomsById[context.roomId];
+        const district = room ? gameState.floorMap.quadrants[room.quadrant].district : 'quartier inconnu';
+        registerKnownLocation({ id: `stairs-${context.roomId}`, type: 'stairs', roomId: context.roomId, label: `Escalier libre (${district})` });
+    }
+    setSceneHeader('🪜', 'Escalier', 'Escalier', 'stairs');
+    logEvent(`L'escalier vers l'étage ${gameState.currentFloor + 1} est libre. Descendre maintenant, ou rester sur cet étage ?`, "info");
+    if (ui.stairsChoiceZone) ui.stairsChoiceZone.classList.remove('hidden');
+    updateUI();
+}
+
+// Referme le choix d'escalier (les deux boutons).
+function closeStairsChoice() {
+    const context = gameState.pendingStairsChoice;
+    gameState.stairsChoicePending = false;
+    gameState.pendingStairsChoice = null;
+    if (ui.stairsChoiceZone) ui.stairsChoiceZone.classList.add('hidden');
+    return context;
+}
+
+// Bouton « Descendre » : ouvre l'écran d'escalier (résumé de l'étage, anomalie du suivant).
+function descendStairs() {
+    if (!gameState.stairsChoicePending) return;
+    closeStairsChoice();
+    triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
+}
+
+// Bouton « Rester sur l'étage » : aucun effet, on reprend l'exploration (le temps continue de s'écouler).
+// Étage classique : l'escalier reste dans les lieux connus ; étage urbain : on reste dans la ville, qui
+// redevient une simple ville sûre jusqu'au prochain passage.
+function stayOnFloor() {
+    if (!gameState.stairsChoicePending) return;
+    const context = closeStairsChoice();
+    if (context && context.kind === 'city' && gameState.urbanMap) {
+        const city = gameState.urbanMap.citiesById[context.cityId];
+        setSceneHeader('🏙️', city ? city.name : 'Ville', 'Ville sûre', { key: 'citySafe', cityName: city ? city.name : '' });
+        logEvent("Vous laissez l'escalier pour plus tard. Il vous attendra ici.", "info");
+        updateUrbanMapUI();
+    } else {
+        logEvent("Vous laissez l'escalier pour plus tard : il reste dans vos lieux connus.", "info");
+    }
+    updateUI();
 }
 
 // ==========================================
@@ -4038,7 +4104,7 @@ function arriveAtCity() {
             winGame();
         } else {
             logEvent("La voie est libre !", "success");
-            triggerFloorTransition();
+            offerStairsChoice({ kind: 'city', cityId: city.id });
         }
         return;
     }
@@ -4458,6 +4524,10 @@ function enterRoom(room) {
     room.visited = true;
 
     if (room.type === 'boss') {
+        if (room.defeated && room.guardsStairs) {
+            offerStairsChoice({ kind: 'room', roomId: room.id }); // Retour à un escalier laissé pour plus tard
+            return;
+        }
         if (room.defeated) {
             setSceneHeader('🏚️', 'Antre Silencieuse', 'Exploration', 'emptyLair');
             logEvent("L'antre est silencieuse désormais ; le boss a déjà été vaincu.", "normal");
@@ -6512,6 +6582,10 @@ function winCombat() {
 
     // Si ce combat était une salle de boss du quartier (escalier ou non), la salle est désormais
     // calme : on la marque vaincue et on retire le lieu connu correspondant, s'il existait.
+    // Pièce / ville du gardien vaincu, gardées pour le choix d'escalier plus bas (ces deux champs sont
+    // remis à zéro juste en dessous).
+    const defeatedBossRoomId = gameState.pendingBossRoomId;
+    const defeatedUrbanBossCityId = gameState.pendingUrbanBossCityId;
     if (gameState.pendingBossRoomId) {
         const bossRoom = gameState.floorMap && gameState.floorMap.roomsById[gameState.pendingBossRoomId];
         if (bossRoom) bossRoom.defeated = true;
@@ -6575,7 +6649,7 @@ function winCombat() {
     if (gameState.pendingStairAfterCombat) {
         gameState.pendingStairAfterCombat = false;
         logEvent("La voie vers l'escalier est libre !", "success");
-        triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
+        offerStairsChoice({ kind: 'room', roomId: defeatedBossRoomId }); // offerStairsChoice() appelle déjà updateUI()
         return;
     }
     // Équivalent urbain : victoire sur le gardien de l'escalier (étage suivant) ou de la Sortie
@@ -6588,7 +6662,7 @@ function winCombat() {
             winGame(); // winGame() appelle déjà updateUI()
         } else {
             logEvent("La voie vers l'escalier est libre !", "success");
-            triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
+            offerStairsChoice({ kind: 'city', cityId: defeatedUrbanBossCityId }); // offerStairsChoice() appelle déjà updateUI()
         }
         return;
     }
@@ -6832,7 +6906,10 @@ function devJumpToUrbanFloor() {
     gameState.pendingUrbanTravel = null;
     gameState.floorTransitionPending = false;
     gameState.pactChoicePending = false;
+    gameState.stairsChoicePending = false;
+    gameState.pendingStairsChoice = null;
     ui.combatZone.classList.add('hidden');
+    if (ui.stairsChoiceZone) ui.stairsChoiceZone.classList.add('hidden');
     ui.bossChoiceZone.classList.add('hidden');
     ui.stealthChoiceZone.classList.add('hidden');
     ui.companionChoiceFriendly.classList.add('hidden');
@@ -6992,6 +7069,8 @@ document.addEventListener('keydown', (e) => {
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)
 ui.btnFightBoss.addEventListener('click', fightBossNow);
 ui.btnRetreatBoss.addEventListener('click', retreatFromBoss);
+ui.btnDescendStairs.addEventListener('click', descendStairs);
+ui.btnStayOnFloor.addEventListener('click', stayOnFloor);
 
 // Clics sur les boutons de choix de salle sécurisée (Repos / Repartir)
 ui.btnNapSafehouse.addEventListener('click', () => restAtSafehouse('nap'));

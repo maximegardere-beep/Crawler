@@ -139,7 +139,9 @@ const { assert, resetTransientState } = require('./_helpers.js');
 
     winCombat();
     assert(gameState.currentFloor === 1, "winCombat() (gardien) : n'avance PAS l'étage directement");
-    assert(gameState.floorTransitionPending === true, "winCombat() (gardien) : affiche l'écran d'escalier à la place");
+    assert(gameState.stairsChoicePending === true && gameState.floorTransitionPending === false, "winCombat() (gardien) : propose d'abord Descendre / Rester");
+    descendStairs();
+    assert(gameState.floorTransitionPending === true, "descendStairs() : affiche l'écran d'escalier");
 
     continueFromFloorTransition();
     assert(gameState.currentFloor === 2, "continueFromFloorTransition() : fait avancer l'étage après coup");
@@ -180,4 +182,89 @@ const { assert, resetTransientState } = require('./_helpers.js');
     gameState.currentEnemy = { name: "Test", hp: 10, maxHp: 10, atk: 1, def: 1, status: {} };
     updateUI();
     assert(ui.stairAlertBanner.classList.contains('hidden') === true, "updateUI() : bandeau jamais affiché en combat, même sous le seuil");
+}
+
+// Choix « Descendre / Rester sur l'étage » (offerStairsChoice()) : escalier classique laissé pour plus
+// tard, lieu connu, retour dans la salle, sauvegarde restaurée.
+{
+    resetTransientState();
+    gameState.currentFloor = 1;
+    generateFloorMap();
+    const stairsRoom = Object.values(gameState.floorMap.roomsById).find(r => r.guardsStairs);
+    gameState.floorMap.currentRoomId = stairsRoom.id;
+    gameState.pendingBossRoomId = stairsRoom.id;
+    gameState.pendingStairAfterCombat = true;
+    gameState.inCombat = true;
+    gameState.currentEnemy = { name: "Gardien Test", hp: -9999, maxHp: 50, atk: 5, def: 2, xpReward: 20, status: {}, isBoss: true };
+    winCombat();
+
+    assert(gameState.stairsChoicePending === true && isActionBlocked() === true, "Victoire sur le gardien : choix d'escalier en attente, actions bloquées");
+    assert(gameState.pendingStairsChoice.kind === 'room' && gameState.pendingStairsChoice.roomId === stairsRoom.id, "Le choix mémorise la salle de l'escalier");
+    assert(ui.stairsChoiceZone.classList.contains('hidden') === false, "#stairs-choice-zone est affichée");
+    assert(gameState.knownLocations.some(l => l.id === `stairs-${stairsRoom.id}` && l.type === 'stairs'), "L'escalier libre devient tout de suite un lieu connu");
+    assert(!gameState.knownLocations.some(l => l.id === `boss-${stairsRoom.id}`), "L'ancien lieu « escalier gardé » a disparu");
+
+    const timeBefore = gameState.timeLeft;
+    stayOnFloor();
+    assert(gameState.stairsChoicePending === false && gameState.pendingStairsChoice === null && isActionBlocked() === false, "Rester sur l'étage : referme le choix, le jeu reprend");
+    assert(ui.stairsChoiceZone.classList.contains('hidden') === true, "Rester sur l'étage : masque la zone");
+    assert(gameState.currentFloor === 1 && gameState.floorTransitionPending === false, "Rester sur l'étage : on reste bien à l'étage 1");
+    assert(gameState.timeLeft === timeBefore, "Rester sur l'étage : ne coûte rien en soi");
+    assert(gameState.knownLocations.some(l => l.id === `stairs-${stairsRoom.id}`), "Rester sur l'étage : l'escalier reste dans les lieux connus");
+
+    enterRoom(stairsRoom);
+    assert(gameState.stairsChoicePending === true, "Revenir dans la salle du gardien vaincu repropose le choix (plus d'« antre silencieuse »)");
+    descendStairs();
+    assert(gameState.floorTransitionPending === true && gameState.stairsChoicePending === false, "Descendre au retour : écran d'escalier");
+    continueFromFloorTransition();
+    assert(gameState.currentFloor === 2, "Puis l'étage suivant");
+
+    // Un boss de quartier vaincu (pas l'escalier) garde son antre silencieuse
+    resetTransientState();
+    gameState.currentFloor = 1;
+    generateFloorMap();
+    const bossRoom = Object.values(gameState.floorMap.roomsById).find(r => r.type === 'boss' && !r.guardsStairs);
+    bossRoom.defeated = true;
+    enterRoom(bossRoom);
+    assert(gameState.stairsChoicePending === false, "Antre d'un boss de quartier vaincu : aucun choix d'escalier");
+
+    // Boutons appelés hors choix : aucun effet
+    descendStairs();
+    stayOnFloor();
+    assert(gameState.floorTransitionPending === false && gameState.currentFloor === 1, "descendStairs()/stayOnFloor() sans choix en attente : aucun effet");
+}
+
+// Étage urbain : ville-escalier sans gardien -> choix ; rester garde la ville, y revenir repropose ; la
+// Sortie de l'étage final reste une victoire immédiate.
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    const um = gameState.urbanMap;
+    const stairsCity = Object.values(um.citiesById).find(c => c.isStairs);
+    stairsCity.guarded = false;
+    gameState.pendingUrbanTravel = { destinationCityId: stairsCity.id };
+    arriveAtCity();
+    assert(gameState.stairsChoicePending === true && gameState.pendingStairsChoice.kind === 'city' && gameState.pendingStairsChoice.cityId === stairsCity.id, "Ville-escalier libre : propose Descendre / Rester");
+    assert(gameState.floorTransitionPending === false, "Ville-escalier libre : pas d'écran d'escalier direct");
+    stayOnFloor();
+    assert(gameState.stairsChoicePending === false && um.currentCityId === stairsCity.id && gameState.currentFloor === 3, "Rester : on reste dans la ville, sur l'étage 3");
+    gameState.pendingUrbanTravel = { destinationCityId: stairsCity.id };
+    arriveAtCity();
+    assert(gameState.stairsChoicePending === true, "Revenir dans la ville-escalier repropose le choix");
+    descendStairs();
+    assert(gameState.floorTransitionPending === true, "Descendre : écran d'escalier");
+
+    resetTransientState();
+    gameState.currentFloor = config.urbanFloors.finalFloor;
+    generateUrbanFloorMap();
+    const exitCity = Object.values(gameState.urbanMap.citiesById).find(c => c.isExit);
+    exitCity.guarded = false;
+    gameState.hasWon = false;
+    gameState.pendingUrbanTravel = { destinationCityId: exitCity.id };
+    arriveAtCity();
+    assert(gameState.hasWon === true && gameState.stairsChoicePending === false, "Sortie de l'étage final : victoire immédiate, sans choix");
+    gameState.hasWon = false;
+    gameState.inCombat = false;
+    ui.winOverlay.classList.add('hidden');
 }

@@ -70,6 +70,8 @@ function resetTransientState() {
     gameState.bossChoicePending = false;
     gameState.safehouseChoicePending = false;
     gameState.pendingSafehouseRoomId = null;
+    gameState.stairsChoicePending = false;
+    gameState.pendingStairsChoice = null;
     if (ui.safehouseChoiceZone) ui.safehouseChoiceZone.classList.add('hidden');
     gameState.stealthChoicePending = false;
     gameState.pendingStealthEncounter = null;
