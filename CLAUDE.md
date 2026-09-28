@@ -338,7 +338,12 @@ Tailwind CDN, **aucun build step**.
   ensemble (pas de slots d'enchantement, contrairement aux armes/armures). Trouvé, il rejoint
   `gameState.spellbook` (inventaire magique séparé, jamais limité) plutôt que `gameState.inventory` ;
   `equipSpell()` l'équipe et renvoie l'éventuel sort précédent dans le grimoire, sans jamais le
-  perdre. Le mana (`gameState.mana`, 0-100) n'existe visuellement pour le joueur qu'une fois un sort
+  perdre. **Grimoire regroupé** : `groupSpellbook(spellbook, equipped)` (pure) regroupe les exemplaires
+  par `spellName` pour l'AFFICHAGE seulement (`gameState.spellbook` reste une liste plate d'exemplaires,
+  aucune migration) — une carte par sort, une ligne par exemplaire (rareté décroissante puis dégâts),
+  chacune avec son `index` dans la liste pour `equipSpell()`/`sellSpell()` ; l'exemplaire équipé y figure
+  (`index: -1`, mention « Équipé », jamais vendable). Même regroupement dans la liste de vente de la
+  boutique (`#shop-sell-spells-list`), une vente par exemplaire. Le mana (`gameState.mana`, 0-100) n'existe visuellement pour le joueur qu'une fois un sort
   équipé, et se régénère comme les PV : passif via `applyTimeElapsedRegen()` (voir plus bas),
   potions (`item.mana` dans `items.js`), aide du compagnon Médecin.
   **Parité magie/arme** (chantier "QoL/équilibrage", Chantier C — voir `NOTES_QOL_EQUILIBRAGE.md`) :

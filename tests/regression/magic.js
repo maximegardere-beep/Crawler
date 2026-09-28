@@ -188,3 +188,51 @@ const { assert, resetTransientState } = require('./_helpers.js');
     applyTimeElapsedRegen(0);
     assert(gameState.hp === gameState.maxHp - 100, "applyTimeElapsedRegen(0) : aucun effet sans heure écoulée");
 }
+
+// ===================================================================
+// Grimoire regroupé : un emplacement par sort, raretés cumulées, exemplaires équipables et vendables
+// séparément (groupSpellbook(), updateSpellbookUI(), boutique).
+// ===================================================================
+{
+    resetTransientState();
+    const mk = (spellName, rarity, baseDmg, extra = {}) => ({ name: `Parchemin : ${spellName}`, spellName, rarity, baseDmg, manaCost: 10, baseValue: 20, category: 'scrolls', spellCategory: 'melee', icon: '🔥', ...extra });
+    const fireC = mk('Boule de Feu', 'Commun', 10);
+    const fireL = mk('Boule de Feu', 'Légendaire', 30);
+    const fireR = mk('Boule de Feu', 'Rare', 14);
+    const ice = mk('Pic de Glace', 'Épique', 20, { icon: '🧊' });
+    const equippedFire = mk('Boule de Feu', 'Épique', 22);
+
+    const groups = groupSpellbook([fireC, ice, fireL, fireR]);
+    assert(groups.length === 2 && groups[0].spellName === 'Boule de Feu' && groups[1].spellName === 'Pic de Glace', "groupSpellbook : un groupe par sort, dans l'ordre de première apparition");
+    assert(groups[0].copies.map(c => c.spell.rarity).join(',') === 'Légendaire,Rare,Commun', "groupSpellbook : exemplaires de la meilleure rareté à la moins bonne");
+    assert(groups[0].copies.map(c => c.index).join(',') === '2,3,0', "groupSpellbook : chaque exemplaire garde son index dans le grimoire");
+    const twins = groupSpellbook([mk('Boule de Feu', 'Rare', 12), mk('Boule de Feu', 'Rare', 15)]);
+    assert(twins[0].copies.length === 2 && twins[0].copies[0].spell.baseDmg === 15, "groupSpellbook : deux exemplaires de même rareté restent deux lignes, le plus fort d'abord");
+
+    const withEquipped = groupSpellbook([fireC, ice], equippedFire);
+    assert(withEquipped[0].copies[0].spell === equippedFire && withEquipped[0].copies[0].equipped && withEquipped[0].copies[0].index === -1, "groupSpellbook : le sort équipé rejoint son groupe, marqué équipé (index -1)");
+    assert(withEquipped[0].copies.filter(c => c.equipped).length === 1 && withEquipped[1].copies.every(c => !c.equipped), "groupSpellbook : seul l'exemplaire équipé est marqué équipé");
+    const onlyEquipped = groupSpellbook([], equippedFire);
+    assert(onlyEquipped.length === 1 && onlyEquipped[0].copies.length === 1, "groupSpellbook : le sort équipé s'affiche même seul");
+    assert(groupSpellbook([]).length === 0, "groupSpellbook : grimoire vide -> aucun groupe");
+
+    // Affichage : une carte par sort, la copie équipée signalée
+    gameState.spellbook = [fireC, ice, fireL];
+    gameState.equipment.spell = equippedFire;
+    updateSpellbookUI();
+    const cards = ui.spellbookCards.children;
+    assert(cards.length === 2, "Grimoire : une carte par sort (3 exemplaires de Boule de Feu + 1 Pic de Glace -> 2 cartes)");
+    assert(cards[0].innerHTML.includes('Équipé') && cards[0].innerHTML.includes('3 exemplaires') && !cards[1].innerHTML.includes('Équipé'), "Grimoire : la carte du sort équipé le signale et compte ses exemplaires");
+
+    // Équiper un exemplaire précis depuis son index
+    equipSpell(groupSpellbook(gameState.spellbook)[0].copies[0].index);
+    assert(gameState.equipment.spell === fireL && gameState.spellbook.includes(equippedFire) && !gameState.spellbook.includes(fireL), "Équiper l'exemplaire Légendaire : l'ancien équipé retourne au grimoire");
+
+    // Vente séparée d'un exemplaire
+    const target = groupSpellbook(gameState.spellbook)[0].copies.find(c => c.spell === fireC);
+    const goldBefore = gameState.gold;
+    sellSpell(target.index);
+    assert(!gameState.spellbook.includes(fireC) && gameState.spellbook.includes(equippedFire) && gameState.gold > goldBefore, "Vente d'un exemplaire : seul celui-ci quitte le grimoire, les autres raretés restent");
+    gameState.spellbook = [];
+    gameState.equipment.spell = null;
+}

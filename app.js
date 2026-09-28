@@ -1617,9 +1617,39 @@ function updateInventoryUI() {
     }
 }
 
-// Grimoire : sort équipé + liste des parchemins en réserve (gameState.spellbook), chacun avec un
-// bouton "Équiper" (voir equipSpell()). Même esprit que la partie équipement de updateInventoryUI(),
-// mais sur un inventaire séparé, jamais limité (voir addLoot()).
+// Regroupe les parchemins par sort (`spellName`) pour l'affichage du grimoire et de la boutique : un
+// seul emplacement par sort, qui cumule toutes ses raretés. Les données restent une simple liste
+// d'exemplaires (gameState.spellbook) — chaque exemplaire garde son `index` dans cette liste, pour
+// s'équiper ou se vendre séparément. `equipped` (facultatif) : sort équipé, ajouté à son groupe avec
+// `index: -1` (jamais vendable, voir sellSpell()). Groupes dans l'ordre de première apparition (le
+// sort équipé d'abord) ; exemplaires de la rareté la plus haute à la plus basse, puis par dégâts.
+const RARITY_RANK = Object.fromEntries(itemRarities.map((r, i) => [r.name, i]));
+function groupSpellbook(spellbook, equipped = null) {
+    const groups = [];
+    const byName = {};
+    const add = (spell, index) => {
+        const key = spell.spellName || spell.name;
+        if (!byName[key]) {
+            byName[key] = { spellName: key, icon: spell.icon, spellCategory: spell.spellCategory, copies: [] };
+            groups.push(byName[key]);
+        }
+        byName[key].copies.push({ spell, index, equipped: index === -1 });
+    };
+    if (equipped) add(equipped, -1);
+    spellbook.forEach((spell, i) => add(spell, i));
+    groups.forEach(g => g.copies.sort((a, b) =>
+        (RARITY_RANK[b.spell.rarity] || 0) - (RARITY_RANK[a.spell.rarity] || 0) || (b.spell.baseDmg || 0) - (a.spell.baseDmg || 0)));
+    return groups;
+}
+
+// Ligne de stats d'un exemplaire de sort (grimoire et boutique).
+function spellCopyStats(spell) {
+    return `⚔️ +${spell.baseDmg} · 🔷 ${spell.manaCost}`;
+}
+
+// Grimoire : une carte par sort (groupSpellbook()), une ligne par exemplaire — rareté, dégâts, coût en
+// mana et bouton "Équiper" (voir equipSpell()) ; l'exemplaire équipé y figure avec la mention "Équipé".
+// Inventaire séparé de l'équipement classique, jamais limité (voir addLoot()).
 function updateSpellbookUI() {
     if (ui.equippedSpell) {
         ui.equippedSpell.innerText = gameState.equipment.spell ? formatItemDisplayName(gameState.equipment.spell) : "Aucun";
@@ -1627,29 +1657,48 @@ function updateSpellbookUI() {
     if (!ui.spellbookCards) return;
 
     ui.spellbookCards.innerHTML = "";
-    if (gameState.spellbook.length === 0) {
+    const groups = groupSpellbook(gameState.spellbook, gameState.equipment.spell);
+    if (groups.length === 0) {
         const empty = document.createElement('p');
-        empty.className = "col-span-2 text-[10px] text-gray-600 italic";
+        empty.className = "text-[10px] text-gray-600 italic";
         empty.innerText = "Aucun parchemin appris pour l'instant.";
         ui.spellbookCards.appendChild(empty);
         return;
     }
 
-    gameState.spellbook.forEach((spell, i) => {
-        const rarityColor = spell.rarityColor || "#57534e";
-        const categoryLabel = spell.spellCategory === 'melee' ? "Corps à corps" : "À distance";
+    groups.forEach(group => {
+        const best = group.copies[0].spell;
+        const categoryLabel = group.spellCategory === 'melee' ? "Corps à corps" : "À distance";
         const card = document.createElement('div');
-        card.className = "mini-card rounded-lg p-2 flex flex-col gap-1 text-center relative";
-        card.style.borderColor = rarityColor;
+        card.className = "mini-card rounded-lg p-2 flex flex-col gap-1";
+        card.style.borderColor = best.rarityColor || "#57534e";
         card.style.borderWidth = "2px";
+        const rows = group.copies.map((copy, i) => {
+            const color = copy.spell.rarityColor || "#57534e";
+            const action = copy.equipped
+                ? `<span class="shrink-0 text-[9px] uppercase tracking-wider font-bold text-emerald-700 px-2">Équipé</span>`
+                : `<button data-copy="${i}" class="shrink-0 min-h-[32px] text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>`;
+            return `<div class="flex items-center gap-2 border-t border-stone-300 pt-1">
+                <span class="text-[8px] font-bold uppercase tracking-wider w-16 shrink-0" style="color:${color}">${copy.spell.rarity || ''}</span>
+                <span class="flex-1 text-[9px] text-stone-600">${spellCopyStats(copy.spell)}</span>
+                ${action}
+            </div>`;
+        }).join('');
         card.innerHTML = `
-            <div class="text-xl leading-none">${spell.icon || '✨'}</div>
-            <div class="text-[10px] font-bold leading-tight">${spell.spellName}</div>
-            ${spell.rarity ? `<div class="text-[8px] font-bold uppercase tracking-wider" style="color:${rarityColor}">${spell.rarity}</div>` : ""}
-            <div class="text-[9px] text-stone-600">${categoryLabel} · ⚔️ +${spell.baseDmg} · 🔷 ${spell.manaCost}</div>
-            <button data-action="equip" class="mt-1 text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>
+            <div class="flex items-center gap-2">
+                <span class="text-xl leading-none">${group.icon || '✨'}</span>
+                <span class="flex-1 min-w-0">
+                    <span class="block text-[10px] font-bold leading-tight">${group.spellName}</span>
+                    <span class="block text-[9px] text-stone-500">${categoryLabel}${group.copies.length > 1 ? ` · ${group.copies.length} exemplaires` : ''}</span>
+                </span>
+            </div>
+            ${rows}
         `;
-        card.querySelector('[data-action="equip"]').addEventListener('click', () => equipSpell(i));
+        group.copies.forEach((copy, i) => {
+            if (copy.equipped) return;
+            const btn = card.querySelector(`[data-copy="${i}"]`);
+            if (btn) btn.addEventListener('click', () => equipSpell(copy.index));
+        });
         ui.spellbookCards.appendChild(card);
     });
 }
@@ -4262,23 +4311,30 @@ function updateShopUI() {
         });
 
         // Vente de parchemins (chantier "QoL/équilibrage", Chantier D) : même présentation que la
-        // vente d'inventaire ci-dessus, mais sur gameState.spellbook via sellSpell() — l'équipé
+        // vente d'inventaire ci-dessus, mais sur gameState.spellbook via sellSpell(), regroupée par sort
+        // comme le grimoire (groupSpellbook()) avec une ligne — donc une vente — par exemplaire. L'équipé
         // (gameState.equipment.spell) n'y figure structurellement jamais (voir equipSpell()).
         ui.shopSellSpellsList.innerHTML = "";
-        const sellableSpells = gameState.spellbook;
-        if (sellableSpells.length === 0) {
+        const spellGroups = groupSpellbook(gameState.spellbook);
+        if (spellGroups.length === 0) {
             const empty = document.createElement('p');
             empty.className = "text-[10px] text-gray-600 italic";
             empty.innerText = "Aucun parchemin à vendre pour l'instant.";
             ui.shopSellSpellsList.appendChild(empty);
         }
-        sellableSpells.forEach((spell, index) => {
-            const price = Math.max(1, Math.round((spell.baseValue || 0) * SELL_VALUE_RATIO));
-            const row = document.createElement('button');
-            row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
-            row.innerHTML = `<span class="truncate">${formatItemDisplayName(spell)}</span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
-            row.addEventListener('click', () => { sellSpell(index); updateShopUI(); });
-            ui.shopSellSpellsList.appendChild(row);
+        spellGroups.forEach(group => {
+            const header = document.createElement('p');
+            header.className = "text-[10px] font-bold text-gray-400 pt-1";
+            header.innerText = `${group.icon || '✨'} ${group.spellName}`;
+            ui.shopSellSpellsList.appendChild(header);
+            group.copies.forEach(({ spell, index }) => {
+                const price = Math.max(1, Math.round((spell.baseValue || 0) * SELL_VALUE_RATIO));
+                const row = document.createElement('button');
+                row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
+                row.innerHTML = `<span class="flex items-center gap-2 min-w-0"><span class="font-bold uppercase text-[9px] shrink-0" style="color:${spell.rarityColor || '#9ca3af'}">${spell.rarity || ''}</span><span class="truncate text-gray-400">${spellCopyStats(spell)}</span></span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
+                row.addEventListener('click', () => { sellSpell(index); updateShopUI(); });
+                ui.shopSellSpellsList.appendChild(row);
+            });
         });
     } else {
         const skill = gameState.skills[city.specialty];
