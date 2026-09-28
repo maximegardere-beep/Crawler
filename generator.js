@@ -83,6 +83,7 @@ function generateMob(districtName, eliteBonus = 0) {
     }
     // On fait une copie profonde pour ne pas altérer la base de données
     const finalMob = JSON.parse(JSON.stringify(baseMob));
+    finalMob.baseName = finalMob.name; // Nom d'origine, avant les suffixes de modificateurs (sprite du mob, scene.js)
 
     // 1bis. Mise à l'échelle selon l'étage courant (voir section 0), avant tout modificateur
     applyFloorScaling(finalMob, typeof gameState !== 'undefined' ? gameState.currentFloor : 1);
@@ -206,6 +207,7 @@ function generateBoss(districtName) {
         return null;
     }
     const boss = JSON.parse(JSON.stringify(bossTemplate));
+    boss.baseName = boss.name;
 
     // Mise à l'échelle selon l'étage courant (voir section 0) : un boss de quartier n'a plus des
     // stats strictement identiques d'un étage à l'autre, sa base "intentionnelle" est juste
@@ -314,6 +316,7 @@ function generateItem(powerScore = 0, forcedCategory = null, minRarityKey = null
     const baseItemIndex = Math.floor(Math.random() * categoryItems.length);
     const finalItem = JSON.parse(JSON.stringify(categoryItems[baseItemIndex]));
     finalItem.category = categoryName; // conserve la catégorie (utile pour l'UI/logique future)
+    finalItem.baseName = finalItem.name; // nom d'origine, avant préfixes/suffixes : clé du sprite (resolveItemSpriteKey())
 
     // 2. Tirage du palier de rareté, puis mise à l'échelle des stats de base (avec un peu
     // d'aléatoire ±10% pour éviter que deux objets de même rareté soient rigoureusement identiques)
@@ -410,6 +413,7 @@ function generateWelcomeGiftItem(type) {
         const pool = baseItems[categoryName];
         const finalItem = JSON.parse(JSON.stringify(pool[Math.floor(Math.random() * pool.length)]));
         finalItem.category = categoryName;
+        finalItem.baseName = finalItem.name;
         finalItem.rarity = commun.name;
         finalItem.rarityColor = commun.color;
         return finalItem;
@@ -444,6 +448,7 @@ function generateTestKitItem(categoryName) {
     const pool = baseItems[categoryName];
     const finalItem = JSON.parse(JSON.stringify(pool[Math.floor(Math.random() * pool.length)]));
     finalItem.category = categoryName;
+    finalItem.baseName = finalItem.name;
     finalItem.rarity = rarity.name;
     finalItem.rarityColor = rarity.color;
     if (finalItem.baseDmg !== undefined) finalItem.baseDmg = Math.max(1, Math.round(finalItem.baseDmg * rarity.statMult));

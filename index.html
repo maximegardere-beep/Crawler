@@ -15,7 +15,7 @@
            (maximum-scale seul ne suffit pas : iOS l'ignore volontairement pour l'accessibilité.
            touch-action: manipulation est la vraie solution, ciblée sur les zones cliquables,
            qui laisse le pinch-to-zoom volontaire fonctionner ailleurs.) */
-        button, #card-stack-wrapper, #inventory > div {
+        button, #explore-scene, #inventory > div {
             touch-action: manipulation;
         }
         /* Ajout d'une police pour renforcer le côté terminal/SF */
@@ -38,19 +38,6 @@
             background: #3b82f6; 
         }
 
-        /* --- Deck de cartes --- */
-        .card-back {
-            background: repeating-linear-gradient(135deg, #eee6d3 0px, #eee6d3 6px, #e3d9c0 6px, #e3d9c0 12px);
-            border: 1px solid rgba(0,0,0,0.15);
-            box-shadow: 0 6px 14px rgba(0,0,0,0.35);
-        }
-        .game-card {
-            background-color: #f6f1e4; /* papier crème */
-            background-image: radial-gradient(rgba(0,0,0,0.035) 1px, transparent 1px);
-            background-size: 10px 10px; /* texture papier subtile */
-            border: 1px solid rgba(0,0,0,0.12);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.4);
-        }
         /* Version compacte du même style, pour les cartes arme/armure de l'inventaire */
         .mini-card {
             background-color: #f6f1e4;
@@ -60,10 +47,6 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.35);
             color: #44403c;
         }
-        /* Scrollbar du corps de carte adaptée au fond clair (le style sombre global jurerait ici) */
-        #card-body::-webkit-scrollbar { width: 4px; }
-        #card-body::-webkit-scrollbar-track { background: transparent; }
-        #card-body::-webkit-scrollbar-thumb { background: #b8ac8e; border-radius: 4px; }
 
         /* Animation de tirage : la carte "pop" légèrement à chaque nouvelle carte révélée.
            (Un vrai retournement 3D face/dos demanderait deux éléments superposés ; ce pop, plus
@@ -77,6 +60,10 @@
         .card-draw-anim {
             animation: cardDraw 0.35s ease-out;
         }
+        /* Nouvel événement d'exploration : la vignette apparaît en fondu. */
+        @keyframes sceneDraw { from { opacity: 0.35; } to { opacity: 1; } }
+        .scene-draw-anim { animation: sceneDraw 0.35s ease-out; }
+        @media (prefers-reduced-motion: reduce) { .scene-draw-anim { animation: none; } }
 
         /* --- Dés de dégâts (combat) --- */
         .die-badge {
@@ -113,16 +100,6 @@
         .die-hit-left  { animation: dieHitLeft 0.5s ease-out; }
         .die-hit-right { animation: dieHitRight 0.5s ease-out; }
 
-        /* Flash + petit "boum" sur le compteur de PV au moment de l'impact */
-        @keyframes hpHitFlash {
-            0%   { transform: scale(1); }
-            30%  { transform: scale(1.35); filter: brightness(1.8); }
-            100% { transform: scale(1); }
-        }
-        .hp-hit {
-            animation: hpHitFlash 0.3s ease-out;
-        }
-
         /* Bannière de télégraphe (chantier "lisibilité combat", Chantier 1) : pulse discret tant que
            l'état est actif, pour attirer l'œil sans distraire en continu. Désactivé sous
            prefers-reduced-motion (simple affichage fixe, la bordure/couleur suffit à signaler l'état). */
@@ -155,8 +132,8 @@
         }
 
         /* Chiffres de dégâts flottants (chantier "lisibilité combat", Chantier 3) : un chiffre par
-           impact, monte et s'estompe au-dessus de la cible touchée (#combat-side-enemy/-player, voir
-           leur "relative" ajouté ci-dessus pour servir de repère). Généré par showFloatingDamage()
+           impact, monte et s'estompe au-dessus de la cible touchée (ancres #scene-mob-anchor/
+           #scene-crawler-anchor de la scène, placées par scene.js). Généré par showFloatingDamage()
            (app.js), qui pose `left` en inline (offset aléatoire ±8px) — la classe ne fixe QUE `top`/
            l'animation. Rouge/orangé = dégâts SUBIS par le joueur, blanc/jaune = dégâts INFLIGÉS par
            le joueur ; taille ×1.4 pour un coup lourd (télégraphe exécuté, ruée d'enrage, phase 3). */
@@ -194,25 +171,6 @@
             .floating-damage {
                 animation: floatDamageFadeOnly 0.2s ease-out forwards;
                 transform: translate(-50%, -10px);
-            }
-        }
-
-        /* Jauge de tension anti-kite (chantier "lisibilité combat", Chantier 5) : appliquée à
-           #combat-distance-fill dès que le mob est tenu à distance sans pouvoir attaquer
-           (enemy.kitingRounds > mobKitingBaseline(enemy), voir renderDistanceTension() dans app.js) —
-           la teinte de la barre glisse du gris/bleu habituel vers le rouge/orangé en pulsant, pour
-           que la tension monte visuellement avant même que l'enrage ne se déclenche. */
-        @keyframes distanceTensionPulse {
-            0%, 100% { background-color: #f97316; box-shadow: 0 0 4px 0 rgba(249,115,22,0.5); }
-            50%      { background-color: #dc2626; box-shadow: 0 0 10px 2px rgba(220,38,38,0.7); }
-        }
-        .distance-tension {
-            animation: distanceTensionPulse 1s ease-in-out infinite;
-        }
-        @media (prefers-reduced-motion: reduce) {
-            .distance-tension {
-                animation: none;
-                background-color: #dc2626;
             }
         }
 
@@ -282,6 +240,104 @@
             justify-content: center;
             font-weight: bold;
             line-height: 1;
+        }
+
+        /* --- Scène de combat en vue latérale (scene.js / sprites/*.js) ---
+           Teintes des silhouettes : variables CSS posées par scene.js selon l'effet du mob ou la
+           spécialité du compagnon (valeurs neutres par défaut). */
+        .mf-base { fill: var(--mob-base, #4a5b6b); stroke: #05060c; stroke-width: 2.5; stroke-linejoin: round; }
+        .mf-dark { fill: var(--mob-dark, #33404a); stroke: #05060c; stroke-width: 2; stroke-linejoin: round; }
+        .mf-accent { fill: var(--mob-accent, #c23b3b); }
+        .mf-line { fill: none; stroke: var(--mob-dark, #33404a); stroke-width: 4; stroke-linecap: round; }
+        .scene-ground-shadow { fill: #000; opacity: 0.4; }
+        .scene-band { opacity: 0.25; transition: opacity 0.3s ease; }
+        .scene-band.is-active { opacity: 0.85; }
+        .scene-band-contact { fill: #d97706; }
+        .scene-band-ranged { fill: #0891b2; }
+        .scene-band-label { font-size: 9px; letter-spacing: 0.08em; fill: #4b5563; font-weight: bold; }
+        .scene-band-label.is-active { fill: #d1d5db; }
+        /* Déplacement fluide du mob (transition sur transform, posée par scene.js) et de l'ancre de
+           ses chiffres de dégâts ; coupée pour l'apparition d'un nouvel ennemi (scene-no-transition). */
+        #scene-mob { transition: transform 0.45s ease-out; }
+        #scene-mob-anchor { transition: left 0.45s ease-out, top 0.45s ease-out; }
+        #scene-mob.scene-no-transition, #scene-mob-anchor.scene-no-transition { transition: none; }
+        /* Petite secousse du combattant touché (shakeSceneFighter(), scene.js). */
+        @keyframes sceneHitShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-3px); }
+            40% { transform: translateX(3px); }
+            60% { transform: translateX(-2px); }
+            80% { transform: translateX(1px); }
+        }
+        .scene-hit { animation: sceneHitShake 0.28s ease-out; }
+        /* Décors (backdrops.js) : flammes de torche, halos qui vacillent, néons qui grésillent. */
+        .bd-flame { transform-box: fill-box; transform-origin: 50% 100%; animation: bdFlameFlicker 1.6s ease-in-out infinite; }
+        @keyframes bdFlameFlicker {
+            0%, 100% { transform: scale(1, 1); }
+            25% { transform: scale(0.9, 1.08); }
+            50% { transform: scale(1.06, 0.93); }
+            75% { transform: scale(0.95, 1.05); }
+        }
+        .bd-halo-flicker { animation: bdHaloFlicker 2.3s ease-in-out infinite; }
+        @keyframes bdHaloFlicker {
+            0%, 100% { opacity: 1; }
+            40% { opacity: 0.8; }
+            70% { opacity: 0.92; }
+        }
+        .bd-neon-flicker { animation: bdNeonFlicker 6s linear infinite; }
+        .bd-spin { transform-box: fill-box; transform-origin: center; animation: bdSpin 14s linear infinite; }
+        .bd-spin-rev { animation-direction: reverse; animation-duration: 9s; }
+        @keyframes bdSpin { to { transform: rotate(360deg); } }
+        .bd-blink { animation: bdBlink 1.6s ease-in-out infinite; }
+        @keyframes bdBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .bd-steam { transform-box: fill-box; transform-origin: 50% 100%; opacity: 0; animation: bdSteam 3.3s ease-out infinite; }
+        @keyframes bdSteam {
+            0% { transform: translateY(0) scale(0.6); opacity: 0; }
+            20% { opacity: 0.35; }
+            100% { transform: translateY(-26px) scale(1.5); opacity: 0; }
+        }
+        .bd-float { transform-box: fill-box; transform-origin: center; animation: bdFloat 3.6s ease-in-out infinite alternate; }
+        @keyframes bdFloat { from { transform: translateY(0) rotate(-2deg); } to { transform: translateY(-4px) rotate(3deg); } }
+        .bd-dust { animation: bdDust 7s ease-in-out infinite alternate; }
+        @keyframes bdDust { from { transform: translate(0, 0); } to { transform: translate(7px, -5px); } }
+        .bd-crackle { animation: bdCrackle 1.7s steps(1) infinite; }
+        @keyframes bdCrackle { 0%, 100% { opacity: 0.9; } 18% { opacity: 0; } 30% { opacity: 1; } 55% { opacity: 0; } 72% { opacity: 0.7; } }
+        .bd-ripple { animation: bdRipple 4.2s ease-in-out infinite alternate; }
+        @keyframes bdRipple { from { transform: translateX(-5px); opacity: 0.6; } to { transform: translateX(5px); opacity: 1; } }
+        .bd-mist { animation: bdMist 14s ease-in-out infinite alternate; }
+        /* Game Over : la mare de sang s'étale une fois, les mouches tournent en rond. */
+        .go-blood-spread { transform-box: fill-box; transform-origin: 50% 50%; animation: goBloodSpread 5s ease-out both; }
+        @keyframes goBloodSpread { from { transform: scale(0.45); } to { transform: scale(1); } }
+        .go-fly { animation: goFly 2.6s linear infinite; }
+        @keyframes goFly { to { transform: rotate(360deg); } }
+        /* Vignette de piège : le crawler recule d'un coup à l'apparition de l'événement. */
+        /* Enchantements visibles : étincelles qui scintillent lentement autour de l'arme/l'armure. */
+        /* Auras d'effet des mobs (sprites/mob-auras.js) : les particules dérivent lentement, décalées. */
+        .mob-aura-a, .mob-aura-b, .mob-aura-c { transform-box: fill-box; transform-origin: center; animation: mobAuraDrift 2.6s ease-in-out infinite; }
+        .mob-aura-b { animation-delay: -0.9s; }
+        .mob-aura-c { animation-delay: -1.7s; }
+        @keyframes mobAuraDrift { 0%, 100% { opacity: 1; transform: translateY(0) scale(1); } 50% { opacity: 0.45; transform: translateY(-2.5px) scale(0.85); } }
+        .ench-spark { transform-box: fill-box; transform-origin: center; animation: enchSpark 2.4s ease-in-out infinite; }
+        @keyframes enchSpark { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.6); } }
+        .scene-recoil { transform-box: fill-box; transform-origin: 50% 100%; animation: sceneRecoil 0.6s ease-out both; }
+        @keyframes sceneRecoil { 0% { transform: rotate(0); } 35% { transform: translateX(6px) rotate(7deg); } 100% { transform: translateX(3px) rotate(4deg); } }
+        /* Salles sécurisées : lumière qui "respire" et flammes paisibles, volontairement lentes. */
+        .bd-calm-glow { animation: bdCalmGlow 6s ease-in-out infinite; }
+        @keyframes bdCalmGlow { 0%, 100% { opacity: 1; } 50% { opacity: 0.72; } }
+        .bd-calm-flame { transform-box: fill-box; transform-origin: 50% 100%; animation: bdCalmFlame 3.4s ease-in-out infinite; }
+        @keyframes bdCalmFlame { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(0.96, 1.05); } }
+        @keyframes bdMist { from { transform: translateX(-12px); } to { transform: translateX(12px); } }
+        @keyframes bdNeonFlicker {
+            0%, 62%, 66%, 70%, 100% { opacity: 1; }
+            64%, 68% { opacity: 0.25; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #scene-mob, #scene-mob-anchor { transition: none; }
+            .scene-hit, .bd-flame, .bd-halo-flicker, .bd-neon-flicker, .bd-spin, .bd-blink, .bd-float, .bd-dust,
+            .bd-crackle, .bd-ripple, .bd-mist, .bd-calm-glow, .bd-calm-flame { animation: none; }
+            .scene-recoil { animation: none; transform: translateX(3px) rotate(4deg); }
+            .go-blood-spread, .go-fly, .ench-spark, .mob-aura-a, .mob-aura-b, .mob-aura-c { animation: none; }
+            .bd-steam { animation: none; opacity: 0.2; }
         }
 
         /* --- Overlay d'ambiance (états critiques du joueur) ---
@@ -436,94 +492,102 @@
             </div>
         </section>
 
-        <!-- 3. Deck de Cartes -->
-        <section class="flex flex-col items-center gap-2 py-1">
-            <div class="w-full flex items-center justify-center gap-2">
-                <!-- Colonne Ennemi (visible uniquement en combat) : PV, statut, dé de dégâts subis -->
-                <div id="combat-side-enemy" class="hidden relative w-14 shrink-0 text-center gap-1">
-                    <span class="text-[8px] uppercase tracking-widest text-red-400 block">Ennemi</span>
-                    <div class="hp-ring-wrapper mx-auto" style="width: 36px; height: 36px;">
-                        <svg viewBox="0 0 44 44" width="36" height="36">
-                            <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="4" />
-                            <circle id="combat-enemy-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="4"
-                                    stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
-                        </svg>
-                        <span id="combat-enemy-hp" class="hp-ring-label text-[10px] text-red-300">0</span>
-                    </div>
-                    <!-- Badges d'état ennemi (chantier "lisibilité combat", Chantier 2) : remplace
-                         l'ancien texte concaténé (#combat-enemy-status) par des badges individuels
-                         avec infobulle (title), pour que chaque état reste identifiable au survol.
-                         Rempli par renderEnemyStatusBadges() (app.js), appelée depuis updateUI(). -->
-                    <div id="enemy-status-icons" class="text-xs leading-none flex flex-wrap justify-center gap-0.5">—</div>
-                    <div id="combat-enemy-die" class="die-badge border-red-700 text-red-300 mx-auto mt-1">–</div>
+        <!-- 3. Scène d'exploration (remplace l'ancien deck de cartes) : la vignette de l'événement en
+             cours (renderScene('explore') dans scene.js), son titre et la dernière ligne du journal —
+             tout le détail va dans le journal complet. Toucher la scène explore (-1H) ; sur un étage
+             urbain, elle ouvre la Carte Urbaine. Masquée pendant un combat (la scène de combat prend
+             le relais). -->
+        <section id="explore-stage" class="flex flex-col gap-1.5">
+            <div id="explore-scene" role="button" tabindex="0" aria-label="Explorer (-1H)" class="relative w-full rounded-lg overflow-hidden border border-gray-700 cursor-pointer select-none transition-transform active:scale-[0.99]" style="aspect-ratio: 360 / 150;">
+                <svg id="explore-scene-svg" viewBox="0 0 360 150" class="absolute inset-0 w-full h-full" aria-hidden="true">
+                    <g id="explore-scene-backdrop"></g>
+                    <g id="explore-scene-vignette"></g>
+                </svg>
+                <!-- Repli sans vignette : l'emoji de l'événement, centré sur fond sombre. -->
+                <div id="explore-icon" class="absolute inset-0 flex items-center justify-center text-5xl bg-gray-950">🚪</div>
+                <span id="explore-type-label" class="absolute top-1.5 left-2 px-1.5 py-0.5 rounded bg-black/60 text-[9px] uppercase tracking-widest text-gray-300 font-bold">Donjon</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 px-0.5">
+                <h2 id="explore-title" class="min-w-0 text-sm font-black uppercase tracking-wide text-gray-100 leading-tight truncate">En Exploration</h2>
+                <!-- Ouvre/ferme la carte de l'étage (aujourd'hui : Carte Urbaine des étages urbains). -->
+                <button id="btn-toggle-map" class="hidden shrink-0 min-h-[44px] px-3 bg-gray-900 border border-blue-800/60 hover:border-blue-400 rounded text-[10px] text-blue-300 uppercase tracking-wider transition-all" aria-expanded="true">🗺️ Carte</button>
+            </div>
+            <p id="explore-last-line" class="min-h-[2.6em] px-0.5 text-[11px] leading-snug text-gray-400 italic line-clamp-2" aria-live="polite"></p>
+            <p id="advance-hint" class="text-[10px] text-blue-400 uppercase tracking-widest text-center animate-pulse">
+                👆 Touchez la scène pour explorer (-1H)
+            </p>
+
+            <!-- Carte Urbaine (étage urbain uniquement) : déplacement entre villes, ouverte/fermée par
+                 #btn-toggle-map (ouverte par défaut). Masquée dès qu'une "situation" est en cours
+                 (combat/boss/furtivité/compagnon, isActionBlocked()) — voir updateUI() (app.js). -->
+            <div id="urban-travel-overlay" class="hidden h-80 flex flex-col p-3 gap-1 rounded-lg bg-gray-950 border border-blue-800/60">
+                <div class="flex justify-between items-center text-[9px] uppercase tracking-widest text-blue-400 font-bold shrink-0">
+                    <span>🗺️ Carte Urbaine</span>
                 </div>
-
-                <!-- Carte active : révèle l'événement du tirage en cours (rétrécit pendant un combat).
-                     Toucher la carte fait maintenant office de bouton "Explorer". -->
-                <div id="card-stack-wrapper" class="relative w-full max-w-[240px] mx-auto cursor-pointer transition-transform active:scale-95" style="aspect-ratio: 5 / 7; transition: max-width 0.3s ease, transform 0.1s ease;">
-                    <!-- Pile décorative (dos de cartes empilés, purement visuel) -->
-                    <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(-7deg) translate(-8px, 5px);"></div>
-                    <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(5deg) translate(6px, 3px);"></div>
-                    <div class="card-back absolute inset-0 rounded-2xl" style="transform: rotate(-3deg) translate(-3px, -2px);"></div>
-
-                    <div id="active-card" class="game-card absolute inset-0 rounded-2xl flex flex-col p-4">
-                        <div class="flex justify-between items-center text-[9px] uppercase tracking-widest text-stone-500 font-bold">
-                            <span id="card-type-label">Donjon</span>
-                            <span id="card-floor-label">Étage 1</span>
-                        </div>
-                        <div class="flex-1 flex flex-col items-center justify-center text-center gap-2 min-h-0 overflow-hidden px-1">
-                            <div id="card-icon" class="text-5xl leading-none">🚪</div>
-                            <div id="card-title" class="text-sm font-black uppercase tracking-wide text-stone-800 leading-tight line-clamp-2 break-words">En Exploration</div>
-                        </div>
-                        <div id="card-body" class="text-[11px] leading-snug text-stone-700 max-h-24 overflow-y-auto border-t border-stone-300 pt-2 space-y-1 shrink-0">
-                            <p class="italic text-stone-500">Touchez la carte pour tirer votre première carte...</p>
-                        </div>
-                    </div>
-
-                    <!-- Carte Urbaine (étage urbain uniquement) : déplacement entre villes, en overlay
-                         directement sur la carte active plutôt qu'en panneau séparé (l'inventaire plus
-                         bas reste, lui, toujours accessible normalement). Masquée dès qu'une "situation"
-                         survient (combat/boss/furtivité/compagnon) : la carte redevient alors visible et
-                         se comporte exactement comme sur un étage classique — voir isActionBlocked() et
-                         le toggle dans updateUI() (app.js). stopPropagation() sur les clics pour ne
-                         jamais déclencher explore() sur la carte en dessous. -->
-                    <div id="urban-travel-overlay" class="hidden absolute inset-0 rounded-2xl bg-gray-950 border border-blue-800/60 shadow-[0_10px_25px_rgba(0,0,0,0.45)] flex flex-col p-3 gap-1 z-10 cursor-default">
-                        <div class="flex justify-between items-center text-[9px] uppercase tracking-widest text-blue-400 font-bold shrink-0">
-                            <span>🗺️ Carte Urbaine</span>
-                        </div>
-                        <p class="text-[9px] text-gray-500 leading-snug shrink-0">Touchez une ville pour vous y rendre. Glissez la carte pour regarder autour.</p>
-                        <!-- Mini carte graphique (réutilisable, voir computeGraphLayout()/renderGraphMiniMap()
-                             dans app.js) : nœuds = villes connues, arêtes = routes reliant deux villes
-                             connues, sur une grille logique à positions FIXES (computeDeclutterLayout(),
-                             jamais recalculées après la génération). Caméra pannable par glissement
-                             (souris/tactile) ; #btn-recenter-map la ramène sur la ville courante. -->
-                        <div class="relative flex-1 min-h-0">
-                            <svg id="urban-map-svg" viewBox="0 0 200 240" preserveAspectRatio="xMidYMid meet" class="w-full h-full"></svg>
-                            <button id="btn-recenter-map" class="absolute bottom-1.5 right-1.5 px-2 py-1 bg-gray-900/90 border border-blue-800/60 hover:border-blue-400 rounded text-[9px] text-blue-300 uppercase tracking-wider transition-all">
-                                🎯 Recentrer
-                            </button>
-                        </div>
-                    </div>
+                <p class="text-[9px] text-gray-500 leading-snug shrink-0">Touchez une ville pour vous y rendre. Glissez la carte pour regarder autour.</p>
+                <!-- Mini carte graphique (réutilisable, voir computeGraphLayout()/renderGraphMiniMap()
+                     dans app.js) : nœuds = villes connues, arêtes = routes reliant deux villes
+                     connues, sur une grille logique à positions FIXES (computeDeclutterLayout(),
+                     jamais recalculées après la génération). Caméra pannable par glissement
+                     (souris/tactile) ; #btn-recenter-map la ramène sur la ville courante. -->
+                <div class="relative flex-1 min-h-0">
+                    <svg id="urban-map-svg" viewBox="0 0 200 240" preserveAspectRatio="xMidYMid meet" class="w-full h-full"></svg>
+                    <button id="btn-recenter-map" class="absolute bottom-1.5 right-1.5 px-2 py-1 bg-gray-900/90 border border-blue-800/60 hover:border-blue-400 rounded text-[9px] text-blue-300 uppercase tracking-wider transition-all">
+                        🎯 Recentrer
+                    </button>
                 </div>
+            </div>
+        </section>
 
-                <!-- Colonne Joueur (visible uniquement en combat) : PV, statut, dé de dégâts infligés -->
-                <div id="combat-side-player" class="hidden relative w-14 shrink-0 text-center gap-1">
-                    <span class="text-[8px] uppercase tracking-widest text-blue-400 block">Vous</span>
-                    <div class="hp-ring-wrapper mx-auto" style="width: 36px; height: 36px;">
-                        <svg viewBox="0 0 44 44" width="36" height="36">
-                            <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="4" />
-                            <circle id="combat-player-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="4"
-                                    stroke="#22c55e" stroke-dasharray="113.1" stroke-dashoffset="0" />
-                        </svg>
-                        <span id="combat-player-hp" class="hp-ring-label text-[10px] text-blue-300">0</span>
+        <!-- Bannière de changement de phase boss (chantier "lisibilité combat", Chantier 10) :
+             transitoire (~900ms, minutée en JS, indépendante du rythme des beats), au-dessus de la
+             zone de combat — distincte de la bannière de télégraphe (violet/rose plutôt qu'orange).
+             Affichée/masquée par announceBossPhaseChange() dans app.js. -->
+        <div id="phase-transition-banner" class="hidden mb-2 px-3 py-2 rounded-lg border-2 border-fuchsia-500 bg-fuchsia-950/50 text-center text-xs font-bold text-fuchsia-300 uppercase tracking-wide"></div>
+
+        <!-- 4. Zone de Combat (visible uniquement pendant un affrontement, juste sous la carte) -->
+        <div id="combat-zone" class="hidden p-3 sm:p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Zone de Combat</span>
+
+            <!-- Barres de vie (au-dessus de la scène) : le mob à gauche, le crawler à droite, comme dans
+                 la scène. Barres et PV remplis par renderCombatScene() (scene.js) ; nom/badge de phase,
+                 badges d'état et dés restent gérés par updateUI() (app.js). Les deux dés se font face
+                 au centre : chacun "vole" vers la barre adverse (die-hit-left/right). -->
+            <div id="combat-vitals" class="grid grid-cols-2 gap-3 mb-2">
+                <div class="min-w-0 flex flex-col gap-1">
+                    <div class="flex items-end gap-1 min-w-0 min-h-[28px] text-xs font-bold text-red-300">
+                        <span id="enemy-name" class="line-clamp-2 break-words leading-tight">-</span>
+                        <!-- Badge de phase permanent (discret) : visible uniquement à partir de la phase 2
+                             d'un boss (jamais en phase 1, ni sur un mob normal/élite). -->
+                        <span id="boss-phase-badge" class="hidden shrink-0 px-1 py-0.5 rounded bg-fuchsia-950 border border-fuchsia-600 text-fuchsia-300 text-[9px] font-normal"></span>
                     </div>
-                    <span id="combat-player-status" class="text-xs leading-none block">—</span>
-                    <div id="combat-player-die" class="die-badge border-blue-700 text-blue-300 mx-auto mt-1">–</div>
-
+                    <div class="w-full h-2.5 bg-gray-950 rounded-full border border-gray-800 overflow-hidden">
+                        <div id="combat-enemy-hp-bar" class="bg-red-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
+                    </div>
+                    <div class="flex items-center justify-between gap-1">
+                        <span id="combat-enemy-hp-text" class="text-[11px] text-red-300 tabular-nums">0/0</span>
+                        <div id="combat-enemy-die" class="die-badge border-red-700 text-red-300 shrink-0">–</div>
+                    </div>
+                    <!-- Badges d'état ennemi (chantier "lisibilité combat", Chantier 2), remplis par
+                         renderEnemyStatusBadges() (app.js). -->
+                    <div id="enemy-status-icons" class="text-xs leading-none flex flex-wrap gap-0.5 min-h-[12px]"></div>
+                </div>
+                <div class="min-w-0 flex flex-col gap-1 items-stretch text-right">
+                    <div class="flex items-end justify-end min-w-0 min-h-[28px] text-xs font-bold text-blue-300">
+                        <span id="combat-player-name" class="line-clamp-2 break-all leading-tight">Vous</span>
+                    </div>
+                    <div class="w-full h-2.5 bg-gray-950 rounded-full border border-gray-800 overflow-hidden">
+                        <div id="combat-player-hp-bar" class="bg-blue-600 h-full rounded-full transition-all duration-300" style="width:100%"></div>
+                    </div>
+                    <div class="flex items-center justify-between gap-1">
+                        <div id="combat-player-die" class="die-badge border-blue-700 text-blue-300 shrink-0">–</div>
+                        <span id="combat-player-hp-text" class="text-[11px] text-blue-300 tabular-nums">0/0</span>
+                    </div>
+                    <span id="combat-player-status" class="text-xs leading-none min-h-[12px]"></span>
                     <!-- Indicateur compagnon (visible seulement si un compagnon est actif) -->
-                    <div id="companion-combat-indicator" class="hidden mt-2 pt-2 border-t border-gray-800">
-                        <span id="companion-combat-name" class="text-[7px] uppercase tracking-widest text-emerald-400 block truncate">-</span>
-                        <div class="hp-ring-wrapper mx-auto" style="width: 26px; height: 26px;">
+                    <div id="companion-combat-indicator" class="hidden flex items-center justify-end gap-1">
+                        <span id="companion-combat-name" class="text-[8px] uppercase tracking-widest text-emerald-400 truncate">-</span>
+                        <div class="hp-ring-wrapper shrink-0" style="width: 26px; height: 26px;">
                             <svg viewBox="0 0 44 44" width="26" height="26">
                                 <circle class="hp-ring-track" cx="22" cy="22" r="18" stroke-width="5" />
                                 <circle id="companion-combat-hp-ring" class="hp-ring-fill" cx="22" cy="22" r="18" stroke-width="5"
@@ -534,64 +598,51 @@
                     </div>
                 </div>
             </div>
-            <p id="advance-hint" class="text-[10px] text-blue-400 uppercase tracking-widest text-center animate-pulse">
-                👆 Touchez la carte pour explorer (-1H)
-            </p>
-        </section>
-
-        <!-- Journal complet (repli discret, pour qui veut relire tout l'historique) -->
-        <details class="text-[10px] text-gray-600">
-            <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-400">Journal complet</summary>
-            <div id="full-log" class="mt-2 h-28 overflow-y-auto bg-gray-950 border border-gray-800 rounded p-2 flex flex-col gap-1"></div>
-        </details>
-
-        <!-- Bannière de changement de phase boss (chantier "lisibilité combat", Chantier 10) :
-             transitoire (~900ms, minutée en JS, indépendante du rythme des beats), au-dessus de la
-             zone de combat — distincte de la bannière de télégraphe (violet/rose plutôt qu'orange).
-             Affichée/masquée par announceBossPhaseChange() dans app.js. -->
-        <div id="phase-transition-banner" class="hidden mb-2 px-3 py-2 rounded-lg border-2 border-fuchsia-500 bg-fuchsia-950/50 text-center text-xs font-bold text-fuchsia-300 uppercase tracking-wide"></div>
-
-        <!-- 4. Zone de Combat (visible uniquement pendant un affrontement, juste sous la carte) -->
-        <div id="combat-zone" class="hidden p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
-            <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Zone de Combat</span>
-            <div class="text-center text-sm text-red-300 mb-3 font-bold flex items-center justify-center gap-2">
-                <span id="enemy-name">-</span>
-                <!-- Badge de phase permanent (discret) : visible uniquement à partir de la phase 2 d'un
-                     boss (jamais en phase 1, ni sur un mob normal/élite) — voir updateUI() dans app.js. -->
-                <span id="boss-phase-badge" class="hidden px-1.5 py-0.5 rounded bg-fuchsia-950 border border-fuchsia-600 text-fuchsia-300 text-[9px] normal-case tracking-normal"></span>
-            </div>
 
             <!-- Bannière de télégraphe (chantier "lisibilité combat", Chantier 1) : affichée EN
-                 PERMANENCE tant que enemy.status.telegraph est actif (pas seulement au tour d'annonce),
-                 pour que l'information reste visible sans avoir à lire le journal de combat replié.
+                 PERMANENCE tant que enemy.status.telegraph est actif (pas seulement au tour d'annonce).
                  Masquée/remplie depuis updateUI() -> updateTelegraphBanner() dans app.js. -->
-            <div id="telegraph-banner" class="hidden mb-3 px-3 py-2 rounded-lg border-2 border-orange-500 bg-orange-950/40 text-center text-xs font-bold text-orange-300 uppercase tracking-wide telegraph-pulse"></div>
+            <div id="telegraph-banner" class="hidden mb-2 px-3 py-2 rounded-lg border-2 border-orange-500 bg-orange-950/40 text-center text-xs font-bold text-orange-300 uppercase tracking-wide telegraph-pulse"></div>
 
-            <!-- Barre de distance : toujours affichée pendant un combat (0 = corps à corps collé,
-                 pleine = distance maximale tenue). Le mob est toujours à GAUCHE, le joueur toujours
-                 à DROITE, tous deux reflétant symétriquement le même écart. Voir updateUI() dans
-                 app.js. -->
-            <div id="combat-distance-wrapper" class="mb-4">
-                <div class="flex justify-between text-[9px] text-cyan-500 uppercase tracking-wider mb-1">
-                    <span>Ennemi</span><span>Distance</span><span>Vous</span>
-                </div>
-                <div class="relative w-full h-2">
-                    <div class="absolute inset-0 bg-gray-900 border border-cyan-900/50 rounded-full overflow-hidden">
-                        <div id="combat-distance-fill" class="absolute inset-y-0 bg-gray-600 transition-all duration-300" style="left:0%; width:0%"></div>
-                    </div>
-                    <!-- Icônes joueur/ennemi superposées sur la barre : leur position (left:%) est
-                         calculée dans updateUI() (app.js). Mob toujours à gauche, joueur toujours à
-                         droite, symétriques par rapport au centre (proches mais non superposés à
-                         écart nul, chacun sur son bord à écart maximal). -->
-                    <span id="combat-distance-enemy-icon" class="absolute -top-2 text-sm leading-none select-none transition-all duration-300" style="left:47.5%; transform:translate(-50%, 0);">👹</span>
-                    <span id="combat-distance-player-icon" class="absolute -top-2 text-sm leading-none select-none transition-all duration-300" style="left:52.5%; transform:translate(-50%, 0);">🧍</span>
-                </div>
-                <!-- Jauge de tension anti-kite (chantier "lisibilité combat", Chantier 5) : masquée
-                     tant que le mob n'a pas commencé à être tenu à distance sans pouvoir attaquer
-                     (enemy.kitingRounds > mobKitingBaseline(enemy)). Remplie/masquée depuis updateUI()
-                     -> renderDistanceTension() dans app.js. -->
-                <p id="distance-tension-label" class="hidden mt-1 text-center text-[9px] font-bold uppercase tracking-wider"></p>
+            <!-- Scène de combat en vue latérale : mob à gauche, crawler ancré à droite, sol horizontal.
+                 Rendue par renderCombatScene() (scene.js), appelée en fin d'updateUI() ; la position
+                 du mob vient de distanceToX(gameState.combatDistance). Le cadre garde le ratio du
+                 viewBox (360 x 150) quelle que soit la largeur de l'écran. Les deux ancres (largeur et
+                 hauteur nulles) suivent chaque combattant : showFloatingDamage() (app.js) y accroche
+                 les chiffres de dégâts. -->
+            <div id="combat-scene" class="relative w-full rounded-lg overflow-hidden border border-red-900/40" style="aspect-ratio: 360 / 150;">
+                <svg id="combat-scene-svg" viewBox="0 0 360 150" class="absolute inset-0 w-full h-full" role="img" aria-label="Scène de combat : le monstre à gauche, vous à droite">
+                    <!-- Décor du quartier (mur, plafond, accessoires, sol), rempli par scene.js à partir
+                         de backdrops.js ; premier enfant du SVG, donc toujours derrière le reste. -->
+                    <g id="scene-backdrop"></g>
+                    <!-- Bandes de portée au sol (toujours visibles) : bornes posées une fois par
+                         computeRangeBands() (scene.js), la bande où se trouve le mob est renforcée. -->
+                    <rect id="scene-band-ranged" class="scene-band scene-band-ranged" x="0" y="128" width="0" height="6" rx="3"/>
+                    <rect id="scene-band-contact" class="scene-band scene-band-contact" x="0" y="128" width="0" height="6" rx="3"/>
+                    <text id="scene-band-ranged-label" class="scene-band-label" x="0" y="146" text-anchor="middle">TIR</text>
+                    <text id="scene-band-contact-label" class="scene-band-label" x="0" y="146" text-anchor="middle">CONTACT</text>
+                    <g id="scene-companion" class="hidden"></g>
+                    <g id="scene-crawler"></g>
+                    <g id="scene-mob"></g>
+                    <!-- Effets d'attaque (fx.js) : traînées, projectiles, sorts, éclats d'impact, au-dessus
+                         des combattants ; vide entre deux attaques. -->
+                    <g id="scene-fx" pointer-events="none"></g>
+                    <!-- Progression d'une plongée dans un repaire (étages urbains) : sbires puis boss. -->
+                    <g id="scene-lair-progress"></g>
+                </svg>
+                <div id="scene-mob-anchor" class="absolute w-0 h-0 pointer-events-none"></div>
+                <div id="scene-crawler-anchor" class="absolute w-0 h-0 pointer-events-none"></div>
             </div>
+
+            <!-- Distance (sous la scène), remplie par renderCombatScene(), puis la jauge de tension
+                 anti-kite (renderDistanceTension(), app.js). -->
+            <p id="combat-distance-label" class="mt-1 mb-2 text-center text-[11px] text-gray-400 tabular-nums">Distance</p>
+            <p id="distance-tension-label" class="hidden mb-2 text-center text-[9px] font-bold uppercase tracking-wider"></p>
+
+            <!-- Journal court : les dernières lignes du combat (logEvent(), app.js), la plus récente en
+                 bas. Hauteur fixe pour que les boutons ne bougent pas sous le doigt ; les lignes plus
+                 anciennes sont rognées par le haut. Le journal complet reste disponible plus bas. -->
+            <div id="combat-last-action" class="mb-2 h-[3.25rem] overflow-hidden flex flex-col justify-end gap-0.5 px-2 py-1 rounded bg-gray-950/70 border border-gray-800 text-[11px] leading-snug" aria-live="polite"></div>
 
             <!-- Barre de Mana en combat : visible uniquement si un sort est équipé, voir updateUI() -->
             <div id="combat-mana-wrapper" class="hidden mb-2">
@@ -612,35 +663,46 @@
                  l'écart d'un coup ET enchaîne une attaque bonus, au prix d'une DEF divisée par 2 pour
                  la riposte qui suit. Voir attemptEngage(). -->
             <div class="grid grid-cols-3 gap-2 mb-2">
-                <button id="btn-sprint" class="px-3 py-3 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-400 uppercase tracking-wider transition-all">
-                    🏃 S'approcher
+                <button id="btn-sprint" class="min-h-[44px] px-1 py-2 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-[11px] leading-tight text-amber-400 uppercase transition-all">
+                    <span class="block" aria-hidden="true">🏃</span>S'approcher
                 </button>
-                <button id="btn-retreat" class="px-3 py-3 bg-gray-900 border border-cyan-700/80 hover:border-cyan-400 hover:bg-cyan-900/30 rounded text-xs text-cyan-400 uppercase tracking-wider transition-all">
-                    ↔️ S'éloigner
+                <button id="btn-retreat" class="min-h-[44px] px-1 py-2 bg-gray-900 border border-cyan-700/80 hover:border-cyan-400 hover:bg-cyan-900/30 rounded text-[11px] leading-tight text-cyan-400 uppercase transition-all">
+                    <span class="block" aria-hidden="true">↔️</span>S'éloigner
                 </button>
-                <button id="btn-engage" class="px-3 py-3 bg-gray-900 border border-orange-700/80 hover:border-orange-400 hover:bg-orange-900/30 rounded text-xs text-orange-400 uppercase tracking-wider transition-all">
-                    ⚔️ Charger
+                <button id="btn-engage" class="min-h-[44px] px-1 py-2 bg-gray-900 border border-orange-700/80 hover:border-orange-400 hover:bg-orange-900/30 rounded text-[11px] leading-tight text-orange-400 uppercase transition-all">
+                    <span class="block" aria-hidden="true">⚔️</span>Charger
                 </button>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
-                <button id="btn-attack-weapon" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
+                <button id="btn-attack-weapon" class="min-h-[44px] px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
                     ⚔️ Arme
                 </button>
-                <button id="btn-attack-ranged" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
+                <button id="btn-attack-ranged" class="min-h-[44px] px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
                     🏹 Tir
                 </button>
-                <button id="btn-attack-unarmed" class="px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
+                <button id="btn-attack-unarmed" class="min-h-[44px] px-3 py-3 bg-gray-900 border border-red-800/80 hover:border-red-500 hover:bg-red-900/30 rounded text-xs text-red-400 uppercase tracking-wider transition-all">
                     👊 Mains nues
                 </button>
-                <button id="btn-attack-magic" class="px-3 py-3 bg-gray-900 border border-purple-800/80 hover:border-purple-500 hover:bg-purple-900/30 rounded text-xs text-purple-400 uppercase tracking-wider transition-all">
+                <button id="btn-attack-magic" class="min-h-[44px] px-3 py-3 bg-gray-900 border border-purple-800/80 hover:border-purple-500 hover:bg-purple-900/30 rounded text-xs text-purple-400 uppercase tracking-wider transition-all">
                     ✨ Magie
                 </button>
-                <button id="btn-flee" class="col-span-2 px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
+                <button id="btn-flee" class="min-h-[44px] col-span-2 px-3 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
                     🏃 Fuir
                 </button>
             </div>
+
+            <!-- Infos du mob (portée, ATQ/DEF, effet, modificateurs + bouton Examiner), sous les boutons
+                 d'action (information secondaire, jamais entre la scène et les actions), remplies par
+                 renderCombatMobPanel() (app.js). -->
+            <div id="combat-mob-info" class="mini-card mt-3 rounded-lg px-2 py-2 text-[11px]"></div>
         </div>
+
+        <!-- Journal complet (repli discret, pour qui veut relire tout l'historique) -->
+        <details class="text-[10px] text-gray-600">
+            <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-400">Journal complet</summary>
+            <div id="full-log" class="mt-2 h-28 overflow-y-auto bg-gray-950 border border-gray-800 rounded p-2 flex flex-col gap-1"></div>
+        </details>
 
         <!-- Zone de choix de boss (visible uniquement quand une salle de boss vient d'être trouvée,
              qu'il s'agisse du boss d'un quartier ou de celui qui garde l'escalier) -->
@@ -660,6 +722,14 @@
              explicite repos payant / repartir gratuit, jamais de soin automatique. -->
         <div id="safehouse-choice-zone" class="hidden p-4 bg-green-950/20 border border-green-900/30 rounded-lg relative">
             <span class="absolute text-[10px] text-green-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Salle Sécurisée</span>
+            <!-- Scène de l'abri (renderScene('safehouse') dans scene.js) : porte blindée, panneau
+                 « ZONE SÛRE », accessoires du type de salle, crawler à droite ; purement visuelle. -->
+            <div id="safehouse-scene" class="relative w-full mb-3 rounded-lg overflow-hidden border border-green-900/40" style="aspect-ratio: 360 / 150;">
+                <svg id="safehouse-scene-svg" viewBox="0 0 360 150" class="absolute inset-0 w-full h-full" role="img" aria-label="Salle sécurisée, vous à droite">
+                    <g id="safehouse-scene-backdrop"></g>
+                    <g id="safehouse-scene-crawler"></g>
+                </svg>
+            </div>
             <div class="grid grid-cols-2 gap-2">
                 <button id="btn-rest-safehouse" class="px-3 py-3 bg-gray-900 border border-green-700/80 hover:border-green-400 hover:bg-green-900/30 rounded text-xs text-green-300 uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-green-700/80 disabled:hover:bg-gray-900">
                     🛌 Repos (-2H)
@@ -747,6 +817,16 @@
              updateShopUI() (stock/prix, ou compétence à former, changent d'une ville à l'autre). -->
         <div id="shop-zone" class="hidden p-4 bg-yellow-950/10 border border-yellow-800/30 rounded-lg relative">
             <span class="absolute text-[10px] text-yellow-700/60 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Ville Spécialisée</span>
+
+            <!-- Scène de la ville (renderScene('merchant'|'trainer') dans scene.js) : décor du quartier,
+                 mise en scène du rôle à gauche, crawler à droite ; purement visuelle. -->
+            <div id="shop-scene" class="relative w-full mb-3 rounded-lg overflow-hidden border border-yellow-800/40" style="aspect-ratio: 360 / 150;">
+                <svg id="shop-scene-svg" viewBox="0 0 360 150" class="absolute inset-0 w-full h-full" role="img" aria-label="Ville spécialisée, vous à droite">
+                    <g id="shop-scene-backdrop"></g>
+                    <g id="shop-scene-setpiece"></g>
+                    <g id="shop-scene-crawler"></g>
+                </svg>
+            </div>
 
             <div id="shop-merchant-content" class="hidden flex-col gap-2">
                 <p class="text-[10px] text-gray-500">Achetez au stock du marchand, ou vendez un objet de votre inventaire.</p>
@@ -957,7 +1037,7 @@
     </div>
 
     <!-- Cadeau de bienvenue : révélé juste après la saisie du nom (revealWelcomeGift() dans app.js),
-         masqué par défaut. Réutilise .card-draw-anim (même "pop" que le tirage d'une carte). -->
+         masqué par défaut. Réutilise .card-draw-anim (petit "pop" d'apparition). -->
     <div id="gift-reveal-overlay" class="hidden fixed inset-0 z-50 bg-black/95 backdrop-blur-sm flex items-center justify-center p-6">
         <div class="bg-gray-900 border-2 border-amber-700 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(180,83,9,0.5)]">
             <div id="gift-reveal-icon" class="text-5xl mb-2 card-draw-anim">🎁</div>
@@ -974,7 +1054,12 @@
     <!-- Écran Game Over : recouvre toute l'interface, quel que soit le scroll -->
     <div id="game-over-overlay" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
         <div class="bg-gray-900 border-2 border-red-800 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(153,27,27,0.5)]">
-            <div class="text-5xl mb-2">💀</div>
+            <!-- Le crawler vu de dessus, dans sa mare de sang (renderScene('gameOver') dans scene.js). -->
+            <div id="game-over-scene" class="relative w-full mb-3 rounded-lg overflow-hidden border border-red-900/60" style="aspect-ratio: 280 / 170;">
+                <svg id="game-over-scene-svg" viewBox="0 0 280 170" class="absolute inset-0 w-full h-full" role="img" aria-label="Votre cadavre, vu de dessus, dans une mare de sang">
+                    <g id="game-over-scene-content"></g>
+                </svg>
+            </div>
             <h2 class="text-2xl font-black text-red-500 uppercase tracking-widest mb-1 drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]">Game Over</h2>
             <p id="game-over-reason" class="text-sm text-gray-400 mb-4">Le donjon vous a eu.</p>
             <div class="text-xs text-gray-400 space-y-1.5 mb-4 text-left bg-gray-950 rounded p-3 border border-gray-800">
@@ -1012,7 +1097,14 @@
          getUpcomingAnomalyAnnouncement()). -->
     <div id="floor-transition-overlay" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
         <div class="bg-gray-900 border-2 border-blue-700 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(29,78,216,0.5)]">
-            <div class="text-4xl mb-2">🪜</div>
+            <div id="floor-transition-icon" class="text-4xl mb-2">🪜</div>
+            <!-- Scène de l'escalier (renderScene('stairs') dans scene.js) : remplace l'emoji. -->
+            <div id="floor-transition-scene" class="hidden relative w-full mb-3 rounded-lg overflow-hidden border border-blue-800/50" style="aspect-ratio: 360 / 150;">
+                <svg id="floor-transition-scene-svg" viewBox="0 0 360 150" class="absolute inset-0 w-full h-full" aria-hidden="true">
+                    <g id="floor-transition-scene-backdrop"></g>
+                    <g id="floor-transition-scene-vignette"></g>
+                </svg>
+            </div>
             <p id="floor-transition-title" class="text-sm text-blue-300 font-bold mb-4 leading-snug">-</p>
 
             <div class="text-xs text-gray-400 space-y-1.5 mb-4 text-left bg-gray-950 rounded p-3 border border-gray-800">
@@ -1033,13 +1125,30 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=76"></script>
-    <script src="items.js?v=76"></script>
-    <script src="spells.js?v=76"></script>
-    <script src="districts.js?v=76"></script>
-    <script src="safehouses.js?v=76"></script>
-    <script src="generator.js?v=76"></script>
-    <script src="anomalies.js?v=76"></script>
-    <script src="app.js?v=76"></script>
+    <script src="bestiary.js?v=25"></script>
+    <script src="items.js?v=25"></script>
+    <script src="spells.js?v=25"></script>
+    <script src="districts.js?v=25"></script>
+    <script src="safehouses.js?v=25"></script>
+    <script src="generator.js?v=25"></script>
+    <script src="anomalies.js?v=25"></script>
+    <script src="sprites/crawler.js?v=25"></script>
+    <script src="sprites/npcs.js?v=25"></script>
+    <script src="sprites/mobs.js?v=25"></script>
+    <script src="sprites/mob-details-a.js?v=25"></script>
+    <script src="sprites/mob-details-b.js?v=25"></script>
+    <script src="sprites/mob-auras.js?v=25"></script>
+    <script src="sprites/bosses-a.js?v=25"></script>
+    <script src="sprites/bosses-b.js?v=25"></script>
+    <script src="sprites/items-generic.js?v=25"></script>
+    <script src="sprites/items-melee.js?v=25"></script>
+    <script src="sprites/items-ranged.js?v=25"></script>
+    <script src="sprites/items-armor.js?v=25"></script>
+    <script src="sprites/items-signature.js?v=25"></script>
+    <script src="sprites/fx.js?v=25"></script>
+    <script src="backdrops.js?v=25"></script>
+    <script src="scene.js?v=25"></script>
+    <script src="fx.js?v=25"></script>
+    <script src="app.js?v=25"></script>
 </body>
 </html>

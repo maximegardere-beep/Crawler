@@ -358,42 +358,9 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
 }
 
 // ===================================================================
-// Barre de distance : le mob est toujours à gauche, le joueur toujours à droite, tous deux
-// reflétant symétriquement le même écart (plus de notion de posture/ancrage asymétrique).
-// ===================================================================
-{
-    // Constantes dupliquées depuis updateUI() (app.js) pour vérifier les positions attendues.
-    const HOME_EDGE = 8, ADJACENT_GAP = 5;
-    const leftPos = el => parseFloat(el.style.left);
-
-    resetTransientState();
-    gameState.inCombat = true;
-    gameState.currentEnemy = { name: "Rat Goulot", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
-    gameState.combatDistance = 0; // contact
-    updateUI();
-    const enemyPos = leftPos(ui.combatDistanceEnemyIcon), playerPos = leftPos(ui.combatDistancePlayerIcon);
-    assert(enemyPos < playerPos, "Écart nul : le mob reste à gauche du joueur");
-    assert(Math.abs(playerPos - enemyPos - ADJACENT_GAP) < 0.01, "Écart nul : les deux icônes sont proches du centre mais non superposées");
-
-    resetTransientState();
-    gameState.inCombat = true;
-    gameState.currentEnemy = { name: "Molosse d'Entrepôt", hp: 50, maxHp: 50, atk: 8, def: 4, status: {} }; // mob de mêlée
-    gameState.combatDistance = config.rangedCombat.maxDistance; // repoussé au maximum (ex: après S'éloigner)
-    updateUI();
-    assert(Math.abs(leftPos(ui.combatDistancePlayerIcon) - (100 - HOME_EDGE)) < 0.01, "Écart maximal : le joueur est sur son bord droit");
-    assert(Math.abs(leftPos(ui.combatDistanceEnemyIcon) - HOME_EDGE) < 0.01, "Écart maximal : le mob est sur son bord gauche");
-
-    gameState.combatDistance = 0; // le mob a rattrapé le joueur au corps à corps
-    updateUI();
-    const closeEnemyPos = leftPos(ui.combatDistanceEnemyIcon), closePlayerPos = leftPos(ui.combatDistancePlayerIcon);
-    assert(Math.abs(closePlayerPos - closeEnemyPos - ADJACENT_GAP) < 0.01, "Une fois l'écart comblé : les deux icônes reviennent adjacentes (contact)");
-}
-
-// ===================================================================
-// setCombatDistance() : la barre de distance (icônes + fill) se rafraîchit DANS LA MÊME TICK que
-// tout changement de gameState.combatDistance, sans dépendre d'une riposte différée (bug rapporté :
-// après un recul réussi contre un mob de mêlée, ou un tir qui maintient l'écart sans provoquer de
-// riposte, le schéma restait figé sur l'ancien écart — surtout visible en duel long face à un boss).
+// setCombatDistance() : tout changement de gameState.combatDistance passe par ce point unique (écart
+// borné). Le rafraîchissement du rendu dans la même tick est vérifié côté scène (voir
+// tests/regression/combat-scene.js) ; ici, uniquement l'état de jeu.
 // ===================================================================
 {
     resetTransientState();
@@ -402,7 +369,6 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     gameState.currentEnemy = { name: "Boucher Sans Visage", hp: 300, maxHp: 300, atk: 20, def: 10, status: {} };
     gameState.combatDistance = 0; // rattrapé au corps à corps
     updateUI();
-    const beforeEnemyPos = ui.combatDistanceEnemyIcon.style.left;
 
     const originalRandom = Math.random;
     let idx = 0;
@@ -412,7 +378,6 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     Math.random = originalRandom;
 
     assert(gameState.combatDistance > 0, "attemptRetreat() : le jet gagnant rouvre bien l'écart");
-    assert(ui.combatDistanceEnemyIcon.style.left !== beforeEnemyPos, "attemptRetreat() : l'icône du mob bouge dans la même tick, sans attendre une riposte");
 }
 {
     resetTransientState();
@@ -423,43 +388,41 @@ assert(gameState.combatDistance > 0, `L'écart finit par se rouvrir après plusi
     gameState.combatDistance = 4;
     updateUI();
 
-    const leftBefore = ui.combatDistanceEnemyIcon.style.left;
     attackRanged();
 
-    assert(ui.combatDistanceEnemyIcon.style.left === leftBefore, "attackRanged() n'embarque plus aucune manche de distance : l'écart ne bouge que via S'approcher/S'éloigner");
     assert(gameState.combatDistance === 4, "attackRanged() est une simple attaque gated par l'écart courant, qui ne le modifie plus lui-même");
 }
 // ===================================================================
-// En-tête de carte au démarrage d'un combat (initiateCombat) : le nom du mob remplace "Combat" et
-// n'importe quel titre laissé par la carte précédente (ex: "Silence") — bug rapporté : une embuscade
-// ou un combat déclenché sans passer par setCardHeader() laissait l'ancien titre affiché pendant que
-// le corps de la carte basculait déjà sur le panneau du mob.
+// En-tête de la scène d'exploration au démarrage d'un combat (initiateCombat) : le nom du mob remplace
+// "Combat" et n'importe quel titre laissé par l'événement précédent (ex: "Silence") — bug rapporté (du
+// temps de la carte à jouer) : une embuscade ou un combat déclenché sans passer par l'en-tête laissait
+// l'ancien titre affiché pendant que l'affichage basculait déjà sur le panneau du mob.
 // ===================================================================
 {
     resetTransientState();
-    setCardHeader('🌑', 'Silence', 'Exploration'); // simule la carte précédente, comme en vraie partie
+    setSceneHeader('🌑', 'Silence', 'Exploration'); // simule l'événement précédent, comme en vraie partie
     const mob = { name: "Contrôleur de Billets Zombifié", hp: 30, maxHp: 30, atk: 5, def: 2, status: {} };
     initiateCombat(mob);
-    assert(ui.cardTitle.innerText === mob.name, "initiateCombat() : le nom du mob remplace le titre de la carte précédente");
-    assert(ui.cardIcon.innerText === '⚔️', "initiateCombat() : icône épée pour un mob normal");
-    assert(ui.cardTypeLabel.innerText === 'Danger', "initiateCombat() : type 'Danger' pour un mob normal");
+    assert(ui.sceneTitle.innerText === mob.name, "initiateCombat() : le nom du mob remplace le titre de l'événement précédent");
+    assert(ui.sceneIcon.innerText === '⚔️', "initiateCombat() : icône épée pour un mob normal");
+    assert(ui.sceneTypeLabel.innerText === 'Danger', "initiateCombat() : type 'Danger' pour un mob normal");
 }
 {
     resetTransientState();
-    setCardHeader('🌑', 'Silence', 'Exploration');
+    setSceneHeader('🌑', 'Silence', 'Exploration');
     const eliteMob = { name: "Boucher Increvable", hp: 30, maxHp: 30, atk: 5, def: 2, threatMultiplier: 3.6, status: {} };
     initiateCombat(eliteMob);
-    assert(ui.cardTitle.innerText === eliteMob.name, "initiateCombat() : nom du mob élite sur la carte aussi");
-    assert(ui.cardIcon.innerText === '💀', "initiateCombat() : icône crâne pour un mob élite");
+    assert(ui.sceneTitle.innerText === eliteMob.name, "initiateCombat() : nom du mob élite dans la scène aussi");
+    assert(ui.sceneIcon.innerText === '💀', "initiateCombat() : icône crâne pour un mob élite");
 }
 {
     resetTransientState();
     // En-tête plus riche posé par triggerBossEncounter() juste avant fightBossNow() -> initiateCombat()
-    setCardHeader('👑', 'Le Chef de Gare Nécrosé', "Gardien de l'Escalier");
+    setSceneHeader('👑', 'Le Chef de Gare Nécrosé', "Gardien de l'Escalier");
     const boss = { name: "Le Chef de Gare Nécrosé", isBoss: true, hp: 200, maxHp: 200, atk: 20, def: 10, status: {} };
     initiateCombat(boss);
-    assert(ui.cardTitle.innerText === boss.name, "initiateCombat() : titre correct pour un boss");
-    assert(ui.cardTypeLabel.innerText === "Gardien de l'Escalier", "initiateCombat() : n'écrase pas l'en-tête plus riche déjà posé pour un boss");
+    assert(ui.sceneTitle.innerText === boss.name, "initiateCombat() : titre correct pour un boss");
+    assert(ui.sceneTypeLabel.innerText === "Gardien de l'Escalier", "initiateCombat() : n'écrase pas l'en-tête plus riche déjà posé pour un boss");
 }
 
 // ===================================================================

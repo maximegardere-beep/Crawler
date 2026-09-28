@@ -272,3 +272,62 @@ const { assert, resetTransientState } = require('./_helpers.js');
     svgEl.dispatch('pointerup', { clientX: 130, clientY: 120, pointerId: 1 });
     assert(clickedId === 'b', "renderGraphMiniMap() (pan) : un tap normal après un glissement précédent (sans re-rendu) vise la bonne position monde");
 }
+
+// ===================================================================
+// Scène d'exploration (remplace la carte à jouer) : dernière ligne du journal sous la scène, scène
+// d'arrivée d'étage, bouton Carte (#btn-toggle-map) qui ouvre/ferme la Carte Urbaine, et toucher la
+// scène qui l'ouvre sur un étage urbain (explore sinon).
+// ===================================================================
+{
+    resetTransientState();
+    const saved = { floor: gameState.currentFloor, floorMap: gameState.floorMap, urbanMap: gameState.urbanMap, district: gameState.currentDistrict, timeLeft: gameState.timeLeft };
+    const lastLine = document.getElementById('explore-last-line');
+    const fullLog = document.getElementById('full-log');
+    const before = fullLog.children.length;
+    logEvent('Premier message', 'normal');
+    logEvent('Second message', 'danger');
+    assert(lastLine.innerText === 'Second message' && lastLine.className.includes('text-red-400'), "logEvent() hors combat : seule la dernière ligne reste sous la scène, avec sa couleur");
+    assert(fullLog.children.length === before + 2, "logEvent() : chaque message rejoint le journal complet");
+
+    // Étage classique : scène du quartier, titre « Étage N », toucher la scène explore.
+    gameState.urbanMap = null;
+    gameState.currentFloor = 1;
+    generateFloorMap();
+    showFloorArrivalScene();
+    assert(ui.sceneTitle.innerText === `Étage ${gameState.currentFloor}` && document.getElementById('explore-scene-vignette').innerHTML.includes('translate'), "Arrivée sur un étage classique : scène du quartier, titre de l'étage");
+    updateUI();
+    assert(ui.btnToggleMap.classList.contains('hidden') && ui.urbanTravelOverlay.classList.contains('hidden'), "Étage classique : ni bouton Carte ni Carte Urbaine (pas encore de carte d'étage classique)");
+    const timeBefore = gameState.timeLeft;
+    onExploreSceneActivated();
+    assert(gameState.timeLeft < timeBefore || isActionBlocked() || gameState.inCombat, "Étage classique : toucher la scène explore");
+    resetTransientState(); // l'exploration ci-dessus a pu ouvrir un combat ou un choix
+    gameState.safehouseChoicePending = true;
+    updateUI();
+    assert(ui.exploreScene.classList.contains('hidden') && !ui.sceneTitle.classList.contains('hidden'), "Salle sécurisée : sa propre scène remplace la scène d'exploration (titre conservé)");
+    gameState.safehouseChoicePending = false;
+    updateUI();
+    assert(!ui.exploreScene.classList.contains('hidden'), "Choix résolu : la scène d'exploration revient");
+    resetTransientState();
+
+    // Étage urbain : scène de la ville de départ, Carte Urbaine ouverte par défaut, bouton pour la fermer.
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    const start = gameState.urbanMap.citiesById[gameState.urbanMap.currentCityId];
+    showFloorArrivalScene();
+    assert(ui.sceneTitle.innerText === start.name && document.getElementById('explore-scene-vignette').innerHTML.includes(start.name), "Arrivée sur un étage urbain : panneau de la ville de départ");
+    toggleMapPanel(true);
+    assert(!ui.btnToggleMap.classList.contains('hidden') && !ui.urbanTravelOverlay.classList.contains('hidden'), "Étage urbain : bouton Carte visible, Carte Urbaine ouverte");
+    ui.btnToggleMap.dispatch('click', {});
+    assert(ui.urbanTravelOverlay.classList.contains('hidden') && ui.btnToggleMap.innerText.includes('Carte'), "Bouton Carte : ferme la Carte Urbaine");
+    const timeUrban = gameState.timeLeft;
+    onExploreSceneActivated();
+    assert(!ui.urbanTravelOverlay.classList.contains('hidden') && gameState.timeLeft === timeUrban, "Étage urbain : toucher la scène rouvre la carte, sans coûter de temps");
+    gameState.bossChoicePending = true;
+    updateUI();
+    assert(ui.btnToggleMap.classList.contains('hidden') && ui.urbanTravelOverlay.classList.contains('hidden'), "Situation en cours : carte et bouton masqués, la scène montre la situation");
+
+    resetTransientState();
+    toggleMapPanel(true);
+    Object.assign(gameState, { currentFloor: saved.floor, floorMap: saved.floorMap, urbanMap: saved.urbanMap, currentDistrict: saved.district, timeLeft: saved.timeLeft });
+    updateUI();
+}

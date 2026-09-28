@@ -78,6 +78,7 @@ const gameState = {
     bossChoicePending: false, // Une salle de boss vient d'être trouvée, décision combattre/repérer en attente
     safehouseChoicePending: false, // Une salle sécurisée vient d'être trouvée, décision repos/repartir en attente
     pendingSafehouseRoomId: null, // Room id de la salle sécurisée dont le choix est actuellement affiché
+    lastAttackKind: null, // 'weapon' | 'ranged' | 'magic' | 'unarmed' : dernière attaque utilisée, fixe la posture du crawler dans les scènes (voir crawlerPosture() dans scene.js)
     stealthChoicePending: false, // Un ennemi non repéré attend une décision (esquiver/attaque furtive)
     pendingStealthEncounter: null, // L'ennemi généré, en attente de cette décision
     pendingSneakAttack: false, // Consommé par le tout premier coup porté (bonus x2)
@@ -170,7 +171,7 @@ gameState.anomalyEffects = createNeutralAnomalyEffects();
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 21, label: "Lisibilité combat : séquenceur de beats, télégraphe, badges, phases boss, skip" };
+const APP_VERSION = { pr: 25, label: "Refonte graphique : scènes 2D, décors, crawler équipé, effets d'attaque, bestiaire et boss" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -527,12 +528,15 @@ const ui = {
     playerAtk: document.getElementById('player-atk'),
     playerDef: document.getElementById('player-def'),
     playerGold: document.getElementById('player-gold'),
-    activeCard: document.getElementById('active-card'),
-    cardTypeLabel: document.getElementById('card-type-label'),
-    cardFloorLabel: document.getElementById('card-floor-label'),
-    cardIcon: document.getElementById('card-icon'),
-    cardTitle: document.getElementById('card-title'),
-    cardBody: document.getElementById('card-body'),
+    // Scène d'exploration (remplace l'ancienne carte à jouer, voir setSceneHeader()) : vignette,
+    // emoji de repli, type, titre et dernière ligne du journal.
+    exploreStage: document.getElementById('explore-stage'),
+    exploreScene: document.getElementById('explore-scene'),
+    sceneTypeLabel: document.getElementById('explore-type-label'),
+    sceneIcon: document.getElementById('explore-icon'),
+    sceneTitle: document.getElementById('explore-title'),
+    sceneLastLine: document.getElementById('explore-last-line'),
+    btnToggleMap: document.getElementById('btn-toggle-map'),
     screenFxOverlay: document.getElementById('screen-fx-overlay'),
     gameMain: document.getElementById('game-main'),
     fullLog: document.getElementById('full-log'),
@@ -558,17 +562,15 @@ const ui = {
     equippedArmor: document.getElementById('equipped-armor'),
     equippedArmorBadges: document.getElementById('equipped-armor-badges'),
     playerStatusIcons: document.getElementById('player-status-icons'),
-    combatSideEnemy: document.getElementById('combat-side-enemy'),
-    combatSidePlayer: document.getElementById('combat-side-player'),
-    combatEnemyHp: document.getElementById('combat-enemy-hp'),
-    combatEnemyHpRing: document.getElementById('combat-enemy-hp-ring'),
+    combatLastAction: document.getElementById('combat-last-action'),
+    combatMobInfo: document.getElementById('combat-mob-info'),
     enemyStatusIcons: document.getElementById('enemy-status-icons'),
     combatEnemyDie: document.getElementById('combat-enemy-die'),
-    combatPlayerHp: document.getElementById('combat-player-hp'),
-    combatPlayerHpRing: document.getElementById('combat-player-hp-ring'),
     combatPlayerStatus: document.getElementById('combat-player-status'),
     combatPlayerDie: document.getElementById('combat-player-die'),
-    cardStackWrapper: document.getElementById('card-stack-wrapper'),
+    // Ancres des chiffres de dégâts flottants, placées sur chaque combattant par scene.js.
+    sceneMobAnchor: document.getElementById('scene-mob-anchor'),
+    sceneCrawlerAnchor: document.getElementById('scene-crawler-anchor'),
     advanceHint: document.getElementById('advance-hint'),
     bossChoiceZone: document.getElementById('boss-choice-zone'),
     btnFightBoss: document.getElementById('btn-fight-boss'),
@@ -648,11 +650,7 @@ const ui = {
     btnRetreat: document.getElementById('btn-retreat'),
     btnEngage: document.getElementById('btn-engage'),
     btnFlee: document.getElementById('btn-flee'),
-    combatDistanceWrapper: document.getElementById('combat-distance-wrapper'),
-    combatDistanceFill: document.getElementById('combat-distance-fill'),
     distanceTensionLabel: document.getElementById('distance-tension-label'),
-    combatDistancePlayerIcon: document.getElementById('combat-distance-player-icon'),
-    combatDistanceEnemyIcon: document.getElementById('combat-distance-enemy-icon'),
     equippedRanged: document.getElementById('equipped-ranged'),
     btnDevTestKit: document.getElementById('btn-dev-testkit'),
     btnDevJumpUrban: document.getElementById('btn-dev-jump-urban'),
@@ -1046,8 +1044,6 @@ function updateUI() {
     ui.playerDef.innerText = getEffectiveDef();
     if (ui.playerGold) ui.playerGold.innerText = gameState.gold;
 
-    // Le libellé d'étage sur la carte active reste toujours synchronisé
-    ui.cardFloorLabel.innerText = `Étage ${gameState.currentFloor}`;
     updateAnomalyStatusUI();
 
     // Icônes de statut du joueur
@@ -1122,17 +1118,14 @@ function updateUI() {
         ui.stairAlertBanner.classList.toggle('hidden', timePercentage > 25 || gameState.inCombat);
     }
 
-    // Gestion de l'affichage du combat : rétrécissement de la carte, panneaux latéraux PV/statut
+    // Gestion de l'affichage du combat : la scène d'exploration laisse la place à la zone de combat
+    // (barres de vie, scène, boutons — voir renderScene('combat') dans scene.js pour la scène et les PV).
     if (gameState.inCombat) {
         ui.advanceHint.classList.add('hidden'); // On ne peut pas avancer pendant un combat
         ui.combatZone.classList.remove('hidden');
-        ui.compactVitals.classList.add('hidden'); // Les PV sont déjà affichés à droite de la carte
-        ui.cardStackWrapper.style.maxWidth = '170px'; // La carte se réduit pour laisser place aux panneaux
+        ui.compactVitals.classList.add('hidden'); // Les PV sont déjà affichés au-dessus de la scène
+        ui.exploreStage.classList.add('hidden');
 
-        // Panneau joueur (toujours à jour dès qu'on est en combat)
-        ui.combatSidePlayer.classList.remove('hidden');
-        ui.combatSidePlayer.classList.add('flex', 'flex-col');
-        setHpRing(ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
         let playerIcons = "";
         if (gameState.status.bleed && gameState.status.bleed.rounds > 0) playerIcons += "🔥";
         if (gameState.status.stunned) playerIcons += "💫";
@@ -1143,9 +1136,9 @@ function updateUI() {
         if (gameState.status.corroded && gameState.status.corroded.rounds > 0) playerIcons += "🧪";
         if (gameState.status.feared && gameState.status.feared.rounds > 0) playerIcons += "😱";
         if (gameState.status.adrenaline && gameState.status.adrenaline.rounds > 0) playerIcons += "💉";
-        ui.combatPlayerStatus.innerText = playerIcons || "—";
+        ui.combatPlayerStatus.innerText = playerIcons;
 
-        // Indicateur compagnon (à droite, sous le panneau joueur), si un compagnon est actif
+        // Indicateur compagnon (sous la barre de vie du joueur), si un compagnon est actif
         if (gameState.companion) {
             ui.companionCombatIndicator.classList.remove('hidden');
             ui.companionCombatName.innerText = gameState.companion.name;
@@ -1161,10 +1154,6 @@ function updateUI() {
                 : elite ? `💀 ${gameState.currentEnemy.name}` : gameState.currentEnemy.name;
             ui.enemyName.classList.toggle('text-yellow-400', !!gameState.currentEnemy.isBoss);
             ui.enemyName.classList.toggle('text-red-500', elite);
-
-            ui.combatSideEnemy.classList.remove('hidden');
-            ui.combatSideEnemy.classList.add('flex', 'flex-col');
-            setHpRing(ui.combatEnemyHpRing, ui.combatEnemyHp, gameState.currentEnemy.hp, gameState.currentEnemy.maxHp);
 
             renderEnemyStatusBadges(gameState.currentEnemy);
 
@@ -1185,12 +1174,10 @@ function updateUI() {
         updateTelegraphBanner();
 
         // --- Distance de combat : verrouille/déverrouille Arme, Tir et Mains nues selon l'écart
-        // actuel (0 = corps à corps possible, >0 = seul le Tir porte). La barre est TOUJOURS
-        // affichée pendant un combat, même à 0, pour que l'état du duel reste visible en permanence.
-        // Aucune notion de posture : ces règles ne dépendent que de l'écart courant et de l'équipement.
+        // actuel (0 = corps à corps possible, >0 = seul le Tir porte). Aucune notion de posture : ces
+        // règles ne dépendent que de l'écart courant et de l'équipement.
         const distance = gameState.combatDistance || 0;
         const atMelee = distance <= 0;
-        const enemyIsMelee = gameState.currentEnemy ? !mobWantsFar(gameState.currentEnemy) : false;
         if (ui.btnAttackWeapon) {
             const weaponUsable = atMelee && !!gameState.equipment.weapon;
             ui.btnAttackWeapon.disabled = !weaponUsable;
@@ -1258,62 +1245,38 @@ function updateUI() {
             ui.btnFlee.classList.toggle('opacity-40', !fleeUsable);
             ui.btnFlee.classList.toggle('pointer-events-none', !fleeUsable);
         }
-
-        // Icônes joueur/ennemi sur la barre : le mob est TOUJOURS à gauche, le joueur TOUJOURS à
-        // droite, tous deux reflétant symétriquement le même écart courant de part et d'autre du
-        // centre — HOME_EDGE est la position de chaque camp à l'écart maximal, ADJACENT_GAP l'écart
-        // minimal entre les deux icônes à écart nul (corps à corps), pour qu'elles restent
-        // visuellement distinctes sans se superposer.
-        if (ui.combatDistancePlayerIcon && ui.combatDistanceEnemyIcon && ui.combatDistanceFill) {
-            const maxDist = config.rangedCombat.maxDistance || 1;
-            const ratio = Math.max(0, Math.min(1, distance / maxDist));
-            const HOME_EDGE = 8;
-            const ADJACENT_GAP = 5;
-            const half = 50 - ADJACENT_GAP / 2;
-            const enemyPos = half - ratio * (half - HOME_EDGE);
-            const playerPos = 100 - enemyPos;
-            ui.combatDistancePlayerIcon.style.left = `${playerPos}%`;
-            ui.combatDistanceEnemyIcon.style.left = `${enemyPos}%`;
-
-            // La barre remplie relie directement les deux icônes : elle EST l'écart entre elles,
-            // et non plus une simple jauge indépendante — leur mouvement et son étendue restent
-            // ainsi toujours corrélés.
-            const leftPos = Math.min(enemyPos, playerPos);
-            const rightPos = Math.max(enemyPos, playerPos);
-            ui.combatDistanceFill.style.left = `${leftPos}%`;
-            ui.combatDistanceFill.style.width = `${rightPos - leftPos}%`;
-            // Bleu si l'écart profite au joueur (mob de mêlée tenu à distance), rouge s'il le subit
-            // (mob à distance qui tient sa portée sans qu'on puisse le rattraper), gris à écart nul.
-            const playerBenefits = enemyIsMelee && distance > 0;
-            const playerSuffers = !enemyIsMelee && distance > 0;
-            ui.combatDistanceFill.classList.toggle('bg-cyan-600', playerBenefits);
-            ui.combatDistanceFill.classList.toggle('bg-red-600', playerSuffers);
-            ui.combatDistanceFill.classList.toggle('bg-gray-600', !playerBenefits && !playerSuffers);
-        }
     } else {
-        // Étage urbain : le tapotement de la carte n'a aucun effet (explore() se bloque déjà sur
-        // gameState.floorMap === null), donc l'invite "Touchez la carte pour explorer" n'a plus lieu
-        // d'être — la Carte Urbaine (liste de villes) la remplace comme mode de déplacement.
-        ui.advanceHint.classList.toggle('hidden', gameState.bossChoicePending || gameState.stealthChoicePending || !!gameState.urbanMap);
+        // Consigne sous la scène : explorer (étage classique) ou ouvrir la carte (étage urbain, carte
+        // fermée) ; inutile pendant un choix en attente ou quand la Carte Urbaine est déjà ouverte.
+        const urbanMapShown = !!gameState.urbanMap && mapPanelOpen;
+        ui.advanceHint.classList.toggle('hidden', isActionBlocked() || urbanMapShown);
+        ui.advanceHint.innerText = gameState.urbanMap ? "👆 Touchez la scène pour ouvrir la carte" : "👆 Touchez la scène pour explorer (-1H)";
+        if (ui.exploreScene) ui.exploreScene.setAttribute('aria-label', gameState.urbanMap ? "Ouvrir la carte" : "Explorer (-1H)");
         ui.combatZone.classList.add('hidden');
         ui.compactVitals.classList.remove('hidden'); // On réaffiche les PV compacts hors combat
-        ui.cardStackWrapper.style.maxWidth = '240px'; // Retour à la taille normale hors combat
+        ui.exploreStage.classList.remove('hidden');
+        // Salle sécurisée et ville spécialisée ont leur propre scène (au-dessus de leurs boutons) : la
+        // scène d'exploration s'efface alors, seuls son titre et la dernière ligne restent.
+        if (ui.exploreScene) ui.exploreScene.classList.toggle('hidden', !!(gameState.safehouseChoicePending || gameState.shopChoicePending));
         updateCompanionUI(); // Réaffiche/actualise la barre compagnon compacte hors combat
-
-        ui.combatSideEnemy.classList.add('hidden');
-        ui.combatSideEnemy.classList.remove('flex', 'flex-col');
-        ui.combatSidePlayer.classList.add('hidden');
-        ui.combatSidePlayer.classList.remove('flex', 'flex-col');
     }
 
-    // "Lieux connus" (donjon classique) reste un panneau séparé ; la "Carte Urbaine" (étage urbain)
-    // s'affiche elle en overlay directement sur la carte active plutôt qu'en panneau séparé, pour
-    // que le déplacement entre villes reste au même endroit que l'exploration classique. Elle se
-    // masque dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
-    // voir isActionBlocked()) : la carte redevient alors visible et se comporte exactement comme sur
-    // un étage classique.
+    // Scène de combat en vue latérale (scene.js) : seul point d'entrée de son rendu.
+    renderScene('combat');
+    renderScene('crawlers'); // posture/équipement du crawler dans les scènes hors combat
+
+    // "Lieux connus" (donjon classique) reste un panneau séparé ; la "Carte Urbaine" (étage urbain) est
+    // un panneau sous la scène, ouvert/fermé par #btn-toggle-map (ouvert par défaut, mapPanelOpen). Elle
+    // se masque, avec son bouton, dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
+    // voir isActionBlocked()) : la scène montre alors la situation.
     if (ui.knownLocationsSection) ui.knownLocationsSection.classList.toggle('hidden', !!gameState.urbanMap);
-    if (ui.urbanTravelOverlay) ui.urbanTravelOverlay.classList.toggle('hidden', !gameState.urbanMap || isActionBlocked());
+    const mapAvailable = !!gameState.urbanMap && !isActionBlocked();
+    if (ui.urbanTravelOverlay) ui.urbanTravelOverlay.classList.toggle('hidden', !mapAvailable || !mapPanelOpen);
+    if (ui.btnToggleMap) {
+        ui.btnToggleMap.classList.toggle('hidden', !mapAvailable);
+        ui.btnToggleMap.innerText = mapPanelOpen ? "✕ Fermer la carte" : "🗺️ Carte";
+        ui.btnToggleMap.setAttribute('aria-expanded', mapPanelOpen ? 'true' : 'false');
+    }
 
     // Les distances affichées dans "Lieux connus" dépendent de la position actuelle : on les
     // rafraîchit à chaque rendu pour qu'elles restent toujours à jour sans action explicite.
@@ -1403,22 +1366,19 @@ function triggerHeavyImpact() {
     screenImpactFlash();
 }
 
-// Anime un dé de dégâts qui "vole" vers le compteur de PV de sa cible, façon petit coup de poing.
+// Anime un dé de dégâts qui "vole" vers la barre de vie de sa cible, façon petit coup de poing.
 // `direction` : 'left' (le dé du joueur vole vers les PV ennemis, à gauche) ou 'right' (le dé de
-// l'ennemi vole vers les PV du joueur, à droite). `newHpValue` est la valeur déjà décrémentée
-// (le calcul des PV réels a lieu avant l'appel ; cette fonction ne fait que l'afficher au bon moment).
-function animateDieHit(dieEl, direction, value, ringEl, valueEl, newHpValue, maxHpValue) {
+// l'ennemi vole vers les PV du joueur, à droite). Les PV sont déjà décrémentés avant l'appel : au
+// moment de l'impact (environ à mi-vol du dé), la scène et les barres de vie sont redessinées pour
+// que la barre baisse au même instant, même au milieu d'une séquence de coups (voir runCombatBeats()).
+function animateDieHit(dieEl, direction, value) {
     dieEl.innerText = value;
     dieEl.classList.remove('die-pop', 'die-hit-left', 'die-hit-right');
     void dieEl.offsetWidth;
     dieEl.classList.add('die-pop', direction === 'left' ? 'die-hit-left' : 'die-hit-right');
 
-    // Au moment de l'impact (environ à mi-vol du dé), l'anneau de vie touché se met à jour et vibre
     setTimeout(() => {
-        setHpRing(ringEl, valueEl, newHpValue, maxHpValue);
-        valueEl.classList.remove('hp-hit');
-        void valueEl.offsetWidth;
-        valueEl.classList.add('hp-hit');
+        renderScene('combat');
         triggerHaptic('light');
     }, 180);
 }
@@ -1433,11 +1393,12 @@ const FLOATING_DAMAGE_OFFSETS = [-7, 6, -3, 8, -8, 3, -5, 7];
 let floatingDamageOffsetIndex = 0;
 
 // Chiffre de dégâts flottant (chantier "lisibilité combat", Chantier 3) : un chiffre par impact,
-// monte et s'estompe au-dessus du panneau touché (#combat-side-enemy/#combat-side-player, voir leur
-// `position: relative` dans index.html — le chiffre s'y ajoute EN PLUS du dé qui vole déjà,
+// monte et s'estompe au-dessus du combattant touché (ancres #scene-mob-anchor/#scene-crawler-anchor,
+// placées sur chaque silhouette par scene.js — le chiffre s'ajoute EN PLUS du dé qui vole déjà,
 // jamais à sa place). `toPlayer` distingue les dégâts SUBIS par le joueur (rouge/orangé) des dégâts
 // qu'il INFLIGE (blanc/jaune) ; `heavy` grossit le chiffre (×1.4 environ) pour un coup marquant
-// (télégraphe exécuté, ruée d'enrage, phase 3). Se nettoie lui-même après son animation
+// (télégraphe exécuté, ruée d'enrage, phase 3). Fait aussi trembler le combattant touché dans la
+// scène (shakeSceneFighter(), scene.js). Se nettoie lui-même après son animation
 // (`animationend`), fonctionne aussi bien avec l'animation normale que le simple fondu de
 // prefers-reduced-motion (les deux déclenchent cet événement).
 function showFloatingDamage(containerEl, amount, { heavy = false, toPlayer = false } = {}) {
@@ -1450,29 +1411,19 @@ function showFloatingDamage(containerEl, amount, { heavy = false, toPlayer = fal
     el.style.left = `calc(50% + ${offsetX}px)`;
     el.addEventListener('animationend', () => el.remove());
     containerEl.appendChild(el);
+    shakeSceneFighter(toPlayer ? 'crawler' : 'mob');
 }
 
-// Fonction pour ajouter un message : sur la carte active (fond clair) ET dans le journal complet (fond sombre).
-// Pendant un combat, la carte n'affiche plus le flot de logs (trop de bruit visuel) : elle montre à
-// la place un résumé fixe de l'ennemi (voir renderCombatMobPanel) et un bouton "Examiner". Le
-// journal complet, lui, continue toujours de tout recevoir, combat ou non.
-function logEvent(message, type = "normal") {
-    if (!gameState.inCombat) {
-        // Couleurs adaptées au fond clair de la carte (papier crème)
-        const cardColors = {
-            danger: "text-red-700 font-bold",
-            success: "text-green-700 font-bold",
-            info: "text-blue-700 italic",
-            loot: "text-amber-700 font-bold",
-            normal: "text-stone-700"
-        };
-        const cardLine = document.createElement('p');
-        cardLine.className = cardColors[type] || cardColors.normal;
-        cardLine.innerText = message;
-        ui.cardBody.appendChild(cardLine);
-        ui.cardBody.scrollTop = ui.cardBody.scrollHeight;
-    }
+// Nombre de lignes gardées dans le journal court de combat (#combat-last-action) ; il n'en montre
+// que ce que sa hauteur fixe permet, la plus récente toujours entière en bas.
+const COMBAT_LOG_LINES = 3;
+// Ennemi du combat dont le journal court affiche les lignes : un nouvel ennemi le remet à zéro.
+let combatLogEnemy = null;
 
+// Ajoute un message au journal complet (qui reçoit TOUT) et à l'affichage minimal du moment : hors
+// combat, il devient la dernière ligne sous la scène d'exploration (#explore-last-line, écrasée à
+// chaque message) ; pendant un combat, il rejoint le journal court de la zone de combat.
+function logEvent(message, type = "normal") {
     // Couleurs adaptées au fond sombre du journal complet (reprend l'ancien style)
     const logColors = {
         danger: "text-red-400 font-bold",
@@ -1481,40 +1432,87 @@ function logEvent(message, type = "normal") {
         loot: "text-yellow-400 font-bold",
         normal: "text-gray-300"
     };
+    if (!gameState.inCombat && ui.sceneLastLine) {
+        ui.sceneLastLine.className = `min-h-[2.6em] px-0.5 text-[11px] leading-snug line-clamp-2 ${logColors[type] || logColors.normal}`;
+        ui.sceneLastLine.innerText = message;
+    }
+
     const logLine = document.createElement('div');
     logLine.className = logColors[type] || logColors.normal;
     logLine.innerText = `>> ${message}`;
     ui.fullLog.appendChild(logLine);
     ui.fullLog.scrollTop = ui.fullLog.scrollHeight;
+
+    if (gameState.inCombat && ui.combatLastAction) {
+        if (combatLogEnemy !== gameState.currentEnemy) {
+            ui.combatLastAction.innerHTML = '';
+            combatLogEnemy = gameState.currentEnemy;
+        }
+        const shortLine = document.createElement('p');
+        shortLine.className = logColors[type] || logColors.normal;
+        shortLine.innerText = message;
+        ui.combatLastAction.appendChild(shortLine);
+        while (ui.combatLastAction.children.length > COMBAT_LOG_LINES) {
+            ui.combatLastAction.removeChild(ui.combatLastAction.firstElementChild);
+        }
+    }
 }
 
-// Prépare l'en-tête de la carte active (icône, titre, type) : appelé au début de chaque nouvelle
-// branche d'événement dans resolveCardEvent(), avant que logEvent() ne remplisse le corps.
-function setCardHeader(icon, title, typeLabel) {
-    ui.cardIcon.innerText = icon;
-    ui.cardTitle.innerText = title;
-    ui.cardTypeLabel.innerText = typeLabel;
+// Prépare la scène d'exploration pour un nouvel événement (icône de repli, titre, type) : appelé au
+// début de chaque nouvelle branche d'événement dans resolveCardEvent(), avant que logEvent() n'écrive
+// la dernière ligne. `scene` : vignette dessinée dans la scène (nom, ou { key, enemy } — voir
+// EXPLORE_VIGNETTES dans scene.js) ; absente ou inconnue, l'emoji s'affiche à sa place.
+function setSceneHeader(icon, title, typeLabel, scene) {
+    ui.sceneIcon.innerText = icon;
+    ui.sceneTitle.innerText = title;
+    ui.sceneTypeLabel.innerText = typeLabel;
+    renderScene('explore', scene);
 }
 
-// Petite animation de "pop" à chaque nouvelle carte tirée (voir le commentaire CSS de .card-draw-anim)
-function playCardDrawAnimation() {
-    ui.activeCard.classList.remove('card-draw-anim');
-    void ui.activeCard.offsetWidth; // force le navigateur à relire le style pour pouvoir rejouer l'animation
-    ui.activeCard.classList.add('card-draw-anim');
+// Petit fondu à chaque nouvel événement d'exploration (voir .scene-draw-anim dans index.html).
+function playSceneDrawAnimation() {
+    if (!ui.exploreScene) return;
+    ui.exploreScene.classList.remove('scene-draw-anim');
+    void ui.exploreScene.offsetWidth; // force le navigateur à relire le style pour rejouer l'animation
+    ui.exploreScene.classList.add('scene-draw-anim');
+}
+
+// Scène d'arrivée sur un étage (nouvelle partie, changement d'étage, sauvegarde restaurée) : la ville
+// de départ sur un étage urbain, le quartier courant sinon — jamais la vignette de l'étage précédent.
+function showFloorArrivalScene() {
+    const urbanMap = gameState.urbanMap;
+    const city = urbanMap && urbanMap.citiesById[urbanMap.currentCityId];
+    if (city) {
+        setSceneHeader('🏙️', city.name, 'Ville sûre', { key: 'citySafe', cityName: city.name });
+    } else {
+        setSceneHeader('🚪', `Étage ${gameState.currentFloor}`, 'Exploration', 'silence');
+    }
+}
+
+// Carte de l'étage (Carte Urbaine) ouverte ou fermée par #btn-toggle-map — préférence d'affichage
+// seulement, jamais un état de jeu (d'où une variable de module et non un champ de gameState).
+let mapPanelOpen = true;
+function toggleMapPanel(forceOpen) {
+    mapPanelOpen = forceOpen === undefined ? !mapPanelOpen : !!forceOpen;
+    updateUI();
 }
 
 // Fonction pour mettre à jour l'inventaire visuel
 function updateInventoryUI() {
     const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
     ui.inventoryCount.innerText = equipmentCount;
-    ui.equippedWeapon.innerText = gameState.equipment.weapon ? formatItemDisplayName(gameState.equipment.weapon) : "Aucune";
-    ui.equippedArmor.innerText = gameState.equipment.armor ? formatItemDisplayName(gameState.equipment.armor) : "Aucune";
+    // Objets équipés : icône (même dessin que sur le crawler, voir itemIconSvg() dans scene.js) + nom.
+    const equippedLabel = (item) => item
+        ? `<span class="inline-flex items-center gap-1 align-middle">${itemIconSvg(item, 22)}<span>${formatItemDisplayName(item)}</span></span>`
+        : "Aucune";
+    ui.equippedWeapon.innerHTML = equippedLabel(gameState.equipment.weapon);
+    ui.equippedArmor.innerHTML = equippedLabel(gameState.equipment.armor);
     if (ui.equippedArmorBadges) {
         ui.equippedArmorBadges.innerHTML = gameState.equipment.armor
             ? buildMechanicBadgesHtml(gameState.equipment.armor, IMPLEMENTED_ARMOR_MECHANICS)
             : "";
     }
-    if (ui.equippedRanged) ui.equippedRanged.innerText = gameState.equipment.ranged ? formatItemDisplayName(gameState.equipment.ranged) : "Aucune";
+    if (ui.equippedRanged) ui.equippedRanged.innerHTML = equippedLabel(gameState.equipment.ranged);
 
     // --- Armes / armures / armes à distance : cartes façon carte à jouer, dans le déroulant ---
     ui.inventoryEquipmentCards.innerHTML = "";
@@ -1542,7 +1540,7 @@ function updateInventoryUI() {
             // armes gardent leur affichage inchangé, leurs enchantements sont déjà tous fonctionnels.
             const armorBadges = !isWeapon && !isRanged ? buildMechanicBadgesHtml(item, IMPLEMENTED_ARMOR_MECHANICS) : "";
             card.innerHTML = `
-                <div class="text-xl leading-none">${icon}</div>
+                <div class="flex justify-center leading-none">${itemIconSvg(item, 40) || `<span class="text-xl">${icon}</span>`}</div>
                 <div class="text-[10px] font-bold leading-tight">${item.name}</div>
                 ${item.rarity ? `<div class="text-[8px] font-bold uppercase tracking-wider" style="color:${rarityColor}">${item.rarity}</div>` : ""}
                 <div class="text-[9px] text-stone-600">${statLine}</div>
@@ -1831,7 +1829,7 @@ function resolveCardEvent() {
     // Rien de notable
     cumulative += config.chances.nothing;
     if (d100 < cumulative) {
-        setCardHeader('🌑', 'Silence', 'Exploration');
+        setSceneHeader('🌑', 'Silence', 'Exploration', 'silence');
         logEvent(pick(flavorText.nothing), "normal");
         return;
     }
@@ -1849,7 +1847,7 @@ function resolveCardEvent() {
     // Découverte d'objet (générateur procédural)
     cumulative += config.chances.loot;
     if (d100 < cumulative) {
-        setCardHeader('💰', 'Trésor', 'Butin');
+        setSceneHeader('💰', 'Trésor', 'Butin', 'treasure');
         logEvent("Vous trébuchez sur quelque chose de brillant...", "info");
         addLoot(getLootPowerScore(null)); // Pas de monstre : estimation par l'étage courant
         return;
@@ -1861,7 +1859,7 @@ function resolveCardEvent() {
         const trap = pick(flavorText.trap);
         const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
         applyPlayerDamage(dmg);
-        setCardHeader('⚠️', 'Piège', 'Danger');
+        setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
         logEvent(`${trap.text} (-${dmg} PV)`, "danger");
         if (gameState.hp <= 0) {
             gameOver(false, 'trap');
@@ -1875,7 +1873,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         const lost = Math.floor(Math.random() * 3) + 1; // 1 à 3 heures perdues en plus
         gameState.timeLeft = Math.max(0, gameState.timeLeft - lost);
-        setCardHeader('⏳', 'Contretemps', 'Danger');
+        setSceneHeader('⏳', 'Contretemps', 'Danger', 'timeLoss');
         logEvent(`${pick(flavorText.timeLoss)} (-${lost}H supplémentaires)`, "danger");
         if (gameState.timeLeft <= 0) {
             gameOver(true);
@@ -1889,7 +1887,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         const heal = Math.floor(Math.random() * 8) + 5; // 5 à 12 PV
         const actualHeal = applyPlayerHeal(heal);
-        setCardHeader('🎒', 'Petite Trouvaille', 'Butin');
+        setSceneHeader('🎒', 'Petite Trouvaille', 'Butin', 'minorFind');
         logEvent(`${pick(flavorText.minorFind)} (+${actualHeal} PV)`, "success");
         return;
     }
@@ -1900,7 +1898,7 @@ function resolveCardEvent() {
         const baseGold = Math.floor(Math.random() * 16) + 5; // 5 à 20 PO
         const gold = Math.round(baseGold * (1 + gameState.currentFloor * 0.15) * (gameState.anomalyEffects.goldGainMult || 1)); // Proportionnel à l'étage, ECONOMIE_AUSTERE (anomalies.js)
         gameState.gold += gold;
-        setCardHeader('💰', 'Pièces d\'Or', 'Butin');
+        setSceneHeader('💰', 'Pièces d\'Or', 'Butin', 'gold');
         logEvent(`${pick(flavorText.goldFind)} (+${gold} PO)`, "success");
         return;
     }
@@ -1909,7 +1907,7 @@ function resolveCardEvent() {
     cumulative += config.chances.audienceGift;
     if (d100 < cumulative) {
         const bonusXp = Math.floor(Math.random() * 6) + 5; // 5 à 10 XP
-        setCardHeader('📢', 'Cadeau du Public', 'Bonus');
+        setSceneHeader('📢', 'Cadeau du Public', 'Bonus', 'audienceGift');
         logEvent(pick(flavorText.audienceGift), "success");
         gainXp(bonusXp);
         return;
@@ -1920,7 +1918,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         if (gameState.companion) {
             // Déjà accompagné : ce tirage se résout comme un moment calme, pas de rencontre superposée
-            setCardHeader('🌑', 'Silence', 'Exploration');
+            setSceneHeader('🌑', 'Silence', 'Exploration', 'silence');
             logEvent(pick(flavorText.nothing), "normal");
             return;
         }
@@ -1930,11 +1928,11 @@ function resolveCardEvent() {
         gameState.companionChoicePending = true;
 
         if (candidate.disposition === 'friendly') {
-            setCardHeader('🧍', candidate.name, 'Crawler Rencontré');
+            setSceneHeader('🧍', candidate.name, 'Crawler Rencontré', 'crawlerFriendly');
             logEvent(`Vous croisez ${candidate.name}, un autre crawler. Il semble pacifique et vous propose son aide.`, "info");
             ui.companionChoiceFriendly.classList.remove('hidden');
         } else {
-            setCardHeader('🗡️', candidate.name, 'Crawler Hostile');
+            setSceneHeader('🗡️', candidate.name, 'Crawler Hostile', 'crawlerHostile');
             logEvent(`Vous croisez ${candidate.name}, un autre crawler. Il vous toise avec hostilité...`, "danger");
             ui.companionChoiceHostile.classList.remove('hidden');
         }
@@ -1943,7 +1941,7 @@ function resolveCardEvent() {
     }
 
     // Reste : moment purement narratif, sans effet mécanique
-    setCardHeader('🎬', 'Ambiance', 'Exploration');
+    setSceneHeader('🎬', 'Ambiance', 'Exploration', 'ambiance');
     logEvent(pick(flavorText.flavorOnly), "normal");
 }
 
@@ -1978,7 +1976,7 @@ function handleStealthEncounter() {
     const undetected = Math.random() * 100 < getStealthChance();
 
     if (!undetected) {
-        // L'en-tête de la carte (icône/nom/type) est posé par initiateCombat() lui-même.
+        // L'en-tête de la scène (icône/nom/type) est posé par initiateCombat() lui-même.
         logEvent(`Des bruits de pas approchent... Des créatures de ${gameState.currentDistrict} vous attaquent !`, "danger");
         initiateCombat(enemy);
         return;
@@ -1986,7 +1984,7 @@ function handleStealthEncounter() {
 
     gameState.pendingStealthEncounter = enemy;
     gameState.stealthChoicePending = true;
-    setCardHeader('🥷', enemy ? enemy.name : 'Ombre', 'Non Repéré');
+    setSceneHeader('🥷', enemy ? enemy.name : 'Ombre', 'Non Repéré', { key: 'stealthUnseen', enemy });
     logEvent(`Vous repérez ${enemy ? `[${enemy.name}]` : "une présence"} avant qu'il ne vous voie.`, "info");
     logEvent("Tenter de l'esquiver en silence, ou frapper en traître ?", "info");
     ui.stealthChoiceZone.classList.remove('hidden');
@@ -2003,14 +2001,14 @@ function attemptStealthEvasion() {
 
     const evadeChance = Math.min(70 + (gameState.anomalyEffects.stealthCapBonus || 0), 40 + (gameState.skills.stealth.level - 1) * 8); // NOCTURNE (anomalies.js)
     if (Math.random() * 100 < evadeChance) {
-        setCardHeader('🥷', 'Évitement Réussi', 'Furtivité');
+        setSceneHeader('🥷', 'Évitement Réussi', 'Furtivité', { key: 'stealthEvaded', enemy });
         logEvent(`Vous évitez [${enemy.name}] sans un bruit.`, "success");
         gainSkillXp('stealth', 5);
         updateUI();
     } else {
         // Échec punitif : le mob reste "alerted" pour tout ce combat (voir attemptFlee()), pour que
         // la boucle esquive-ratée-mais-sans-conséquence ne reste pas totalement gratuite — voir issue
-        // d'équilibrage "Furtivité".  L'en-tête de la carte (icône/nom/type) est posé par
+        // d'équilibrage "Furtivité".  L'en-tête de la scène (icône/nom/type) est posé par
         // initiateCombat() lui-même.
         enemy.alerted = true;
         logEvent(`[${enemy.name}] vous repère au dernier moment, et ne vous laissera pas filer !`, "danger");
@@ -2026,7 +2024,7 @@ function attemptStealthAttack() {
     gameState.pendingStealthEncounter = null;
     if (!enemy) { updateUI(); return; }
 
-    // L'en-tête de la carte (icône/nom/type) est posé par initiateCombat() lui-même.
+    // L'en-tête de la scène (icône/nom/type) est posé par initiateCombat() lui-même.
     logEvent(`Vous surgissez de l'ombre et frappez [${enemy.name}] par surprise !`, "success");
     gameState.pendingSneakAttack = true;
     initiateCombat(enemy);
@@ -2385,6 +2383,7 @@ function advanceToNextFloor() {
         generateFloorMap(); // Nouvelle zone circulaire à 4 quartiers pour ce nouvel étage
     }
 
+    showFloorArrivalScene();
     logEvent(`--- DÉBUT DE L'ÉTAGE ${gameState.currentFloor} ---`, "info");
     if (gameState.activeAnomalies.length > 0) {
         logEvent(`⚠️ Anomalie(s) active(s) : ${gameState.activeAnomalies.map(a => `${a.icon} ${a.name}`).join(', ')}.`, "danger");
@@ -2462,6 +2461,7 @@ function triggerFloorTransition() {
     }
 
     if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.remove('hidden');
+    renderScene('stairs');
     updateUI();
 }
 
@@ -2498,6 +2498,7 @@ function updateAnomalyStatusUI() {
 // gameState.pactChoicePending (inclus dans isActionBlocked()), comme un choix de boss/marchand/repaire.
 function triggerPactChoice() {
     gameState.pactChoicePending = true;
+    setSceneHeader('🤝', 'Pacte du Crawler', 'Anomalie', 'pact');
     if (ui.pactChoiceOverlay) ui.pactChoiceOverlay.classList.remove('hidden');
     logEvent("🤝 Le Pacte du Crawler vous est proposé : bénédiction ATQ, ou bénédiction PV ?", "danger");
 }
@@ -3974,7 +3975,7 @@ function arriveAtCity() {
         return;
     }
 
-    setCardHeader('🏙️', city.name, 'Ville sûre');
+    setSceneHeader('🏙️', city.name, 'Ville sûre', { key: 'citySafe', cityName: city.name });
     logEvent(
         firstVisit
             ? `Vous découvrez ${city.name}. Les rues sont calmes ici — vous pouvez souffler.`
@@ -3997,7 +3998,7 @@ function triggerUrbanBossEncounter(city) {
     gameState.pendingUrbanBossEncounter = { cityId: city.id, isExit: city.isExit === true };
     gameState.bossChoicePending = true;
 
-    setCardHeader('👑', boss.name, city.isExit ? "Gardien de la Sortie" : "Gardien de l'Escalier");
+    setSceneHeader('👑', boss.name, city.isExit ? "Gardien de la Sortie" : "Gardien de l'Escalier", { key: 'urbanGuardian', enemy: boss, isExit: city.isExit === true });
     logEvent(
         city.isExit
             ? `🎬 Vous atteignez la Sortie... gardée par ${boss.name} !`
@@ -4045,7 +4046,7 @@ function retreatFromUrbanBoss() {
 function triggerLairChoice(lair) {
     gameState.lairChoicePending = true;
     gameState.pendingLairId = lair.id;
-    setCardHeader('💀', 'Repaire Repéré', 'Route Urbaine');
+    setSceneHeader('💀', 'Repaire Repéré', 'Route Urbaine', 'lairSpotted');
     logEvent("Un repaire hostile borde la route. Plonger dedans (combats enchaînés, butin garanti), ou poursuivre votre chemin sans l'affronter ?", "danger");
     ui.lairChoiceZone.classList.remove('hidden');
     updateUI();
@@ -4111,7 +4112,7 @@ function triggerShopEncounter(city) {
     gameState.pendingShopCityId = city.id;
     const isMerchant = city.role === 'merchant';
 
-    setCardHeader(isMerchant ? '🛒' : '🎓', city.name, isMerchant ? 'Marchand' : 'Professeur');
+    setSceneHeader(isMerchant ? '🛒' : '🎓', city.name, isMerchant ? 'Marchand' : 'Professeur');
     logEvent(
         isMerchant
             ? `Vous entrez dans l'échoppe de ${city.name}, spécialisée en ${SHOP_CATEGORY_LABELS[city.specialty]}.`
@@ -4200,6 +4201,7 @@ function updateShopUI() {
     ui.shopMerchantContent.classList.toggle('flex', isMerchant);
     ui.shopTrainerContent.classList.toggle('hidden', isMerchant);
     ui.shopTrainerContent.classList.toggle('flex', !isMerchant);
+    renderScene(isMerchant ? 'merchant' : 'trainer');
 
     if (isMerchant) {
         ui.shopStockList.innerHTML = "";
@@ -4214,7 +4216,7 @@ function updateShopUI() {
             const affordable = gameState.gold >= item.price;
             row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-yellow-600 hover:bg-yellow-950/20 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-800 disabled:hover:bg-gray-900/80";
             row.disabled = !affordable;
-            row.innerHTML = `<span class="truncate">${formatItemDisplayName(item)}</span><span class="text-yellow-400 shrink-0">${item.price} PO</span>`;
+            row.innerHTML = `<span class="flex items-center gap-1.5 min-w-0">${itemIconSvg(item, 24)}<span class="truncate">${formatItemDisplayName(item)}</span></span><span class="text-yellow-400 shrink-0">${item.price} PO</span>`;
             row.addEventListener('click', () => buyShopItem(index));
             ui.shopStockList.appendChild(row);
         });
@@ -4231,7 +4233,7 @@ function updateShopUI() {
             const price = Math.max(1, Math.round((item.baseValue || 0) * SELL_VALUE_RATIO));
             const row = document.createElement('button');
             row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
-            row.innerHTML = `<span class="truncate">${formatItemDisplayName(item)}</span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
+            row.innerHTML = `<span class="flex items-center gap-1.5 min-w-0">${itemIconSvg(item, 24)}<span class="truncate">${formatItemDisplayName(item)}</span></span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
             row.addEventListener('click', () => { sellItem(index); updateShopUI(); });
             ui.shopSellList.appendChild(row);
         });
@@ -4377,7 +4379,7 @@ function enterRoom(room) {
 
     if (room.type === 'boss') {
         if (room.defeated) {
-            setCardHeader('🏚️', 'Antre Silencieuse', 'Exploration');
+            setSceneHeader('🏚️', 'Antre Silencieuse', 'Exploration', 'emptyLair');
             logEvent("L'antre est silencieuse désormais ; le boss a déjà été vaincu.", "normal");
             return;
         }
@@ -4394,7 +4396,7 @@ function enterRoom(room) {
         gameState.safehouseChoicePending = true;
         gameState.pendingSafehouseRoomId = room.id;
 
-        setCardHeader(safehouse.icon, safehouse.name, 'Repos');
+        setSceneHeader(safehouse.icon, safehouse.name, 'Repos');
         logEvent(
             firstVisit
                 ? `Vous découvrez : ${safehouse.name}. ${safehouse.desc}`
@@ -4412,6 +4414,7 @@ function enterRoom(room) {
         ui.btnRestSafehouse.disabled = !canRest;
         ui.btnRestSafehouse.title = canRest ? "" : "Pas assez de temps pour vous reposer";
         ui.safehouseChoiceZone.classList.remove('hidden');
+        renderScene('safehouse');
         updateUI();
         return;
     }
@@ -4424,7 +4427,7 @@ function enterRoom(room) {
         }
         resolveCardEvent();
     } else {
-        setCardHeader('🌑', 'Chemin Connu', 'Exploration');
+        setSceneHeader('🌑', 'Chemin Connu', 'Exploration', 'knownPath');
         logEvent("Vous retraversez un couloir déjà exploré, rien de neuf.", "normal");
     }
 }
@@ -4480,7 +4483,7 @@ function leaveSafehouse() {
 function triggerCafetRoom(room) {
     const trapDmg = Math.floor(Math.random() * 12) + 10; // 10 à 21 PV : nettement au-dessus d'un piège normal (~5-15)
     applyPlayerDamage(trapDmg);
-    setCardHeader('🕯️', 'Cafétéria Assombrie', 'Danger');
+    setSceneHeader('🕯️', 'Cafétéria Assombrie', 'Danger', 'cafeteria');
     logEvent(`Un piège vicieux se déclenche dans l'obscurité de la cafétéria abandonnée ! (-${trapDmg} PV)`, "danger");
     if (gameState.hp <= 0) {
         gameOver(false, 'trap');
@@ -4502,7 +4505,7 @@ function triggerBossEncounter(room) {
     gameState.pendingBossEncounter = { roomId: room.id, guardsStairs: room.guardsStairs === true };
     gameState.bossChoicePending = true;
 
-    setCardHeader('👑', boss.name, room.guardsStairs ? "Gardien de l'Escalier" : 'Boss de Quartier');
+    setSceneHeader('👑', boss.name, room.guardsStairs ? "Gardien de l'Escalier" : 'Boss de Quartier', { key: 'bossSpotted', enemy: boss });
     logEvent(
         room.guardsStairs
             ? `🎬 Vous découvrez l'escalier vers l'étage ${gameState.currentFloor + 1}, gardé par ${boss.name} !`
@@ -4577,9 +4580,9 @@ const EFFECT_LABELS = {
 
 let mobExamineOpen = false; // État transitoire du bouton "Examiner" (pas de sauvegarde nécessaire)
 
-// Construit le panneau compact affiché sur la carte pendant un combat : plus aucun texte de log
-// n'y défile (voir logEvent) — seulement des icônes/chiffres résumant l'ennemi, plus un bouton
-// "Examiner" qui déplie les détails textuels (description des modificateurs, effet) à la demande.
+// Construit le panneau compact des infos du mob, sous la scène de combat (#combat-mob-info) :
+// seulement des icônes/chiffres résumant l'ennemi, plus un bouton "Examiner" qui déplie les
+// détails textuels (description des modificateurs, effet) à la demande.
 function renderCombatMobPanel() {
     const enemy = gameState.currentEnemy;
     if (!enemy) return;
@@ -4596,7 +4599,7 @@ function renderCombatMobPanel() {
         : '';
     const modifierChips = modifiers.map(m => `<span class="px-1.5 py-0.5 rounded bg-stone-200 border border-stone-400 text-stone-700">🏷️ ${m.name}</span>`).join('');
 
-    ui.cardBody.innerHTML = `
+    ui.combatMobInfo.innerHTML = `
         <div class="flex flex-wrap justify-center gap-1 text-[10px] font-bold">
             ${eliteChip}
             <span class="px-1.5 py-0.5 rounded bg-stone-200 border border-stone-400 text-stone-700">${rangeIcon} ${rangeLabel}</span>
@@ -4605,7 +4608,7 @@ function renderCombatMobPanel() {
             ${effectChip}
             ${modifierChips}
         </div>
-        <button id="btn-examine-mob" class="mt-2 w-full text-[10px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">🔍 Examiner</button>
+        <button id="btn-examine-mob" class="mt-2 w-full min-h-[44px] text-[10px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">🔍 Examiner</button>
         <div id="mob-examine-details" class="hidden mt-2 text-[10px] leading-snug text-stone-600 italic space-y-1"></div>
     `;
 
@@ -4640,7 +4643,7 @@ function renderEnemyStatusBadges(enemy) {
     if (!ui.enemyStatusIcons) return;
     const status = enemy && enemy.status;
     if (!status) {
-        ui.enemyStatusIcons.innerHTML = "—";
+        ui.enemyStatusIcons.innerHTML = "";
         return;
     }
     const badges = [];
@@ -4657,7 +4660,7 @@ function renderEnemyStatusBadges(enemy) {
     add(status.telegraph, "👁️", "Attaque télégraphiée en cours (voir la bannière)");
     ui.enemyStatusIcons.innerHTML = badges.length
         ? badges.map(b => `<span title="${b.title}">${b.icon}</span>`).join('')
-        : "—";
+        : "";
 }
 
 // Jauge de tension anti-kite (chantier "lisibilité combat", Chantier 5) : montre la probabilité
@@ -4670,10 +4673,9 @@ function renderEnemyStatusBadges(enemy) {
 //     valeurs RÉELLES que noteMobKitingRound() (config.distanceEnrage), jamais redupliquées en dur.
 //   - sinon (compteur à sa base) : tout masqué, rien à montrer.
 function renderDistanceTension(enemy) {
-    if (!ui.distanceTensionLabel || !ui.combatDistanceFill) return;
+    if (!ui.distanceTensionLabel) return;
     const cfg = config.distanceEnrage;
     const status = enemy && enemy.status;
-    ui.combatDistanceFill.classList.remove('distance-tension');
     if (!enemy || !status) {
         ui.distanceTensionLabel.classList.add('hidden');
         return;
@@ -4694,7 +4696,6 @@ function renderDistanceTension(enemy) {
         const chancePct = Math.round(Math.min(cfg.baseChance + cfg.chancePerRound * kitingRounds, cfg.maxChance) * 100);
         ui.distanceTensionLabel.innerText = `😤 Enrage imminent : ${chancePct}%`;
         ui.distanceTensionLabel.className = 'mt-1 text-center text-[9px] font-bold uppercase tracking-wider text-orange-400';
-        ui.combatDistanceFill.classList.add('distance-tension');
         return;
     }
     ui.distanceTensionLabel.classList.add('hidden');
@@ -4746,17 +4747,17 @@ function initiateCombat(forcedEnemy = null) {
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
 
-    // En-tête de la carte : toujours posé ici, quel que soit le chemin d'entrée en combat (embuscade
+    // En-tête de la scène d'exploration : toujours posé ici, quel que soit le chemin d'entrée en combat (embuscade
     // de trajet, compagnon qui se retourne contre vous, rencontre furtive ratée...). Avant ce correctif,
-    // seuls certains appelants posaient leur propre en-tête ; les autres laissaient celui de la carte
-    // PRÉCÉDENTE affiché (ex: "Silence") pendant que le corps de la carte basculait déjà sur le panneau
+    // seuls certains appelants posaient leur propre en-tête ; les autres laissaient celui de la scène
+    // PRÉCÉDENTE affiché (ex: "Silence") pendant que l'affichage basculait déjà sur le panneau
     // du mob (renderCombatMobPanel) — les deux se retrouvaient superposés au premier tour. Les combats
     // de boss gardent leur en-tête dédié, plus riche ("Gardien de l'Escalier"/"Boss de Quartier"), déjà
     // posé par triggerBossEncounter() juste avant.
     if (enemy && !enemy.isBoss) {
-        setCardHeader(isEliteMob(enemy) ? '💀' : '⚔️', enemy.name, 'Danger');
+        setSceneHeader(isEliteMob(enemy) ? '💀' : '⚔️', enemy.name, 'Danger', { key: 'combat', enemy });
     } else if (!enemy) {
-        setCardHeader('⚔️', 'Combat', 'Danger');
+        setSceneHeader('⚔️', 'Combat', 'Danger');
     }
 
     // Statuts remis à zéro à chaque nouveau combat (des deux côtés)
@@ -5095,6 +5096,8 @@ function getEffectiveDef() {
 // agir ce tour-ci (combat terminé entre-temps, ou étourdi).
 function tryPlayerAction() {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
+    // Un skip demandé pendant le tour précédent ne doit jamais escamoter l'effet de CETTE attaque (fx.js).
+    combatSkipRequested = false;
 
     // Reset avant toute chose : seul un backfire posé PENDANT cette action doit pouvoir être tenu
     // responsable d'une mort ce même tour (voir attackMagic()/gameOver()).
@@ -5232,8 +5235,15 @@ function performPlayerAttack(attackerAtk, options, label) {
     const playerDamage = rollDamage(attackerAtk, effectiveEnemyDef, effectiveOptions);
     enemy.hp -= playerDamage;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
-    animateDieHit(ui.combatPlayerDie, 'left', playerDamage, ui.combatEnemyHpRing, ui.combatEnemyHp, enemy.hp, enemy.maxHp);
-    showFloatingDamage(ui.combatSideEnemy, playerDamage, { toPlayer: false }); // dégâts infligés par le joueur : jamais "heavy" (réservé aux coups marquants du mob/boss)
+    animateDieHit(ui.combatPlayerDie, 'left', playerDamage);
+    // Effet d'attaque en 3 temps (fx.js, chantier « sprites & effets ») : le chiffre, la secousse et la
+    // baisse de la barre de vie du mob attendent l'impact. Attaque furtive et charge sont les seuls coups
+    // « lourds » du joueur (chiffre grossi, secousse d'écran + flash).
+    const heavyHit = sneakNote !== "" || gameState.engageDefHalved;
+    playPlayerAttackFx(gameState.lastAttackKind, { heavy: heavyHit, charge: gameState.engageDefHalved, heldEnemyHp: enemy.hp + playerDamage }, () => {
+        showFloatingDamage(ui.sceneMobAnchor, playerDamage, { toPlayer: false, heavy: heavyHit });
+        if (heavyHit) triggerHeavyImpact();
+    });
     // Ligne raccourcie (chantier "lisibilité combat", Chantier 8) : retire le remplissage "et
     // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
     // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
@@ -5633,10 +5643,15 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
             companionAbsorbNote = ` (${gameState.companion.name} encaisse ${absorbed} dégâts à votre place)`;
         }
     }
+    const hpBefore = gameState.hp;
     applyPlayerDamage(playerDamage);
-    animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
-    showFloatingDamage(ui.combatSidePlayer, playerDamage, { toPlayer: true, heavy }); // `heavy` : télégraphe exécuté/ruée d'enrage/phase 3, voir les appelants
-    if (heavy) triggerHeavyImpact(); // Chantier 4 : même flag, mêmes 3 occasions — voir triggerHeavyImpact()
+    animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
+    // Effet d'attaque du mob (fx.js) : chiffre, secousse et flash à l'impact ; `silent` = multi-coups,
+    // joué sans élan pour tenir dans beatMultiHit.
+    playMobAttackFx(enemy, { heavy, fast: silent, heldPlayerHp: hpBefore }, () => {
+        showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true, heavy }); // `heavy` : télégraphe exécuté/ruée d'enrage/phase 3, voir les appelants
+        if (heavy) triggerHeavyImpact(); // Chantier 4 : même flag, mêmes 3 occasions — voir triggerHeavyImpact()
+    });
     if (!silent) logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
     if (gameState.companion && gameState.companion.hp <= 0) {
         logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
@@ -5959,9 +5974,12 @@ function resolveNonBossCounterAttack(enemy) {
         }
     }
 
+    const hpBefore = gameState.hp;
     applyPlayerDamage(playerDamage);
-    animateDieHit(ui.combatEnemyDie, 'right', playerDamage, ui.combatPlayerHpRing, ui.combatPlayerHp, gameState.hp, gameState.maxHp);
-    showFloatingDamage(ui.combatSidePlayer, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
+    animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
+    playMobAttackFx(enemy, { heldPlayerHp: hpBefore }, () => {
+        showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
+    });
     const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
         : "";
@@ -6036,6 +6054,7 @@ function attackWeapon() {
         return;
     }
     if (!tryPlayerAction()) return;
+    gameState.lastAttackKind = 'weapon'; // Posture du crawler (scene.js) : l'arme de mêlée en main
 
     // Arme arrachée par un effet magnétique en cours : l'attaque à l'arme est indisponible
     if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) {
@@ -6073,6 +6092,7 @@ function attackRanged() {
         return;
     }
     if (!tryPlayerAction()) return;
+    gameState.lastAttackKind = 'ranged'; // Posture du crawler (scene.js) : l'arme à distance en main
 
     if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) {
         gameState.status.disarmed.rounds -= 1;
@@ -6105,6 +6125,7 @@ function attackUnarmed() {
         return;
     }
     if (!tryPlayerAction()) return;
+    gameState.lastAttackKind = 'unarmed'; // Posture du crawler (scene.js) : garde du boxeur
 
     const skill = gameState.skills.unarmed;
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
@@ -6219,6 +6240,7 @@ function attemptEngage() {
 
     gameState.engageDefHalved = true;
     const weapon = gameState.equipment.weapon;
+    gameState.lastAttackKind = weapon ? 'weapon' : 'unarmed'; // Charge : l'arme de mêlée, sinon les poings
     const weaponBonus = weapon ? (weapon.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
     const defReduction = weapon ? 0 : 0.35; // Pas d'arme équipée : mêmes mains nues qu'attackUnarmed()
@@ -6257,6 +6279,7 @@ function attackMagic() {
         return;
     }
     if (!tryPlayerAction()) return;
+    gameState.lastAttackKind = 'magic'; // Posture du crawler (scene.js) : paume ouverte, lueur du sort
 
     gameState.mana -= spell.manaCost;
 
@@ -6273,6 +6296,7 @@ function attackMagic() {
 
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
+        playSpellBackfireFx(); // la lueur crachote et s'éteint en fumée (fx.js)
         logEvent(`[${spell.spellName}] part de travers et fait un flop retentissant. Aucun dégât (mana quand même dépensé).`, "danger");
         gameState.lastPlayerActionWasBackfire = true; // Voir gameOver()/generateEpitaph() : attribution du décès si la riposte qui suit est fatale
         resolveEnemyReaction(); // Un mob de mêlée hors de portée ne peut pas punir ce tour perdu, mais tente de se rapprocher
@@ -6309,13 +6333,13 @@ function attemptFlee() {
             ? ` (${gameState.companion.name} vous a montré une ouverture)`
             : "";
         gameState.currentEnemy = null;
-        gameState.inCombat = false; // Avant le log : le message de fuite doit s'afficher normalement sur la carte
+        gameState.inCombat = false; // Avant le log : le message de fuite doit s'afficher normalement sous la scène d'exploration
         gameState.pendingStairAfterCombat = false; // La fuite ne compte pas comme une victoire sur le gardien
         gameState.pendingBossRoomId = null; // Le boss reste vivant, la salle n'est pas marquée vaincue
         gameState.pendingSneakAttack = false; // Ne doit pas se reporter sur un combat futur
         gameState.fleesThisRun = (gameState.fleesThisRun || 0) + 1; // Voir generateEpitaph() : mention spéciale à 3+ fuites
         gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
-        setCardHeader('🏃', 'Fuite Réussie', 'Exploration');
+        setSceneHeader('🏃', 'Fuite Réussie', 'Exploration', 'fled');
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
         if (gameState.pendingTravel) {
             logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
@@ -6338,19 +6362,19 @@ function winCombat() {
     if (defeatedEnemy) gameState.floorStats.mobsKilled += 1;
 
     // Combat terminé : on sort de l'état "inCombat" avant les logs de résultat (XP/loot/victoire)
-    // pour qu'ils s'affichent normalement sur la carte, comme n'importe quel autre événement (voir
-    // logEvent) — seuls les échanges de coups pendant le combat lui-même restent hors de la carte.
+    // pour qu'ils s'affichent normalement sous la scène d'exploration, comme n'importe quel autre événement (voir
+    // logEvent) — seuls les échanges de coups pendant le combat lui-même restent dans le journal court du combat.
     gameState.currentEnemy = null;
     gameState.inCombat = false;
     gameState.pendingSneakAttack = false;
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
 
     if (wasBoss) {
-        setCardHeader('👑', 'Victoire !', 'Boss Vaincu');
+        setSceneHeader('👑', 'Victoire !', 'Boss Vaincu', { key: 'bossVictory', enemy: defeatedEnemy });
         logEvent(`👑 Vous avez triomphé de ${defeatedEnemy.name} !`, "success");
         triggerHaptic('heavy');
     } else {
-        setCardHeader('🏆', 'Victoire !', 'Combat');
+        setSceneHeader('🏆', 'Victoire !', 'Combat', { key: 'victory', enemy: defeatedEnemy });
         logEvent("Vous remportez le combat !", "success");
         triggerHaptic('medium');
     }
@@ -6502,8 +6526,7 @@ function performExploreStep() {
     applyTimeElapsedRegen(1);
     gameState.cardsDrawnThisFloor += 1;
 
-    ui.cardBody.innerHTML = "";
-    playCardDrawAnimation();
+    playSceneDrawAnimation();
 
     if (gameState.timeLeft <= 0) {
         gameOver(true);
@@ -6539,7 +6562,7 @@ function performExploreStep() {
 function autoTravelToNearestFrontier() {
     const frontierRoomId = findNearestFrontierRoom(gameState.floorMap.currentRoomId);
     if (!frontierRoomId) {
-        setCardHeader('🗺️', 'Étage Entièrement Exploré', 'Exploration');
+        setSceneHeader('🗺️', 'Étage Entièrement Exploré', 'Exploration', 'floorCleared');
         logEvent("Vous avez arpenté chaque recoin accessible de cet étage. Direction l'escalier ?", "info");
         updateUI();
         return;
@@ -6619,6 +6642,7 @@ function confirmPlayerName() {
     if (raw && hasSaveForName(raw)) {
         restoreSaveForName(raw);
         if (ui.startScreenOverlay) ui.startScreenOverlay.classList.add('hidden');
+        showFloorArrivalScene();
         logEvent(`Sauvegarde de [${gameState.playerName}] restaurée. Bon retour dans le Donjon.`, "success");
         updateUI();
         updateInventoryUI();
@@ -6754,6 +6778,7 @@ function gameOver(timeout = false, killer = null) {
     ui.gameOverLevel.innerText = gameState.level;
     ui.gameOverDistrict.innerText = gameState.currentDistrict;
     if (ui.gameOverEpitaph) ui.gameOverEpitaph.innerText = epitaph;
+    renderScene('gameOver', { cause });
     ui.gameOverOverlay.classList.remove('hidden');
 
     updateUI();
@@ -6789,19 +6814,22 @@ function resetGame() {
 // INITIALISATION ET ÉCOUTEURS D'ÉVÉNEMENTS
 // ==========================================
 
-// Toucher la carte fait office de bouton "Explorer" (explore() ignore déjà les clics pendant un combat)
-ui.cardStackWrapper.addEventListener('click', () => {
+// Toucher la scène d'exploration explore (-1H) ; sur un étage urbain (pas d'exploration libre), elle
+// ouvre la Carte Urbaine. Clavier : Entrée sur la scène quand elle a le focus.
+function onExploreSceneActivated() {
     if (isActionBlocked() || gameState.hp <= 0) return;
+    if (gameState.urbanMap) {
+        toggleMapPanel(true);
+        return;
+    }
     triggerHaptic('medium');
     explore();
-});
-
-// La Carte Urbaine se superpose à la carte active (voir index.html) : ses propres clics ne doivent
-// jamais atteindre le listener ci-dessus (explore() y est déjà un no-op sans floorMap, mais on évite
-// quand même une vibration haptique et un log parasite à chaque trajet vers une ville).
-if (ui.urbanTravelOverlay) {
-    ui.urbanTravelOverlay.addEventListener('click', (e) => e.stopPropagation());
 }
+if (ui.exploreScene) {
+    ui.exploreScene.addEventListener('click', onExploreSceneActivated);
+    ui.exploreScene.addEventListener('keydown', (e) => { if (e && e.key === 'Enter') onExploreSceneActivated(); });
+}
+if (ui.btnToggleMap) ui.btnToggleMap.addEventListener('click', () => toggleMapPanel());
 
 // Bouton de redémarrage sur l'écran Game Over
 ui.btnRestart.addEventListener('click', resetGame);
@@ -6889,6 +6917,7 @@ ui.btnDevJumpUrban.addEventListener('click', devJumpToUrbanFloor);
 
 // Lancement du jeu
 generateFloorMap();
+showFloorArrivalScene();
 updateUI();
 updateInventoryUI();
 updateSpellbookUI();
