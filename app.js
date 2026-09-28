@@ -490,6 +490,12 @@ const flavorText = {
             "Ceci a été \"testé\" par un précédent candidat. Il n'a pas survécu pour donner son avis.",
             "Le règlement exige un cadeau à distance. Personne n'a précisé qu'il devait toucher sa cible."
         ],
+        armor: [
+            "Protection garantie contre la pluie fine. Pour le reste, le Donjon décline toute responsabilité.",
+            "Le sponsor l'a trouvée dans une benne. Il a tenu à préciser : une benne PREMIUM.",
+            "Norme de sécurité respectée : la norme de 1987, abrogée depuis.",
+            "Ça vous protège un peu. Surtout de l'envie de vous en séparer, tant personne n'en voudrait."
+        ],
         spell: [
             "Un parchemin visiblement récupéré dans les objets trouvés d'un crawler précédent. Paix à son âme.",
             "La magie, ça se mérite. Ceci, en revanche, ça se subit.",
@@ -6860,11 +6866,10 @@ function explore() {
 // ==========================================
 // ÉCRAN DE DÉPART ET CADEAU DE BIENVENUE
 // ==========================================
-// Poids du cadeau de bienvenue (#start-screen-overlay -> #gift-reveal-overlay) : Arme > Rien > Tir >
-// Magie, comme demandé. Valeurs de départ, ajustables par playtest comme le reste de l'équilibrage
-// du jeu (voir generateWelcomeGiftItem() dans generator.js : toujours au palier Commun, quel que
-// soit le type tiré ici).
-const WELCOME_GIFT_WEIGHTS = { weapon: 40, nothing: 30, ranged: 20, spell: 10 };
+// Poids du cadeau de bienvenue (#start-screen-overlay -> #gift-reveal-overlay) : on repart presque
+// toujours avec QUELQUE CHOSE (« Rien » n'est plus qu'une mauvaise blague à 5 %), mais toujours de la
+// Camelote (voir generateWelcomeGiftItem() dans generator.js) : le premier vrai équipement se gagne.
+const WELCOME_GIFT_WEIGHTS = { weapon: 38, ranged: 25, armor: 17, spell: 15, nothing: 5 };
 
 function rollWelcomeGiftType() {
     const total = Object.values(WELCOME_GIFT_WEIGHTS).reduce((sum, w) => sum + w, 0);
@@ -6911,14 +6916,17 @@ function revealWelcomeGift() {
 
     if (type === 'weapon') gameState.equipment.weapon = item;
     else if (type === 'ranged') gameState.equipment.ranged = item;
-    else if (type === 'spell') {
+    else if (type === 'armor') {
+        gameState.equipment.armor = item;
+        recomputeMaxHp();
+    } else if (type === 'spell') {
         gameState.equipment.spell = item;
         gameState.mana = gameState.maxMana;
     }
 
     if (ui.giftRevealTitle) {
-        const labels = { weapon: "Une arme", ranged: "Une arme à distance", spell: "Un parchemin de sort", nothing: "Rien du tout" };
-        const icons = { weapon: '⚔️', ranged: '🏹', spell: '📜', nothing: '🎁' };
+        const labels = { weapon: "Une arme", ranged: "Une arme à distance", armor: "Une armure", spell: "Un parchemin de sort", nothing: "Rien du tout" };
+        const icons = { weapon: '⚔️', ranged: '🏹', armor: '🛡️', spell: '📜', nothing: '🎁' };
         ui.giftRevealIcon.innerText = icons[type];
         ui.giftRevealTitle.innerText = labels[type];
         ui.giftRevealItemName.innerText = item ? formatItemDisplayName(item) : "";

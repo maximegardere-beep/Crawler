@@ -49,45 +49,46 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
 }
 
 // ===================================================================
-// Écran de départ + cadeau de bienvenue : nom du crawler puis tirage pondéré (Arme > Rien > Tir >
-// Magie), toujours au palier Commun (voir WELCOME_GIFT_WEIGHTS/rollWelcomeGiftType()/
-// generateWelcomeGiftItem() dans generator.js/app.js).
+// Écran de départ + cadeau de bienvenue : nom du crawler puis tirage pondéré (Arme > Tir > Armure >
+// Magie > Rien), toujours au palier Camelote (voir WELCOME_GIFT_WEIGHTS/rollWelcomeGiftType()/
+// generateWelcomeGiftItem() dans generator.js/app.js) — chantier "refonte des objets" : on démarre
+// presque toujours équipé, mais d'objets nuls.
 // ===================================================================
 
-// rollWelcomeGiftType() : vérifie les 4 bornes exactes du tirage pondéré (poids 40/30/20/10 sur 100).
+// rollWelcomeGiftType() : bornes exactes du tirage pondéré (poids 38/25/17/15/5 sur 100).
 {
+    const cases = [[0, 'weapon'], [0.40, 'ranged'], [0.70, 'armor'], [0.85, 'spell'], [0.97, 'nothing']];
     const originalRandom = Math.random;
-    Math.random = () => 0; // roll = 0 -> tout premier bloc (weapon, [0, 40))
-    assert(rollWelcomeGiftType() === 'weapon', "rollWelcomeGiftType() : Arme en bas de plage (poids le plus fort)");
-    Math.random = () => 0.45; // roll = 45 -> [40, 70) = nothing
-    assert(rollWelcomeGiftType() === 'nothing', "rollWelcomeGiftType() : Rien au 2e rang de poids");
-    Math.random = () => 0.75; // roll = 75 -> [70, 90) = ranged
-    assert(rollWelcomeGiftType() === 'ranged', "rollWelcomeGiftType() : Tir au 3e rang de poids");
-    Math.random = () => 0.95; // roll = 95 -> [90, 100) = spell
-    assert(rollWelcomeGiftType() === 'spell', "rollWelcomeGiftType() : Magie au poids le plus faible");
+    cases.forEach(([roll, expected]) => {
+        Math.random = () => roll;
+        assert(rollWelcomeGiftType() === expected, `rollWelcomeGiftType() : jet ${roll} -> ${expected}`);
+    });
     Math.random = originalRandom;
 
-    const weights = Object.values(WELCOME_GIFT_WEIGHTS);
-    assert(WELCOME_GIFT_WEIGHTS.weapon > WELCOME_GIFT_WEIGHTS.nothing
-        && WELCOME_GIFT_WEIGHTS.nothing > WELCOME_GIFT_WEIGHTS.ranged
-        && WELCOME_GIFT_WEIGHTS.ranged > WELCOME_GIFT_WEIGHTS.spell,
-        "WELCOME_GIFT_WEIGHTS : ordre Arme > Rien > Tir > Magie respecté");
-    assert(weights.every(w => w > 0), "WELCOME_GIFT_WEIGHTS : tous les poids restent strictement positifs");
+    const w = WELCOME_GIFT_WEIGHTS;
+    const total = Object.values(w).reduce((sum, x) => sum + x, 0);
+    assert(w.weapon > w.ranged && w.ranged > w.armor && w.armor > w.spell && w.spell > w.nothing,
+        "WELCOME_GIFT_WEIGHTS : ordre Arme > Tir > Armure > Magie > Rien respecté");
+    assert(w.nothing / total <= 0.05, "WELCOME_GIFT_WEIGHTS : repartir les mains vides est devenu rare (≤ 5 %)");
+    assert(Object.values(w).every(x => x > 0), "WELCOME_GIFT_WEIGHTS : tous les poids restent strictement positifs");
 }
 
-// generateWelcomeGiftItem() : toujours au palier Commun (aucun enchantement), quel que soit le type.
+// generateWelcomeGiftItem() : toujours Camelote, niveau d'objet 1, jamais de qualificatif positif.
 {
-    const originalRandom = Math.random;
-    Math.random = () => 0;
-    const weapon = generateWelcomeGiftItem('weapon');
-    const ranged = generateWelcomeGiftItem('ranged');
+    for (let i = 0; i < 60; i++) {
+        ['weapon', 'ranged', 'armor', 'spell'].forEach(type => {
+            const item = generateWelcomeGiftItem(type);
+            const expectedCategory = { weapon: 'weapons', ranged: 'ranged', armor: 'armors', spell: 'scrolls' }[type];
+            assert(item.category === expectedCategory && item.rarity === 'Camelote' && item.itemLevel === 1,
+                `generateWelcomeGiftItem('${type}') : ${expectedCategory}, Camelote, niveau d'objet 1`);
+            assert(getItemQualifierList(item).every(q => itemQualifiers[q.key].kind === 'malus'),
+                `generateWelcomeGiftItem('${type}') : au plus un défaut, jamais un vrai qualificatif`);
+        });
+    }
     const spell = generateWelcomeGiftItem('spell');
-    Math.random = originalRandom;
-
-    assert(weapon.category === 'weapons' && weapon.rarity === 'Commun' && !weapon.mechanics, "generateWelcomeGiftItem('weapon') : arme Commune, sans enchantement");
-    assert(ranged.category === 'ranged' && ranged.rarity === 'Commun' && !ranged.mechanics, "generateWelcomeGiftItem('ranged') : arme à distance Commune, sans enchantement");
-    assert(spell.category === 'scrolls' && spell.rarity === 'Commun' && ['melee', 'ranged'].includes(spell.spellCategory), "generateWelcomeGiftItem('spell') : parchemin Commun, catégorie de sort valide");
+    assert(['melee', 'ranged'].includes(spell.spellCategory), "generateWelcomeGiftItem('spell') : catégorie de sort valide");
     assert(generateWelcomeGiftItem('nothing') === null, "generateWelcomeGiftItem('nothing') : aucun objet généré");
+    assert(flavorText.welcomeGift.armor && flavorText.welcomeGift.armor.length > 0, "Cadeau de bienvenue : blagues dédiées à l'armure");
 }
 
 // confirmPlayerName() : nom saisi (ou repli sur l'existant si vide), masque l'écran de départ, puis
@@ -122,24 +123,31 @@ assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme 
     assert(gameState.equipment.ranged === null && gameState.equipment.spell === null, "revealWelcomeGift('weapon') : ne touche à aucun autre emplacement");
 
     resetTransientState();
-    Math.random = () => 0.75; // -> 'ranged'
+    Math.random = () => 0.5; // -> 'ranged'
     revealWelcomeGift();
     Math.random = originalRandom;
     assert(gameState.equipment.ranged !== null, "revealWelcomeGift('ranged') : équipe directement une arme à distance");
 
     resetTransientState();
+    Math.random = () => 0.7; // -> 'armor'
+    revealWelcomeGift();
+    Math.random = originalRandom;
+    assert(gameState.equipment.armor !== null && gameState.equipment.weapon === null, "revealWelcomeGift('armor') : équipe directement une armure");
+    gameState.equipment.armor = null;
+
+    resetTransientState();
     gameState.mana = 0;
-    Math.random = () => 0.95; // -> 'spell'
+    Math.random = () => 0.85; // -> 'spell'
     revealWelcomeGift();
     Math.random = originalRandom;
     assert(gameState.equipment.spell !== null, "revealWelcomeGift('spell') : équipe directement un sort");
     assert(gameState.mana === gameState.maxMana, "revealWelcomeGift('spell') : première équipe -> mana plein, comme equipSpell()");
 
     resetTransientState();
-    Math.random = () => 0.45; // -> 'nothing'
+    Math.random = () => 0.97; // -> 'nothing'
     revealWelcomeGift();
     Math.random = originalRandom;
-    assert(gameState.equipment.weapon === null && gameState.equipment.ranged === null && gameState.equipment.spell === null, "revealWelcomeGift('nothing') : aucun équipement, comme annoncé");
+    assert(gameState.equipment.weapon === null && gameState.equipment.ranged === null && gameState.equipment.armor === null && gameState.equipment.spell === null, "revealWelcomeGift('nothing') : aucun équipement, comme annoncé");
 }
 
 // dismissGiftReveal() : referme l'écran de révélation.

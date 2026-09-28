@@ -459,8 +459,8 @@ function buildItem(base, category, rarity, itemLevel, options = {}) {
 
 /**
  * Construit un parchemin de sort (même système de rareté/niveau d'objet qu'une arme). La rareté fait
- * grimper baseDmg ET manaCost ; le niveau d'objet ne fait grimper que baseDmg (le mana reste plafonné
- * à 100). Le résultat rejoint gameState.spellbook, pas gameState.inventory (voir addLoot() dans app.js).
+ * grimper baseDmg ET manaCost (ce dernier à moitié seulement, voir itemBalance.spellManaRarityWeight) ;
+ * le niveau d'objet ne fait grimper que baseDmg (le mana reste plafonné à 100). Le résultat rejoint gameState.spellbook, pas gameState.inventory (voir addLoot() dans app.js).
  */
 function buildSpellScroll(base, rarity, itemLevel, options = {}) {
     const scroll = JSON.parse(JSON.stringify(base));
@@ -470,9 +470,10 @@ function buildSpellScroll(base, rarity, itemLevel, options = {}) {
     applyRarity(scroll, rarity);
     scroll.itemLevel = Math.max(1, itemLevel || 1);
 
-    const mult = rarity.statMult * statJitterMult(options.jitter);
-    scroll.baseDmg = Math.max(1, Math.round(base.baseDmg * mult * getItemLevelMult(scroll.itemLevel, 'equipment')));
-    scroll.manaCost = Math.max(5, Math.round(base.manaCost * mult));
+    const jitter = statJitterMult(options.jitter);
+    const manaMult = 1 + (rarity.statMult - 1) * itemBalance.spellManaRarityWeight;
+    scroll.baseDmg = Math.max(1, Math.round(base.baseDmg * rarity.statMult * jitter * getItemLevelMult(scroll.itemLevel, 'equipment')));
+    scroll.manaCost = Math.max(5, Math.round(base.manaCost * manaMult * jitter));
     scroll.name = `Parchemin : ${base.name}`;
     const qualifiers = options.qualifiers || rollItemQualifiers(scroll, rarity, 'spell');
     applyQualifiers(scroll, qualifiers, 'spell');
@@ -559,22 +560,23 @@ function buildSignatureItem(template, itemLevel) {
 
 /**
  * Génère l'objet du cadeau de bienvenue (écran de départ, voir revealWelcomeGift() dans app.js).
- * `type` ('weapon'/'ranged'/'spell', jamais 'nothing' — géré à part par l'appelant) est déjà tiré au
- * hasard pondéré par rollWelcomeGiftType() ; toujours au palier Commun, niveau d'objet 1.
+ * `type` ('weapon'/'ranged'/'armor'/'spell', jamais 'nothing' — géré à part par l'appelant) est déjà
+ * tiré au hasard pondéré par rollWelcomeGiftType() ; toujours au palier Camelote (objets blagues
+ * compris, un défaut possible), niveau d'objet 1 : on démarre presque toujours équipé, mais mal.
  *
- * @param {string} type - 'weapon' | 'ranged' | 'spell'
+ * @param {string} type - 'weapon' | 'ranged' | 'armor' | 'spell'
  * @returns {object|null}
  */
 function generateWelcomeGiftItem(type) {
-    const commun = getRarityByKey('commun');
-    if (type === 'weapon' || type === 'ranged') {
-        const categoryName = type === 'weapon' ? 'weapons' : 'ranged';
+    const junk = getRarityByKey('camelote');
+    const categoryName = { weapon: 'weapons', ranged: 'ranged', armor: 'armors' }[type];
+    if (categoryName) {
         const pool = baseItems[categoryName].filter(b => (b.minFloor || 1) <= 1);
-        return buildItem(pool[Math.floor(Math.random() * pool.length)], categoryName, commun, 1, { jitter: false });
+        return buildItem(pool[Math.floor(Math.random() * pool.length)], categoryName, junk, 1, { jitter: false });
     }
     if (type === 'spell') {
         const pool = spellCatalog.filter(s => (s.minFloor || 1) <= 1);
-        return buildSpellScroll(pool[Math.floor(Math.random() * pool.length)], commun, 1, { jitter: false });
+        return buildSpellScroll(pool[Math.floor(Math.random() * pool.length)], junk, 1, { jitter: false });
     }
     return null;
 }

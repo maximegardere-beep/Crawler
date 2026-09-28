@@ -168,3 +168,13 @@ const withRandom = (value, fn) => {
     });
     gameState.currentFloor = 1;
 }
+
+// Sorts : la rareté fait grimper le coût en mana moitié moins vite que les dégâts — un sort rare est
+// aussi plus rentable par point de mana.
+{
+    const base = spellCatalog.find(s => s.name === "Poing de Glace");
+    const commun = buildSpellScroll(base, getRarityByKey('commun'), 1, { jitter: false, qualifiers: [] });
+    const legend = buildSpellScroll(base, getRarityByKey('legendaire'), 1, { jitter: false, qualifiers: [] });
+    assert(legend.manaCost === Math.round(base.manaCost * (1 + (getRarityByKey('legendaire').statMult - 1) * itemBalance.spellManaRarityWeight)), "buildSpellScroll() : coût en mana × (1 + (statMult − 1) × spellManaRarityWeight)");
+    assert(legend.baseDmg / legend.manaCost > commun.baseDmg / commun.manaCost, "buildSpellScroll() : un Légendaire fait plus de dégâts par point de mana qu'un Commun");
+}

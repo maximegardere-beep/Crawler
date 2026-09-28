@@ -28,6 +28,9 @@ const itemBalance = {
     // de l'ATQ du joueur ; `heal` (soins des consommables) celle de ses PV max. Le mana (plafonné
     // à 100) et le coût en mana des sorts ne dépendent jamais du niveau d'objet.
     levelScaling: { equipment: 0.2, heal: 0.15 },
+    // Coût en mana d'un sort : suit la rareté à moitié seulement (Légendaire ×1,4 au lieu de ×1,8 pour
+    // les dégâts) — un sort rare est donc aussi plus rentable par point de mana.
+    spellManaRarityWeight: 0.5,
     statJitter: 0.1,
     // Valeur = baseValue × valueMult(rareté) × (1 + perLevel × (itemLevel − 1)) × (1 + perEnchant × qualificatifs)
     value: { perLevel: 0.15, perEnchant: 0.15 },
