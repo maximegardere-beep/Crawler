@@ -717,7 +717,8 @@
         </div>
 
         <!-- Salle sécurisée (voir enterRoom()/restAtSafehouse()/leaveSafehouse() dans app.js) : choix
-             explicite repos payant / repartir gratuit, jamais de soin automatique. -->
+             explicite sieste / sommeil réparateur (payants en temps) / partir (gratuit), jamais de soin
+             automatique. -->
         <div id="safehouse-choice-zone" class="hidden p-4 bg-green-950/20 border border-green-900/30 rounded-lg relative">
             <span class="absolute text-[10px] text-green-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Salle Sécurisée</span>
             <!-- Scène de l'abri (renderScene('safehouse') dans scene.js) : porte blindée, panneau
@@ -728,12 +729,16 @@
                     <g id="safehouse-scene-crawler"></g>
                 </svg>
             </div>
-            <div class="grid grid-cols-2 gap-2">
-                <button id="btn-rest-safehouse" class="px-3 py-3 bg-gray-900 border border-green-700/80 hover:border-green-400 hover:bg-green-900/30 rounded text-xs text-green-300 uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-green-700/80 disabled:hover:bg-gray-900">
-                    🛌 Repos (-2H)
+            <!-- Libellés des deux repos (coût + PV/mana rendus) écrits par updateSafehouseRestButtons(). -->
+            <div class="grid grid-cols-3 gap-2">
+                <button id="btn-nap-safehouse" class="min-h-[44px] px-2 py-2 bg-gray-900 border border-green-700/80 hover:border-green-400 hover:bg-green-900/30 rounded text-[11px] leading-tight text-green-300 uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-green-700/80 disabled:hover:bg-gray-900">
+                    💤 Sieste
                 </button>
-                <button id="btn-leave-safehouse" class="px-3 py-3 bg-gray-900 border border-gray-700/80 hover:border-gray-400 hover:bg-gray-800/30 rounded text-xs text-gray-300 uppercase tracking-wider transition-all">
-                    🚶 Repartir
+                <button id="btn-sleep-safehouse" class="min-h-[44px] px-2 py-2 bg-gray-900 border border-sky-700/80 hover:border-sky-400 hover:bg-sky-900/30 rounded text-[11px] leading-tight text-sky-300 uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-sky-700/80 disabled:hover:bg-gray-900">
+                    🛌 Sommeil réparateur
+                </button>
+                <button id="btn-leave-safehouse" class="min-h-[44px] px-2 py-2 bg-gray-900 border border-gray-700/80 hover:border-gray-400 hover:bg-gray-800/30 rounded text-[11px] leading-tight text-gray-300 uppercase tracking-wider transition-all">
+                    🚶 Partir
                 </button>
             </div>
         </div>
@@ -1123,30 +1128,30 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=27"></script>
-    <script src="items.js?v=27"></script>
-    <script src="spells.js?v=27"></script>
-    <script src="districts.js?v=27"></script>
-    <script src="safehouses.js?v=27"></script>
-    <script src="generator.js?v=27"></script>
-    <script src="anomalies.js?v=27"></script>
-    <script src="sprites/crawler.js?v=27"></script>
-    <script src="sprites/npcs.js?v=27"></script>
-    <script src="sprites/mobs.js?v=27"></script>
-    <script src="sprites/mob-details-a.js?v=27"></script>
-    <script src="sprites/mob-details-b.js?v=27"></script>
-    <script src="sprites/mob-auras.js?v=27"></script>
-    <script src="sprites/bosses-a.js?v=27"></script>
-    <script src="sprites/bosses-b.js?v=27"></script>
-    <script src="sprites/items-generic.js?v=27"></script>
-    <script src="sprites/items-melee.js?v=27"></script>
-    <script src="sprites/items-ranged.js?v=27"></script>
-    <script src="sprites/items-armor.js?v=27"></script>
-    <script src="sprites/items-signature.js?v=27"></script>
-    <script src="sprites/fx.js?v=27"></script>
-    <script src="backdrops.js?v=27"></script>
-    <script src="scene.js?v=27"></script>
-    <script src="fx.js?v=27"></script>
-    <script src="app.js?v=27"></script>
+    <script src="bestiary.js?v=28"></script>
+    <script src="items.js?v=28"></script>
+    <script src="spells.js?v=28"></script>
+    <script src="districts.js?v=28"></script>
+    <script src="safehouses.js?v=28"></script>
+    <script src="generator.js?v=28"></script>
+    <script src="anomalies.js?v=28"></script>
+    <script src="sprites/crawler.js?v=28"></script>
+    <script src="sprites/npcs.js?v=28"></script>
+    <script src="sprites/mobs.js?v=28"></script>
+    <script src="sprites/mob-details-a.js?v=28"></script>
+    <script src="sprites/mob-details-b.js?v=28"></script>
+    <script src="sprites/mob-auras.js?v=28"></script>
+    <script src="sprites/bosses-a.js?v=28"></script>
+    <script src="sprites/bosses-b.js?v=28"></script>
+    <script src="sprites/items-generic.js?v=28"></script>
+    <script src="sprites/items-melee.js?v=28"></script>
+    <script src="sprites/items-ranged.js?v=28"></script>
+    <script src="sprites/items-armor.js?v=28"></script>
+    <script src="sprites/items-signature.js?v=28"></script>
+    <script src="sprites/fx.js?v=28"></script>
+    <script src="backdrops.js?v=28"></script>
+    <script src="scene.js?v=28"></script>
+    <script src="fx.js?v=28"></script>
+    <script src="app.js?v=28"></script>
 </body>
 </html>

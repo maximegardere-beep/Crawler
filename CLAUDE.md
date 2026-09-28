@@ -44,13 +44,18 @@ Tailwind CDN, **aucun build step**.
   **Entrée à choix explicite** (chantier "QoL/équilibrage", voir `NOTES_QOL_EQUILIBRAGE.md`) : plus de
   soin automatique — `enterRoom()` pose `gameState.safehouseChoicePending`/`pendingSafehouseRoomId`
   (inclus dans `isActionBlocked()`) et affiche `#safehouse-choice-zone`, même famille que
-  `#boss-choice-zone`. `restAtSafehouse()` coûte `config.safehouse.restCost` (2H, sauf
-  REPAS_DE_FAMILLE, anomalies.js) contre un soin PV majoré (25-40, tiré au hasard) et du mana à la
-  MÊME échelle si un sort est équipé ; `leaveSafehouse()` reste gratuit, sans effet — la salle reste
-  de toute façon enregistrée comme lieu connu dès l'entrée, quelle que soit l'issue. Garde-fou :
-  `#btn-rest-safehouse` est désactivé dès l'affichage si `timeLeft - restCost <= 0`, doublé d'une
-  vérification identique dans `restAtSafehouse()` elle-même (sécurité redondante) — le repos ne peut
-  donc structurellement plus amener `timeLeft` à 0, contrairement à l'ancien soin automatique.
+  `#boss-choice-zone`. **Trois options** : `restAtSafehouse('nap')` (Sieste, `config.safehouse.nap` :
+  2H, 25 % des PV PERDUS) et `restAtSafehouse('sleep')` (Sommeil réparateur, `config.safehouse.sleep` :
+  8H, 100 % des PV perdus), la même part du mana manquant si un sort est équipé
+  (`safehouseRestAmounts(kind)`, pure — en pourcentage plutôt qu'en valeur absolue pour rester juste à
+  tous les niveaux ; soin ensuite réduit par PEAU_DE_VERRE via `applyPlayerHeal()` comme tout soin),
+  gratuits en temps sous REPAS_DE_FAMILLE (anomalies.js) ; `leaveSafehouse()` (Partir) reste gratuit,
+  sans effet — la salle reste de toute façon enregistrée comme lieu connu dès l'entrée, quelle que soit
+  l'issue. `updateSafehouseRestButtons()` écrit sur chaque bouton son coût et ce qu'il rendra. Garde-fou :
+  chaque bouton (`#btn-nap-safehouse`/`#btn-sleep-safehouse`) est désactivé dès l'affichage si SON coût
+  ferait tomber `timeLeft` à 0 (`canRestAtSafehouse(kind)`), doublé d'une vérification identique dans
+  `restAtSafehouse()` elle-même (sécurité redondante) — un repos ne peut donc structurellement jamais
+  amener `timeLeft` à 0.
 - Exploration = toucher la scène d'exploration (`#explore-scene`, -1H) : jamais de choix bloquant de
   navigation. **Plus de carte à jouer** : la scène (vignette de l'événement, voir « Scène d'exploration »
   plus bas), son titre (`#explore-title`) et la DERNIÈRE ligne du journal (`#explore-last-line`, écrasée
@@ -357,8 +362,8 @@ Tailwind CDN, **aucun build step**.
 - **Régénération passive (PV/mana)** : `applyTimeElapsedRegen(hours)` — PV **dégressif** selon le %
   de PV déjà restants (`HP_REGEN_TIERS` : 10/h sous 50%, 4/h entre 50-80%, 1/h au-delà — un vrai filet
   de sécurité en dessous, un simple filet d'eau au-delà), mana à **12/h** (seulement si un sort est
-  équipé). Une salle sécurisée reste le seul moyen fiable de repartir plein PV/mana (soin complet à
-  l'entrée, voir `enterRoom()`), mais à un coût en temps proportionnel à ce qui est régénéré. Appliqué
+  équipé). Une salle sécurisée reste le seul moyen fiable de repartir plein PV/mana (Sommeil
+  réparateur, 8H, voir `restAtSafehouse()`). Appliqué
   à chaque fois que `gameState.timeLeft` diminue pour une raison "normale" (`performExploreStep()`,
   `travelToKnownLocation()`, `autoTravelToNearestFrontier()`) — jamais sur la perte de temps punitive du piège "Contretemps", qui
   perdrait sinon son sens.
@@ -708,7 +713,7 @@ Tailwind CDN, **aucun build step**.
   (`chalkboard`, croquis + libellé `TRAINER_BOARD_STYLES[city.specialty]`, une entrée par compétence de
   `gameState.skills`) + PNJ `SCENE_TRAINER_SVG` qui le désigne de sa baguette. Redessinée seulement quand
   `rôle:spécialité` change (`lastShopSetpieceKey`).
-  **Scène de salle sécurisée** (`#safehouse-scene-svg`, au-dessus des boutons Repos/Repartir, inchangés) :
+  **Scène de salle sécurisée** (`#safehouse-scene-svg`, au-dessus des boutons Sieste/Sommeil/Partir) :
   décor PROPRE à l'abri, jamais celui du quartier (les décors de quartier contiennent du rouge) —
   `safehouseBackdropFor(type)` (backdrops.js, pure) = `SAFEHOUSE_BACKDROP` (béton chaud, porte blindée
   `armoredDoor`, panneau `safeZonePanel` « ZONE SÛRE », applique) + `SAFEHOUSE_SIGNATURES[room.safehouse.name]`
@@ -810,6 +815,10 @@ Tailwind CDN, **aucun build step**.
   formation par niveau, 5-20 PO trouvées ×(1+étage×0.15), 1 repaire par étage urbain / 2 à l'étage
   final, 2-3 combats forcés par repaire) — "on verra à l'usage", à ajuster une fois du retour réel
   disponible plutôt qu'en tâtonnant sans données.
+
+- **Rework du loot et de l'économie** (demandé par l'utilisateur, pas encore planifié) : les objets
+  deviennent quasiment tous légendaires trop vite ; à revoir en même temps, le prix de revente d'un
+  parchemin, qui ne dépend pas de sa rareté (`generateSpellScroll()`, `baseValue` tiré du sort de base).
 
 ## Gros chantiers à venir (non commencés — demander lequel prioriser avant de s'y lancer)
 - Sons

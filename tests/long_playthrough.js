@@ -37,10 +37,13 @@ try {
             if (gameState.currentEnemy && isEliteMob(gameState.currentEnemy)) eliteMobsSeen++;
             fightBossNow();
         } else if (gameState.safehouseChoicePending) {
-            // Salle sécurisée (voir enterRoom()) : alterne repos/repartir pour exercer les deux
+            // Salle sécurisée (voir enterRoom()) : alterne sieste/sommeil/partir pour exercer les trois
             // issues — sans cette branche, la simulation resterait bloquée dessus (isActionBlocked()).
+            // Un repos impossible (temps insuffisant) reste un no-op : on repart alors.
             safehouseEncounters++;
-            if (steps % 2 === 0) restAtSafehouse(); else leaveSafehouse();
+            const choice = steps % 3;
+            if (choice === 0) restAtSafehouse('nap'); else if (choice === 1) restAtSafehouse('sleep');
+            if (gameState.safehouseChoicePending) leaveSafehouse();
         } else if (gameState.stealthChoicePending) {
             stealthEncounters++;
             attemptStealthAttack();

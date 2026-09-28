@@ -13,6 +13,12 @@ suffire, à lui seul, à amener `gameState.timeLeft` à 0 et déclencher `gameOv
 que le joueur n'avait rien décidé** : une salle censée être un point de répit pouvait tuer par
 surprise.
 
+> **Remplacé depuis (validé par l'utilisateur)** : trois options — Partir (gratuit), Sieste
+> (`config.safehouse.nap` : 2H, 25 % des PV perdus) et Sommeil réparateur (`config.safehouse.sleep` :
+> 8H, 100 % des PV perdus), même part du mana manquant si un sort est équipé ; en pourcentage des PV
+> perdus plutôt qu'en valeur absolue pour faciliter l'équilibrage. Garde-fou et REPAS_DE_FAMILLE
+> inchangés, appliqués à chacun des deux repos. Le détail ci-dessous décrit l'ancienne version.
+
 **Solution retenue** : entrée à choix explicite, même famille UI que `#boss-choice-zone`.
 - `config.safehouse = { restCost: 2, restHpMin: 25, restHpMax: 40 }` — valeurs de départ, à ajuster
   par playtest.

@@ -376,14 +376,14 @@ const config = {
         lairRoadsFinalFloor: 2
     },
 
-    // Salle sécurisée (chantier "QoL/équilibrage" — voir enterRoom()) : entrée à choix explicite,
-    // plus de soin automatique. Repos = ce coût en temps, contre un soin majoré PV (+ mana si un
-    // sort est équipé, même échelle) ; "Repartir" reste gratuit. Valeurs de départ, à ajuster par
-    // playtest.
+    // Salle sécurisée (voir enterRoom()/restAtSafehouse()) : entrée à choix explicite, jamais de soin
+    // automatique. Trois options : Partir (gratuit), Sieste et Sommeil réparateur — chacune coûte `cost`
+    // heures et rend `healPct` des PV PERDUS (et la même part du mana manquant si un sort est équipé),
+    // en pourcentage plutôt qu'en valeur absolue pour rester juste à tous les niveaux. Valeurs validées
+    // par l'utilisateur, à ajuster par playtest.
     safehouse: {
-        restCost: 2,
-        restHpMin: 25,
-        restHpMax: 40
+        nap: { cost: 2, healPct: 0.25 },
+        sleep: { cost: 8, healPct: 1.0 }
     },
 
     // Réserve d'équipement (armes/armures/armes à distance — consommables et parchemins jamais
@@ -576,7 +576,8 @@ const ui = {
     btnFightBoss: document.getElementById('btn-fight-boss'),
     btnRetreatBoss: document.getElementById('btn-retreat-boss'),
     safehouseChoiceZone: document.getElementById('safehouse-choice-zone'),
-    btnRestSafehouse: document.getElementById('btn-rest-safehouse'),
+    btnNapSafehouse: document.getElementById('btn-nap-safehouse'),
+    btnSleepSafehouse: document.getElementById('btn-sleep-safehouse'),
     btnLeaveSafehouse: document.getElementById('btn-leave-safehouse'),
     stealthChoiceZone: document.getElementById('stealth-choice-zone'),
     btnStealthEvade: document.getElementById('btn-stealth-evade'),
@@ -4484,14 +4485,7 @@ function enterRoom(room) {
         );
         registerKnownLocation({ id: `safe-${room.id}`, type: 'safeRoom', roomId: room.id, label: safehouse.name, icon: safehouse.icon });
 
-        // Garde-fou : le repos ne doit JAMAIS pouvoir amener timeLeft à 0 (voir CLAUDE.md) — bouton
-        // désactivé dès l'affichage plutôt que vérifié seulement au clic, pour que ce soit visible
-        // avant toute tentative. REPAS_DE_FAMILLE (anomalies.js) rend le repos gratuit en temps : le
-        // garde-fou ne s'applique donc pas dans ce cas.
-        const freeMeals = gameState.anomalyEffects.freeSafehouseMeals;
-        const canRest = freeMeals || gameState.timeLeft - config.safehouse.restCost > 0;
-        ui.btnRestSafehouse.disabled = !canRest;
-        ui.btnRestSafehouse.title = canRest ? "" : "Pas assez de temps pour vous reposer";
+        updateSafehouseRestButtons();
         ui.safehouseChoiceZone.classList.remove('hidden');
         renderScene('safehouse');
         updateUI();
@@ -4511,32 +4505,67 @@ function enterRoom(room) {
     }
 }
 
-// Choix "Repos" d'une salle sécurisée (voir enterRoom()) : coûte config.safehouse.restCost en temps
-// (sauf REPAS_DE_FAMILLE, anomalies.js — repas gratuits) contre un soin PV majoré (25-40, tiré au
-// hasard) ET du mana à la MÊME échelle si un sort est équipé (même montant tiré, clampé séparément
-// à chaque maximum). Le bouton est déjà désactivé côté UI si ce coût ferait tomber timeLeft à 0
-// (voir enterRoom()) : la vérification ici est une sécurité redondante, jamais le chemin normal.
-function restAtSafehouse() {
-    if (!gameState.safehouseChoicePending) return;
-    const restCost = config.safehouse.restCost;
+// Libellés des deux repos d'une salle sécurisée (boutons #btn-nap-safehouse/#btn-sleep-safehouse).
+const SAFEHOUSE_REST_LABELS = { nap: '💤 Sieste', sleep: '🛌 Sommeil réparateur' };
+
+// Ce qu'un repos rendrait maintenant (pure) : `healPct` des PV perdus et du mana manquant — le mana
+// seulement si un sort est équipé. Montants AVANT le multiplicateur de soin des anomalies
+// (PEAU_DE_VERRE), appliqué ensuite par applyPlayerHeal() comme à tout soin.
+function safehouseRestAmounts(kind, state = gameState) {
+    const rest = config.safehouse[kind];
+    const hp = Math.round(rest.healPct * Math.max(0, state.maxHp - state.hp));
+    const mana = state.equipment.spell ? Math.round(rest.healPct * Math.max(0, state.maxMana - state.mana)) : 0;
+    return { hp, mana };
+}
+
+// Vrai si le repos `kind` est possible : garde-fou, un repos ne doit JAMAIS pouvoir amener timeLeft à 0
+// (voir CLAUDE.md), sauf REPAS_DE_FAMILLE (anomalies.js) qui rend les deux repos gratuits en temps.
+function canRestAtSafehouse(kind) {
+    return !!gameState.anomalyEffects.freeSafehouseMeals || gameState.timeLeft - config.safehouse[kind].cost > 0;
+}
+
+// Met à jour les deux boutons de repos à l'entrée dans la salle : coût en temps, PV (et mana) rendus, et
+// bouton désactivé dès l'affichage si le temps manque — visible avant toute tentative, pas seulement au clic.
+function updateSafehouseRestButtons() {
+    const free = gameState.anomalyEffects.freeSafehouseMeals;
+    [['nap', ui.btnNapSafehouse], ['sleep', ui.btnSleepSafehouse]].forEach(([kind, btn]) => {
+        if (!btn) return;
+        const { hp, mana } = safehouseRestAmounts(kind);
+        const lines = [free ? '0H' : `-${config.safehouse[kind].cost}H`, `+${hp} PV`];
+        if (gameState.equipment.spell) lines.push(`+${mana} mana`);
+        const can = canRestAtSafehouse(kind);
+        btn.disabled = !can;
+        btn.title = can ? "" : "Pas assez de temps pour vous reposer";
+        btn.innerHTML = `<span class="block mb-0.5">${SAFEHOUSE_REST_LABELS[kind]}</span>`
+            + lines.map(l => `<span class="block text-[10px] normal-case tracking-normal opacity-80 whitespace-nowrap">${l}</span>`).join('');
+    });
+}
+
+// Repos dans une salle sécurisée (voir enterRoom()) : `kind` 'nap' (Sieste) ou 'sleep' (Sommeil
+// réparateur), voir config.safehouse. Coûte `cost` heures (sauf REPAS_DE_FAMILLE, anomalies.js — repas
+// gratuits) et rend `healPct` des PV perdus, plus la même part du mana manquant si un sort est équipé
+// (safehouseRestAmounts()). Le bouton est déjà désactivé si ce coût ferait tomber timeLeft à 0 (voir
+// updateSafehouseRestButtons()) : la vérification ici est une sécurité redondante, jamais le chemin normal.
+function restAtSafehouse(kind = 'nap') {
+    if (!gameState.safehouseChoicePending || !config.safehouse[kind]) return;
+    if (!canRestAtSafehouse(kind)) return;
+    const cost = config.safehouse[kind].cost;
     const freeMeals = gameState.anomalyEffects.freeSafehouseMeals;
-    if (!freeMeals && gameState.timeLeft - restCost <= 0) return;
 
-    if (!freeMeals) gameState.timeLeft = Math.max(0, gameState.timeLeft - restCost);
-    const healAmount = Math.round(config.safehouse.restHpMin + Math.random() * (config.safehouse.restHpMax - config.safehouse.restHpMin));
-    const healed = applyPlayerHeal(healAmount);
-
-    const hasSpell = !!gameState.equipment.spell;
+    const amounts = safehouseRestAmounts(kind);
+    if (!freeMeals) gameState.timeLeft = Math.max(0, gameState.timeLeft - cost);
+    const healed = applyPlayerHeal(amounts.hp);
     let manaNote = "";
-    if (hasSpell) {
+    if (amounts.mana > 0) {
         const manaBefore = gameState.mana;
-        gameState.mana = Math.min(gameState.maxMana, gameState.mana + healAmount);
+        gameState.mana = Math.min(gameState.maxMana, gameState.mana + amounts.mana);
         const manaGained = Math.round(gameState.mana - manaBefore);
         if (manaGained > 0) manaNote = `, +${manaGained} mana`;
     }
 
-    const costNote = freeMeals ? "repas offerts par la maison, aucun temps perdu" : `-${restCost}H`;
-    logEvent(`Vous vous reposez longuement (${costNote}, +${healed} PV${manaNote}).`, "success");
+    const costNote = freeMeals ? "repas offerts par la maison, aucun temps perdu" : `-${cost}H`;
+    const intro = kind === 'sleep' ? "Vous dormez à poings fermés" : "Vous piquez un petit somme";
+    logEvent(`${intro} (${costNote}, +${healed} PV${manaNote}).`, "success");
 
     gameState.safehouseChoicePending = false;
     gameState.pendingSafehouseRoomId = null;
@@ -4544,7 +4573,7 @@ function restAtSafehouse() {
     updateUI();
 }
 
-// Choix "Repartir" d'une salle sécurisée : gratuit, aucun effet — la salle reste visitée et déjà
+// Choix "Partir" d'une salle sécurisée : gratuit, aucun effet — la salle reste visitée et déjà
 // enregistrée comme lieu connu (voir enterRoom()), simplement réutilisable lors d'un futur passage.
 function leaveSafehouse() {
     if (!gameState.safehouseChoicePending) return;
@@ -6965,7 +6994,8 @@ ui.btnFightBoss.addEventListener('click', fightBossNow);
 ui.btnRetreatBoss.addEventListener('click', retreatFromBoss);
 
 // Clics sur les boutons de choix de salle sécurisée (Repos / Repartir)
-ui.btnRestSafehouse.addEventListener('click', restAtSafehouse);
+ui.btnNapSafehouse.addEventListener('click', () => restAtSafehouse('nap'));
+ui.btnSleepSafehouse.addEventListener('click', () => restAtSafehouse('sleep'));
 ui.btnLeaveSafehouse.addEventListener('click', leaveSafehouse);
 
 // Clics sur les boutons de choix de furtivité (Esquiver / Attaque Furtive)
