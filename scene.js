@@ -301,9 +301,39 @@ function itemArt(key, colors) {
     return sprite ? sprite.art + enchantSparks(sprite, colors) : '';
 }
 
+// Type de fiole d'un consommable (voir CONSUMABLE_FLASKS) : 'mixed' s'il rend PV ET mana, 'mana' s'il
+// ne rend que du mana, sinon 'heal' (y compris les consommables qui ne rendent rien).
+function consumableFlaskKind(item) {
+    const heal = item && item.heal > 0;
+    const mana = item && item.mana > 0;
+    if (heal && mana) return 'mixed';
+    return mana ? 'mana' : 'heal';
+}
+
+// Fiole d'un consommable (repère -24..24) : verre, liquide à la couleur de son type, reflet, bouchon.
+function consumableFlaskArt(kind) {
+    const liquid = (part, f) => `<path d="${CONSUMABLE_FLASK_LIQUID[part]}" fill="${f.liquid}" stroke="${f.dark}" stroke-width="1"/>`;
+    const heal = CONSUMABLE_FLASKS.heal;
+    const mana = CONSUMABLE_FLASKS.mana;
+    const content = kind === 'mixed'
+        ? liquid('left', heal) + liquid('right', mana) + '<line x1="0" y1="0" x2="0" y2="19" stroke="#05060c" stroke-width="1"/>'
+        : liquid('full', CONSUMABLE_FLASKS[kind] || heal);
+    const shine = (CONSUMABLE_FLASKS[kind] || mana).shine || '#e9d5ff';
+    return `<rect x="-5" y="-12" width="10" height="9" fill="#cbd5e1" fill-opacity="0.25" stroke="#e2e8f0" stroke-width="1.6"/>`
+        + `<circle cx="0" cy="8" r="13" fill="#cbd5e1" fill-opacity="0.18" stroke="#e2e8f0" stroke-width="2"/>`
+        + content
+        + `<circle cx="-4" cy="11" r="1.6" fill="${shine}"/><circle cx="3" cy="14" r="1.1" fill="${shine}"/>`
+        + `<path d="M -8 1 Q -10 6 -8 11" fill="none" stroke="#ffffff" stroke-opacity="0.7" stroke-width="1.6" stroke-linecap="round"/>`
+        + `<rect x="-6" y="-19" width="12" height="7" rx="2" fill="#a16207" stroke="#05060c" stroke-width="1.2"/>`;
+}
+
 // Icône d'inventaire / de boutique d'un objet : même dessin que sur le crawler, recadré (ITEM_ICON_TRANSFORMS
-// ou `icon` du sprite), avec une pastille par enchantement en bas à droite. Chaîne <svg> autonome.
+// ou `icon` du sprite), avec une pastille par enchantement en bas à droite. Chaîne <svg> autonome. Un consommable
+// n'a pas de sprite : c'est sa fiole (consumableFlaskArt()), sans pastille.
 function itemIconSvg(item, size = 28) {
+    if (item && item.category === 'consumables') {
+        return `<svg class="item-icon shrink-0" viewBox="-24 -24 48 48" width="${size}" height="${size}" aria-hidden="true">${consumableFlaskArt(consumableFlaskKind(item))}</svg>`;
+    }
     const key = resolveItemSpriteKey(item);
     const sprite = key && ITEM_SPRITES[key];
     if (!sprite) return '';

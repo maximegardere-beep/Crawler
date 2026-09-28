@@ -136,7 +136,8 @@
            #scene-crawler-anchor de la scène, placées par scene.js). Généré par showFloatingDamage()
            (app.js), qui pose `left` en inline (offset aléatoire ±8px) — la classe ne fixe QUE `top`/
            l'animation. Rouge/orangé = dégâts SUBIS par le joueur, blanc/jaune = dégâts INFLIGÉS par
-           le joueur ; taille ×1.4 pour un coup lourd (télégraphe exécuté, ruée d'enrage, phase 3). */
+           le joueur ; taille (inline) et grossissement `--fd-pop` selon la part des PV max de la cible,
+           voir floatingDamageScale() (app.js). */
         .floating-damage {
             position: absolute;
             top: 32%;
@@ -149,9 +150,6 @@
             text-shadow: 0 1px 2px rgba(0,0,0,0.85);
             animation: floatDamage 0.45s ease-out forwards;
         }
-        .floating-damage-heavy {
-            font-size: 18px;
-        }
         .floating-damage-dealt {
             color: #fde047;
         }
@@ -160,7 +158,7 @@
         }
         @keyframes floatDamage {
             0%   { opacity: 0; transform: translate(-50%, 4px) scale(0.85); }
-            20%  { opacity: 1; transform: translate(-50%, -4px) scale(1.08); }
+            20%  { opacity: 1; transform: translate(-50%, -4px) scale(var(--fd-pop, 1.08)); }
             100% { opacity: 0; transform: translate(-50%, -24px) scale(1); }
         }
         @keyframes floatDamageFadeOnly {
@@ -1125,30 +1123,30 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=25"></script>
-    <script src="items.js?v=25"></script>
-    <script src="spells.js?v=25"></script>
-    <script src="districts.js?v=25"></script>
-    <script src="safehouses.js?v=25"></script>
-    <script src="generator.js?v=25"></script>
-    <script src="anomalies.js?v=25"></script>
-    <script src="sprites/crawler.js?v=25"></script>
-    <script src="sprites/npcs.js?v=25"></script>
-    <script src="sprites/mobs.js?v=25"></script>
-    <script src="sprites/mob-details-a.js?v=25"></script>
-    <script src="sprites/mob-details-b.js?v=25"></script>
-    <script src="sprites/mob-auras.js?v=25"></script>
-    <script src="sprites/bosses-a.js?v=25"></script>
-    <script src="sprites/bosses-b.js?v=25"></script>
-    <script src="sprites/items-generic.js?v=25"></script>
-    <script src="sprites/items-melee.js?v=25"></script>
-    <script src="sprites/items-ranged.js?v=25"></script>
-    <script src="sprites/items-armor.js?v=25"></script>
-    <script src="sprites/items-signature.js?v=25"></script>
-    <script src="sprites/fx.js?v=25"></script>
-    <script src="backdrops.js?v=25"></script>
-    <script src="scene.js?v=25"></script>
-    <script src="fx.js?v=25"></script>
-    <script src="app.js?v=25"></script>
+    <script src="bestiary.js?v=26"></script>
+    <script src="items.js?v=26"></script>
+    <script src="spells.js?v=26"></script>
+    <script src="districts.js?v=26"></script>
+    <script src="safehouses.js?v=26"></script>
+    <script src="generator.js?v=26"></script>
+    <script src="anomalies.js?v=26"></script>
+    <script src="sprites/crawler.js?v=26"></script>
+    <script src="sprites/npcs.js?v=26"></script>
+    <script src="sprites/mobs.js?v=26"></script>
+    <script src="sprites/mob-details-a.js?v=26"></script>
+    <script src="sprites/mob-details-b.js?v=26"></script>
+    <script src="sprites/mob-auras.js?v=26"></script>
+    <script src="sprites/bosses-a.js?v=26"></script>
+    <script src="sprites/bosses-b.js?v=26"></script>
+    <script src="sprites/items-generic.js?v=26"></script>
+    <script src="sprites/items-melee.js?v=26"></script>
+    <script src="sprites/items-ranged.js?v=26"></script>
+    <script src="sprites/items-armor.js?v=26"></script>
+    <script src="sprites/items-signature.js?v=26"></script>
+    <script src="sprites/fx.js?v=26"></script>
+    <script src="backdrops.js?v=26"></script>
+    <script src="scene.js?v=26"></script>
+    <script src="fx.js?v=26"></script>
+    <script src="app.js?v=26"></script>
 </body>
 </html>

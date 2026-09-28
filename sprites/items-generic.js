@@ -57,6 +57,22 @@ const ENCHANT_COLORS = {
 };
 const ENCHANT_DEFAULT_COLOR = '#f5f0e0';
 
+// Fioles des consommables (icône de la barre de raccourci, de l'inventaire et de la boutique, voir
+// consumableFlaskKind()/itemIconSvg() dans scene.js) : la couleur du liquide dit ce que l'objet rend —
+// rouge = PV, bleu = mana, moitié-moitié = les deux. `border` : bordure du bouton qui porte l'icône.
+const CONSUMABLE_FLASKS = {
+    heal: { liquid: '#dc2626', dark: '#7f1d1d', shine: '#fca5a5', border: '#b91c1c' },
+    mana: { liquid: '#2563eb', dark: '#1e3a8a', shine: '#93c5fd', border: '#1d4ed8' },
+    mixed: { border: '#7e22ce' }
+};
+// Repère -24..24 : panse ronde centrée en (0, 8), rayon 13, col étroit et bouchon de liège ; liquide sous
+// la ligne y = 0 (arc de la panse, rayon 11, qui coupe cette ligne en x = ±7.55).
+const CONSUMABLE_FLASK_LIQUID = {
+    full: 'M -7.55 0 A 11 11 0 1 0 7.55 0 Z',
+    left: 'M 0 0 L -7.55 0 A 11 11 0 0 0 0 19 Z',
+    right: 'M 0 0 L 0 19 A 11 11 0 0 0 7.55 0 Z'
+};
+
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ITEM_SPRITES, ITEM_ICON_TRANSFORMS, ENCHANT_COLORS, ENCHANT_DEFAULT_COLOR };
+    module.exports = { ITEM_SPRITES, ITEM_ICON_TRANSFORMS, ENCHANT_COLORS, ENCHANT_DEFAULT_COLOR, CONSUMABLE_FLASKS, CONSUMABLE_FLASK_LIQUID };
 }

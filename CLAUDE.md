@@ -547,6 +547,11 @@ Tailwind CDN, **aucun build step**.
   `COMBAT_LOG_LINES` dernières lignes dans `#combat-last-action` (remis à zéro à chaque nouvel ennemi).
   Secousse du combattant touché : `shakeSceneFighter()`, appelée par `showFloatingDamage()`, dont les
   chiffres s'accrochent aux ancres `#scene-mob-anchor`/`#scene-crawler-anchor` qui suivent la scène.
+  **Taille des chiffres** : `floatingDamageScale(amount, maxHp, heavy)` (app.js, pure) — selon la PART des
+  PV max de la cible (jamais le montant brut, qui grossit avec les étages), linéaire entre
+  `FLOATING_DAMAGE_SIZE.minRatio` (3 %, 13 px) et `maxRatio` (40 %, 28 px), +3 px pour un coup lourd sans
+  dépasser le maximum ; grossissement au sommet de l'animation `--fd-pop` (1.08 → 1.3), coupé sous
+  `prefers-reduced-motion` (la taille reste).
   **Bestiaire** (phase 4, dessins livrés par Gemini puis branchés) : `resolveMobSprite(enemy, opts)`
   (scene.js, pure) compose chaque mob = aura de son effet DERRIÈRE (`MOB_EFFECT_AURAS[enemy.effect]`, couleur
   `MOB_EFFECT_FX_COLORS`, particules `.mob-aura-a/b/c` coupées sous reduced motion ; `opts.aura === false`
@@ -616,7 +621,11 @@ Tailwind CDN, **aucun build step**.
   l'équipement porté, les cartes de l'inventaire et les listes achat/vente de la boutique (parchemins :
   aucune icône). `combat-scene.js` vérifie postures, ordre des couches, résolution des sprites, que chaque
   attaque fixe la posture, et que CHAQUE objet de `baseItems` et CHAQUE objet signature de `districtBosses`
-  a son propre sprite du bon type (un objet ajouté sans dessin fait échouer les tests).
+  a son propre sprite du bon type (un objet ajouté sans dessin fait échouer les tests). **Consommables** :
+  pas de sprite, `itemIconSvg()` dessine une fiole (`consumableFlaskArt()`, couleurs `CONSUMABLE_FLASKS`
+  dans `sprites/items-generic.js`) selon `consumableFlaskKind(item)` — rouge = PV, bleu = mana seul,
+  moitié-moitié = PV et mana ; le bouton de la barre de raccourci / de l'inventaire prend la bordure du
+  même type.
   **Effets d'attaque** (phase 3, `fx.js` + catalogue `sprites/fx.js`) : chaque attaque se joue en 3 temps
   — anticipation (l'attaquant s'arme : `.scene-pose`, objet tenu `.crawler-held` via sa transformation de
   repos `data-t`, poing avant `.crawler-front`, lueur `.crawler-spell-glow`), action (traînée d'arme en

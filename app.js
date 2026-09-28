@@ -1392,12 +1392,28 @@ function animateDieHit(dieEl, direction, value) {
 const FLOATING_DAMAGE_OFFSETS = [-7, 6, -3, 8, -8, 3, -5, 7];
 let floatingDamageOffsetIndex = 0;
 
+// Taille des chiffres de dégâts selon la PART des PV max de la cible touchée (pas le montant brut : les
+// dégâts grossissent avec les étages, un « 40 » énorme à l'étage 1 est banal à l'étage 12). Linéaire
+// entre `minRatio` (et en dessous : `minPx`) et `maxRatio` (et au-delà : `maxPx`) ; un coup lourd
+// ajoute `heavyBonusPx`, sans jamais dépasser `maxPx`. `pop` : grossissement au sommet de l'animation,
+// plus marqué pour un gros coup (coupé sous prefers-reduced-motion, qui ne garde que la taille).
+const FLOATING_DAMAGE_SIZE = { minPx: 13, maxPx: 28, minRatio: 0.03, maxRatio: 0.40, heavyBonusPx: 3, popMin: 1.08, popMax: 1.3 };
+function floatingDamageScale(amount, maxHp, heavy = false) {
+    const cfg = FLOATING_DAMAGE_SIZE;
+    const ratio = maxHp > 0 ? amount / maxHp : 0;
+    const t = Math.max(0, Math.min(1, (ratio - cfg.minRatio) / (cfg.maxRatio - cfg.minRatio)));
+    const fontPx = Math.min(cfg.maxPx, Math.round(cfg.minPx + t * (cfg.maxPx - cfg.minPx) + (heavy ? cfg.heavyBonusPx : 0)));
+    const pop = Math.round((cfg.popMin + t * (cfg.popMax - cfg.popMin)) * 100) / 100;
+    return { fontPx, pop };
+}
+
 // Chiffre de dégâts flottant (chantier "lisibilité combat", Chantier 3) : un chiffre par impact,
 // monte et s'estompe au-dessus du combattant touché (ancres #scene-mob-anchor/#scene-crawler-anchor,
 // placées sur chaque silhouette par scene.js — le chiffre s'ajoute EN PLUS du dé qui vole déjà,
 // jamais à sa place). `toPlayer` distingue les dégâts SUBIS par le joueur (rouge/orangé) des dégâts
-// qu'il INFLIGE (blanc/jaune) ; `heavy` grossit le chiffre (×1.4 environ) pour un coup marquant
-// (télégraphe exécuté, ruée d'enrage, phase 3). Fait aussi trembler le combattant touché dans la
+// qu'il INFLIGE (blanc/jaune) ; sa taille suit la part des PV max de la cible (floatingDamageScale()),
+// `heavy` l'agrandit encore un peu pour un coup marquant (télégraphe exécuté, ruée d'enrage, phase 3,
+// attaque furtive, charge). Fait aussi trembler le combattant touché dans la
 // scène (shakeSceneFighter(), scene.js). Se nettoie lui-même après son animation
 // (`animationend`), fonctionne aussi bien avec l'animation normale que le simple fondu de
 // prefers-reduced-motion (les deux déclenchent cet événement).
@@ -1406,6 +1422,10 @@ function showFloatingDamage(containerEl, amount, { heavy = false, toPlayer = fal
     const el = document.createElement('span');
     el.className = `floating-damage ${toPlayer ? 'floating-damage-taken' : 'floating-damage-dealt'}${heavy ? ' floating-damage-heavy' : ''}`;
     el.innerText = `-${Math.round(amount)}`;
+    const target = toPlayer ? gameState : gameState.currentEnemy;
+    const { fontPx, pop } = floatingDamageScale(amount, target ? target.maxHp : 0, heavy);
+    el.style.fontSize = `${fontPx}px`;
+    el.style.setProperty('--fd-pop', pop);
     const offsetX = FLOATING_DAMAGE_OFFSETS[floatingDamageOffsetIndex];
     floatingDamageOffsetIndex = (floatingDamageOffsetIndex + 1) % FLOATING_DAMAGE_OFFSETS.length;
     el.style.left = `calc(50% + ${offsetX}px)`;
@@ -1563,8 +1583,11 @@ function updateInventoryUI() {
         const wrap = document.createElement('div');
         wrap.className = "relative";
         const btn = document.createElement('button');
-        btn.className = "w-9 h-9 flex items-center justify-center bg-gray-950 border border-green-900/50 rounded text-green-400 hover:brightness-125 text-lg";
-        btn.innerText = "🧪";
+        btn.className = "w-9 h-9 flex items-center justify-center bg-gray-950 border rounded hover:brightness-125";
+        // Fiole à la couleur de ce que l'objet rend (voir consumableFlaskKind() dans scene.js) : rouge = PV,
+        // bleu = mana, moitié-moitié = les deux ; la bordure du bouton reprend la même couleur.
+        btn.style.borderColor = CONSUMABLE_FLASKS[consumableFlaskKind(item)].border;
+        btn.innerHTML = itemIconSvg(item, 28);
         btn.title = `${item.name} — toucher pour utiliser`;
         btn.addEventListener('click', () => useConsumable(i));
         wrap.appendChild(btn);
