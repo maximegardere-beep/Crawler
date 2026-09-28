@@ -719,18 +719,12 @@ Tailwind CDN, **aucun build step**.
    pour les changements intermédiaires hors merge), puis créer un tag git `v<APP_VERSION.pr>` sur le
    commit de merge et une GitHub Release portant le même numéro. Non automatisé pour l'instant (pas de
    script de release) — à faire à la main à chaque merge.
-   **État actuel (constaté, pas corrigé silencieusement — voir Tâche 5 du chantier
-   "fiabilisation")** : `APP_VERSION.pr` (20) et le `?v=` d'`index.html` (57) ne sont PAS la même
-   chose et ne l'ont jamais été — `APP_VERSION.pr` suit le numéro de la dernière PR mergée sur `main`
-   (incrémenté une fois par PR), `?v=` suit le nombre de changements de fichiers `.js` (incrémenté
-   bien plus souvent, à chaque modification d'un `.js`, y compris plusieurs fois au sein d'une même
-   PR). Les deux compteurs ont donc mécaniquement des rythmes différents et n'ont pas de raison de
-   converger tout seuls. La convention ci-dessus, pour être suivie à la lettre, demande de les
-   FUSIONNER en un seul et même nombre à partir de maintenant — ce qui suppose de choisir un point de
-   départ pour ce nombre unique (reprendre 57 ? reprendre 20 et laisser `?v=` "rattraper" son retard
-   au prochain changement de `.js` ? repartir de 1 ?) : un choix qui n'appartient pas à Claude Code de
-   trancher seul, laissé à la personne qui lit ceci. `package.json` (`version: "20.0.0"`, Tâche 1) suit
-   pour l'instant `APP_VERSION.pr`, donc hérite de la même question.
+   **Compteur unique depuis la PR #25** (choix de l'utilisateur) : `APP_VERSION.pr`, le tag, la release et
+   le `?v=` d'`index.html` valent tous le numéro de la dernière PR mergée (25). Entre deux merges, chaque
+   changement d'un `.js` incrémente quand même le `?v=` (convention 4), et le merge suivant le recale sur le
+   nouveau numéro de PR. Attention : les valeurs 26 à 111 ont déjà servi de `?v=` avant cette fusion — un
+   navigateur qui aurait gardé en cache un fichier servi sous l'une d'elles pourrait le resservir ; en cas
+   de doute sur iPhone, vider le cache du site. `package.json` suit `APP_VERSION.pr`.
 
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
