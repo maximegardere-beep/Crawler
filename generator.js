@@ -260,9 +260,10 @@ function getLootRarityWeights(floor) {
  * Tire la rareté d'un objet de loot. `source` : 'explore' (trouvé en explorant, marchand) | 'mob' |
  * 'elite' (CHANCE de monter d'un palier) | 'boss' (monte toujours d'un palier, plancher Rare) |
  * 'treasure' (trésor exceptionnel, monte toujours d'un palier). `minRarityKey` : plancher
- * supplémentaire optionnel, appliqué après coup.
+ * supplémentaire optionnel, appliqué après coup. `luckChance` (%) : chance de monter d'un palier
+ * (qualificatif Chanceux de l'équipement porté, voir addLoot() dans app.js).
  */
-function rollLootRarity({ source = 'explore', floor = currentFloorForLoot(), minRarityKey = null } = {}) {
+function rollLootRarity({ source = 'explore', floor = currentFloorForLoot(), minRarityKey = null, luckChance = 0 } = {}) {
     const weights = getLootRarityWeights(floor);
     const total = itemRarities.reduce((sum, r) => sum + (weights[r.key] || 0), 0);
     let roll = Math.random() * total;
@@ -278,6 +279,7 @@ function rollLootRarity({ source = 'explore', floor = currentFloorForLoot(), min
         minRarityKey = minRarityKey || itemBalance.boss.minRarityKey;
     }
     if (source === 'treasure') rarity = shiftRarity(rarity, itemBalance.treasure.tierBonus);
+    if (luckChance > 0 && Math.random() * 100 < luckChance) rarity = shiftRarity(rarity, 1); // Chanceux (qualificatif porté)
     if (minRarityKey) {
         const min = getRarityByKey(minRarityKey);
         if (min && itemRarities.indexOf(rarity) < itemRarities.indexOf(min)) rarity = min;
@@ -317,19 +319,89 @@ function pickBaseItem(pool, floor, rarity) {
     return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-// Enchantements : un par slot de la rareté. Le Ne slot pioche dans le pool des effets de tier <= N.
-function rollEnchantments(rarity) {
-    const names = [];
-    const mechanics = [];
-    for (let slotIndex = 0; slotIndex < rarity.slots; slotIndex++) {
-        const maxTier = slotIndex + 1;
-        const pool = itemModifiers.effect.filter(e => e.tier <= maxTier && !names.includes(e.name));
-        if (pool.length === 0) continue;
-        const picked = pool[Math.floor(Math.random() * pool.length)];
-        names.push(picked.name);
-        if (picked.mechanic) mechanics.push(picked.mechanic);
+// --- Qualificatifs (itemQualifiers, items.js) ---------------------------------------------------
+
+// Cible d'un qualificatif selon la catégorie d'objet : armes de mêlée ET à distance partagent la cible
+// 'weapon' ; consommables : aucune (jamais de qualificatif).
+function qualifierTarget(category) {
+    if (category === 'weapons' || category === 'ranged') return 'weapon';
+    if (category === 'armors') return 'armor';
+    if (category === 'scrolls') return 'spell';
+    return null;
+}
+
+// Valeurs d'un qualificatif pour une cible et un rang (1 à 3) : chaque tableau du catalogue est
+// réduit à la valeur de ce rang, les scalaires sont repris tels quels. null si ce qualificatif
+// n'existe pas pour cette cible.
+function getQualifierValues(key, target, rank = 1) {
+    const q = itemQualifiers[key];
+    const block = q && q[target];
+    if (!block) return null;
+    const values = {};
+    for (const field in block) {
+        if (field === 'text') continue;
+        const raw = block[field];
+        values[field] = Array.isArray(raw) ? raw[Math.min(raw.length, Math.max(1, rank)) - 1] : raw;
     }
-    return { names, mechanics };
+    return values;
+}
+
+// Phrase d'inspection exacte d'un qualificatif (chiffres du rang compris).
+function describeQualifier(key, target, rank = 1) {
+    const values = getQualifierValues(key, target, rank);
+    return values ? itemQualifiers[key][target].text(values) : '';
+}
+
+const QUALIFIER_RANK_LABELS = ['', 'I', 'II', 'III'];
+
+// "Tranchant II" (les défauts de Camelote, à rang unique, n'affichent pas de rang).
+function formatQualifierLabel(key, rank = 1) {
+    const q = itemQualifiers[key];
+    if (!q) return key;
+    return q.kind === 'malus' ? q.name : `${q.name} ${QUALIFIER_RANK_LABELS[rank] || rank}`;
+}
+
+// Un qualificatif par slot de la rareté, tous au rang maximal de la rareté (Rare I, Épique II,
+// Légendaire III). Le Ne slot pioche parmi les qualificatifs de tier <= N, jamais deux fois le même.
+function rollQualifiers(rarity, target) {
+    const picked = [];
+    for (let slotIndex = 0; slotIndex < rarity.slots; slotIndex++) {
+        const pool = Object.keys(itemQualifiers).filter(key => {
+            const q = itemQualifiers[key];
+            return q[target] && q.kind !== 'malus' && q.tier <= slotIndex + 1 && !picked.some(p => p.key === key);
+        });
+        if (pool.length === 0) continue;
+        picked.push({ key: pool[Math.floor(Math.random() * pool.length)], rank: rarity.maxRank });
+    }
+    return picked;
+}
+
+// Camelote : itemBalance.junkMalusChance % de chance de porter UN défaut (itemQualifiers kind 'malus').
+function rollJunkMalus(target) {
+    if (Math.random() * 100 >= itemBalance.junkMalusChance) return [];
+    const pool = Object.keys(itemQualifiers).filter(key => itemQualifiers[key].kind === 'malus' && itemQualifiers[key][target]);
+    if (pool.length === 0) return [];
+    return [{ key: pool[Math.floor(Math.random() * pool.length)], rank: 1 }];
+}
+
+// Pose les qualificatifs sur un objet : `qualifiers` (source de vérité, avec rangs), `mechanics`
+// (clés seules, lues par le rendu : couleurs, étincelles, traînée), nom complété, et défauts de
+// stats "Rouillé"/"Fêlé" directement comptés dans baseDmg/baseArmor (l'inspection montre le vrai chiffre).
+function applyQualifiers(item, qualifiers, target) {
+    if (qualifiers.length === 0) return;
+    item.qualifiers = qualifiers;
+    item.mechanics = qualifiers.map(q => q.key);
+    item.name = formatEnchantedName(item.name, qualifiers.map(q => itemQualifiers[q.key].name));
+    qualifiers.forEach(q => {
+        const values = getQualifierValues(q.key, target, q.rank);
+        if (q.key === 'rusty' && item.baseDmg !== undefined) item.baseDmg = Math.max(1, Math.round(item.baseDmg * (1 - values.pct / 100)));
+        if (q.key === 'cracked' && item.baseArmor !== undefined) item.baseArmor = Math.round(item.baseArmor * (1 - values.pct / 100));
+    });
+}
+
+// Nombre de qualificatifs qui AJOUTENT de la valeur (les défauts n'en ajoutent pas).
+function countValuableQualifiers(qualifiers) {
+    return (qualifiers || []).filter(q => itemQualifiers[q.key] && itemQualifiers[q.key].kind !== 'malus').length;
 }
 
 // "Nom de base Adjectif1, Adjectif2 et Adjectif3"
@@ -337,6 +409,14 @@ function formatEnchantedName(baseName, names) {
     if (names.length === 0) return baseName;
     if (names.length === 1) return `${baseName} ${names[0]}`;
     return `${baseName} ${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}`;
+}
+
+// Qualificatifs d'un objet tiré au sort selon sa rareté (défaut de Camelote, ou un par slot).
+function rollItemQualifiers(item, rarity, target) {
+    if (!target) return [];
+    if (rarity.key === 'camelote') return rollJunkMalus(target);
+    if (item.canEnchant === false || rarity.slots === 0) return [];
+    return rollQualifiers(rarity, target);
 }
 
 function applyRarity(item, rarity) {
@@ -370,14 +450,10 @@ function buildItem(base, category, rarity, itemLevel, options = {}) {
     if (item.heal > 0) item.heal = Math.round(item.heal * mult * getItemLevelMult(item.itemLevel, 'heal'));
     if (item.mana > 0) item.mana = Math.round(item.mana * mult);
 
-    let enchantCount = 0;
-    if (category !== 'consumables' && item.canEnchant !== false && rarity.slots > 0) {
-        const { names, mechanics } = rollEnchantments(rarity);
-        if (mechanics.length > 0) item.mechanics = mechanics;
-        item.name = formatEnchantedName(item.name, names);
-        enchantCount = names.length;
-    }
-    item.value = computeItemValue(base.baseValue, rarity.key, item.itemLevel, enchantCount);
+    const target = qualifierTarget(category);
+    const qualifiers = options.qualifiers || rollItemQualifiers(item, rarity, target);
+    applyQualifiers(item, qualifiers, target);
+    item.value = computeItemValue(base.baseValue, rarity.key, item.itemLevel, countValuableQualifiers(qualifiers));
     return item;
 }
 
@@ -397,8 +473,10 @@ function buildSpellScroll(base, rarity, itemLevel, options = {}) {
     const mult = rarity.statMult * statJitterMult(options.jitter);
     scroll.baseDmg = Math.max(1, Math.round(base.baseDmg * mult * getItemLevelMult(scroll.itemLevel, 'equipment')));
     scroll.manaCost = Math.max(5, Math.round(base.manaCost * mult));
-    scroll.value = computeItemValue(base.baseValue, rarity.key, scroll.itemLevel, 0);
     scroll.name = `Parchemin : ${base.name}`;
+    const qualifiers = options.qualifiers || rollItemQualifiers(scroll, rarity, 'spell');
+    applyQualifiers(scroll, qualifiers, 'spell');
+    scroll.value = computeItemValue(base.baseValue, rarity.key, scroll.itemLevel, countValuableQualifiers(qualifiers));
     return scroll;
 }
 
@@ -414,7 +492,7 @@ function generateSpellScroll(options = {}) {
     const base = candidates[Math.floor(Math.random() * candidates.length)];
     const rarity = options.rarityKey
         ? getRarityByKey(options.rarityKey)
-        : rollLootRarity({ source: options.source, floor, minRarityKey: options.minRarityKey });
+        : rollLootRarity({ source: options.source, floor, minRarityKey: options.minRarityKey, luckChance: options.luckChance });
     return buildSpellScroll(base, rarity, itemLevel, options);
 }
 
@@ -455,7 +533,7 @@ function generateItem(options = {}) {
 
     const rarity = options.rarityKey
         ? getRarityByKey(options.rarityKey)
-        : rollLootRarity({ source: options.source, floor, minRarityKey: options.minRarityKey });
+        : rollLootRarity({ source: options.source, floor, minRarityKey: options.minRarityKey, luckChance: options.luckChance });
     const base = pickBaseItem(baseItems[categoryName], floor, rarity);
     return buildItem(base, categoryName, rarity, itemLevel, options);
 }
@@ -473,7 +551,9 @@ function buildSignatureItem(template, itemLevel) {
     const levelMult = getItemLevelMult(item.itemLevel, 'equipment');
     if (item.baseDmg !== undefined) item.baseDmg = Math.max(1, Math.round(item.baseDmg * legendary.statMult * levelMult));
     if (item.baseArmor !== undefined) item.baseArmor = Math.round(item.baseArmor * legendary.statMult * levelMult);
-    item.value = computeItemValue(template.baseValue, legendary.key, item.itemLevel, (item.mechanics || []).length);
+    // Son mécanisme thématique fixe, au rang maximal (III) — le nom de l'objet reste celui du boss.
+    item.qualifiers = (item.mechanics || []).map(key => ({ key, rank: legendary.maxRank }));
+    item.value = computeItemValue(template.baseValue, legendary.key, item.itemLevel, countValuableQualifiers(item.qualifiers));
     return item;
 }
 

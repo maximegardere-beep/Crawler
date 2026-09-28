@@ -48,12 +48,16 @@ const ITEM_ICON_TRANSFORMS = {
 };
 
 // Couleur des enchantements visibles (étincelles sur l'arme, reflets sur l'armure, pastilles de l'icône),
-// par mécanique (items.js, itemModifiers.effect). Mécanique inconnue : blanc cassé.
+// par qualificatif (items.js, itemQualifiers — un par clé, exigé par tests/regression/loot.js).
+// Mécanique inconnue : blanc cassé.
 const ENCHANT_COLORS = {
     bleed: '#ef4444', stun: '#60a5fa', pleasure_or_pain: '#f472b6', poison: '#84cc16', slow: '#7dd3fc',
     random: '#e879f9', aoe: '#fb923c', stealth: '#94a3b8', light: '#fef08a', darkness: '#6d28d9',
     heal: '#4ade80', lifesteal: '#be123c', drain: '#a78bfa', corrode: '#bef264', fear: '#9333ea',
-    adrenaline: '#facc15'
+    adrenaline: '#facc15', shock: '#38bdf8', keen: '#e2e8f0', precise: '#f97316', pierce: '#cbd5e1',
+    swift: '#2dd4bf', lucky: '#22c55e', thorns: '#65a30d', sturdy: '#b45309', tenacious: '#0ea5e9',
+    amplified: '#d946ef', thrifty: '#3b82f6', channeled: '#a5b4fc',
+    rusty: '#92400e', cracked: '#78716c', wobbly: '#a3a3a3', squeaky: '#d6d3d1', stutter: '#737373'
 };
 const ENCHANT_DEFAULT_COLOR = '#f5f0e0';
 

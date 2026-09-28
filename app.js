@@ -1211,13 +1211,13 @@ function updateUI() {
             let magicUsable = false;
             if (spell) {
                 const spellDistanceOk = spell.spellCategory === 'melee' ? atMelee : !atMelee;
-                magicUsable = spellDistanceOk && gameState.mana >= spell.manaCost;
+                magicUsable = spellDistanceOk && gameState.mana >= getSpellManaCost(spell);
             }
             ui.btnAttackMagic.disabled = !magicUsable;
             ui.btnAttackMagic.classList.toggle('opacity-40', !magicUsable);
             ui.btnAttackMagic.classList.toggle('pointer-events-none', !magicUsable);
             ui.btnAttackMagic.innerHTML = spell
-                ? `${spell.icon || '✨'} ${spell.spellName}<span class="block text-[8px] normal-case opacity-70">🔷 ${spell.manaCost}</span>`
+                ? `${spell.icon || '✨'} ${spell.spellName}<span class="block text-[8px] normal-case opacity-70">🔷 ${getSpellManaCost(spell)}</span>`
                 : `✨ Magie<span class="block text-[8px] normal-case opacity-70">(aucun sort)</span>`;
         }
         // S'approcher (attemptSprint) / S'éloigner (attemptRetreat) : TOUJOURS affichés pendant un
@@ -1535,9 +1535,10 @@ function updateInventoryUI() {
     ui.equippedWeapon.innerHTML = equippedLabel(gameState.equipment.weapon);
     ui.equippedArmor.innerHTML = equippedLabel(gameState.equipment.armor);
     if (ui.equippedArmorBadges) {
-        ui.equippedArmorBadges.innerHTML = gameState.equipment.armor
-            ? buildMechanicBadgesHtml(gameState.equipment.armor, IMPLEMENTED_ARMOR_MECHANICS)
-            : "";
+        // Qualificatifs de TOUT l'équipement porté (arme, distance, armure), pas seulement de l'armure.
+        ui.equippedArmorBadges.innerHTML = ['weapon', 'ranged', 'armor']
+            .map(slot => buildQualifierBadgesHtml(gameState.equipment[slot]))
+            .join('');
     }
     if (ui.equippedRanged) ui.equippedRanged.innerHTML = equippedLabel(gameState.equipment.ranged);
 
@@ -1563,9 +1564,8 @@ function updateInventoryUI() {
             card.style.borderColor = rarityColor;
             card.style.borderWidth = "2px";
             const statLine = (isWeapon || isRanged) ? `⚔️ ATK +${item.baseDmg}` : `🛡️ DEF +${item.baseArmor}`;
-            // Badges d'enchantement : uniquement sur les armures (voir applyArmorMechanic()) — les
-            // armes gardent leur affichage inchangé, leurs enchantements sont déjà tous fonctionnels.
-            const armorBadges = !isWeapon && !isRanged ? buildMechanicBadgesHtml(item, IMPLEMENTED_ARMOR_MECHANICS) : "";
+            // Badges de qualificatifs (arme, distance ou armure), effet exact en infobulle.
+            const armorBadges = buildQualifierBadgesHtml(item);
             card.innerHTML = `
                 <div class="flex justify-center leading-none">${itemIconSvg(item, 40) || `<span class="text-xl">${icon}</span>`}</div>
                 <div class="text-[10px] font-bold leading-tight">${item.name}</div>
@@ -1651,7 +1651,7 @@ function groupSpellbook(spellbook, equipped = null) {
 
 // Ligne de stats d'un exemplaire de sort (grimoire et boutique).
 function spellCopyStats(spell) {
-    return `⚔️ +${spell.baseDmg} · 🔷 ${spell.manaCost}`;
+    return `⚔️ +${spell.baseDmg} · 🔷 ${getSpellManaCost(spell)}`;
 }
 
 // Grimoire : une carte par sort (groupSpellbook()), une ligne par exemplaire — rareté, dégâts, coût en
@@ -1727,38 +1727,24 @@ function discardItem(index) {
 // (jamais de perte d'objet lors d'un changement d'équipement).
 // Nom d'affichage d'un objet : ajoute son palier de rareté entre crochets s'il n'est pas Commun
 // (ex: "[Épique] Hache à Viande Tranchant et Lourd"), sinon le nom brut.
-// Icônes/labels des mécaniques d'enchantement (voir itemModifiers.effect dans items.js). Reprend
-// les mêmes émojis que les logs de combat (resolveWeaponMechanicEffect/resolveArmorMechanicEffect)
-// pour rester cohérent visuellement.
-const MECHANIC_ICONS = {
-    bleed: '🩸', stun: '💫', poison: '☢️', slow: '🐌', light: '✨', heal: '💚',
-    lifesteal: '🧛', drain: '🌀', corrode: '🧪', fear: '😱', adrenaline: '💉',
-    stealth: '🤫', random: '🎲', aoe: '💥', darkness: '🌑', pleasure_or_pain: '😬'
-};
-const MECHANIC_LABELS = {
-    bleed: 'Saignement', stun: 'Étourdissement', poison: 'Poison', slow: 'Ralentissement',
-    light: 'Éblouissement', heal: 'Régénération', lifesteal: 'Vol de vie', drain: 'Drain',
-    corrode: 'Corrosion', fear: 'Terreur', adrenaline: 'Adrénaline', stealth: 'Discrétion',
-    random: 'Aléatoire', aoe: 'Explosion', darkness: 'Ténèbres', pleasure_or_pain: 'Vibration'
-};
-
-// Construit les badges d'enchantement d'un objet équipable : un par mécanique portée, coloré si
-// elle a un effet de combat réel pour ce type d'objet (voir implementedList), grisé sinon (encore
-// purement cosmétique — voir le commentaire de IMPLEMENTED_ARMOR_MECHANICS/IMPLEMENTED_WEAPON_MECHANICS).
-// "stealth" (Silencieux) et "random" (Chaotique) sont toujours fonctionnels, quel que soit le type
-// d'objet (détection pré-combat pour le premier, pioche parmi les mécaniques réelles pour le second).
-function buildMechanicBadgesHtml(item, implementedList) {
-    if (!item || !item.mechanics || item.mechanics.length === 0) return '';
-    return item.mechanics.map(mechanic => {
-        const icon = MECHANIC_ICONS[mechanic] || '❔';
-        const label = MECHANIC_LABELS[mechanic] || mechanic;
-        const isFunctional = mechanic === 'random' || mechanic === 'stealth' || implementedList.includes(mechanic);
-        const cls = isFunctional
-            ? 'bg-amber-100 border-amber-400 text-amber-800'
-            : 'bg-stone-200 border-stone-400 text-stone-500 italic';
-        const title = isFunctional ? label : `${label} (cosmétique pour l'instant)`;
-        return `<span class="px-1 py-0.5 rounded border ${cls}" title="${title}">${icon} ${label}</span>`;
+// Badges de qualificatifs d'un objet (voir itemQualifiers dans items.js) : icône + nom + rang, en rouge
+// pour un défaut de Camelote. L'infobulle native (`title`) donne l'effet exact, chiffres compris —
+// le même texte que le panneau d'inspection (describeQualifier()).
+function buildQualifierBadgesHtml(item) {
+    const target = item ? (qualifierTarget(item.category) || 'weapon') : null;
+    return getItemQualifierList(item).map(({ key, rank }) => {
+        const q = itemQualifiers[key];
+        if (!q) return '';
+        const cls = q.kind === 'malus'
+            ? 'bg-red-100 border-red-400 text-red-800'
+            : 'bg-amber-100 border-amber-400 text-amber-800';
+        const title = escapeHtmlAttr(`${formatQualifierLabel(key, rank)} — ${describeQualifier(key, target, rank)}`);
+        return `<span class="px-1 py-0.5 rounded border ${cls}" title="${title}">${q.icon} ${formatQualifierLabel(key, rank)}</span>`;
     }).join('');
+}
+
+function escapeHtmlAttr(text) {
+    return String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 }
 
 function formatItemDisplayName(item) {
@@ -1781,6 +1767,7 @@ function equipItem(index) {
     }
 
     logEvent(`Vous équipez [${formatItemDisplayName(item)}] (${slotLabel}).`, "info");
+    if (slot === 'armor') recomputeMaxHp(); // Robuste : les PV max dépendent de l'armure portée
     updateUI();
     updateInventoryUI();
 }
@@ -2048,9 +2035,8 @@ function resolveCardEvent() {
 function getStealthChance() {
     let chance = 15 + (gameState.skills.stealth.level - 1) * 6;
     if (gameState.companion && gameState.companion.specialty.type === 'scout') chance += 10;
-    if (gameState.equipment.weapon && gameState.equipment.weapon.mechanics && gameState.equipment.weapon.mechanics.includes('stealth')) chance += 15;
-    if (gameState.equipment.ranged && gameState.equipment.ranged.mechanics && gameState.equipment.ranged.mechanics.includes('stealth')) chance += 15;
-    if (gameState.equipment.armor && gameState.equipment.armor.mechanics && gameState.equipment.armor.mechanics.includes('stealth')) chance += 15;
+    // Silencieux (bonus) et Grinçant (défaut de Camelote, bonus négatif) sur tout l'équipement porté.
+    chance += sumEquippedQualifier('stealth', 'bonus') + sumEquippedQualifier('squeaky', 'bonus');
     // NOCTURNE (anomalies.js) : détection des mobs accrue (pénalité sur la chance de base) mais
     // plafond relevé d'autant — récompense un fort investissement en Furtivité, punit un faible.
     chance -= gameState.anomalyEffects.detectionBonus || 0;
@@ -2835,7 +2821,9 @@ function recordEpitaph(text, deathContext) {
 // `options` est transmis tel quel à generateItem() (generator.js) : `source` ('explore' | 'mob' |
 // 'elite' | 'boss' | 'treasure') pilote la rareté, `itemLevel` le niveau d'objet (défaut : étage).
 function addLoot(options = {}) {
-    storeLootItem(generateItem(options));
+    // Chanceux (qualificatif porté) : chance que le butin monte d'un palier (voir rollLootRarity()).
+    const luckChance = sumEquippedQualifier('lucky', 'chance');
+    storeLootItem(generateItem(luckChance > 0 ? { ...options, luckChance } : options));
 }
 
 // Range un objet déjà construit (loot ou objet signature) : grimoire, inventaire, ou perdu si la
@@ -2905,7 +2893,10 @@ function applyPlayerHeal(amount) {
 // gameState.hp au nouveau maximum s'il le dépasse (jamais de PV "en trop" affichés).
 function recomputeMaxHp() {
     const mult = gameState.anomalyEffects.playerMaxHpMult || 1;
-    gameState.maxHp = Math.max(1, Math.round(gameState.baseMaxHp * mult));
+    // Robuste (qualificatif d'armure) : PV max +%, tant que l'armure est portée.
+    const sturdy = getItemQualifierValues(gameState.equipment.armor, 'sturdy', 'armor');
+    const gearMult = sturdy ? 1 + sturdy.pct / 100 : 1;
+    gameState.maxHp = Math.max(1, Math.round(gameState.baseMaxHp * mult * gearMult));
     if (gameState.hp > gameState.maxHp) gameState.hp = gameState.maxHp;
 }
 
@@ -4931,7 +4922,7 @@ function initiateCombat(forcedEnemy = null) {
         // telegraph/defBuffed/frenzied : uniquement lus/écrits côté boss (voir performBossCounterAttack()
         // dans app.js, Chantier 2 du rework combat) — restent toujours neutres sur un mob normal/élite.
         // enraged/enrageCooldown : Chantier 3 (enrage distance), tous mobs confondus, boss inclus.
-        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, telegraph: null, defBuffed: null, frenzied: false, enraged: null, enrageCooldown: null };
+        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, distracted: null, telegraph: null, defBuffed: null, frenzied: false, enraged: null, enrageCooldown: null };
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
         // Compteur de tours de kiting (Chantier 3) : un boss démarre à 1 (s'enrage plus vite qu'un
         // mob normal, voir NOTES_COMBAT.md Chantier 2) plutôt qu'à 0.
@@ -5192,7 +5183,7 @@ function setCombatDistance(value) {
 function resolveDistanceRound(enemy, playerWantsToWiden) {
     const cfg = config.rangedCombat;
     gameState.timeLeft = Math.max(0, gameState.timeLeft - cfg.timeCostPerRound);
-    const playerRoll = 1 + Math.floor(Math.random() * cfg.dieSides) + Math.floor(gameState.level / cfg.levelAdvantageDivisor);
+    const playerRoll = 1 + Math.floor(Math.random() * cfg.dieSides) + Math.floor(gameState.level / cfg.levelAdvantageDivisor) + sumEquippedQualifier('swift', 'bonus'); // Véloce
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
     const diff = playerRoll - mobRoll; // positif = le joueur l'emporte ce round
     const delta = playerWantsToWiden ? diff : -diff;
@@ -5317,6 +5308,19 @@ function performPlayerAttack(attackerAtk, options, label) {
         }
     }
 
+    // Qualificatifs de l'objet utilisé pour CE coup (options.gear : arme, arme à distance ou sort ;
+    // options.gearTarget : 'weapon' | 'spell') — voir itemQualifiers dans items.js.
+    const gear = options.gear || null;
+    const gearTarget = options.gearTarget || 'weapon';
+    const gearQ = (key) => (gear ? getItemQualifierValues(gear, key, gearTarget) : null);
+    const wobbly = gearQ('wobbly');
+    if (wobbly && Math.random() * 100 < wobbly.chance) {
+        showDie(ui.combatPlayerDie, "🥴");
+        logEvent(`🥴 Votre [${gear.name}] bancal vous glisse des mains : coup complètement raté !`, "danger");
+        resolveEnemyReaction();
+        return false;
+    }
+
     // Un joueur ralenti inflige moitié moins de dégâts, le temps que l'effet se dissipe
     let effectiveOptions = options;
     let slowedNote = "";
@@ -5397,7 +5401,37 @@ function performPlayerAttack(attackerAtk, options, label) {
     // consommée au tout début de la PROCHAINE action (tryPlayerAction()), même convention que
     // lastPlayerActionWasBackfire, jamais ici (getEffectiveDef() reste pure, aussi utilisée pour le
     // simple affichage UI).
-    const playerDamage = rollDamage(attackerAtk, effectiveEnemyDef, effectiveOptions);
+    // Aiguisé/Amplifié : dégâts +% ; Perforant : part de la DEF ignorée ; Précis : coup critique.
+    let gearNote = "";
+    const keen = gearQ('keen') || gearQ('amplified');
+    if (keen) effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * (1 + keen.pct / 100) };
+    const pierce = gearQ('pierce');
+    if (pierce) effectiveOptions = { ...effectiveOptions, defReduction: 1 - (1 - (effectiveOptions.defReduction ?? 0)) * (1 - pierce.pct / 100) };
+    const precise = gearQ('precise');
+    if (precise && Math.random() * 100 < precise.chance) {
+        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * precise.mult };
+        gearNote += " (critique !)";
+    }
+    let playerDamage = rollDamage(attackerAtk, effectiveEnemyDef, effectiveOptions);
+    // Électrique/Explosif : dégâts bonus proportionnels au coup, qui ignorent la DEF (ajoutés au coup
+    // lui-même, avant le test de victoire). Explosif peut aussi blesser le porteur, sans jamais le tuer.
+    const shock = gearQ('shock');
+    if (shock && Math.random() * 100 < shock.chance) {
+        const bonus = Math.max(1, Math.round(playerDamage * shock.pct / 100));
+        playerDamage += bonus;
+        gearNote += ` (⚡ +${bonus})`;
+    }
+    const blast = gearQ('aoe');
+    if (blast && Math.random() * 100 < blast.chance) {
+        const bonus = Math.max(1, Math.round(playerDamage * blast.pct / 100));
+        playerDamage += bonus;
+        gearNote += ` (💥 +${bonus})`;
+        if (Math.random() * 100 < blast.selfChance && gameState.hp > 1) {
+            const selfDamage = Math.min(gameState.hp - 1, Math.max(1, Math.round(gameState.maxHp * blast.selfPct / 100)));
+            applyPlayerDamage(selfDamage);
+            logEvent(`💥 L'explosion vous roussit au passage (-${selfDamage} PV). Pour tout le monde, on avait dit.`, "danger");
+        }
+    }
     enemy.hp -= playerDamage;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage);
@@ -5413,7 +5447,7 @@ function performPlayerAttack(attackerAtk, options, label) {
     // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
     // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
     // pure redite de ce que les badges du Chantier 2 montrent déjà sans rapport avec CE coup précis).
-    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
+    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
 
     // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
     if (gameState.companion && gameState.companion.specialty.type === 'strike' && enemy.hp > 0) {
@@ -5434,185 +5468,197 @@ function performPlayerAttack(attackerAtk, options, label) {
     return true;
 }
 
-// Mécaniques d'arme qui ont un vrai effet de combat (utilisées aussi par "random"/Chaotique,
-// qui en tire une au hasard à chaque déclenchement).
-const IMPLEMENTED_WEAPON_MECHANICS = ['bleed', 'stun', 'poison', 'slow', 'light', 'heal', 'lifesteal', 'drain', 'corrode', 'fear', 'adrenaline'];
+// ==========================================
+// QUALIFICATIFS EN COMBAT (chantier "refonte des objets" — catalogue itemQualifiers dans items.js)
+// ==========================================
+// Tous les chiffres viennent de getQualifierValues() (generator.js), la même source que le texte
+// d'inspection (describeQualifier()) : ce qui est écrit sur l'objet est exactement ce qui se passe.
 
-// Résout l'effet concret d'une mécanique nommée sur l'ennemi/le joueur.
-// Séparé de applyWeaponMechanic() pour que "random" (Chaotique) puisse réutiliser cette logique
-// après avoir tiré une mécanique au hasard, sans dupliquer le switch.
-function resolveWeaponMechanicEffect(mechanicName, weapon, enemy) {
-    switch (mechanicName) {
+// Qualificatifs d'un objet, avec rang. Un objet construit à la main (tests) ou antérieur à la refonte
+// n'a que `mechanics` : rang I par défaut.
+function getItemQualifierList(item) {
+    if (!item) return [];
+    if (item.qualifiers) return item.qualifiers;
+    return (item.mechanics || []).map(key => ({ key, rank: 1 }));
+}
+
+// Valeurs d'un qualificatif précis porté par un objet (null s'il ne le porte pas). `target` par défaut
+// déduit de la catégorie (arme si inconnue, pour les objets de test sans catégorie).
+function getItemQualifierValues(item, key, target = null) {
+    const entry = getItemQualifierList(item).find(q => q.key === key);
+    if (!entry) return null;
+    return getQualifierValues(key, target || qualifierTarget(item.category) || 'weapon', entry.rank);
+}
+
+// Somme d'un champ d'un qualificatif passif sur tout l'équipement porté (arme, arme à distance,
+// armure) — Silencieux, Véloce, Chanceux, Grinçant.
+function sumEquippedQualifier(key, field) {
+    const slots = [['weapon', 'weapon'], ['ranged', 'weapon'], ['armor', 'armor']];
+    return slots.reduce((sum, [slot, target]) => {
+        const values = getItemQualifierValues(gameState.equipment[slot], key, target);
+        return sum + (values && values[field] ? values[field] : 0);
+    }, 0);
+}
+
+// Effets déclenchables sur une cible donnée (pioche de Chaotique) : les procs de statut/soin, hors
+// Chaotique lui-même et hors bonus de dégâts (Électrique/Explosif, résolus dans performPlayerAttack()).
+function getRandomizableQualifiers(target) {
+    return Object.keys(itemQualifiers).filter(key => {
+        const block = itemQualifiers[key][target];
+        return block && itemQualifiers[key].kind === 'proc' && !block.passive && !['random', 'shock', 'aoe'].includes(key);
+    });
+}
+
+// Applique l'effet d'un qualificatif déclenché. `foe` : la cible de l'arme/du sort, ou l'attaquant pour
+// une armure. `baseDamage` : dégâts du coup porté (arme/sort) ou encaissé (armure) — base des effets
+// sur la durée et du vol de vie. `source` ('weapon' | 'armor' | 'spell') ne change que le message.
+function resolveQualifierEffect(key, v, foe, baseDamage, source = 'weapon') {
+    const byArmor = source === 'armor';
+    foe.status = foe.status || {};
+    switch (key) {
         case 'bleed':
-            enemy.status.bleed = { rounds: 3, dmgPerRound: Math.max(2, Math.round((weapon.baseDmg || 5) * 0.3)) };
-            logEvent(`🩸 [${enemy.name}] se met à saigner !`, "danger");
-            break;
-        case 'stun':
-            enemy.status.stunned = true;
-            logEvent(`💫 [${enemy.name}] est étourdi par le choc !`, "danger");
+            foe.status.bleed = { rounds: v.rounds, dmgPerRound: Math.max(1, Math.round(baseDamage * v.pct / 100)) };
+            logEvent(byArmor ? `🩸 Les pointes de votre armure entaillent [${foe.name}] !` : `🩸 [${foe.name}] se met à ${source === 'spell' ? 'brûler' : 'saigner'} !`, "danger");
             break;
         case 'poison':
-            // Même compteur générique que "bleed" (dégâts sur la durée) : plus de rounds, moins de dégâts/round
-            enemy.status.bleed = { rounds: 5, dmgPerRound: Math.max(1, Math.round((weapon.baseDmg || 5) * 0.15)) };
-            logEvent(`☢️ [${enemy.name}] est empoisonné !`, "danger");
+            foe.status.bleed = { rounds: v.rounds, dmgPerRound: Math.max(1, Math.round(baseDamage * v.pct / 100)) };
+            logEvent(byArmor ? `☢️ Votre armure empoisonne [${foe.name}] au contact !` : `☢️ [${foe.name}] est empoisonné !`, "danger");
+            break;
+        case 'stun':
+            foe.status.stunned = true;
+            logEvent(byArmor ? `💫 Le choc en retour étourdit [${foe.name}] !` : `💫 [${foe.name}] est étourdi par le choc !`, "danger");
             break;
         case 'slow':
-            enemy.status.slowed = { rounds: 2 };
-            logEvent(`🐌 [${enemy.name}] est ralenti, gelé sur place !`, "danger");
+            foe.status.slowed = { rounds: v.rounds };
+            logEvent(`🐌 [${foe.name}] est gelé sur place ! (ses dégâts −50 %)`, "danger");
+            break;
+        case 'pleasure_or_pain':
+            foe.status.distracted = { rounds: v.rounds, miss: v.miss };
+            logEvent(`😬 Un bourdonnement insupportable déconcentre [${foe.name}] !`, "danger");
             break;
         case 'light':
-            enemy.status.blinded = { rounds: 2 };
-            logEvent(`✨ [${enemy.name}] est ébloui par un éclat de lumière !`, "danger");
+            foe.status.blinded = { rounds: v.rounds };
+            logEvent(`✨ [${foe.name}] est ébloui par un éclat de lumière ! (DEF −50 %)`, "danger");
+            break;
+        case 'corrode':
+            foe.status.corroded = { rounds: v.rounds };
+            logEvent(`🧪 L'armure de [${foe.name}] se corrode ! (DEF −40 %)`, "danger");
+            break;
+        case 'fear':
+            foe.status.feared = { rounds: v.rounds };
+            logEvent(`😱 [${foe.name}] est pris de terreur ! (dégâts −35 %)`, "danger");
+            break;
+        case 'adrenaline':
+            gameState.status.adrenaline = { rounds: v.rounds, mult: 1 + v.pct / 100 };
+            logEvent(`💉 Une décharge d'adrénaline vous parcourt ! (dégâts +${v.pct} %)`, "success");
             break;
         case 'heal': {
-            const healAmount = Math.max(3, Math.round((weapon.baseDmg || 5) * 0.4));
-            const actualHeal = applyPlayerHeal(healAmount);
-            logEvent(`💚 Votre arme régénère vos blessures (+${actualHeal} PV).`, "success");
+            const actualHeal = applyPlayerHeal(Math.max(1, Math.round(gameState.maxHp * v.pct / 100)));
+            logEvent(`💚 ${byArmor ? 'Votre armure' : 'Votre arme'} régénère vos blessures (+${actualHeal} PV).`, "success");
             break;
         }
         case 'lifesteal': {
-            const baseAmount = gameState._lastPlayerDamage || weapon.baseDmg || 5;
-            const stolen = Math.max(2, Math.round(baseAmount * 0.3));
-            const actualHeal = applyPlayerHeal(stolen);
-            logEvent(`🧛 Vous volez ${actualHeal} PV à [${enemy.name}].`, "success");
+            const actualHeal = applyPlayerHeal(Math.max(1, Math.round(baseDamage * v.pct / 100)));
+            if (actualHeal > 0) logEvent(`🧛 ${byArmor ? 'Votre armure siphonne' : 'Vous volez'} ${actualHeal} PV${byArmor ? '' : ` à [${foe.name}]`}.`, "success");
             break;
         }
-        case 'drain':
-            enemy.atk = Math.max(1, Math.round(enemy.atk * 0.85));
-            logEvent(`🌀 Vous drainez son énergie, [${enemy.name}] semble affaibli.`, "info");
-            break;
-        case 'corrode':
-            enemy.status.corroded = { rounds: 3 };
-            logEvent(`🧪 [${enemy.name}] voit son armure se corroder ! (DEF réduite)`, "danger");
-            break;
-        case 'fear':
-            enemy.status.feared = { rounds: 3 };
-            logEvent(`😱 [${enemy.name}] est pris de terreur ! (ATQ réduite)`, "danger");
-            break;
-        case 'adrenaline': {
-            gameState.status.adrenaline = { rounds: 2, mult: 1.35 };
-            logEvent("💉 Une décharge d'adrénaline vous parcourt ! (dégâts boostés)", "success");
+        case 'drain': {
+            // Pourcentages de l'ATQ D'ORIGINE (mémorisée au premier drain), pas cumulés en cascade :
+            // le plafond affiché (−40 %) est exactement le plafond réel.
+            const drained = foe.drainedPct || 0;
+            const step = Math.min(v.pct, v.cap - drained);
+            if (step <= 0) break;
+            if (foe.atkBeforeDrain === undefined) foe.atkBeforeDrain = foe.atk;
+            foe.drainedPct = drained + step;
+            foe.atk = Math.max(1, Math.round(foe.atkBeforeDrain * (1 - foe.drainedPct / 100)));
+            logEvent(`🌀 Vous drainez [${foe.name}] : ATQ −${step} % (total −${foe.drainedPct} %).`, "info");
             break;
         }
     }
 }
 
-// Applique la mécanique spéciale de l'arme équipée (Tranchant->saignement, Lourd->étourdissement, etc.),
-// avec une chance de déclenchement. Appelée uniquement après une attaque à l'arme réussie.
-// Applique la/les mécanique(s) spéciale(s) de l'arme équipée (Tranchant->saignement,
-// Lourd->étourdissement, etc.). Un objet rare peut porter plusieurs enchantements à la fois (voir
-// itemRarities) : chacun a sa PROPRE chance de se déclencher, indépendamment des autres, ce qui
-// rend un objet à 2-3 enchantements sensiblement plus fiable qu'un objet à un seul.
+// Qualificatifs d'un objet déclenchés par UN coup : arme/sort après un coup porté, armure après un
+// coup encaissé. Chaque qualificatif a sa PROPRE chance, indépendante des autres.
+function triggerItemQualifiers(item, target, foe, baseDamage) {
+    getItemQualifierList(item).forEach(({ key, rank }) => {
+        const q = itemQualifiers[key];
+        const v = getQualifierValues(key, target, rank);
+        if (!q || !v || q.kind !== 'proc' || ['shock', 'aoe'].includes(key)) return;
+        if (v.passive) {
+            resolveQualifierEffect(key, v, foe, baseDamage, target); // Vampirique : chaque coup, sans jet
+            return;
+        }
+        if (Math.random() * 100 >= v.chance) return;
+        if (key === 'random') {
+            const pool = getRandomizableQualifiers(target);
+            const picked = pool[Math.floor(Math.random() * pool.length)];
+            logEvent(`🎲 Chaotique : ${itemQualifiers[picked].name} !`, "info");
+            resolveQualifierEffect(picked, getQualifierValues(picked, target, rank), foe, baseDamage, target);
+            return;
+        }
+        resolveQualifierEffect(key, v, foe, baseDamage, target);
+    });
+}
+
+// Qualificatifs de l'arme (ou du sort) qui vient de toucher. Appelée uniquement après une attaque
+// réussie (performPlayerAttack() a renvoyé vrai). Pas de updateUI() ici : ne pas écraser l'affichage
+// des PV avant que l'animation du coup n'arrive à destination.
 function applyWeaponMechanic(weaponOverride = null) {
     const weapon = weaponOverride || gameState.equipment.weapon;
     const enemy = gameState.currentEnemy;
-    if (!weapon || !weapon.mechanics || weapon.mechanics.length === 0 || !enemy) return;
-
-    const triggerChance = 30; // 30% de chance, par enchantement, que celui-ci se déclenche
-    weapon.mechanics.forEach(mechanic => {
-        if (Math.random() * 100 >= triggerChance) return;
-
-        if (mechanic === 'random') {
-            // Chaotique : tire une mécanique au hasard parmi celles qui ont un vrai effet
-            const picked = IMPLEMENTED_WEAPON_MECHANICS[Math.floor(Math.random() * IMPLEMENTED_WEAPON_MECHANICS.length)];
-            resolveWeaponMechanicEffect(picked, weapon, enemy);
-        } else if (IMPLEMENTED_WEAPON_MECHANICS.includes(mechanic)) {
-            resolveWeaponMechanicEffect(mechanic, weapon, enemy);
-        }
-        // "pleasure_or_pain" (Vibrant), "aoe" (Explosif) et "darkness" (Ténébreux) restent des effets
-        // purement comiques/cosmétiques, sans mécanique de combat pour l'instant. "stealth" (Silencieux)
-        // n'a rien à faire ICI (pas de déclenchement pendant un échange) : il compte avant le combat,
-        // dans getStealthChance(), pour éviter de se faire repérer en explorant.
-    });
-    // Pas de updateUI() ici, pour la même raison que dans gainSkillXp() : ne pas écraser
-    // l'affichage des PV avant que l'animation du dé n'ait eu le temps d'arriver à destination.
+    if (!weapon || !enemy) return;
+    triggerItemQualifiers(weapon, qualifierTarget(weapon.category) || 'weapon', enemy, gameState._lastPlayerDamage || 0);
 }
 
-// Mécaniques d'armure qui ont un vrai effet de combat, symétrique de IMPLEMENTED_WEAPON_MECHANICS.
-// Avant ceci, un enchantement roulé sur une armure (autre que "Silencieux") ne servait à RIEN :
-// seule l'arme équipée déclenchait applyWeaponMechanic(). Une armure Légendaire pouvait donc
-// gâcher 2-3 de ses slots. Chaque mécanique retombe désormais sur l'ATTAQUANT (saignement,
-// étourdissement, poison, ralentissement, éblouissement, drain, corrosion, terreur — une punition
-// réactive) ou soigne/galvanise le PORTEUR (Régénérant, Vampirique, Galvanisant).
-const IMPLEMENTED_ARMOR_MECHANICS = ['bleed', 'stun', 'poison', 'slow', 'light', 'heal', 'lifesteal', 'drain', 'corrode', 'fear', 'adrenaline'];
-
-// Résout l'effet concret d'une mécanique d'armure sur l'attaquant (ou le porteur pour heal/lifesteal/
-// adrenaline). Séparé de applyArmorMechanic() pour que "random" (Chaotique) puisse réutiliser cette
-// logique après avoir tiré une mécanique au hasard, sans dupliquer le switch (voir resolveWeaponMechanicEffect,
-// son équivalent côté arme).
-function resolveArmorMechanicEffect(mechanicName, armor, attacker, incomingDamage) {
-    switch (mechanicName) {
-        case 'bleed':
-            attacker.status.bleed = { rounds: 3, dmgPerRound: Math.max(2, Math.round((armor.baseArmor || 5) * 0.3)) };
-            logEvent(`🩸 Les pointes de votre armure entaillent [${attacker.name}] !`, "danger");
-            break;
-        case 'stun':
-            attacker.status.stunned = true;
-            logEvent(`💫 Le choc en retour étourdit [${attacker.name}] !`, "danger");
-            break;
-        case 'poison':
-            attacker.status.bleed = { rounds: 5, dmgPerRound: Math.max(1, Math.round((armor.baseArmor || 5) * 0.15)) };
-            logEvent(`☢️ Votre armure empoisonne [${attacker.name}] au contact !`, "danger");
-            break;
-        case 'slow':
-            attacker.status.slowed = { rounds: 2 };
-            logEvent(`🐌 [${attacker.name}] est ralenti en vous frappant !`, "danger");
-            break;
-        case 'light':
-            attacker.status.blinded = { rounds: 2 };
-            logEvent(`✨ Un éclat de votre armure éblouit [${attacker.name}] !`, "danger");
-            break;
-        case 'heal': {
-            const healAmount = Math.max(3, Math.round((armor.baseArmor || 5) * 0.4));
-            const actualHeal = applyPlayerHeal(healAmount);
-            logEvent(`💚 Votre armure régénère vos blessures (+${actualHeal} PV).`, "success");
-            break;
-        }
-        case 'lifesteal': {
-            const stolen = Math.max(2, Math.round((incomingDamage || 0) * 0.3));
-            const actualHeal = applyPlayerHeal(stolen);
-            logEvent(`🧛 Votre armure vampirique siphonne ${actualHeal} PV sur le coup encaissé.`, "success");
-            break;
-        }
-        case 'drain':
-            attacker.atk = Math.max(1, Math.round(attacker.atk * 0.85));
-            logEvent(`🌀 Votre armure draine l'énergie de [${attacker.name}], qui semble affaibli.`, "info");
-            break;
-        case 'corrode':
-            attacker.status.corroded = { rounds: 3 };
-            logEvent(`🧪 Le contact avec votre armure corrode celle de [${attacker.name}] !`, "danger");
-            break;
-        case 'fear':
-            attacker.status.feared = { rounds: 3 };
-            logEvent(`😱 [${attacker.name}] recule, terrifié par votre armure !`, "danger");
-            break;
-        case 'adrenaline':
-            gameState.status.adrenaline = { rounds: 2, mult: 1.35 };
-            logEvent("💉 Encaisser ce coup vous galvanise ! (dégâts boostés)", "success");
-            break;
-    }
-}
-
-// Applique la/les mécanique(s) spéciale(s) de l'armure équipée, à chaque coup encaissé (symétrique
-// de applyWeaponMechanic(), déclenchée par resolveEnemyCounterAttack() plutôt que par une attaque
-// du joueur). Chaque enchantement a sa propre chance de se déclencher, indépendamment des autres.
+// Qualificatifs de l'armure portée, à chaque coup encaissé (appelée après la riposte d'un mob, et après
+// chaque frappe d'un boss). Épineux renvoie une part des dégâts sans jamais achever l'attaquant : la
+// mort d'un mob se résout toujours sur une action du joueur ou un effet sur la durée.
 function applyArmorMechanic(attacker, incomingDamage) {
     const armor = gameState.equipment.armor;
-    if (!armor || !armor.mechanics || armor.mechanics.length === 0 || !attacker) return;
+    if (!armor || !attacker || gameState.hp <= 0) return;
+    const thorns = getItemQualifierValues(armor, 'thorns', 'armor');
+    if (thorns && incomingDamage > 0 && attacker.hp > 1) {
+        const reflected = Math.min(attacker.hp - 1, Math.max(1, Math.round(incomingDamage * thorns.pct / 100)));
+        attacker.hp -= reflected;
+        logEvent(`🌵 Votre armure épineuse renvoie ${reflected} dégâts à [${attacker.name}].`, "info");
+    }
+    triggerItemQualifiers(armor, 'armor', attacker, incomingDamage);
+}
 
-    const triggerChance = 30; // Même taux que applyWeaponMechanic(), par cohérence
-    armor.mechanics.forEach(mechanic => {
-        if (Math.random() * 100 >= triggerChance) return;
+// Ténébreux (armure) : chance d'esquiver complètement une attaque ennemie.
+function rollPlayerDodge(enemy) {
+    const values = getItemQualifierValues(gameState.equipment.armor, 'darkness', 'armor');
+    if (!values || Math.random() * 100 >= values.chance) return false;
+    logEvent(`🌑 Vous vous fondez dans l'ombre et esquivez l'attaque de [${enemy.name}] !`, "success");
+    return true;
+}
 
-        if (mechanic === 'random') {
-            const picked = IMPLEMENTED_ARMOR_MECHANICS[Math.floor(Math.random() * IMPLEMENTED_ARMOR_MECHANICS.length)];
-            resolveArmorMechanicEffect(picked, armor, attacker, incomingDamage);
-        } else if (IMPLEMENTED_ARMOR_MECHANICS.includes(mechanic)) {
-            resolveArmorMechanicEffect(mechanic, armor, attacker, incomingDamage);
-        }
-        // "stealth" (Silencieux) reste géré à part (détection, avant combat) ; "pleasure_or_pain",
-        // "aoe" et "darkness" restent cosmétiques, comme sur les armes (voir IMPLEMENTED_WEAPON_MECHANICS).
-    });
+// Ralenti (Gelé) et apeuré (Terrifiant) réduisent les dégâts de l'ennemi ; chaque état perd un tour à
+// chaque riposte. Commun aux mobs et aux boss (voir performBossCounterAttack()).
+function consumeEnemyAttackDebuffs(enemy) {
+    let mult = 1;
+    let note = "";
+    const status = enemy.status || {};
+    if (status.slowed && status.slowed.rounds > 0) {
+        mult *= 0.5;
+        note += " (ralenti)";
+        status.slowed.rounds -= 1;
+        if (status.slowed.rounds <= 0) status.slowed = null;
+    }
+    if (status.feared && status.feared.rounds > 0) {
+        mult *= 0.65;
+        note += " (apeuré)";
+        status.feared.rounds -= 1;
+        if (status.feared.rounds <= 0) status.feared = null;
+    }
+    return { mult, note };
+}
+
+// Coût en mana effectif d'un sort (Économe le réduit).
+function getSpellManaCost(spell) {
+    if (!spell) return 0;
+    const thrifty = getItemQualifierValues(spell, 'thrifty', 'spell');
+    return thrifty ? Math.max(1, Math.round(spell.manaCost * (1 - thrifty.pct / 100))) : spell.manaCost;
 }
 
 // Tente d'appliquer un effet de statut au joueur selon le trait élémentaire du monstre
@@ -5622,6 +5668,12 @@ function applyMobEffectOnPlayer(enemy) {
     if (!enemy.effect) return;
     const triggerChance = 25; // 25% de chance que le trait élémentaire du monstre fasse effet
     if (Math.random() * 100 >= triggerChance) return;
+    // Tenace (qualificatif d'armure) : chance de résister à l'effet qui allait s'appliquer.
+    const tenacious = getItemQualifierValues(gameState.equipment.armor, 'tenacious', 'armor');
+    if (tenacious && Math.random() * 100 < tenacious.chance) {
+        logEvent(`🛡️ Tenace, vous résistez à l'effet de [${enemy.name}].`, "success");
+        return;
+    }
 
     switch (enemy.effect) {
         case 'burn':
@@ -5789,6 +5841,10 @@ function getBossPhase(enemy) {
 // résumé après la rafale plutôt que N lignes quasi identiques. Renvoie toujours playerDamage, silent
 // ou non, pour que ce résumé puisse être construit à partir des montants réellement encaissés.
 function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = false, silent = false) {
+    // Ténébreux (armure) : chaque frappe peut être esquivée à part entière.
+    if (rollPlayerDodge(enemy)) return 0;
+    // Gelé/Terrifiant : réduction posée pour tout le tour par performBossCounterAttack().
+    if (enemy._debuffAtkMult && enemy._debuffAtkMult !== 1) atk = Math.max(1, Math.round(atk * enemy._debuffAtkMult));
     const pressureFloor = pressureFloorOverride !== undefined
         ? pressureFloorOverride
         : gameState.maxHp * config.mobDamageScaling.pressureFloorFrac;
@@ -5822,6 +5878,7 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
         logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
         gameState.companion = null;
     }
+    applyArmorMechanic(enemy, playerDamage); // Qualificatifs d'armure : aussi contre un boss (rien si le joueur est tombé)
     return playerDamage;
 }
 
@@ -5840,7 +5897,10 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
 function performBossCounterAttack(enemy, onDone) {
     const wasEnraged = !!(enemy.status && enemy.status.enraged && enemy.status.enraged.rounds > 0);
     const dmgBefore = gameState.floorStats.damageTaken;
+    // Gelé/Terrifiant (qualificatifs) : réduisent aussi les frappes d'un boss, pour tout ce tour.
+    enemy._debuffAtkMult = consumeEnemyAttackDebuffs(enemy).mult;
     performBossCounterAttackInner(enemy, () => {
+        enemy._debuffAtkMult = 1;
         if (wasEnraged && enemy.status.enraged) {
             if (gameState.floorStats.damageTaken > dmgBefore) {
                 endMobEnrage(enemy);
@@ -6053,6 +6113,19 @@ function resolveEnemyCounterAttack(onDone) {
         return;
     }
 
+    // Déconcentré (qualificatif Vibrant) : chance de rater complètement sa riposte, le temps que l'effet dure.
+    if (enemy.status && enemy.status.distracted && enemy.status.distracted.rounds > 0) {
+        const distracted = enemy.status.distracted;
+        distracted.rounds -= 1;
+        if (distracted.rounds <= 0) enemy.status.distracted = null;
+        if (Math.random() * 100 < distracted.miss) {
+            logEvent(`😬 [${enemy.name}], déconcentré, frappe complètement à côté !`, "info");
+            showDie(ui.combatEnemyDie, "😬");
+            if (onDone) onDone();
+            return;
+        }
+    }
+
     // Compteur de kiting (Chantier 3) : atteindre ce point signifie que le mob RÉUSSIT à agir ce
     // tour-ci (quel que soit le chemin emprunté pour y arriver, boss ou non) — remise à sa base.
     resetMobKiting(enemy);
@@ -6079,21 +6152,14 @@ function resolveNonBossCounterAttack(enemy) {
 
     // Ennemi ralenti (arme "Gelé") ou apeuré (arme "Intimidant") : sa riposte inflige moins de dégâts.
     // Les deux réductions se cumulent si l'ennemi subit les deux effets à la fois.
-    let enemyAtk = enemy.atk;
-    let enemySlowedNote = "";
-    const enemyWasSlowed = enemy.status && enemy.status.slowed && enemy.status.slowed.rounds > 0;
-    if (enemyWasSlowed) {
-        enemyAtk = Math.round(enemyAtk * 0.5);
-        enemySlowedNote = " (ralenti)";
-        enemy.status.slowed.rounds -= 1;
-        if (enemy.status.slowed.rounds <= 0) enemy.status.slowed = null;
-    }
-    const enemyWasFeared = enemy.status && enemy.status.feared && enemy.status.feared.rounds > 0;
-    if (enemyWasFeared) {
-        enemyAtk = Math.round(enemyAtk * 0.65);
-        enemySlowedNote += " (apeuré)";
-        enemy.status.feared.rounds -= 1;
-        if (enemy.status.feared.rounds <= 0) enemy.status.feared = null;
+    const debuffs = consumeEnemyAttackDebuffs(enemy);
+    let enemyAtk = debuffs.mult !== 1 ? Math.round(enemy.atk * debuffs.mult) : enemy.atk;
+    const enemySlowedNote = debuffs.note;
+
+    // Ténébreux (armure) : l'attaque entière peut être esquivée.
+    if (rollPlayerDodge(enemy)) {
+        showDie(ui.combatEnemyDie, "🌑");
+        return;
     }
 
     // Élites (voir isEliteMob()) : multiplicateur de dégâts dédié, EN PLUS du scaling par étage et
@@ -6237,7 +6303,7 @@ function attackWeapon() {
     const weaponBonus = equippedGear ? (equippedGear.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
 
-    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0 }, "à l'arme");
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0, gear: equippedGear }, "à l'arme");
     if (landed) {
         gainSkillXp('weapon', SKILL_XP_PER_USE);
         applyWeaponMechanic(equippedGear); // Ne fait rien si le combat vient de se terminer ou si l'arme n'a pas de mécanique
@@ -6274,7 +6340,7 @@ function attackRanged() {
     const weaponBonus = equippedGear ? (equippedGear.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
 
-    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0 }, "à distance");
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0, gear: equippedGear }, "à distance");
     if (landed) {
         gainSkillXp('weapon', SKILL_XP_PER_USE);
         applyWeaponMechanic(equippedGear);
@@ -6316,7 +6382,7 @@ function attemptSprint() {
 
     const cfg = config.rangedCombat;
     gameState.timeLeft = Math.max(0, gameState.timeLeft - cfg.timeCostPerRound); // Manche contestée (voir resolveDistanceRound())
-    const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor);
+    const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor) + sumEquippedQualifier('swift', 'bonus'); // Véloce
     const rollOnce = () => 1 + Math.floor(Math.random() * cfg.dieSides) + levelBonus;
     const playerRoll = Math.max(rollOnce(), rollOnce()); // Avantage : deux dés, le meilleur gardé
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
@@ -6355,7 +6421,7 @@ function attemptRetreat() {
 
     const cfg = config.rangedCombat;
     gameState.timeLeft = Math.max(0, gameState.timeLeft - cfg.timeCostPerRound); // Manche contestée (voir resolveDistanceRound())
-    const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor);
+    const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor) + sumEquippedQualifier('swift', 'bonus'); // Véloce
     const rollOnce = () => 1 + Math.floor(Math.random() * cfg.dieSides) + levelBonus;
     const playerRoll = Math.max(rollOnce(), rollOnce()); // Avantage : deux dés, le meilleur gardé
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
@@ -6410,7 +6476,7 @@ function attemptEngage() {
     const effectiveAtk = gameState.atk + weaponBonus;
     const defReduction = weapon ? 0 : 0.35; // Pas d'arme équipée : mêmes mains nues qu'attackUnarmed()
     const label = weapon ? "en chargeant à l'arme" : "en chargeant à mains nues";
-    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier: config.engageAction.atkMultiplier, defReduction }, label);
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier: config.engageAction.atkMultiplier, defReduction, gear: weapon }, label);
     if (landed) {
         gainSkillXp(weapon ? 'weapon' : 'unarmed', SKILL_XP_PER_USE);
         if (weapon) applyWeaponMechanic(weapon);
@@ -6439,14 +6505,15 @@ function attackMagic() {
         logEvent(`Trop près pour lancer [${spell.spellName}] — éloignez-vous !`, "danger");
         return;
     }
-    if (gameState.mana < spell.manaCost) {
-        logEvent(`Mana insuffisant pour lancer [${spell.spellName}] (${spell.manaCost} requis).`, "danger");
+    const manaCost = getSpellManaCost(spell); // Économe (qualificatif de sort) le réduit
+    if (gameState.mana < manaCost) {
+        logEvent(`Mana insuffisant pour lancer [${spell.spellName}] (${manaCost} requis).`, "danger");
         return;
     }
     if (!tryPlayerAction()) return;
     gameState.lastAttackKind = 'magic'; // Posture du crawler (scene.js) : paume ouverte, lueur du sort
 
-    gameState.mana -= spell.manaCost;
+    gameState.mana -= manaCost;
 
     const skill = gameState.skills.magic;
     // Chantier "QoL/équilibrage" (Chantier C, voir NOTES_QOL_EQUILIBRAGE.md) : le mana paie la
@@ -6456,7 +6523,12 @@ function attackMagic() {
     // Le backfire reste le prix du chaos, et devient PLUS punitif à haut niveau qu'avant (plancher
     // abaissé) pour continuer à justifier ce risque une fois la compétence Magie montée.
     const mb = config.magicBalance;
-    const backfireChance = Math.max(mb.backfireMin, mb.backfireBase + mb.backfirePerLevel * (skill.level - 1)) + (gameState.anomalyEffects.backfireBonusPct || 0);
+    let backfireChance = Math.max(mb.backfireMin, mb.backfireBase + mb.backfirePerLevel * (skill.level - 1)) + (gameState.anomalyEffects.backfireBonusPct || 0);
+    // Qualificatifs de sort : Canalisé réduit le risque d'échec (jamais sous 1 %), Bredouillant l'augmente.
+    const channeled = getItemQualifierValues(spell, 'channeled', 'spell');
+    if (channeled) backfireChance = Math.max(1, backfireChance - channeled.bonus);
+    const stutter = getItemQualifierValues(spell, 'stutter', 'spell');
+    if (stutter) backfireChance += stutter.bonus;
     const atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
 
     if (Math.random() * 100 < backfireChance) {
@@ -6472,10 +6544,13 @@ function attackMagic() {
     const effectiveAtk = gameState.atk + (spell.baseDmg || 0);
     const used = performPlayerAttack(
         effectiveAtk,
-        { atkMultiplier, varianceRange: 0.35, defReduction: 0.15 }, // Les sorts ignorent un peu de DEF (thématique), pas toute
+        { atkMultiplier, varianceRange: 0.35, defReduction: 0.15, gear: spell, gearTarget: 'spell' }, // Les sorts ignorent un peu de DEF (thématique), pas toute
         `avec [${spell.spellName}]`
     );
-    if (used) gainSkillXp('magic', SKILL_XP_PER_USE);
+    if (used) {
+        gainSkillXp('magic', SKILL_XP_PER_USE);
+        applyWeaponMechanic(spell); // Qualificatifs du sort (brûlure, poison, gel, vol de vie…)
+    }
 }
 
 // Tentative de fuite : quitte le combat sans le gagner ni obtenir de loot/XP.
