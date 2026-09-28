@@ -1,17 +1,54 @@
 // ==========================================
-// SYSTÈME DE RARETÉ (remplace l'ancien système "quality", qui n'affectait plus vraiment les stats)
+// SYSTÈME DE RARETÉ ET NIVEAU D'OBJET (chantier "refonte des objets", voir NOTES_ITEMS.md)
 // ==========================================
-// Chaque palier détermine :
-//  - le nombre de slots d'enchantement (voir itemModifiers.effect ci-dessous)
-//  - le multiplicateur appliqué aux stats de base de l'objet (baseDmg/baseArmor/heal)
-// Un objet plus rare a donc mécaniquement plus de stats ET plus de pouvoirs — jamais l'un sans
-// l'autre. `color` est utilisé par l'UI pour teinter la carte de l'objet dans l'inventaire.
+// Un objet généré porte deux axes de puissance, jamais l'un sans l'autre :
+//  - son NIVEAU D'OBJET (`itemLevel`, l'étage où il a été obtenu — voir itemBalance.levelScaling) :
+//    un objet trouvé profond est plus fort, un objet gardé trop longtemps décroche peu à peu ;
+//  - sa RARETÉ (ci-dessous) : `statMult` multiplie les stats de base, `slots` donne le nombre de
+//    qualificatifs (itemModifiers.effect) et `maxRank` leur rang maximal, `valueMult` sa valeur
+//    marchande. Les écarts de stats bruts entre raretés sont volontairement resserrés : la
+//    différence de puissance passe surtout par les qualificatifs, lisibles à l'inspection.
+// Calibrage (npm run sim:items) : un Légendaire trouvé à l'étage 4 vaut à peu près un Rare de l'étage 7
+// et un Commun de l'étage 10 — surpuissant quelques étages, puis à remplacer.
+// `color` teinte la carte de l'objet dans l'inventaire. L'ordre du tableau est l'ordre des paliers
+// (du plus faible au plus fort) : "monter d'un palier" = index + 1.
 const itemRarities = [
-    { key: "commun",     name: "Commun",     slots: 0, statMult: 1.0, color: "#9ca3af" },
-    { key: "rare",       name: "Rare",       slots: 1, statMult: 1.3, color: "#60a5fa" },
-    { key: "epique",     name: "Épique",     slots: 2, statMult: 1.7, color: "#c084fc" },
-    { key: "legendaire", name: "Légendaire", slots: 3, statMult: 2.3, color: "#fbbf24" }
+    { key: "camelote",   name: "Camelote",   slots: 0, maxRank: 0, statMult: 0.7,  valueMult: 0.3, color: "#a8835a" },
+    { key: "commun",     name: "Commun",     slots: 0, maxRank: 0, statMult: 1.0,  valueMult: 1,   color: "#9ca3af" },
+    { key: "rare",       name: "Rare",       slots: 1, maxRank: 1, statMult: 1.25, valueMult: 2.5, color: "#60a5fa" },
+    { key: "epique",     name: "Épique",     slots: 2, maxRank: 2, statMult: 1.5,  valueMult: 7,   color: "#c084fc" },
+    { key: "legendaire", name: "Légendaire", slots: 3, maxRank: 3, statMult: 1.8,  valueMult: 20,  color: "#fbbf24" }
 ];
+
+// Réglages d'équilibrage du loot — valeurs de départ calibrées avec `npm run sim:items`
+// (tests/tools/item-curve.js), à ajuster par playtest réel comme le reste des chiffres du jeu.
+const itemBalance = {
+    // Stat = base × statMult(rareté) × (1 + perLevel × (itemLevel − 1)) × aléa ±statJitter.
+    // `equipment` (armes, armes à distance, armures, dégâts des sorts) suit à peu près la croissance
+    // de l'ATQ du joueur ; `heal` (soins des consommables) celle de ses PV max. Le mana (plafonné
+    // à 100) et le coût en mana des sorts ne dépendent jamais du niveau d'objet.
+    levelScaling: { equipment: 0.2, heal: 0.15 },
+    statJitter: 0.1,
+    // Valeur = baseValue × valueMult(rareté) × (1 + perLevel × (itemLevel − 1)) × (1 + perEnchant × qualificatifs)
+    value: { perLevel: 0.15, perEnchant: 0.15 },
+    // Poids de rareté du loot selon l'étage (première ligne dont maxFloor >= étage courant). La
+    // Camelote n'est jamais qu'un petit bruit de fond : c'est surtout le palier du cadeau de départ.
+    lootTables: [
+        { maxFloor: 2,        weights: { camelote: 12, commun: 65, rare: 20, epique: 3,  legendaire: 0 } },
+        { maxFloor: 5,        weights: { camelote: 8,  commun: 55, rare: 28, epique: 8,  legendaire: 1 } },
+        { maxFloor: 9,        weights: { camelote: 5,  commun: 42, rare: 34, epique: 15, legendaire: 4 } },
+        { maxFloor: 14,       weights: { camelote: 3,  commun: 33, rare: 34, epique: 22, legendaire: 8 } },
+        { maxFloor: Infinity, weights: { camelote: 2,  commun: 24, rare: 34, epique: 28, legendaire: 12 } }
+    ],
+    // Montées de palier après le tirage (voir rollLootRarity() dans generator.js) : un mob élite a une
+    // CHANCE de monter d'un palier, un boss (ou un trésor de CAFET_ASSOMBRIE) monte TOUJOURS d'un palier,
+    // avec un plancher.
+    eliteUpgradeChance: 25,
+    boss: { tierBonus: 1, minRarityKey: "rare", secondItemChance: 25, signatureRepeatChance: 20 },
+    treasure: { tierBonus: 1 },
+    // Le boss d'un repaire (étage urbain) lâche un butin d'un niveau d'objet au-dessus de l'étage.
+    lairBossLevelBonus: 1
+};
 
 const itemModifiers = {
     // Enchantements : chaque slot de rareté (voir itemRarities.slots) en pioche un dans le pool
@@ -41,76 +78,75 @@ const itemModifiers = {
     ]
 };
 
-// `jokeItem: true` marque un objet volontairement dérisoire (blague DCC), exclu du tirage normal du
-// loot par generateItem() (voir generator.js) : sans ce flag, ces objets étaient tirés au même titre
-// que le reste et pouvaient constituer une part significative du loot early-game, souvent strictement
-// inférieurs à l'équipement de départ. Ils restent accessibles via le cadeau de bienvenue
-// (generateWelcomeGiftItem()) et le kit de test — le flag est volontairement simple pour rester
-// réutilisable par un futur rework des qualificatifs absurdes.
+// `jokeItem: true` marque un objet volontairement dérisoire (blague DCC) : il ne tombe JAMAIS qu'au
+// palier Camelote (voir pickBaseItem() dans generator.js), jamais au milieu du loot normal où il
+// serait strictement inférieur à tout le reste. Le cadeau de départ (Camelote) y pioche volontiers.
+// Stats de BASE (niveau d'objet 1, rareté Commune) : voir itemBalance pour la mise à l'échelle.
+// `minFloor` (défaut 1) : étage à partir duquel un objet de base peut tomber — les meilleurs objets de
+// base n'apparaissent qu'en profondeur, ce qui s'ajoute au niveau d'objet pour donner une vraie
+// sensation de progression. Les objets blagues (`jokeItem`) ne tombent jamais qu'au palier Camelote.
 const baseItems = {
     weapons: [
-        { name: "Pied-de-biche", baseDmg: 8, baseValue: 10 },
+        { name: "Pied-de-biche", baseDmg: 4, baseValue: 10 },
         { name: "Extincteur Cabossé", baseDmg: 1, baseValue: 2, canEnchant: false, jokeItem: true },
-        { name: "Agrafeuse Tactique", baseDmg: 5, baseValue: 15 },
-        { name: "Épée en Pain de Mie", baseDmg: 12, baseValue: 20 },
-        { name: "Hache à Viande", baseDmg: 15, baseValue: 25 },
-        { name: "Bâton de Dynamite", baseDmg: 20, baseValue: 30 },
-        { name: "Couteau en Beurre", baseDmg: 3, baseValue: 5, canEnchant: false, jokeItem: true },
-        { name: "Lance à Feu", baseDmg: 18, baseValue: 35 },
-        { name: "Gantelet Électrique", baseDmg: 14, baseValue: 28 },
-        { name: "Antivol de Voiture", baseDmg: 16, baseValue: 26 },
-        { name: "Pied de Parasol", baseDmg: 11, baseValue: 16 }
+        { name: "Agrafeuse Tactique", baseDmg: 3, baseValue: 15 },
+        { name: "Épée en Pain de Mie", baseDmg: 6, baseValue: 20, minFloor: 2 },
+        { name: "Hache à Viande", baseDmg: 7, baseValue: 25, minFloor: 3 },
+        { name: "Bâton de Dynamite", baseDmg: 9, baseValue: 30, minFloor: 5 },
+        { name: "Couteau en Beurre", baseDmg: 2, baseValue: 5, canEnchant: false, jokeItem: true },
+        { name: "Lance à Feu", baseDmg: 8, baseValue: 35, minFloor: 4 },
+        { name: "Gantelet Électrique", baseDmg: 7, baseValue: 28, minFloor: 3 },
+        { name: "Antivol de Voiture", baseDmg: 7, baseValue: 26, minFloor: 3 },
+        { name: "Pied de Parasol", baseDmg: 5, baseValue: 16 }
     ],
-    // Armes à distance : utilisées uniquement en posture "à distance" (voir gameState.stance dans
-    // app.js). Même système de rareté/enchantement que les armes de mêlée.
+    // Armes à distance : utilisées uniquement quand un écart sépare le joueur du mob (voir
+    // attackRanged() dans app.js). Même système de rareté/qualificatifs que les armes de mêlée.
     ranged: [
-        { name: "Lance-Pierre de Chantier", baseDmg: 10, baseValue: 18 },
-        { name: "Arc de Fortune Rafistolé", baseDmg: 14, baseValue: 22 },
-        { name: "Arbalète de Musée", baseDmg: 20, baseValue: 35 },
-        { name: "Pistolet à Clous", baseDmg: 16, baseValue: 28 },
-        { name: "Fusil de Chasse Rouillé", baseDmg: 25, baseValue: 45 },
-        { name: "Sarbacane Improvisée", baseDmg: 6, baseValue: 8, jokeItem: true },
-        { name: "Pistolet à Eau Surpuissant", baseDmg: 9, baseValue: 14 },
-        { name: "Lance-Confettis Bricolé", baseDmg: 7, baseValue: 12 }
+        { name: "Lance-Pierre de Chantier", baseDmg: 5, baseValue: 18 },
+        { name: "Arc de Fortune Rafistolé", baseDmg: 6, baseValue: 22, minFloor: 2 },
+        { name: "Arbalète de Musée", baseDmg: 9, baseValue: 35, minFloor: 4 },
+        { name: "Pistolet à Clous", baseDmg: 7, baseValue: 28, minFloor: 3 },
+        { name: "Fusil de Chasse Rouillé", baseDmg: 11, baseValue: 45, minFloor: 6 },
+        { name: "Sarbacane Improvisée", baseDmg: 3, baseValue: 8, jokeItem: true },
+        { name: "Pistolet à Eau Surpuissant", baseDmg: 4, baseValue: 14 },
+        { name: "Lance-Confettis Bricolé", baseDmg: 4, baseValue: 12 }
     ],
     armors: [
-        { name: "Couvercle de Poubelle", baseArmor: 5, baseValue: 8 },
-        { name: "Costume Trois-Pièces Déchiré", baseArmor: 2, baseValue: 20, canEnchant: false },
-        { name: "Gilet Haute Visibilité", baseArmor: 3, baseValue: 5, canEnchant: false, jokeItem: true },
-        { name: "Armure de Carton", baseArmor: 8, baseValue: 12 },
-        { name: "Plastron de Coquillage", baseArmor: 6, baseValue: 15 },
+        { name: "Couvercle de Poubelle", baseArmor: 3, baseValue: 8 },
+        { name: "Costume Trois-Pièces Déchiré", baseArmor: 1, baseValue: 20 },
+        { name: "Gilet Haute Visibilité", baseArmor: 2, baseValue: 5, canEnchant: false, jokeItem: true },
+        { name: "Armure de Carton", baseArmor: 5, baseValue: 12, minFloor: 2 },
+        { name: "Plastron de Coquillage", baseArmor: 4, baseValue: 15 },
         { name: "Rideau de Douche Camouflage", baseArmor: 0, baseValue: 8, jokeItem: true },
-        { name: "Combinaison de Plongée", baseArmor: 10, baseValue: 22 },
-        { name: "Gilet Pare-Balles Périmé", baseArmor: 4, baseValue: 10, canEnchant: false },
-        { name: "Bouclier en Polystyrène", baseArmor: 7, baseValue: 18 },
-        { name: "Manteau en Cuir de Skaï Renforcé", baseArmor: 12, baseValue: 40 },
-        { name: "Bouée Canard Renforcée", baseArmor: 6, baseValue: 14 },
-        { name: "Gilet de Sécurité Chantier", baseArmor: 9, baseValue: 20 }
+        { name: "Combinaison de Plongée", baseArmor: 6, baseValue: 22, minFloor: 3 },
+        { name: "Gilet Pare-Balles Périmé", baseArmor: 2, baseValue: 10 },
+        { name: "Bouclier en Polystyrène", baseArmor: 4, baseValue: 18, minFloor: 2 },
+        { name: "Manteau en Cuir de Skaï Renforcé", baseArmor: 7, baseValue: 40, minFloor: 5 },
+        { name: "Bouée Canard Renforcée", baseArmor: 4, baseValue: 14 },
+        { name: "Gilet de Sécurité Chantier", baseArmor: 5, baseValue: 20, minFloor: 3 }
     ],
-    // Note : les enchantements sur les consommables restent purement cosmétiques pour l'instant
-    // (aucune mécanique n'est câblée sur useConsumable()) — seuls `heal` et `mana` sont mis à
-    // l'échelle par la rareté. canEnchant:false ici sert juste à garder certains objets volontairement
-    // "nuls". `mana` restaure du mana (voir useConsumable() dans app.js) : n'a d'effet que si un sort
+    // Les consommables n'ont jamais de qualificatif : seuls `heal` (rareté + niveau d'objet) et
+    // `mana` (rareté seule) sont mis à l'échelle. `mana` restaure du mana (voir useConsumable() dans app.js) : n'a d'effet que si un sort
     // est équipé (gameState.equipment.spell), comme la barre de mana elle-même.
     consumables: [
-        { name: "Café Froid", heal: 15, baseValue: 5, canEnchant: false },
+        { name: "Café Froid", heal: 15, baseValue: 5 },
         { name: "Barre Céréalière Douteuse", heal: 25, baseValue: 10 },
-        { name: "Boisson Énergisante Radioactive", heal: 50, baseValue: 25, canEnchant: false },
+        { name: "Boisson Énergisante Radioactive", heal: 50, baseValue: 25 },
         { name: "Kit de Premiers Secours Périmé", heal: 30, baseValue: 12 },
-        { name: "Sandwich Moisissure", heal: 20, baseValue: 8, canEnchant: false },
+        { name: "Sandwich Moisissure", heal: 20, baseValue: 8 },
         { name: "Pilule de Force", heal: 0, baseValue: 15 },
         { name: "Barre Protéinée Suspecte du Distributeur", heal: 40, baseValue: 20 },
-        { name: "Flasque de Sirop Contre la Toux Premier Prix", heal: 35, baseValue: 18, canEnchant: false },
+        { name: "Flasque de Sirop Contre la Toux Premier Prix", heal: 35, baseValue: 18 },
         { name: "Bonbon Explosif", heal: 5, baseValue: 3 },
         { name: "Perfusion de Sponsor", heal: 60, baseValue: 30 },
         { name: "Barbe à Papa Périmée", heal: 22, baseValue: 9 },
         { name: "Boisson Isotonique Suspecte", heal: 35, baseValue: 16 },
-        { name: "Flasque d'Essence Arcanique", heal: 0, mana: 45, baseValue: 22, canEnchant: false },
+        { name: "Flasque d'Essence Arcanique", heal: 0, mana: 45, baseValue: 22 },
         { name: "Chewing-gum Ectoplasmique", heal: 10, mana: 25, baseValue: 18 },
         { name: "Encre de Calamar Luminescent", heal: 0, mana: 35, baseValue: 20 }
     ]
 };
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { itemRarities, itemModifiers, baseItems };
+    module.exports = { itemRarities, itemBalance, itemModifiers, baseItems };
 }

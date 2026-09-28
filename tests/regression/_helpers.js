@@ -65,6 +65,7 @@ function resetTransientState() {
     gameState.equipment = { weapon: null, armor: null, ranged: null, spell: null };
     gameState.mana = gameState.maxMana;
     gameState.spellbook = [];
+    gameState.signaturesAwarded = [];
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null };
     gameState.companion = null;
     gameState.bossChoicePending = false;

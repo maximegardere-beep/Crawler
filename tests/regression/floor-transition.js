@@ -32,7 +32,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(gameState.floorStats.xpGained === 30, "gainXp() : alimente floorStats.xpGained");
 
     resetTransientState();
-    addLoot(0.5);
+    addLoot();
     assert(gameState.floorStats.itemsFound === 1, "addLoot() : alimente floorStats.itemsFound (objet effectivement conservé)");
 
     resetTransientState();
@@ -51,7 +51,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
 
     const originalRandom = Math.random;
     Math.random = () => 0; // categories[0] = 'weapons' (voir generator.js) : jamais un consommable, toujours limité
-    addLoot(0);
+    addLoot();
     Math.random = originalRandom;
     assert(gameState.floorStats.itemsFound === 0, "addLoot() : réserve pleine -> objet non conservé, jamais compté dans le tally");
     gameState.inventory = []; // Ne pas polluer l'inventaire pour les tests suivants (resetTransientState() ne le touche pas)

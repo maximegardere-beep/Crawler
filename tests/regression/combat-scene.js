@@ -568,7 +568,7 @@ function isRedHex(hex) {
     assert(resolveItemSpriteKey({ name: 'Truc Inconnu', category: 'ranged' }) === 'generic:ranged' && resolveItemSpriteKey({ name: 'Truc', category: 'armors' }) === 'generic:armors', "resolveItemSpriteKey() : objet sans dessin -> dessin générique de sa catégorie");
     delete ITEM_SPRITES['Objet de Test'];
     ['weapons', 'ranged', 'armors'].forEach(cat => {
-        const item = generateItem(5, cat);
+        const item = generateItem({ floor: 8, category: cat });
         assert(item.baseName && item.name.startsWith(item.baseName) && baseItems[cat].some(b => b.name === item.baseName), `generateItem('${cat}') : baseName = nom d'origine de l'objet`);
     });
     const broken = Object.keys(ITEM_SPRITES).filter(k => !['melee', 'ranged', 'armor'].includes(ITEM_SPRITES[k].kind) || /undefined|NaN/.test(ITEM_SPRITES[k].art));
@@ -663,7 +663,7 @@ function isRedHex(hex) {
     const badTip = Object.keys(ITEM_SPRITES).filter(k => !Array.isArray(ITEM_SPRITES[k].tip) || ITEM_SPRITES[k].tip.length !== 2);
     assert(badTip.length === 0, `Chaque sprite a son point d'enchantement (tip) (${badTip.join(', ')})`);
 
-    const generated = generateItem(5, 'ranged');
+    const generated = generateItem({ floor: 8, category: 'ranged', rarityKey: 'commun' });
     assert(resolveItemSpriteKey(generated) === generated.baseName && !resolveItemSpriteKey(generated).startsWith('generic:'), "Un objet généré retrouve son propre sprite par son nom d'origine");
 
     // Icônes d'inventaire

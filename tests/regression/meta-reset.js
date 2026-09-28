@@ -37,7 +37,7 @@ const KNOWN_GAMESTATE_KEYS = [
     'pendingSafehouseRoomId', 'pendingShopCityId', 'pendingSneakAttack', 'pendingStairAfterCombat', 'pendingStairsChoice',
     'pendingStealthEncounter', 'pendingTravel', 'pendingUrbanAdvanceAfterCombat', 'pendingUrbanBossCityId',
     'pendingUrbanBossEncounter', 'pendingUrbanTravel', 'playerName', 'safehouseChoicePending', 'saveEnabled', 'stairsChoicePending',
-    'shopChoicePending', 'skills', 'spellbook', 'status', 'stealthChoicePending', 'timeLeft',
+    'shopChoicePending', 'signaturesAwarded', 'skills', 'spellbook', 'status', 'stealthChoicePending', 'timeLeft',
     'urbanMap', 'xp', 'xpToNextLevel'
 ];
 

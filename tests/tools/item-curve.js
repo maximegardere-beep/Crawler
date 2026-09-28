@@ -29,13 +29,18 @@ const pad = (v, n) => String(v).padStart(n);
 // ---------------------------------------------------------------------------------------------
 const NEW_API = typeof computeItemStat === 'function';
 
-// Stat moyenne (baseDmg/baseArmor) d'un objet d'une catégorie, d'une rareté et d'un niveau d'objet.
+// Objets de base accessibles à un étage (minFloor), hors objets blagues.
+function basePoolAt(category, floor) {
+    return baseItems[category].filter(i => !i.jokeItem && (i.minFloor || 1) <= floor);
+}
+
+// Stat moyenne (baseDmg/baseArmor) d'un objet d'une catégorie, d'une rareté et d'un niveau d'objet
+// (trouvé à l'étage `itemLevel`, donc parmi les objets de base accessibles à cet étage).
 function itemStat(category, rarityKey, itemLevel) {
-    if (NEW_API) return computeItemStat(category, rarityKey, itemLevel);
     const statKey = category === 'armors' ? 'baseArmor' : 'baseDmg';
-    const pool = baseItems[category].filter(i => !i.jokeItem);
     const rarity = itemRarities.find(r => r.key === rarityKey);
-    return avg(pool, statKey) * rarity.statMult;
+    if (NEW_API) return computeItemStat(avg(basePoolAt(category, itemLevel), statKey), rarityKey, itemLevel);
+    return avg(baseItems[category].filter(i => !i.jokeItem), statKey) * rarity.statMult;
 }
 
 // Tire la rareté d'un objet de loot pour un contexte donné ('mob' | 'elite' | 'boss' | 'explore').
@@ -49,9 +54,11 @@ function sampleRarity(context, floor) {
     return rollRarity(getLootPowerScore({ xpReward: xpMob })).key;
 }
 
+// Valeur moyenne d'une arme (qualificatifs = slots de la rareté).
 function itemValue(category, rarityKey, itemLevel) {
-    if (typeof computeItemValue === 'function') return computeItemValue(category, rarityKey, itemLevel);
-    return avg(baseItems[category].filter(i => !i.jokeItem), 'baseValue');
+    if (!NEW_API) return avg(baseItems[category].filter(i => !i.jokeItem), 'baseValue');
+    const rarity = itemRarities.find(r => r.key === rarityKey);
+    return computeItemValue(avg(basePoolAt(category, itemLevel), 'baseValue'), rarityKey, itemLevel, rarity.slots);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -111,7 +118,8 @@ const PROFILES = {
     'rare@étage': (f) => ({ w: itemStat('weapons', 'rare', f), a: itemStat('armors', 'rare', f) }),
     'épique@étage': (f) => ({ w: itemStat('weapons', 'epique', f), a: itemStat('armors', 'epique', f) }),
     'légend.@étage': (f) => ({ w: itemStat('weapons', 'legendaire', f), a: itemStat('armors', 'legendaire', f) }),
-    'légend.@2 gardé': () => ({ w: itemStat('weapons', 'legendaire', 2), a: itemStat('armors', 'legendaire', 2) })
+    'légend.@2 gardé': () => ({ w: itemStat('weapons', 'legendaire', 2), a: itemStat('armors', 'legendaire', 2) }),
+    'légend.@5 gardé': (f) => (f < 5 ? { w: 0, a: 0 } : { w: itemStat('weapons', 'legendaire', 5), a: itemStat('armors', 'legendaire', 5) })
 };
 
 const players = playerByFloor();
@@ -139,7 +147,7 @@ for (const [label, profile] of Object.entries(PROFILES)) {
 // ---------------------------------------------------------------------------------------------
 // 3. Valeur marchande (arme moyenne)
 // ---------------------------------------------------------------------------------------------
-console.log('\n=== Valeur (baseValue effective) d\'une arme moyenne ===');
+console.log('\n=== Valeur (PO) d\'une arme moyenne ===');
 console.log('étage ' + rarityKeys.map(k => k.slice(0, 6).padStart(8)).join(''));
 for (const floor of [1, 5, 10, 15, 18]) {
     console.log(pad(floor, 5) + ' ' + rarityKeys.map(k => pad(Math.round(itemValue('weapons', k, floor)), 8)).join(''));

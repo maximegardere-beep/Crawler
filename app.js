@@ -58,6 +58,9 @@ const gameState = {
     // `inventory` (voir spells.js/generateSpellScroll()) : un sort ne compte pas dans maxInventory,
     // pas plus qu'un consommable. Le sort actuellement équipé n'y figure jamais (voir equipSpell()).
     spellbook: [],
+    // Boss (nom de base) dont l'objet signature a déjà été obtenu dans cette partie : le premier est
+    // garanti, les suivants seulement à itemBalance.boss.signatureRepeatChance (voir awardBossSignatureItem()).
+    signaturesAwarded: [],
     // Écart de distance courant (0 = corps à corps). Aucune notion de posture : la distance de
     // départ dépend uniquement de la nature du mob (mob.ranged), et n'évolue ensuite que via les
     // actions dédiées S'approcher/S'éloigner (attemptSprint/attemptRetreat) — voir config.rangedCombat.
@@ -190,7 +193,7 @@ const config = {
         // attendant le rééquilibrage complet de cette table (proposition faite, pas encore validée).
         // loot/minorFind rééquilibrés (1->4 / 6->3, validé) : moins de petites trouvailles de PV
         // (régénération désormais surtout passive, voir applyTimeElapsedRegen()), plus d'objets sans
-        // toucher à leur rareté (gérée ailleurs par rollRarity()/getLootPowerScore()).
+        // toucher à leur rareté (gérée ailleurs par rollLootRarity(), voir itemBalance dans items.js).
         nothing: 37,        // Rien de notable
         combat: 25,         // Rencontre hostile
         loot: 4,            // Objet généré procéduralement
@@ -240,14 +243,6 @@ const config = {
         // étage ci-dessus et des modificateurs aléatoires déjà existants (qui gonflaient surtout les
         // PV) — appliqué au moment de la riposte, voir resolveEnemyCounterAttack().
         eliteDamageMult: 1.65
-    },
-
-    // Chantier "rework combat", Chantier 2 (récompenses de boss) : rareté plancher garantie sur le
-    // loot d'un boss (voir winCombat()/rollRarity() dans generator.js) — Légendaire est réservé à
-    // l'objet signature garanti séparément (voir bestiary.js, districtBosses.*.signatureItem), donc
-    // Épique comme plancher pour le loot ALÉATOIRE laisse une vraie place à la Légendaire "en bonus".
-    bossRewards: {
-        minRarityKey: 'epique'
     },
 
     // Chantier "rework combat", Chantier 2 (rework des boss) : un boss n'est plus "un mob avec plus
@@ -1839,11 +1834,24 @@ function useConsumable(index) {
 // (gameState.equipment.spell), qui ne fait justement jamais partie de gameState.spellbook. Réservé à
 // l'interaction boutique (voir triggerShopEncounter()) : pas de vente "de rue" hors ville spécialisée.
 const SELL_VALUE_RATIO = 0.4;
+
+// Valeur marchande d'un objet (PO) : `value` calculée à la génération (rareté, niveau d'objet,
+// qualificatifs — voir computeItemValue() dans generator.js), `baseValue` brute en repli pour un objet
+// construit à la main (tests) ou antérieur à ce système.
+function getItemValue(item) {
+    if (!item) return 0;
+    return item.value ?? item.baseValue ?? 0;
+}
+
+function getSellPrice(item) {
+    return Math.max(1, Math.round(getItemValue(item) * SELL_VALUE_RATIO));
+}
+
 function sellItem(index) {
     const item = gameState.inventory[index];
     if (!item) return;
 
-    const price = Math.max(1, Math.round((item.baseValue || 0) * SELL_VALUE_RATIO));
+    const price = getSellPrice(item);
     gameState.gold += price;
     gameState.inventory.splice(index, 1);
     logEvent(`Vous vendez [${formatItemDisplayName(item)}] pour ${price} PO.`, "success");
@@ -1859,7 +1867,7 @@ function sellSpell(index) {
     const spell = gameState.spellbook[index];
     if (!spell) return;
 
-    const price = Math.max(1, Math.round((spell.baseValue || 0) * SELL_VALUE_RATIO));
+    const price = getSellPrice(spell);
     gameState.gold += price;
     gameState.spellbook.splice(index, 1);
     logEvent(`Vous vendez [${formatItemDisplayName(spell)}] pour ${price} PO.`, "success");
@@ -1933,7 +1941,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         setSceneHeader('💰', 'Trésor', 'Butin', 'treasure');
         logEvent("Vous trébuchez sur quelque chose de brillant...", "info");
-        addLoot(getLootPowerScore(null)); // Pas de monstre : estimation par l'étage courant
+        addLoot({ source: 'explore' });
         return;
     }
 
@@ -2819,73 +2827,52 @@ function recordEpitaph(text, deathContext) {
     }
 }
 
-// Score de puissance (0 à 1) utilisé pour pondérer la rareté du loot obtenu (voir generateItem()
-// dans generator.js) : basé sur l'XP donnée par le monstre vaincu si disponible (capture à la fois
-// l'étage ET la puissance intrinsèque/les modificateurs du monstre), sinon estimé à partir du seul
-// étage courant (loot "Trésor" trouvé en explorant, sans combat).
-const LOOT_POWER_XP_REFERENCE = 400; // xpReward au-delà duquel le score de puissance est plafonné à 1
-function getLootPowerScore(enemy) {
-    if (enemy && enemy.xpReward) {
-        return Math.max(0, Math.min(1, enemy.xpReward / LOOT_POWER_XP_REFERENCE));
-    }
-    return Math.max(0, Math.min(1, gameState.currentFloor / 20));
-}
-
 // Ajoute un objet généré à l'inventaire. Les consommables ne sont jamais limités (slots dédiés
 // infinis) ; seuls les objets d'équipement (armes/armures/armes à distance) comptent dans la
 // capacité limitée (gameState.maxInventory). Un parchemin de sort (catégorie 'scrolls') rejoint
 // gameState.spellbook (inventaire magique dédié) plutôt que gameState.inventory : lui non plus
 // n'est jamais limité, au même titre que les consommables (voir equipSpell()).
-function addLoot(powerScore = 0, options = {}) {
-    // minRarityKey (chantier "rework combat" — loot garanti de rareté minimale sur un boss) : voir
-    // winCombat()/rollRarity() dans generator.js.
-    const item = generateItem(powerScore, null, options.minRarityKey || null);
+// `options` est transmis tel quel à generateItem() (generator.js) : `source` ('explore' | 'mob' |
+// 'elite' | 'boss' | 'treasure') pilote la rareté, `itemLevel` le niveau d'objet (défaut : étage).
+function addLoot(options = {}) {
+    storeLootItem(generateItem(options));
+}
+
+// Range un objet déjà construit (loot ou objet signature) : grimoire, inventaire, ou perdu si la
+// réserve d'équipement est pleine. `prefix` : décoration du message de log (objet signature).
+function storeLootItem(item, prefix = "") {
     if (item.category === 'scrolls') {
         gameState.spellbook.push(item);
         gameState.floorStats.itemsFound += 1;
-        logEvent(`Sort appris : [${formatItemDisplayName(item)}] !`, "loot");
+        logEvent(`${prefix}Sort appris : [${formatItemDisplayName(item)}] !`, "loot");
         updateSpellbookUI();
-        return;
+        return true;
     }
     const isConsumable = item.category === 'consumables';
     const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
     if (isConsumable || equipmentCount < gameState.maxInventory) {
         gameState.inventory.push(item);
         gameState.floorStats.itemsFound += 1;
-        logEvent(`Objet obtenu : [${formatItemDisplayName(item)}] !`, "loot");
+        logEvent(`${prefix}Objet obtenu : [${formatItemDisplayName(item)}] !`, "loot");
         updateInventoryUI();
-    } else {
-        logEvent("Vous trouvez un objet, mais votre réserve d'équipement est pleine !", "danger");
+        return true;
     }
+    logEvent(`${prefix}Vous trouvez [${formatItemDisplayName(item)}], mais votre réserve d'équipement est pleine !`, "danger");
+    return false;
 }
 
-// Chantier "rework combat", Chantier 2 : objet signature garanti à la défaite d'un boss précis (voir
-// bestiary.js, districtBosses.*.signatureItem) — copie fraîche à chaque victoire (jamais partagée
-// avec le template), toujours Légendaire, en plus du loot aléatoire déjà garanti de rareté minimale
-// (voir config.bossRewards/winCombat()).
-function awardBossSignatureItem(boss) {
+// Objet signature d'un boss précis (bestiary.js, districtBosses.*.signatureItem) : garanti à la
+// PREMIÈRE défaite de ce boss dans la partie (gameState.signaturesAwarded), puis seulement à
+// itemBalance.boss.signatureRepeatChance — plusieurs quartiers d'un même type reviennent au fil des
+// étages, un Légendaire garanti à chaque fois inonderait le joueur. Toujours Légendaire, au niveau
+// d'objet du butin du boss (voir buildSignatureItem() dans generator.js).
+function awardBossSignatureItem(boss, itemLevel = gameState.currentFloor) {
     if (!boss || !boss.signatureItem) return;
-    const item = JSON.parse(JSON.stringify(boss.signatureItem));
-    const legendary = itemRarities[itemRarities.length - 1];
-    item.rarity = legendary.name;
-    item.rarityColor = legendary.color;
-
-    if (item.category === 'scrolls') {
-        gameState.spellbook.push(item);
-        gameState.floorStats.itemsFound += 1;
-        logEvent(`✨ Objet signature obtenu : [${formatItemDisplayName(item)}] !`, "loot");
-        updateSpellbookUI();
-        return;
-    }
-    const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
-    if (equipmentCount < gameState.maxInventory) {
-        gameState.inventory.push(item);
-        gameState.floorStats.itemsFound += 1;
-        logEvent(`✨ Objet signature obtenu : [${formatItemDisplayName(item)}] !`, "loot");
-        updateInventoryUI();
-    } else {
-        logEvent(`✨ ${boss.name} laissait tomber [${formatItemDisplayName(item)}], mais votre réserve d'équipement est pleine !`, "danger");
-    }
+    const key = boss.baseName || boss.name;
+    const alreadyAwarded = gameState.signaturesAwarded.includes(key);
+    if (alreadyAwarded && Math.random() * 100 >= itemBalance.boss.signatureRepeatChance) return;
+    if (!alreadyAwarded) gameState.signaturesAwarded.push(key);
+    storeLootItem(buildSignatureItem(boss.signatureItem, itemLevel), "✨ Objet signature — ");
 }
 
 // Point de passage UNIQUE pour toute perte de PV du joueur (piège, saignement, riposte ennemie...) —
@@ -4220,12 +4207,12 @@ function declineLair() {
 // VILLES SPÉCIALISÉES (marchand/professeur — voir generateUrbanFloorMap())
 // ==========================================
 const SHOP_CATEGORY_LABELS = { weapons: "Armes", ranged: "Armes à distance", armors: "Armures", scrolls: "Magie (parchemins)" };
-const SHOP_MARKUP = 2.5; // Prix d'achat = baseValue × ce multiplicateur (voir SELL_VALUE_RATIO pour l'inverse)
+const SHOP_MARKUP = 2.5; // Prix d'achat = valeur × ce multiplicateur (voir SELL_VALUE_RATIO pour l'inverse)
 const TRAINER_COST_PER_LEVEL = 20; // Coût = ce montant × le niveau ACTUEL de la compétence
 
 // Stock FIXE d'un marchand (3 objets de sa spécialité, générés UNE seule fois à la première visite —
 // voir triggerShopEncounter()), avec une puissance proportionnelle à l'étage courant comme le reste
-// du loot (voir getLootPowerScore()). Chaque objet reçoit un prix d'achat dérivé de sa baseValue.
+// du loot (voir rollLootRarity()). Chaque objet reçoit un prix d'achat dérivé de sa valeur (getItemValue()).
 function generateShopStock(specialty) {
     const stock = [];
     // ECONOMIE_AUSTERE (anomalies.js) : remise fixe sur le prix d'achat, appliquée une fois à la
@@ -4233,8 +4220,8 @@ function generateShopStock(specialty) {
     // stock appartient à l'anomalie de CET étage précis.
     const discount = 1 - (gameState.anomalyEffects.shopDiscountPct || 0);
     for (let i = 0; i < 3; i++) {
-        const item = generateItem(getLootPowerScore(null), specialty);
-        item.price = Math.max(1, Math.round((item.baseValue || 1) * SHOP_MARKUP * discount));
+        const item = generateItem({ source: 'explore', category: specialty });
+        item.price = Math.max(1, Math.round(getItemValue(item) * SHOP_MARKUP * discount));
         stock.push(item);
     }
     return stock;
@@ -4369,7 +4356,7 @@ function updateShopUI() {
             ui.shopSellList.appendChild(empty);
         }
         sellable.forEach((item, index) => {
-            const price = Math.max(1, Math.round((item.baseValue || 0) * SELL_VALUE_RATIO));
+            const price = getSellPrice(item);
             const row = document.createElement('button');
             row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
             row.innerHTML = `<span class="flex items-center gap-1.5 min-w-0">${itemIconSvg(item, 24)}<span class="truncate">${formatItemDisplayName(item)}</span></span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
@@ -4395,7 +4382,7 @@ function updateShopUI() {
             header.innerText = `${group.icon || '✨'} ${group.spellName}`;
             ui.shopSellSpellsList.appendChild(header);
             group.copies.forEach(({ spell, index }) => {
-                const price = Math.max(1, Math.round((spell.baseValue || 0) * SELL_VALUE_RATIO));
+                const price = getSellPrice(spell);
                 const row = document.createElement('button');
                 row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
                 row.innerHTML = `<span class="flex items-center gap-2 min-w-0"><span class="font-bold uppercase text-[9px] shrink-0" style="color:${spell.rarityColor || '#9ca3af'}">${spell.rarity || ''}</span><span class="truncate text-gray-400">${spellCopyStats(spell)}</span></span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
@@ -4667,7 +4654,7 @@ function triggerCafetRoom(room) {
         gameOver(false, 'trap');
         return;
     }
-    addLoot(1); // Trésor nettement supérieur à la normale : score de puissance maximal (voir getRarityWeights())
+    addLoot({ source: 'treasure' }); // Trésor nettement supérieur à la normale : monte d'un palier de rareté (voir rollLootRarity())
     logEvent("Malgré le piège, un trésor bien caché récompense votre prudence.", "success");
 }
 
@@ -6566,18 +6553,19 @@ function winCombat() {
         gainCompanionXp(15);
     }
 
-    // Butin : garanti pour un boss (avec une chance de second objet), sinon la chance standard.
-    // La rareté du loot est pondérée par la puissance du monstre vaincu (voir getLootPowerScore).
-    // Chantier "rework combat" (Chantier 2) : le loot d'un boss est en plus garanti au moins
-    // config.bossRewards.minRarityKey, et un objet signature UNIQUE à ce boss tombe systématiquement
-    // (voir awardBossSignatureItem()/bestiary.js).
-    const lootPower = getLootPowerScore(defeatedEnemy);
+    // Butin (chantier "refonte des objets", voir itemBalance dans items.js) : la rareté dépend de
+    // l'étage, plus de la puissance du monstre. Un boss garantit un objet (un palier au-dessus, au
+    // moins Rare) avec une chance d'un second, plus son objet signature (voir
+    // awardBossSignatureItem()) ; le boss d'un repaire lâche un butin d'un niveau d'objet au-dessus.
+    // Un mob normal a 40 % de chance de lâcher un objet, un élite une chance de monter d'un palier.
     if (wasBoss) {
-        addLoot(lootPower, { minRarityKey: config.bossRewards.minRarityKey });
-        if (Math.random() * 100 < 50) addLoot(lootPower, { minRarityKey: config.bossRewards.minRarityKey }); // 50% de chance d'un deuxième objet
-        awardBossSignatureItem(defeatedEnemy);
+        const isLairBoss = !!(gameState.pendingLairDive && gameState.pendingLairDive.stage === 'boss');
+        const itemLevel = gameState.currentFloor + (isLairBoss ? itemBalance.lairBossLevelBonus : 0);
+        addLoot({ source: 'boss', itemLevel });
+        if (Math.random() * 100 < itemBalance.boss.secondItemChance) addLoot({ source: 'boss', itemLevel });
+        awardBossSignatureItem(defeatedEnemy, itemLevel);
     } else if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
-        addLoot(lootPower);
+        addLoot({ source: defeatedEnemy && isEliteMob(defeatedEnemy) ? 'elite' : 'mob' });
     }
 
     // Si ce combat était une salle de boss du quartier (escalier ou non), la salle est désormais

@@ -6,35 +6,29 @@ const { assert, resetTransientState } = require('./_helpers.js');
 // equipSpell()/attackMagic() dans app.js).
 // ===================================================================
 
-// generateSpellScroll() : un sort plus rare coûte plus de mana ET frappe plus fort, comme une arme.
+// generateSpellScroll() : un sort plus rare coûte plus de mana ET frappe plus fort, comme une arme ;
+// le niveau d'objet ne fait grimper que les dégâts (chantier "refonte des objets").
 {
     const originalRandom = Math.random;
-    // [index du sort (0 -> "Toucher Électrique", melee), jet de rareté (0 -> Commun), jitter du
-    // multiplicateur de stats (0.5 -> exactement 1.0, sans le ±10% aléatoire)]
-    let commonSeq = [0, 0, 0.5];
-    let commonIdx = 0;
-    Math.random = () => commonSeq[(commonIdx++) % commonSeq.length];
-    let scroll = generateSpellScroll(0);
+    Math.random = () => 0; // Premier sort accessible à l'étage 1 : "Toucher Électrique" (melee)
+    let scroll = generateSpellScroll({ floor: 1, rarityKey: 'commun', jitter: false });
     Math.random = originalRandom;
+    const base = spellCatalog.find(s => s.name === "Toucher Électrique");
     assert(scroll.category === 'scrolls', "generateSpellScroll() : catégorie 'scrolls' (pour le tri addLoot())");
     assert(scroll.spellCategory === 'melee', "generateSpellScroll() : conserve la catégorie melee/ranged du sort de base");
     assert(scroll.spellName === "Toucher Électrique", "generateSpellScroll() : conserve le nom du sort de base");
     assert(scroll.name === "Parchemin : Toucher Électrique", "generateSpellScroll() : nom d'affichage préfixé");
-    assert(scroll.rarity === "Commun", "generateSpellScroll() : rareté Commun avec un jet à 0");
-    assert(scroll.baseDmg === 10 && scroll.manaCost === 13, "generateSpellScroll() : stats de base inchangées au palier Commun (statMult ~1.0, valeurs Chantier C)");
-    // Chantier "QoL/équilibrage" (Chantier D) : baseValue posé sur le baseDmg NON scalé du sort de
-    // base (10 pour Toucher Électrique, valeur Chantier C), jamais affecté par la rareté — même
-    // convention que baseValue sur les objets classiques (items.js).
-    assert(scroll.baseValue === Math.round(10 * 1.6), "generateSpellScroll() : baseValue dérivé du baseDmg non scalé (Chantier D)");
+    assert(scroll.rarity === "Commun" && scroll.itemLevel === 1, "generateSpellScroll() : rareté et niveau d'objet imposés");
+    assert(scroll.baseDmg === base.baseDmg && scroll.manaCost === base.manaCost, "generateSpellScroll() : stats de base inchangées au palier Commun, niveau 1");
+    assert(scroll.value === base.baseValue, "generateSpellScroll() : valeur = baseValue du sort au palier Commun, niveau 1");
 
-    const seq = [0, 0.999, 0.5];
-    let idx = 0;
-    Math.random = () => seq[(idx++) % seq.length];
-    scroll = generateSpellScroll(0);
+    Math.random = () => 0;
+    const legend = generateSpellScroll({ floor: 1, rarityKey: 'legendaire', jitter: false });
+    const deep = generateSpellScroll({ floor: 1, itemLevel: 10, rarityKey: 'commun', jitter: false });
     Math.random = originalRandom;
-    assert(scroll.rarity === "Légendaire", "generateSpellScroll() : rareté Légendaire avec un jet au plus haut");
-    assert(scroll.baseDmg > 10 && scroll.manaCost > 13, "generateSpellScroll() : un sort plus rare inflige plus ET coûte plus de mana");
-    assert(scroll.baseValue === Math.round(10 * 1.6), "generateSpellScroll() : baseValue NE grimpe PAS avec la rareté (même convention que les objets classiques)");
+    assert(legend.baseDmg > scroll.baseDmg && legend.manaCost > scroll.manaCost, "generateSpellScroll() : un sort plus rare inflige plus ET coûte plus de mana");
+    assert(legend.value >= scroll.value * 10, "generateSpellScroll() : un parchemin Légendaire vaut bien plus qu'un Commun (Backlog : prix des parchemins)");
+    assert(deep.baseDmg > scroll.baseDmg && deep.manaCost === scroll.manaCost, "generateSpellScroll() : le niveau d'objet fait grimper les dégâts, jamais le coût en mana");
 }
 
 // equipSpell() : équipe depuis le grimoire, renvoie l'ancien sort équipé dedans, initialise le mana
@@ -68,7 +62,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     const seq = [0.9, 0, 0, 0.5];
     let idx = 0;
     Math.random = () => seq[(idx++) % seq.length];
-    addLoot(0);
+    addLoot();
     Math.random = originalRandom;
     assert(gameState.spellbook.length === 1, "addLoot() : un parchemin rejoint le grimoire (spellbook)");
     assert(gameState.inventory.length === 0, "addLoot() : un parchemin ne rejoint jamais l'inventaire classique");

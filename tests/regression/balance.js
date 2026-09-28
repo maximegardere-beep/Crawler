@@ -194,19 +194,9 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(gameState.currentEnemy.hp === 9999, "attackMagic() : le plancher de backfire (3%) reste incompressible, même à très haut niveau");
 }
 
-// Items blagues (7) : jokeItem exclu du loot normal (generateItem()), et poids de rareté bas de
-// fourchette redistribués (moins de Commun, plus de Rare/Épique/Légendaire).
+// Items blagues (7) : Rideau de Douche Camouflage n'est plus le pire objet ET le plus cher. (Le tirage
+// des objets blagues, désormais réservés au palier Camelote, est testé dans loot.js.)
 {
-    for (let i = 0; i < 150; i++) {
-        const item = generateItem(0); // powerScore=0 : bas de fourchette, le plus favorable aux objets faibles
-        assert(item.jokeItem !== true, `generateItem() : ne tire jamais un objet 'jokeItem' (obtenu: ${item.name})`);
-    }
-    const weights = getRarityWeights(0);
-    assert(weights.commun === 60, "getRarityWeights() : poids Commun bas de fourchette réduit à 60");
-    assert(weights.rare === 30, "getRarityWeights() : poids Rare bas de fourchette relevé à 30");
-    assert(Math.abs(weights.epique - 5.5) < 0.001, "getRarityWeights() : poids Épique bas de fourchette relevé à 5.5");
-    assert(Math.abs(weights.legendaire - 1.5) < 0.001, "getRarityWeights() : poids Légendaire bas de fourchette relevé à 1.5");
-
     const rideau = baseItems.armors.find(i => i.name === "Rideau de Douche Camouflage");
     assert(rideau.baseValue === 8, "items.js : Rideau de Douche Camouflage n'est plus le pire objet ET le plus cher (baseValue 50 -> 8)");
 }
