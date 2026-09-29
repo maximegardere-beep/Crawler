@@ -27,7 +27,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Codé** — à playtester | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | **Codé** — à playtester | 2, 1, 3 (faits) |
-| 5 | Rework de la carte (3 lots) | XL | Idée | — |
+| 5 | Rework de la carte + génération des étages | XL | **Exploré — suggestions, tour 1** | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
 | 8 | Sons | M | Idée (ancien backlog) | hébergement des fichiers non tranché |
@@ -414,16 +414,53 @@ Les 5 lots sont livrés (détail et points à surveiller : `NOTES_DEATHWATCH.md`
 codant : l'émission n'a lieu que dans une vraie partie (nom confirmé), comme les succès ; l'échec « −2 H »
 ne peut jamais tuer (au moins 1 H reste).
 
-## 5. Rework de la carte — XL — Idée (à découper)
+## 5. Rework de la carte + génération des étages — XL — Exploré, suggestions (tour 1)
 
-**Demande** : zoom, réseau plus complexe et logique, et surtout bouton carte pour les étages non urbains.
-**Découpage proposé** (livrables séparés, dans cet ordre) :
-- **5a. Carte des étages classiques** (le plus attendu) : le bouton `#btn-toggle-map` existe déjà, masqué
-  hors étage urbain ; `renderGraphMiniMap()` est générique et `computeGraphLayout()` avait été gardée
-  exprès pour ça. Il faut un layout des pièces/quartiers, le brouillard de guerre (pièces visitées et
-  lieux connus), et le déplacement vers les lieux connus depuis la carte.
-- **5b. Zoom** (pincer / molette + boutons) sur le moteur commun.
-- **5c. Réseau urbain plus complexe et logique** (génération des villes/routes).
+**Demande** : zoom, réseau plus complexe et logique, bouton carte pour les étages non urbains ; **revoir
+la génération des couloirs et des salles, de mauvaise qualité**. Méthode demandée : prendre le temps,
+**plusieurs tours de suggestions et d'itérations** avant le plan final et le code.
+**Inspiration** (artwork du wiki DCC, « Floors 1 & 2, The Tutorial Floors ») : un *Borough* = 4 blocs de
+quartier séparés par de grandes avenues ; chaque bloc est un dédale de salles rectangulaires reliées par
+des couloirs, avec une salle de boss de quartier, des salles sûres, (beaucoup de) toilettes et une guilde
+tutoriel ; les avenues se prolongent au-delà du borough.
+
+### Exploré (état actuel — `generateFloorMap()` / `generateQuadrant()`, app.js)
+Mesures sur 500 étages générés :
+- **Aucune géométrie** : une pièce n'a ni position ni taille, seulement une liste de voisins. ~48 pièces
+  identiques par étage (10-14 par quartier, jamais selon la profondeur). Une carte ne peut donc être
+  qu'un dessin arbitraire du graphe — c'est pour ça qu'elle n'existe pas encore.
+- **Couloirs arbitraires** : le type « artère »/« ruelle » est tiré au hasard (40/60) sans lien avec la
+  structure ; les « boucles » relient deux pièces quelconques du quartier (raccourcis incohérents, 2,4 %
+  de couloirs en double).
+- **Structure pauvre** : arbre en « tronc » (70 % des nouvelles pièces se raccrochent à la dernière),
+  profondeur max ~5,6, 18 % de culs-de-sac, degré max 7 ; aucune salle n'a de taille ni de fonction
+  hors boss / salle sûre.
+- **Jonctions entre quartiers** : une seule par paire voisine (anneau 0-1-2-3), entre deux pièces tirées
+  au hasard → **9 % débouchent directement dans une salle de boss**, 12 % dans une salle sûre.
+- **Exploration** : toucher la scène fait avancer vers un voisin non visité au hasard ; sans voisin
+  inconnu, trajet automatique vers la bifurcation la plus proche. Le joueur ne choisit jamais sa direction.
+- **Réutilisable** : la mini-carte graphique générique (`renderGraphMiniMap()` : caméra, pan, marqueurs)
+  et le brouillard « villes connues » des étages urbains ; tout le reste du jeu ne voit l'étage qu'à
+  travers `roomsById`, `neighbors`, `computeDistance()`, `enterRoom()`, les lieux connus et les anomalies
+  (LABYRINTHE, CAFET_ASSOMBRIE).
+
+### Suggestions — tour 1 (direction générale, rien de figé)
+Piste « Borough » (prototype jetable dessiné pour la discussion, hors dépôt) :
+- **Étage = une grille** : 4 blocs de quartier (2×2) séparés par des avenues ; chaque bloc a une vraie
+  géométrie (grille de cases).
+- **Salles** rectangulaires de tailles variées, placées sans chevauchement ; grande salle de boss au fond
+  du bloc ; salles sûres ; 2-3 portes par bloc sur les avenues (jamais dans une salle de boss).
+- **Couloirs** courts : arbre couvrant minimal entre salles voisines + quelques boucles LOCALES ; la
+  longueur réelle du couloir remplace « artère/ruelle » pour le coût et le risque des trajets.
+- **Avenues** = réseau de transit entre blocs (rapide), point de passage obligé d'un quartier à l'autre.
+- **Carte** : dessin fidèle salles + couloirs, brouillard de guerre (pièces visitées, portes aperçues),
+  zoom et pan (moteur des étages urbains).
+
+Questions ouvertes pour le tour 2 : échelle (un borough par étage ou plusieurs en profondeur), rôle des
+avenues, types de salles (toilettes, guildes…), liberté de déplacement, style de la carte, étages urbains.
+
+### Décisions
+- (tour 1 en cours)
 
 ## 6. Mini-jeux d'exploration — ? — En attente
 
