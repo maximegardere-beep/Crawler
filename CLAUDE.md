@@ -290,6 +290,17 @@ Tailwind CDN, **aucun build step**.
   run sur Game Over/Victoire. **Revente d'office** : `storeLootItem()`, réserve pleine, revend le butin
   pour `LOOT_OVERFLOW_SELL_RATIO` (50 %) du prix de revente marchand (`getOverflowSellPrice()`) au lieu
   de le perdre.
+- **Chasseurs de primes** (chantier 3, voir `NOTES_CHASSEURS.md`, chiffres dans `config.bounty`) : prime
+  `gameState.bounty.value` (0-100) qui monte avec les victoires faciles (`onBountyVictory()`, facilité de la
+  chronique) et les fuites devant un chasseur, et ne retombe QU'EN tuant un chasseur ; seul point de
+  modification `addBounty()` (paliers `getBountyTier()` 30/60/90, vignette `wantedPoster`, badge
+  `#bounty-status`). Chasseurs (`bountyHunters` dans bestiary.js, hors `baseMobs`) générés par
+  `generateBountyHunter()` avec des stats **calées sur le joueur** (`computeBountyHunterStats()`, pure,
+  generator.js, à partir de `getPlayerCombatProfile()`), toujours élites, `isBountyHunter`. Apparition
+  `maybeSpawnBountyHunter()` dans `handleStealthEncounter()` (avant la détection : aucune esquive) et les
+  deux embuscades de trajet ; escouade à 90+ (`gameState.pendingBountySquad`, Chef enchaîné par
+  `winCombat()`). Fuite à `fleeChance` (50 %) fixe. Épitaphe dédiée `EPITAPH_TEMPLATES.chasseurPrime`
+  (pool spécial, comme `mobFaible`).
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
@@ -834,7 +845,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests

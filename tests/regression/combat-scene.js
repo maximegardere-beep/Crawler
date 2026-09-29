@@ -474,7 +474,7 @@ function isRedHex(hex) {
 // propre à CHAQUE cause de mort que gameOver() sait dériver (EPITAPH_TEMPLATES, hors pools spéciaux).
 // ===================================================================
 {
-    const causes = Object.keys(EPITAPH_TEMPLATES).filter(k => k !== 'mobFaible');
+    const causes = Object.keys(EPITAPH_TEMPLATES).filter(k => k !== 'mobFaible' && k !== 'chasseurPrime'); // pools spéciaux, pas des causes de mort
     const missing = causes.filter(c => !GAME_OVER_CAUSE_PROPS[c]);
     assert(missing.length === 0, `Chaque cause de mort a son indice sur l'écran Game Over (manquantes : ${missing.join(', ')})`);
     const cluesDistinct = new Set(causes.map(c => GAME_OVER_CAUSE_PROPS[c]));
@@ -823,7 +823,9 @@ function isRedHex(hex) {
 
     const missing = baseMobs.filter(m => !MOB_DETAILS[m.name]).map(m => m.name);
     assert(missing.length === 0, `Chaque mob de baseMobs a son détail signature (${missing.join(', ')})`);
-    const orphan = Object.keys(MOB_DETAILS).filter(k => !baseMobs.some(m => m.name === k));
+    const orphan = Object.keys(MOB_DETAILS).filter(k => !baseMobs.some(m => m.name === k) && !bountyHunters.some(h => h.name === k));
+    const missingHunters = bountyHunters.filter(h => !MOB_DETAILS[h.name]).map(h => h.name);
+    assert(missingHunters.length === 0, `Chaque chasseur de primes a son détail signature (${missingHunters.join(', ')})`);
     assert(orphan.length === 0, `Chaque détail correspond à un mob existant, nom exact (${orphan.join(', ')})`);
     const badDetail = Object.keys(MOB_DETAILS).filter(k => { const d = MOB_DETAILS[k]; return !inBounds(d.bounds) || !isPalette(d.palette) || (d.top != null && (d.top > -40 || d.top < -92)) || forbidden.test(d.markup); });
     assert(badDetail.length === 0, `Détails : bornes, palette, hauteur, aucun élément interdit (${badDetail.join(', ')})`);

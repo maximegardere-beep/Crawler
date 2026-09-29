@@ -821,6 +821,8 @@ const EXPLORE_VIGNETTES = {
     citySafe: (ctx) => propAt('citySign', 222, 124, { text: ctx.cityName }) + crawlerAt(CRAWLER_X),
     urbanGuardian: (ctx) => propAt(ctx.isExit ? 'exitDoor' : 'stairsDown', 184, 124) + mobAt(ctx.enemy, 236, 'stand') + crawlerAt(CRAWLER_X),
     lairSpotted: () => propAt('lairEntrance', 212, 124) + crawlerAt(CRAWLER_X),
+    // Chasseurs de primes (chantier 3) : l'avis de recherche placardé, montant de la prime courante.
+    wantedPoster: (ctx) => propAt('wantedPoster', 200, 124, { value: ctx.value }) + crawlerAt(CRAWLER_X),
     stairs: () => propAt('stairsDown', 214, 124) + crawlerAt(CRAWLER_X)
 };
 
@@ -846,7 +848,7 @@ function renderVignetteScene(target, scene) {
     if (!known) return;
     renderSceneBackdrop(target.backdrop, target.prefix, resolveBackdropKey(gameState.currentDistrict));
     const enemy = spec.enemy;
-    const key = [spec.key, enemy ? `${enemy.visualArchetype}:${enemy.effect}:${enemy.isBoss ? 1 : 0}` : '', spec.cityName || '', spec.isExit ? 1 : 0, currentCrawler().key].join('|');
+    const key = [spec.key, enemy ? `${enemy.visualArchetype}:${enemy.effect}:${enemy.isBoss ? 1 : 0}` : '', spec.cityName || '', spec.isExit ? 1 : 0, spec.value ?? '', currentCrawler().key].join('|');
     if (vignetteKeys[target.prefix] === key) return;
     target.vignette.innerHTML = composeExploreVignette(spec.key, spec);
     vignetteKeys[target.prefix] = key;

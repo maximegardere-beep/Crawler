@@ -41,7 +41,7 @@ function fillReserve() {
 // --- Catalogue ---
 {
     const ids = new Set(ACHIEVEMENTS.map(a => a.id));
-    assert(ACHIEVEMENTS.length === 35 && ids.size === 35, "Catalogue : 35 succès, identifiants uniques");
+    assert(ACHIEVEMENTS.length === 38 && ids.size === 38, "Catalogue : 38 succès (35 + 3 chasseurs de primes), identifiants uniques");
     assert(ACHIEVEMENTS.every(a => a.icon && a.title && a.text && typeof a.check === 'function' && ACHIEVEMENT_TIERS[a.tier]), "Catalogue : chaque succès a icône, titre, texte, palier valide et condition");
     assert(ACHIEVEMENTS.filter(a => a.posthumous).length === 4 && ACHIEVEMENTS.filter(a => a.posthumous).every(a => a.secret), "Catalogue : 4 succès posthumes, tous secrets");
     assert(ACHIEVEMENTS.filter(a => a.tier === 'gold').length === 4, "Catalogue : 4 succès Or (Régicide, Collectionneur, Abysses, Sortie)");

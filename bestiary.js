@@ -167,10 +167,20 @@ const districtBosses = {
         signatureItem: { name: "Micro Électrifié de l'Animateur Vedette", category: "weapons", baseDmg: 8, baseValue: 38, canEnchant: false, mechanics: ["adrenaline"], signature: true } }
 };
 
+// Chasseurs de primes gobelins (chantier 3, voir NOTES_CHASSEURS.md) : hors de `baseMobs` (jamais tirés par
+// un quartier), générés par generateBountyHunter() (generator.js) avec des stats CALÉES SUR LE JOUEUR, pas
+// sur l'étage. Les multiplicateurs ci-dessous ne font que décliner les variantes autour de ce calibrage
+// (config.bounty) ; `minBounty` = prime minimale pour qu'une variante soit tirée.
+const bountyHunters = [
+    { key: 'tracker', name: "Gobelin Pisteur de Primes", ranged: true, hpMult: 0.9, atkMult: 1, defMult: 1, minBounty: 0, visualArchetype: "goblinoid" },
+    { key: 'bruiser', name: "Gobelin Cogneur de Primes", ranged: false, hpMult: 1, atkMult: 1.15, defMult: 0.9, minBounty: 0, visualArchetype: "goblinoid" },
+    { key: 'chief', name: "Chef d'Escouade Gobelin", ranged: false, hpMult: 1.3, atkMult: 1, defMult: 1, minBounty: 90, visualArchetype: "goblinoid" }
+];
+
 function findBossForDistrict(districtName) {
     return districtBosses[districtName] || null;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { mobModifiers, baseMobs, findMobByName, districtBosses, findBossForDistrict };
+    module.exports = { mobModifiers, baseMobs, findMobByName, districtBosses, findBossForDistrict, bountyHunters };
 }

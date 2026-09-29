@@ -1278,6 +1278,26 @@ const BACKDROP_PROPS = {
         },
         light: () => null
     },
+    // Avis de recherche (chantier 3, chasseurs de primes) : affiche placardée sur un poteau, portrait
+    // grossier du crawler, « RECHERCHÉ » et une prime. Origine : pied du poteau, au sol.
+    wantedPoster: {
+        markup: (o) => `
+            <rect x="-2" y="-40" width="4" height="40" fill="#3a3e44" stroke="#05060c" stroke-width="1"/>
+            <g transform="rotate(-3 0 -62)">
+                <rect x="-22" y="-92" width="44" height="54" fill="#e3d3a8" stroke="#05060c" stroke-width="1.4"/>
+                <path d="M-22 -92 l4 3 l-4 2 M22 -40 l-4 -2 l4 -3" fill="#c9b27c" stroke="none"/>
+                <text x="0" y="-83" text-anchor="middle" font-size="7" font-weight="bold" fill="#7f1d1d">RECHERCHÉ</text>
+                <rect x="-12" y="-79" width="24" height="22" fill="#d6c291" stroke="#5b3a22" stroke-width="0.8"/>
+                <circle cx="0" cy="-72" r="4.2" fill="#5b3a22"/>
+                <path d="M-8 -57 q8 -10 16 0 z" fill="#5b3a22"/>
+                <path d="M-3 -73.5 l1.5 1 M3 -73.5 l-1.5 1" stroke="#e3d3a8" stroke-width="0.6"/>
+                <text x="0" y="-49" text-anchor="middle" font-size="5" font-weight="bold" fill="#3b2a1a">MORT OU VIF</text>
+                <text x="0" y="-42.5" text-anchor="middle" font-size="5.5" font-weight="bold" fill="#7f1d1d">PRIME ${o.value != null ? o.value : '???'}</text>
+            </g>
+            <circle cx="-17" cy="-89" r="1.3" fill="#8a929c" stroke="#05060c" stroke-width="0.5"/>
+            <circle cx="17" cy="-89" r="1.3" fill="#8a929c" stroke="#05060c" stroke-width="0.5"/>`,
+        light: () => null
+    },
     // Porte de la Sortie du donjon (étage final) : lumière du jour qui filtre. Origine : milieu du bas.
     exitDoor: {
         markup: () => `

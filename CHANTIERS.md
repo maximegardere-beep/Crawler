@@ -25,7 +25,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 |---|----------|---------|--------|-----------|
 | 1 | Rework des compagnons | M | **Codé** — à playtester | — |
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
-| 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Planifié** (chiffres à valider) | 2 (fait) |
+| 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Codé** — à playtester | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | Idée | 2 (piques), 1 et 3 (conséquences) |
 | 5 | Rework de la carte (3 lots) | XL | Idée | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
@@ -263,7 +263,7 @@ compagnon congédié passent aussi par la revente d'office (ils étaient perdus 
 L'indice de domination est calculé et testé, mais pas encore utilisé : c'est le point d'entrée du
 chantier 3.
 
-## 3. Chasseurs de primes gobelins — M — Planifié
+## 3. Chasseurs de primes gobelins — M — Codé (à playtester)
 
 **Demande** : des gobelins chasseurs de primes traquent les crawlers qui tuent beaucoup de mobs
 facilement (anti-snowball).
@@ -315,7 +315,7 @@ paliers, sprite dédié (gobelin à chapeau, badge et filet), 2-3 succès bonus 
   difficiles ni les étages, pas de rachat chez le marchand (le point C « racheter sa tête » est abandonné).
 - **Aucune esquive furtive ; fuite une fois sur deux**, et une fuite réussie fait monter la prime de +10.
 
-### Chiffres proposés (À VALIDER)
+### Chiffres (validés par l'utilisateur)
 | Élément | Valeur |
 |---|---|
 | Gain de prime par victoire | facilité ≥ 0,8 : +8 · 0,5-0,8 : +3 · < 0,5 : 0 · fuite devant un chasseur : +10 |
@@ -336,6 +336,10 @@ paliers, sprite dédié (gobelin à chapeau, badge et filet), 2-3 succès bonus 
 4. **Présentation** : sprite de gobelin chasseur (détail signature), vignette « AVIS DE RECHERCHE »,
    3 succès bonus (« Tête mise à prix » 60, « Ennemi public n°1 » 90, « Chasseur chassé » 3 chasseurs).
 5. **Tests** (`tests/regression/bounty.js`, simulation longue) + `NOTES_CHASSEURS.md`.
+
+### Codé
+Les 5 lots sont livrés (détail et points à surveiller : `NOTES_CHASSEURS.md`). Précision apportée en
+codant : un chasseur tué ne donne QUE sa récompense (pas en plus le butin normal de 40 % d'un mob).
 
 ## 4. Émission de changement d'étage (DeathWatch) — L — Idée
 

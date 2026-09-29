@@ -16,6 +16,7 @@ let stealthEncounters = 0, companionEncounters = 0, companionGifts = 0, eliteMob
 let urbanFloorsSeen = 0, cityTravels = 0, winTriggered = false;
 let shopEncounters = 0, lairEncounters = 0, floorTransitionsSeen = 0, pactChoicesSeen = 0, safehouseEncounters = 0, stairsChoices = 0;
 const seenErrors = [];
+const huntersSeen = new Set(); // Chasseurs de primes rencontrés (chantier 3)
 
 gameState.equipment.armor = { name: "Plastron d'Essai", baseArmor: 12, category: 'armors', mechanics: ['bleed', 'heal', 'adrenaline', 'stealth'] };
 gameState.equipment.weapon = { name: "Gourdin d'Essai", baseDmg: 12, category: 'weapons' };
@@ -138,6 +139,8 @@ try {
         assert(Number.isFinite(gameState.gold) && gameState.gold >= 0, `PO invalides à l'étape ${steps}`);
         assert(gameState.inventory.filter(i => i.category !== 'consumables').length <= gameState.maxInventory, `réserve d'équipement dépassée à l'étape ${steps}`);
         assert(Object.keys(gameState.achievements).every(id => getAchievementById(id)), `succès inconnu enregistré à l'étape ${steps}`);
+        assert(gameState.bounty.value >= 0 && gameState.bounty.value <= config.bounty.max, `prime hors bornes à l'étape ${steps}`);
+        if (gameState.currentEnemy && gameState.currentEnemy.isBountyHunter) huntersSeen.add(gameState.currentEnemy);
         assert(gameState.hp <= gameState.maxHp, `hp dépasse maxHp à l'étape ${steps}`);
         assert(gameState.combatDistance >= 0 && gameState.combatDistance <= config.rangedCombat.maxDistance, `combatDistance hors bornes à l'étape ${steps}`);
         assert(!Number.isNaN(gameState.mana) && gameState.mana >= 0 && gameState.mana <= gameState.maxMana, `mana hors bornes à l'étape ${steps}`);
@@ -261,7 +264,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");

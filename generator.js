@@ -189,6 +189,69 @@ function computeThreatMultiplier(atk, hp, def, preModifierPower, preModifierDef)
 }
 
 // ==========================================
+// CHASSEURS DE PRIMES (chantier 3, voir NOTES_CHASSEURS.md)
+// ==========================================
+
+/**
+ * Stats d'un chasseur de primes, CALÉES SUR LE JOUEUR (pure) — c'est ce qui en fait un frein au snowball :
+ * un crawler très en avance sur l'étage affronte un chasseur à sa mesure, pas un mob de l'étage.
+ *  - DEF = defShare × votre meilleure ATQ ;
+ *  - PV  = de quoi encaisser `turnsToKill` de vos coups (votre coup moyen contre CETTE DEF) ;
+ *  - ATQ = de quoi vous retirer `hitPct` de vos PV max par coup, en tenant compte de votre DEF, du
+ *          plancher de mitigation et du bonus d'élite (config.mobDamageScaling), comme n'importe quel mob.
+ * @param {{maxHp:number, atk:number, def:number}} player ATQ = meilleure ATQ effective, DEF = DEF effective
+ * @param {{hpMult?:number, atkMult?:number, defMult?:number}} variant
+ * @param {{turnsToKill:number, hitPct:number, defShare:number}} tuning
+ * @param {{eliteDamageMult:number, minMitigation:number}} damage
+ */
+function computeBountyHunterStats(player, variant = {}, tuning, damage) {
+    const t = tuning || { turnsToKill: 4, hitPct: 0.09, defShare: 0.35 };
+    const d = damage || { eliteDamageMult: 1.65, minMitigation: 0.35 };
+    const pAtk = Math.max(1, player.atk || 1);
+    const pDef = Math.max(0, player.def || 0);
+    const def = Math.max(0, Math.round(pAtk * t.defShare * (variant.defMult ?? 1)));
+    const playerHit = pAtk * pAtk / (pAtk + def);
+    const hp = Math.max(10, Math.round(playerHit * t.turnsToKill * (variant.hpMult ?? 1)));
+    // ATQ effective visée (après bonus d'élite) : dégâts = a × max(minMitigation, a / (a + DEF joueur)).
+    const target = Math.max(1, (player.maxHp || 100) * t.hitPct);
+    let effAtk = (target + Math.sqrt(target * target + 4 * target * pDef)) / 2;
+    if (effAtk / (effAtk + pDef) < d.minMitigation) effAtk = target / d.minMitigation;
+    const atk = Math.max(1, Math.round(effAtk / d.eliteDamageMult * (variant.atkMult ?? 1)));
+    return { hp, atk, def };
+}
+
+/**
+ * Génère un chasseur de primes. `options` : { variantKey, player, bountyValue, floor }. Toujours élite
+ * (💀, bonus de dégâts d'élite), jamais un boss ; `isBountyHunter` le distingue partout ailleurs
+ * (pas d'esquive furtive, fuite à 50 %, récompense, épitaphe).
+ */
+function generateBountyHunter(options = {}) {
+    const bountyValue = options.bountyValue || 0;
+    const pool = bountyHunters.filter(h => h.minBounty <= bountyValue && h.key !== 'chief');
+    const variant = (options.variantKey && bountyHunters.find(h => h.key === options.variantKey))
+        || pool[Math.floor(Math.random() * pool.length)] || bountyHunters[0];
+    const bal = (typeof config !== 'undefined' && config.bounty) ? config.bounty.hunter : undefined;
+    const dmg = (typeof config !== 'undefined' && config.mobDamageScaling) ? config.mobDamageScaling : undefined;
+    const stats = computeBountyHunterStats(options.player || { maxHp: 100, atk: 10, def: 5 }, variant, bal, dmg);
+    const floor = options.floor || 1;
+    const eliteThreshold = (typeof config !== 'undefined' && config.eliteThreatMultiplier) || 1.8;
+    return {
+        name: variant.name,
+        baseName: variant.name,
+        hp: stats.hp, maxHp: stats.hp, atk: stats.atk, def: stats.def,
+        xpReward: Math.round(30 * getFloorScaling(floor).xpMult),
+        effect: null,
+        ranged: !!variant.ranged,
+        visualArchetype: variant.visualArchetype,
+        threatMultiplier: eliteThreshold, // Toujours élite (voir isEliteMob() dans app.js)
+        modifiersApplied: [],
+        isBountyHunter: true,
+        hunterVariant: variant.key,
+        bountyValue
+    };
+}
+
+// ==========================================
 // 1bis. GÉNÉRATION DU BOSS DE QUARTIER
 // ==========================================
 
