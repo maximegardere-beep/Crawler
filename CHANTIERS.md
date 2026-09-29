@@ -27,7 +27,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Codé** — à playtester | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | **Codé** — à playtester | 2, 1, 3 (faits) |
-| 5 | Rework de la carte + génération des étages | XL | **Suggestions, tour 3** | — |
+| 5 | Rework de la carte + génération des étages | XL | **Plan final proposé** (à valider) | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
 | 8 | Sons | M | Idée (ancien backlog) | hébergement des fichiers non tranché |
@@ -414,7 +414,7 @@ Les 5 lots sont livrés (détail et points à surveiller : `NOTES_DEATHWATCH.md`
 codant : l'émission n'a lieu que dans une vraie partie (nom confirmé), comme les succès ; l'échec « −2 H »
 ne peut jamais tuer (au moins 1 H reste).
 
-## 5. Rework de la carte + génération des étages — XL — Suggestions (tour 3)
+## 5. Rework de la carte + génération des étages — XL — Plan final proposé
 
 **Demande** : zoom, réseau plus complexe et logique, bouton carte pour les étages non urbains ; **revoir
 la génération des couloirs et des salles, de mauvaise qualité**. Méthode demandée : prendre le temps,
@@ -591,8 +591,54 @@ visité, pointillé = aperçu, rien = inconnu ; marqueurs 👑 boss repéré, �
 4. Portes étiquetées par direction réelle (Nord/Est…) ou simplement gauche / fond / droite ?
 5. Autre chose à ajouter avant que je rédige le plan final (lots, ordre, tests) ?
 
+### Réponses au tour 3 (utilisateur)
+1. Table d'événements des avenues : **validée telle quelle** (et chasseurs ×2 sur les avenues dès 60 de prime,
+   temps et risque ×0,5 sur les tronçons d'avenue).
+2. Départ : **aléatoire, mais hors de danger** (pas au carrefour central).
+3. Liste « Lieux connus » : **supprimée**, remplacée par la carte.
+4. Portes étiquetées **Nord / Sud / Est / Ouest**.
+
+### Décisions consolidées
+- Un seul borough de 4 blocs de quartier (2 × 2) + avenues (croix + anneau), ~12-14 salles par bloc.
+- Avenues = zone explorable à part entière (table ci-dessus, validée).
+- Déplacement : exploration au hasard par défaut + **M2** portes N/S/E/O aux bifurcations + **M1** voyage sur
+  carte vers toute salle visitée ou aperçue.
+- Carte **stylisée**, **panneau sous la scène**, zoom ＋/－/◎ et pan, brouillard visité / aperçu / inconnu.
+- **Départ aléatoire sûr** : une salle normale ou un tronçon d'avenue tiré au hasard, jamais une salle de boss
+  ni à moins de 3 salles d'une salle de boss, sans événement à l'arrivée.
+- Plateforme flexible : `FLOOR_LAYOUT`, `ROOM_TYPES`, `ZONE_TYPES` (ajouter un type de salle ou de zone = une
+  entrée de catalogue).
+- Anciennes sauvegardes incompatibles, proposées à la suppression. Étages urbains : inchangés pour l'instant.
+
+### Plan final proposé (à valider avant de coder)
+Découpé en lots testables, livrés dans cet ordre sur une même branche :
+1. **Générateur pur `floorgen.js`** (+ `FLOOR_LAYOUT`, `ROOM_TYPES`, `ZONE_TYPES`) : blocs (salles, couloirs,
+   portes), avenues (tronçons, carrefours), liens bloc ↔ avenue, garde-fous (connexité, profondeur du boss,
+   portes jamais sur un boss, aucun chevauchement), départ aléatoire sûr. Hasard injectable pour des tests
+   reproductibles. Outil `npm run sim:floors` (mêmes mesures que le diagnostic) pour vérifier la qualité
+   sur des centaines d'étages.
+2. **Branchement moteur** : `generateFloorMap()` délègue au générateur ; salles compatibles (`id` /
+   `neighbors` / `type` / `visited` + géométrie et état « aperçu ») ; `computeDistance()` sur la longueur réelle
+   × multiplicateurs de zone ; table d'événements par zone (`resolveCardEvent()`), chasseurs ×2 sur les
+   avenues ; LABYRINTHE (+50 % de salles) et CAFET_ASSOMBRIE adaptées ; sauvegarde versionnée.
+3. **M1 — voyage sur carte** : `travelToRoom()` (généralise le trajet vers un lieu connu : temps, embuscades,
+   Garde, avenues) ; suppression de « Lieux connus » (`knownLocations` : boss repéré, salle sûre, escalier
+   libre deviennent des marqueurs portés par la salle elle-même).
+4. **Carte stylisée** : rendu (blocs teintés, salles S/M/L, couloirs, avenues, marqueurs, brouillard), zoom ＋/－/◎
+   et pan (moteur de la carte urbaine), bulle « Y aller / Annuler » ; bouton « 🗺️ Carte » actif sur tous les
+   étages.
+5. **M2 — portes N/S/E/O** : vignette de bifurcation (une porte par sortie inconnue, 3 max, direction réelle +
+   indice), toucher une porte = y aller, ailleurs = au hasard.
+6. **Tests et documentation** : nouveaux domaines `tests/regression/floorgen.js` et `floor-map.js` ; tests
+   existants adaptés (salles sûres par quartier, lieux connus, LABYRINTHE, escalier libre) ; simulation longue
+   (exploration, portes, voyages) ; `NOTES_CARTE.md` ; `CLAUDE.md` (sections étage, lieux connus, carte).
+
+Validation visuelle dans Chromium à chaque lot qui touche l'écran (4 et 5). Points à surveiller signalés
+d'avance : les tests qui s'appuient sur l'ancienne structure (`generateQuadrant()`, lieux connus) seront
+réécrits, pas contournés ; la simulation longue devra connaître les nouveaux états (bulle de trajet).
+
 ### Décisions
-- (tour 3 en cours)
+- (plan final en attente de validation)
 
 ## 6. Mini-jeux d'exploration — ? — En attente
 
