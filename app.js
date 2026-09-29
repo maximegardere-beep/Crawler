@@ -689,7 +689,13 @@ const ui = {
     giftRevealTitle: document.getElementById('gift-reveal-title'),
     giftRevealItemName: document.getElementById('gift-reveal-item-name'),
     giftRevealJoke: document.getElementById('gift-reveal-joke'),
-    btnGiftContinue: document.getElementById('btn-gift-continue')
+    btnGiftContinue: document.getElementById('btn-gift-continue'),
+    // Inspection d'un objet (voir openItemInspect())
+    itemInspectOverlay: document.getElementById('item-inspect-overlay'),
+    itemInspectPanel: document.getElementById('item-inspect-panel'),
+    itemInspectBody: document.getElementById('item-inspect-body'),
+    itemInspectActions: document.getElementById('item-inspect-actions'),
+    inventoryMax: document.getElementById('inventory-max')
 };
 
 // ==========================================
@@ -1534,6 +1540,7 @@ function toggleMapPanel(forceOpen) {
 function updateInventoryUI() {
     const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
     ui.inventoryCount.innerText = equipmentCount;
+    if (ui.inventoryMax) ui.inventoryMax.innerText = gameState.maxInventory;
     // Objets équipés : icône (même dessin que sur le crawler, voir itemIconSvg() dans scene.js) + nom.
     const equippedLabel = (item) => item
         ? `<span class="inline-flex items-center gap-1 align-middle">${itemIconSvg(item, 22)}<span>${formatItemDisplayName(item)}</span></span>`
@@ -1581,8 +1588,14 @@ function updateInventoryUI() {
                 <button data-action="equip" class="mt-1 text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>
                 <button data-action="discard" class="absolute top-1 right-1 text-[10px] text-red-700 hover:text-red-500" title="Jeter">🗑️</button>
             `;
-            card.querySelector('[data-action="equip"]').addEventListener('click', () => equipItem(i));
-            card.querySelector('[data-action="discard"]').addEventListener('click', () => discardItem(i));
+            card.querySelector('[data-action="equip"]').addEventListener('click', (e) => { if (e && e.stopPropagation) e.stopPropagation(); equipItem(i); });
+            card.querySelector('[data-action="discard"]').addEventListener('click', (e) => { if (e && e.stopPropagation) e.stopPropagation(); discardItem(i); });
+            // Toucher la carte (hors boutons) : inspection détaillée, avec les mêmes actions.
+            card.classList.add('cursor-pointer');
+            card.addEventListener('click', () => openItemInspect(item, { actions: [
+                { label: 'Équiper', onClick: () => equipItem(i) },
+                { label: 'Jeter', tone: 'danger', onClick: () => discardItem(i) }
+            ] }));
             ui.inventoryEquipmentCards.appendChild(card);
         });
     }
@@ -1691,7 +1704,7 @@ function updateSpellbookUI() {
             const action = copy.equipped
                 ? `<span class="shrink-0 text-[9px] uppercase tracking-wider font-bold text-emerald-700 px-2">Équipé</span>`
                 : `<button data-copy="${i}" class="shrink-0 min-h-[32px] text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>`;
-            return `<div class="flex items-center gap-2 border-t border-stone-300 pt-1">
+            return `<div data-inspect="${i}" class="flex items-center gap-2 border-t border-stone-300 pt-1 cursor-pointer">
                 <span class="text-[8px] font-bold uppercase tracking-wider w-16 shrink-0" style="color:${color}">${copy.spell.rarity || ''}</span>
                 <span class="flex-1 text-[9px] text-stone-600">${spellCopyStats(copy.spell)}</span>
                 ${action}
@@ -1708,9 +1721,14 @@ function updateSpellbookUI() {
             ${rows}
         `;
         group.copies.forEach((copy, i) => {
+            // Toucher la ligne d'un exemplaire : inspection (le bouton Équiper reste un raccourci).
+            const row = card.querySelector(`[data-inspect="${i}"]`);
+            if (row) row.addEventListener('click', () => openItemInspect(copy.spell, copy.equipped ? { compareTo: null } : { actions: [
+                { label: 'Équiper', onClick: () => equipSpell(copy.index) }
+            ] }));
             if (copy.equipped) return;
             const btn = card.querySelector(`[data-copy="${i}"]`);
-            if (btn) btn.addEventListener('click', () => equipSpell(copy.index));
+            if (btn) btn.addEventListener('click', (e) => { if (e && e.stopPropagation) e.stopPropagation(); equipSpell(copy.index); });
         });
         ui.spellbookCards.appendChild(card);
     });
@@ -1751,6 +1769,143 @@ function buildQualifierBadgesHtml(item) {
 
 function escapeHtmlAttr(text) {
     return String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+// ==========================================
+// INSPECTION D'UN OBJET (chantier "refonte des objets", étape 7)
+// ==========================================
+// Tout ce qu'il faut pour décider : stats, rareté, niveau d'objet, chaque qualificatif avec son effet
+// exact (describeQualifier(), la même source que le moteur), valeur marchande, et comparaison chiffrée
+// avec l'objet porté au même emplacement. Ouvert depuis l'inventaire, l'équipement porté, le grimoire et
+// la boutique (où l'achat/la vente passent désormais par ce panneau : plus de vente d'un toucher).
+
+const ITEM_CATEGORY_LABELS = { weapons: "Arme de mêlée", ranged: "Arme à distance", armors: "Armure", consumables: "Consommable", scrolls: "Parchemin de sort" };
+const EQUIPMENT_SLOT_BY_CATEGORY = { weapons: 'weapon', ranged: 'ranged', armors: 'armor', scrolls: 'spell' };
+
+// Stats chiffrées d'un objet, comparables entre deux objets de même catégorie. `better` : 'up' si une
+// valeur plus haute est meilleure, 'down' si plus basse (coût en mana).
+function describeItemStats(item) {
+    if (!item) return [];
+    const stats = [];
+    if (item.category === 'scrolls') {
+        stats.push({ key: 'dmg', icon: '⚔️', label: 'Dégâts', value: item.baseDmg || 0, prefix: '+', better: 'up' });
+        stats.push({ key: 'mana', icon: '🔷', label: 'Coût en mana', value: getSpellManaCost(item), better: 'down' });
+        return stats;
+    }
+    if (item.baseDmg !== undefined) stats.push({ key: 'dmg', icon: '⚔️', label: 'Dégâts', value: item.baseDmg, prefix: '+', better: 'up' });
+    if (item.baseArmor !== undefined) stats.push({ key: 'armor', icon: '🛡️', label: 'Armure', value: item.baseArmor, prefix: '+', better: 'up' });
+    if (item.heal > 0) stats.push({ key: 'heal', icon: '💚', label: 'Soin', value: item.heal, suffix: ' PV', better: 'up' });
+    if (item.mana > 0) stats.push({ key: 'manaGain', icon: '🔷', label: 'Mana rendu', value: item.mana, better: 'up' });
+    return stats;
+}
+
+// Objet porté au même emplacement (null pour un consommable, ou si c'est l'objet lui-même).
+function getEquippedCounterpart(item) {
+    const slot = item && EQUIPMENT_SLOT_BY_CATEGORY[item.category];
+    const equipped = slot ? gameState.equipment[slot] : null;
+    return equipped && equipped !== item ? equipped : null;
+}
+
+function formatStatDelta(stat, otherValue) {
+    const diff = stat.value - otherValue;
+    if (diff === 0) return `<span class="text-gray-500">= identique</span>`;
+    const good = stat.better === 'down' ? diff < 0 : diff > 0;
+    const arrow = diff > 0 ? '▲' : '▼';
+    return `<span class="${good ? 'text-emerald-400' : 'text-red-400'}">${arrow} ${diff > 0 ? '+' : '−'}${Math.abs(diff)}</span>`;
+}
+
+// HTML du panneau (fonction pure, sans DOM). `options.compareTo` : objet de comparaison (par défaut
+// celui porté au même emplacement) ; `options.priceLine` : ligne de prix du contexte (boutique).
+function buildItemInspectHtml(item, options = {}) {
+    if (!item) return '';
+    const compareTo = options.compareTo !== undefined ? options.compareTo : getEquippedCounterpart(item);
+    const target = qualifierTarget(item.category);
+    const rarityColor = item.rarityColor || '#9ca3af';
+    const icon = itemIconSvg(item, 56) || `<span class="text-4xl leading-none">${item.icon || '✨'}</span>`;
+    const level = item.itemLevel ? ` · Niveau d'objet ${item.itemLevel}` : '';
+    const categoryLabel = ITEM_CATEGORY_LABELS[item.category] || '';
+    const spellKind = item.category === 'scrolls' ? ` · ${item.spellCategory === 'melee' ? 'corps à corps' : 'à distance'}` : '';
+
+    const otherStats = Object.fromEntries(describeItemStats(compareTo).map(s => [s.key, s.value]));
+    const statsHtml = describeItemStats(item).map(stat => {
+        const delta = compareTo && otherStats[stat.key] !== undefined ? ` ${formatStatDelta(stat, otherStats[stat.key])}` : '';
+        return `<li class="flex justify-between gap-2"><span>${stat.icon} ${stat.label}</span><span class="font-bold text-gray-100">${stat.prefix || ''}${stat.value}${stat.suffix || ''}${delta}</span></li>`;
+    }).join('');
+
+    const qualifiers = getItemQualifierList(item);
+    const qualifiersHtml = qualifiers.length > 0
+        ? qualifiers.map(({ key, rank }) => {
+            const q = itemQualifiers[key];
+            if (!q) return '';
+            const malus = q.kind === 'malus';
+            return `<div class="border-l-2 pl-2 ${malus ? 'border-red-600' : 'border-amber-500'}">
+                <p class="font-bold ${malus ? 'text-red-300' : 'text-amber-200'}">${q.icon} ${formatQualifierLabel(key, rank)}${malus ? ' <span class="text-[9px] uppercase tracking-wider text-red-400">défaut</span>' : ''}</p>
+                <p class="text-gray-400">${describeQualifier(key, target || 'weapon', rank)}</p>
+            </div>`;
+        }).join('')
+        : `<p class="text-gray-500 italic">${item.category === 'consumables' ? 'Un consommable ne porte jamais de qualificatif.' : 'Aucun qualificatif.'}</p>`;
+
+    const value = getItemValue(item);
+    const valueHtml = `<p class="text-gray-400">💰 Valeur : <span class="text-yellow-300 font-bold">${value} PO</span> · revente <span class="text-emerald-300 font-bold">${getSellPrice(item)} PO</span></p>`;
+    const priceHtml = options.priceLine ? `<p class="text-gray-300 font-bold">${options.priceLine}</p>` : '';
+
+    const compareHtml = compareTo
+        ? `<div class="border-t border-gray-800 pt-2">
+            <p class="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Actuellement porté</p>
+            <p class="text-gray-300">${formatItemDisplayName(compareTo)}</p>
+            ${getItemQualifierList(compareTo).length > 0 ? `<div class="flex gap-1 flex-wrap text-[9px] mt-1">${buildQualifierBadgesHtml(compareTo)}</div>` : ''}
+        </div>`
+        : '';
+
+    return `<div class="flex items-center gap-3">
+            <div class="shrink-0 w-14 h-14 flex items-center justify-center rounded-lg bg-gray-950 border" style="border-color:${rarityColor}">${icon}</div>
+            <div class="min-w-0">
+                <p class="font-bold text-sm text-gray-100 leading-tight">${item.name}</p>
+                <p class="text-[10px] uppercase tracking-wider font-bold" style="color:${rarityColor}">${item.rarity || 'Commun'}${level}</p>
+                <p class="text-[10px] text-gray-500">${categoryLabel}${spellKind}</p>
+            </div>
+        </div>
+        ${statsHtml ? `<ul class="flex flex-col gap-0.5 bg-gray-950/60 border border-gray-800 rounded px-2 py-1.5">${statsHtml}</ul>` : ''}
+        <div class="flex flex-col gap-1.5">${qualifiersHtml}</div>
+        ${valueHtml}${priceHtml}
+        ${compareHtml}`;
+}
+
+// Ouvre le panneau d'inspection. `options.actions` : [{ label, onClick, disabled, tone }] — chaque
+// action referme le panneau avant de s'exécuter. Un bouton « Fermer » est toujours ajouté.
+function openItemInspect(item, options = {}) {
+    if (!item || !ui.itemInspectOverlay) return;
+    ui.itemInspectBody.innerHTML = buildItemInspectHtml(item, options);
+    if (ui.itemInspectPanel) ui.itemInspectPanel.style.borderColor = item.rarityColor || '#374151';
+    ui.itemInspectActions.innerHTML = '';
+    const tones = {
+        primary: 'bg-amber-900/40 border-amber-600 text-amber-200 hover:bg-amber-800/50',
+        good: 'bg-emerald-900/40 border-emerald-600 text-emerald-200 hover:bg-emerald-800/50',
+        danger: 'bg-red-950/40 border-red-800 text-red-300 hover:bg-red-900/50',
+        neutral: 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
+    };
+    [...(options.actions || []), { label: 'Fermer', tone: 'neutral' }].forEach(action => {
+        const btn = document.createElement('button');
+        btn.className = `w-full min-h-[44px] py-2 border-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${tones[action.tone || 'primary']}`;
+        btn.innerText = action.label;
+        btn.disabled = !!action.disabled;
+        btn.addEventListener('click', () => {
+            closeItemInspect();
+            if (action.onClick) action.onClick();
+        });
+        ui.itemInspectActions.appendChild(btn);
+    });
+    ui.itemInspectOverlay.classList.remove('hidden');
+}
+
+function closeItemInspect() {
+    if (ui.itemInspectOverlay) ui.itemInspectOverlay.classList.add('hidden');
+}
+
+// Objet porté (arme, distance, armure, sort) : inspection seule, rien à comparer.
+function inspectEquippedSlot(slot) {
+    const item = gameState.equipment[slot];
+    if (item) openItemInspect(item, { compareTo: null });
 }
 
 function formatItemDisplayName(item) {
@@ -4338,9 +4493,13 @@ function updateShopUI() {
             const row = document.createElement('button');
             const affordable = gameState.gold >= item.price;
             row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-yellow-600 hover:bg-yellow-950/20 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-800 disabled:hover:bg-gray-900/80";
-            row.disabled = !affordable;
+            // Jamais désactivée : un objet trop cher reste inspectable (le bouton Acheter, lui, est grisé).
+            if (!affordable) row.classList.add('opacity-60');
             row.innerHTML = `<span class="flex items-center gap-1.5 min-w-0">${itemIconSvg(item, 24)}<span class="truncate">${formatItemDisplayName(item)}</span></span><span class="text-yellow-400 shrink-0">${item.price} PO</span>`;
-            row.addEventListener('click', () => buyShopItem(index));
+            row.addEventListener('click', () => openItemInspect(item, {
+                priceLine: `Prix : ${item.price} PO (vous avez ${gameState.gold} PO)`,
+                actions: [{ label: `Acheter — ${item.price} PO`, disabled: !affordable, onClick: () => buyShopItem(index) }]
+            }));
             ui.shopStockList.appendChild(row);
         });
 
@@ -4357,7 +4516,9 @@ function updateShopUI() {
             const row = document.createElement('button');
             row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
             row.innerHTML = `<span class="flex items-center gap-1.5 min-w-0">${itemIconSvg(item, 24)}<span class="truncate">${formatItemDisplayName(item)}</span></span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
-            row.addEventListener('click', () => { sellItem(index); updateShopUI(); });
+            row.addEventListener('click', () => openItemInspect(item, {
+                actions: [{ label: `Vendre — +${price} PO`, tone: 'good', onClick: () => { sellItem(index); updateShopUI(); } }]
+            }));
             ui.shopSellList.appendChild(row);
         });
 
@@ -4383,7 +4544,9 @@ function updateShopUI() {
                 const row = document.createElement('button');
                 row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
                 row.innerHTML = `<span class="flex items-center gap-2 min-w-0"><span class="font-bold uppercase text-[9px] shrink-0" style="color:${spell.rarityColor || '#9ca3af'}">${spell.rarity || ''}</span><span class="truncate text-gray-400">${spellCopyStats(spell)}</span></span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
-                row.addEventListener('click', () => { sellSpell(index); updateShopUI(); });
+                row.addEventListener('click', () => openItemInspect(spell, {
+                    actions: [{ label: `Vendre — +${price} PO`, tone: 'good', onClick: () => { sellSpell(index); updateShopUI(); } }]
+                }));
                 ui.shopSellSpellsList.appendChild(row);
             });
         });
@@ -7100,6 +7263,16 @@ if (ui.btnPactHp) ui.btnPactHp.addEventListener('click', () => choosePactBlessin
 ui.btnStartConfirm.addEventListener('click', confirmPlayerName);
 ui.startNameInput.addEventListener('keydown', (e) => { if (e && e.key === 'Enter') confirmPlayerName(); });
 ui.btnGiftContinue.addEventListener('click', dismissGiftReveal);
+
+// Inspection d'un objet : toucher le fond referme ; toucher un objet porté l'inspecte.
+if (ui.itemInspectOverlay) {
+    ui.itemInspectOverlay.addEventListener('click', (e) => { if (e && e.target === ui.itemInspectOverlay) closeItemInspect(); });
+}
+[['equippedWeapon', 'weapon'], ['equippedRanged', 'ranged'], ['equippedArmor', 'armor'], ['equippedSpell', 'spell']].forEach(([uiKey, slot]) => {
+    if (!ui[uiKey]) return;
+    ui[uiKey].classList.add('cursor-pointer');
+    ui[uiKey].addEventListener('click', () => inspectEquippedSlot(slot));
+});
 
 // Écran "Nettoyer les sauvegardes" (voir openManageSaves() dans app.js)
 if (ui.btnOpenManageSaves) ui.btnOpenManageSaves.addEventListener('click', openManageSaves);

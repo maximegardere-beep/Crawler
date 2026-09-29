@@ -265,3 +265,56 @@ const qItem = (category, qualifiers, extra = {}) => Object.assign({ name: "Objet
     assert(buildQualifierBadgesHtml(qItem('weapons', [{ key: 'rusty', rank: 1 }])).includes('bg-red-100'), "Badge : un défaut de Camelote s'affiche en rouge");
     assert(buildQualifierBadgesHtml(null) === '', "buildQualifierBadgesHtml() ne plante pas sans objet");
 }
+
+// ===================================================================
+// Panneau d'inspection (openItemInspect()) : stats, rareté, niveau d'objet, qualificatifs avec effet
+// exact, valeur, comparaison avec l'objet porté ; actions du contexte ; la boutique passe par lui.
+// ===================================================================
+{
+    resetTransientState();
+    const worn = buildItem(baseItems.weapons.find(b => b.name === "Pied-de-biche"), 'weapons', getRarityByKey('commun'), 1, { jitter: false, qualifiers: [] });
+    const found = buildItem(baseItems.weapons.find(b => b.name === "Hache à Viande"), 'weapons', getRarityByKey('epique'), 4, { jitter: false, qualifiers: [{ key: 'bleed', rank: 2 }, { key: 'precise', rank: 2 }] });
+    gameState.equipment.weapon = worn;
+    const html = buildItemInspectHtml(found);
+    assert(html.includes(found.name) && html.includes('Épique') && html.includes("Niveau d'objet 4"), "Inspection : nom, rareté et niveau d'objet");
+    assert(html.includes(describeQualifier('bleed', 'weapon', 2)) && html.includes(describeQualifier('precise', 'weapon', 2)), "Inspection : l'effet exact de chaque qualificatif");
+    assert(html.includes(`${getItemValue(found)} PO`) && html.includes(`${getSellPrice(found)} PO`), "Inspection : valeur et prix de revente");
+    assert(html.includes('Actuellement porté') && html.includes(`▲ +${found.baseDmg - worn.baseDmg}`), "Inspection : comparaison chiffrée avec l'arme portée");
+    assert(!buildItemInspectHtml(worn).includes('Actuellement porté'), "Inspection : l'objet porté ne se compare pas à lui-même");
+    const junk = buildItem(baseItems.weapons.find(b => b.name === "Pied-de-biche"), 'weapons', getRarityByKey('camelote'), 1, { jitter: false, qualifiers: [{ key: 'wobbly', rank: 1 }] });
+    assert(buildItemInspectHtml(junk).includes('défaut'), "Inspection : un défaut de Camelote est signalé comme tel");
+    const potion = buildItem(baseItems.consumables[0], 'consumables', getRarityByKey('commun'), 1, { jitter: false });
+    assert(buildItemInspectHtml(potion).includes('Soin') && buildItemInspectHtml(potion).includes('jamais de qualificatif'), "Inspection : un consommable montre son soin");
+    const spell = buildSpellScroll(spellCatalog[0], getRarityByKey('rare'), 2, { jitter: false, qualifiers: [{ key: 'thrifty', rank: 1 }] });
+    assert(buildItemInspectHtml(spell, { compareTo: null }).includes(`${getSpellManaCost(spell)}`), "Inspection : un sort montre son coût en mana effectif");
+
+    let called = 0;
+    openItemInspect(found, { actions: [{ label: 'Équiper', onClick: () => { called++; } }] });
+    assert(!ui.itemInspectOverlay.classList.contains('hidden'), "openItemInspect() : affiche le panneau");
+    const buttons = ui.itemInspectActions.children;
+    assert(buttons.length === 2 && buttons[1].innerText === 'Fermer', "openItemInspect() : les actions du contexte + « Fermer »");
+    buttons[0].dispatch('click');
+    assert(called === 1 && ui.itemInspectOverlay.classList.contains('hidden'), "openItemInspect() : une action s'exécute et referme le panneau");
+    gameState.equipment.weapon = null;
+}
+{
+    // Boutique : toucher une ligne inspecte, l'achat passe par le bouton du panneau.
+    resetTransientState();
+    const item = buildItem(baseItems.armors[0], 'armors', getRarityByKey('rare'), 3, { jitter: false, qualifiers: [{ key: 'thorns', rank: 1 }] });
+    item.price = 10;
+    const city = { id: 'c-inspect', role: 'merchant', specialty: 'armors', stock: [item] };
+    const previousMap = gameState.urbanMap;
+    gameState.urbanMap = { citiesById: { 'c-inspect': city }, theme: gameState.currentDistrict };
+    gameState.pendingShopCityId = 'c-inspect';
+    gameState.gold = 50;
+    gameState.inventory = [];
+    updateShopUI();
+    ui.shopStockList.children[0].dispatch('click');
+    assert(gameState.gold === 50 && city.stock.length === 1 && !ui.itemInspectOverlay.classList.contains('hidden'), "Boutique : toucher une ligne ouvre l'inspection sans rien acheter");
+    ui.itemInspectActions.children[0].dispatch('click');
+    assert(gameState.gold === 40 && gameState.inventory.includes(item), "Boutique : le bouton Acheter du panneau achète l'objet");
+    gameState.urbanMap = previousMap;
+    gameState.pendingShopCityId = null;
+    gameState.inventory = [];
+    closeItemInspect();
+}

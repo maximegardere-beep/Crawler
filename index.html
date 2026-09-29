@@ -908,7 +908,7 @@
         <section class="flex flex-col gap-2">
             <div class="flex justify-between items-end">
                 <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Inventaire</h2>
-                <span class="text-[10px] text-gray-500">Équipement: <span id="inventory-count">0</span>/5 <span class="text-gray-700">· Consommables illimités</span></span>
+                <span class="text-[10px] text-gray-500">Équipement: <span id="inventory-count">0</span>/<span id="inventory-max">8</span> <span class="text-gray-700">· Consommables illimités</span></span>
             </div>
             <div class="flex gap-4 text-[11px] text-gray-500 bg-gray-950/50 border border-gray-800 rounded px-3 py-2 flex-wrap">
                 <span>⚔️ Arme : <span id="equipped-weapon" class="text-gray-300">Aucune</span></span>
@@ -926,7 +926,7 @@
             <!-- Déroulant : armes/armures sous forme de cartes (même style que les cartes
                  d'exploration) + les mêmes consommables, en icônes, avec un bouton pour les jeter -->
             <details id="inventory-details">
-                <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-300 text-[10px] py-1 text-gray-500">🎒 Voir l'inventaire complet (arme/armure/consommables)</summary>
+                <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-300 text-[10px] py-1 text-gray-500">🎒 Voir l'inventaire complet (arme/armure/consommables) — toucher un objet pour l'inspecter</summary>
                 <div class="mt-2 flex flex-col gap-3">
                     <div id="inventory-equipment-cards" class="grid grid-cols-2 gap-3">
                         <p class="col-span-2 text-[10px] text-gray-600 italic">Aucune arme ni armure en réserve.</p>
@@ -1064,6 +1064,16 @@
             <button id="btn-gift-continue" class="w-full py-3 bg-amber-900/40 border-2 border-amber-600 rounded-lg text-amber-300 font-bold uppercase tracking-widest hover:bg-amber-800/50 active:scale-95 transition-all">
                 Entrer en piste
             </button>
+        </div>
+    </div>
+
+    <!-- Inspection d'un objet (openItemInspect() dans app.js) : stats, niveau d'objet, chaque
+         qualificatif avec son effet exact, valeur, comparaison avec l'objet porté au même emplacement,
+         et les actions du contexte (équiper, jeter, acheter, vendre). Toucher le fond referme. -->
+    <div id="item-inspect-overlay" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+        <div id="item-inspect-panel" class="bg-gray-900 border-2 border-gray-700 rounded-xl p-4 max-w-sm w-full max-h-[85vh] overflow-y-auto shadow-2xl">
+            <div id="item-inspect-body" class="flex flex-col gap-3 text-[11px] text-gray-300"></div>
+            <div id="item-inspect-actions" class="mt-4 flex flex-col gap-2"></div>
         </div>
     </div>
 
