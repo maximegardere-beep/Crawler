@@ -25,7 +25,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 |---|----------|---------|--------|-----------|
 | 1 | Rework des compagnons | M | **Codé** — à playtester | — |
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
-| 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Suggéré** | 2 (fait) |
+| 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Planifié** (chiffres à valider) | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | Idée | 2 (piques), 1 et 3 (conséquences) |
 | 5 | Rework de la carte (3 lots) | XL | Idée | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
@@ -263,7 +263,7 @@ compagnon congédié passent aussi par la revente d'office (ils étaient perdus 
 L'indice de domination est calculé et testé, mais pas encore utilisé : c'est le point d'entrée du
 chantier 3.
 
-## 3. Chasseurs de primes gobelins — M — Suggéré
+## 3. Chasseurs de primes gobelins — M — Planifié
 
 **Demande** : des gobelins chasseurs de primes traquent les crawlers qui tuent beaucoup de mobs
 facilement (anti-snowball).
@@ -309,8 +309,33 @@ contact, Chef d'escouade à 90+).
 paliers, sprite dédié (gobelin à chapeau, badge et filet), 2-3 succès bonus (« Tête mise à prix »,
 « Chasseur chassé » après 3 chasseurs, « Casier judiciaire vierge » en rachetant sa prime).
 
-### Décisions
-- (en attente de validation)
+### Décisions (utilisateur)
+- **Force calée sur le JOUEUR**, pas sur l'étage.
+- **La prime ne redescend QU'EN tuant un chasseur** (retombe alors à 0). Pas de baisse avec les combats
+  difficiles ni les étages, pas de rachat chez le marchand (le point C « racheter sa tête » est abandonné).
+- **Aucune esquive furtive ; fuite une fois sur deux**, et une fuite réussie fait monter la prime de +10.
+
+### Chiffres proposés (À VALIDER)
+| Élément | Valeur |
+|---|---|
+| Gain de prime par victoire | facilité ≥ 0,8 : +8 · 0,5-0,8 : +3 · < 0,5 : 0 · fuite devant un chasseur : +10 |
+| Paliers | 30 avis de recherche · 60 chasseurs en maraude · 90 escouade (2 chasseurs d'affilée) |
+| Chance qu'un combat / une embuscade soit un chasseur | 10 % dès 60 · 20 % dès 90 · au moins 3 combats entre deux chasseurs |
+| Stats du chasseur | DEF = 35 % de votre meilleure ATQ ; PV = ce qu'il faut pour tenir ~4 de vos coups ; ATQ = ce qu'il faut pour vous prendre ~9 % de vos PV max par coup (≈ 30-40 % sur le combat) — élite 💀 |
+| Variantes | Pisteur (à distance, −10 % PV) · Cogneur (+15 % ATQ, −10 % DEF) · Chef d'escouade à 90+ (+30 % PV) |
+| Récompense | PO = prime × étage × 2 · un objet de rang élite · prime remise à 0 |
+
+### Planifié (lots)
+1. **Prime** : `gameState.bounty` (valeur, chasseurs tués, combats depuis le dernier chasseur), gains
+   après chaque victoire (facilité déjà calculée par la chronique), badge 🎯 dans l'en-tête, alertes aux
+   paliers.
+2. **Chasseurs** : catalogue `bountyHunters` (bestiary.js), `computeBountyHunterStats()` pure (calée sur le
+   joueur), apparition dans `handleStealthEncounter()` (sans jet de détection) et dans les embuscades de
+   trajet (lieux connus et villes), escouade enchaînée par `winCombat()`.
+3. **Issues** : récompense et remise à 0 à la victoire ; fuite à 50 % et +10 ; épitaphe dédiée.
+4. **Présentation** : sprite de gobelin chasseur (détail signature), vignette « AVIS DE RECHERCHE »,
+   3 succès bonus (« Tête mise à prix » 60, « Ennemi public n°1 » 90, « Chasseur chassé » 3 chasseurs).
+5. **Tests** (`tests/regression/bounty.js`, simulation longue) + `NOTES_CHASSEURS.md`.
 
 ## 4. Émission de changement d'étage (DeathWatch) — L — Idée
 
