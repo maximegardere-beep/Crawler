@@ -52,6 +52,27 @@ const SCENE_TRAINER_SVG = `
     <path d="M8.6 -73 H10" stroke="#05060c" stroke-width="1.2"/>
 `;
 
+// Présentateur de l'émission DeathWatch (chantier 4) : costume à paillettes, brushing impeccable,
+// micro tendu vers le crawler (à droite). S'étend de x = -12 à x = +22.
+const SCENE_HOST_SVG = `
+    <ellipse class="scene-ground-shadow" cx="0" cy="0" rx="14" ry="3"/>
+    <rect x="-7" y="-26" width="6" height="25" rx="2.5" fill="#1f2433" stroke="#05060c" stroke-width="1.5"/>
+    <rect x="0" y="-26" width="6" height="25" rx="2.5" fill="#1f2433" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M-11 -60 Q-12 -40 -10 -24 L11 -24 Q12 -40 10 -60 Z" fill="#7c3aed" stroke="#05060c" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M-2 -60 L1 -48 L4 -60" fill="#f5f0e6" stroke="#05060c" stroke-width="1"/>
+    <path d="M0 -57 l2 2 l-2 2 l-2 -2 z" fill="#b91c1c"/>
+    <circle cx="-6" cy="-46" r="0.8" fill="#e9d5ff"/><circle cx="6" cy="-40" r="0.8" fill="#e9d5ff"/><circle cx="-4" cy="-32" r="0.8" fill="#e9d5ff"/>
+    <path d="M8 -54 L18 -58" stroke="#7c3aed" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="19.5" cy="-58.5" r="2.6" fill="#d9a877" stroke="#05060c" stroke-width="1"/>
+    <rect x="19" y="-66" width="3" height="9" rx="1" fill="#2a2d33" stroke="#05060c" stroke-width="0.8"/>
+    <circle cx="20.5" cy="-68" r="3.2" fill="#6b7280" stroke="#05060c" stroke-width="1"/>
+    <rect x="-2" y="-66" width="5" height="6" fill="#d9a877"/>
+    <circle cx="1" cy="-73" r="9" fill="#d9a877" stroke="#05060c" stroke-width="2"/>
+    <path d="M-9 -75 Q-9 -87 3 -86 Q12 -85 11 -76 Q6 -81 -2 -79 Q-6 -78 -9 -75 Z" fill="#facc15" stroke="#05060c" stroke-width="1.3"/>
+    <circle cx="6" cy="-73" r="1.2" fill="#05060c"/>
+    <path d="M2 -67.5 Q6 -65 10 -67.5" fill="#f5f0e6" stroke="#05060c" stroke-width="1"/>
+`;
+
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { SCENE_COMPANION_SVG, SCENE_MERCHANT_SVG, SCENE_TRAINER_SVG };
+    module.exports = { SCENE_COMPANION_SVG, SCENE_MERCHANT_SVG, SCENE_TRAINER_SVG, SCENE_HOST_SVG };
 }

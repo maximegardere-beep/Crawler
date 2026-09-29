@@ -1278,6 +1278,47 @@ const BACKDROP_PROPS = {
         },
         light: () => null
     },
+    // Émission DeathWatch (chantier 4) : enseigne lumineuse « EN DIRECT ». Origine : point de fixation au mur.
+    onAirSign: {
+        markup: () => `
+            <rect x="-32" y="-9" width="64" height="18" rx="3" fill="#1c1917" stroke="#05060c" stroke-width="1.4"/>
+            <rect class="bd-neon-flicker" x="-29" y="-6" width="58" height="12" rx="2" fill="#b91c1c"/>
+            <circle cx="-23" cy="0" r="2.4" fill="#fecaca"/>
+            <text x="4" y="3" text-anchor="middle" font-size="7.5" font-weight="bold" fill="#fef2f2">EN DIRECT</text>`,
+        light: () => ({ dx: 0, dy: 0, color: '#ef4444', radius: 40, flicker: true })
+    },
+    // Applaudimètre de plateau sur pied (chantier 4). Origine : pied, au sol.
+    applauseMeter: {
+        markup: () => `
+            <rect x="-2" y="-34" width="4" height="34" fill="#3a3e44" stroke="#05060c" stroke-width="1"/>
+            <rect x="-10" y="-70" width="20" height="38" rx="3" fill="#1f2937" stroke="#05060c" stroke-width="1.4"/>
+            <rect x="-6" y="-44" width="12" height="7" fill="#16a34a"/>
+            <rect x="-6" y="-52" width="12" height="7" fill="#65a30d"/>
+            <rect x="-6" y="-60" width="12" height="7" fill="#ca8a04"/>
+            <rect class="bd-blink" x="-6" y="-67" width="12" height="6" fill="#dc2626"/>
+            <text x="0" y="-72" text-anchor="middle" font-size="4.5" font-weight="bold" fill="#e5e7eb">APPLAUDIMÈTRE</text>`,
+        light: () => null
+    },
+    // Avis de recherche (chantier 3, chasseurs de primes) : affiche placardée sur un poteau, portrait
+    // grossier du crawler, « RECHERCHÉ » et une prime. Origine : pied du poteau, au sol.
+    wantedPoster: {
+        markup: (o) => `
+            <rect x="-2" y="-40" width="4" height="40" fill="#3a3e44" stroke="#05060c" stroke-width="1"/>
+            <g transform="rotate(-3 0 -62)">
+                <rect x="-22" y="-92" width="44" height="54" fill="#e3d3a8" stroke="#05060c" stroke-width="1.4"/>
+                <path d="M-22 -92 l4 3 l-4 2 M22 -40 l-4 -2 l4 -3" fill="#c9b27c" stroke="none"/>
+                <text x="0" y="-83" text-anchor="middle" font-size="7" font-weight="bold" fill="#7f1d1d">RECHERCHÉ</text>
+                <rect x="-12" y="-79" width="24" height="22" fill="#d6c291" stroke="#5b3a22" stroke-width="0.8"/>
+                <circle cx="0" cy="-72" r="4.2" fill="#5b3a22"/>
+                <path d="M-8 -57 q8 -10 16 0 z" fill="#5b3a22"/>
+                <path d="M-3 -73.5 l1.5 1 M3 -73.5 l-1.5 1" stroke="#e3d3a8" stroke-width="0.6"/>
+                <text x="0" y="-49" text-anchor="middle" font-size="5" font-weight="bold" fill="#3b2a1a">MORT OU VIF</text>
+                <text x="0" y="-42.5" text-anchor="middle" font-size="5.5" font-weight="bold" fill="#7f1d1d">PRIME ${o.value != null ? o.value : '???'}</text>
+            </g>
+            <circle cx="-17" cy="-89" r="1.3" fill="#8a929c" stroke="#05060c" stroke-width="0.5"/>
+            <circle cx="17" cy="-89" r="1.3" fill="#8a929c" stroke="#05060c" stroke-width="0.5"/>`,
+        light: () => null
+    },
     // Porte de la Sortie du donjon (étage final) : lumière du jour qui filtre. Origine : milieu du bas.
     exitDoor: {
         markup: () => `

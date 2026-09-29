@@ -31,6 +31,8 @@ function createEmptyRunStats() {
         spellsLearned: [], // noms de sorts distincts
         companionsLeft: 0, companionsDismissed: 0, junkGifts: 0,
         overflowSold: 0,
+        maxBounty: 0, huntersKilled: 0, // Chasseurs de primes (chantier 3)
+        showInsultWins: 0, showRefusals: 0, // Émission DeathWatch (chantier 4)
         maxFloor: 1,
         // Victoires récentes (au plus DOMINANCE_WINDOW), pour l'indice de domination (chantier 3) :
         // { ease } = 1 si aucun PV perdu, 0 si ≥ DOMINANCE_HARD_FIGHT des PV max perdus.
@@ -151,6 +153,25 @@ const ACHIEVEMENTS = [
     { id: 'ghosted', icon: '👻', tier: 'bronze', secret: true, title: "Ghosté",
         text: "Votre compagnon est parti sans se retourner. Ce n'est pas vous, c'est lui. (C'est vous.)",
         check: (s) => s.companionsLeft >= 1 },
+
+    // --- Chasseurs de primes (chantier 3) ---
+    { id: 'wanted', icon: '🎯', tier: 'bronze', title: "Tête mise à prix",
+        text: "Prime de 60. Des gobelins armés ont votre portrait dans leur poche. Il n'est pas flatteur.",
+        check: (s) => s.maxBounty >= 60 },
+    { id: 'public_enemy', icon: '🚨', tier: 'silver', title: "Ennemi public n°1",
+        text: "Prime de 90. On chasse désormais en escouade pour vous. C'est presque un compliment.",
+        check: (s) => s.maxBounty >= 90 },
+    { id: 'hunter_hunted', icon: '🪤', tier: 'silver', title: "Chasseur chassé",
+        text: "Trois chasseurs de primes neutralisés. Le syndicat des gobelins envisage une grève.",
+        check: (s) => s.huntersKilled >= 3 },
+
+    // --- Émission DeathWatch (chantier 4) ---
+    { id: 'crowd_favorite', icon: '📺', tier: 'silver', title: "Chouchou du public",
+        text: "Vous avez insulté le présentateur en direct, et le public vous a ADORÉ. Chip ne s'en remettra pas.",
+        check: (s) => s.showInsultWins >= 1 },
+    { id: 'off_air', icon: '🔇', tier: 'bronze', secret: true, title: "Interdit d'antenne",
+        text: "Trois interviews refusées. La production parle de vous remplacer par un mannequin. Il a plus de charisme.",
+        check: (s) => s.showRefusals >= 3 },
 
     // --- Magie & chaos ---
     { id: 'abracadaboom', icon: '🎆', tier: 'bronze', title: "Abracadabroum",

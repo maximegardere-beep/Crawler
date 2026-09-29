@@ -148,6 +148,17 @@ const gameState = {
     runStats: createEmptyRunStats(),
     // Succès débloqués PAR CE CRAWLER : { [id]: { floor, at } } (voir unlockAchievement()).
     achievements: {},
+    // Prime des chasseurs de primes (chantier 3, voir createEmptyBounty()/onBountyVictory()) : valeur
+    // 0-100, chasseurs tués, victoires depuis le dernier chasseur (99 = aucun encore).
+    bounty: { value: 0, huntersKilled: 0, combatsSinceHunter: 99 },
+    // Escouade en cours (palier 90+) : nombre de chasseurs encore à venir après celui en combat.
+    pendingBountySquad: 0,
+    // Émission DeathWatch (chantier 4, voir triggerShow()/answerShow()) : choix bloquant à l'arrivée
+    // d'étage ; `pendingShow` = { tauntId, text, replies } ; `pendingShowAfterPact` = bilan d'étage mis
+    // de côté quand le Pacte du Crawler passe avant l'émission.
+    showChoicePending: false,
+    pendingShow: null,
+    pendingShowAfterPact: null,
     // Journal des N dernières épitaphes (voir generateEpitaph()/recordEpitaph()), plus récente en
     // premier, plafonné à NECROLOGIE_MAX_ENTRIES. Persistant en save (aucun système de lecture dédié
     // pour l'instant, préparé pour un futur "journal" consultable). Absent d'une sauvegarde antérieure :
@@ -416,6 +427,39 @@ const config = {
         striker: { goldBonusPct: 10 }
     },
 
+    // Émission DeathWatch (chantier 4 — tableau validé par l'utilisateur, voir CHANTIERS.md) : jet
+    // d`dieSides` + popularité (1 par tranche de `popularityPerAchievements` succès) contre `dc`.
+    show: {
+        firstFloor: 2,
+        dieSides: 20,
+        popularityPerAchievements: 5,
+        eliteBonus: 100, // Provocation ratée : generateMob(…, eliteBonus) — deux modificateurs garantis
+        answers: {
+            polite: { goldMult: 0.5 },                                            // sans jet : moitié des PO d'une boîte Bronze
+            retort: { dc: 8, box: 'bronze', fail: 'time', failHours: 2 },
+            provoke: { dc: 12, box: 'silver', fail: 'elite' },
+            insult: { dc: 16, box: 'gold', fail: 'hunter', bountyGain: 20 }
+        }
+    },
+
+    // Chasseurs de primes (chantier 3 — chiffres validés par l'utilisateur, voir CHANTIERS.md et
+    // NOTES_CHASSEURS.md). Prime 0-100 : +gainEasy par victoire de facilité ≥ easyEase, +gainMedium ≥
+    // mediumEase, +fleeGain par fuite devant un chasseur ; ne retombe qu'en tuant un chasseur.
+    bounty: {
+        max: 100,
+        gainEasy: 8, easyEase: 0.8,
+        gainMedium: 3, mediumEase: 0.5,
+        fleeGain: 10,
+        tiers: { wanted: 30, hunters: 60, squad: 90 },
+        encounterChance: { hunters: 10, squad: 20 }, // % des combats d'exploration / embuscades
+        minCombatsBetween: 3,                         // victoires minimum entre deux chasseurs
+        fleeChance: 50,                               // aucune esquive furtive possible
+        rewardGoldPerPoint: 2,                        // PO = prime × étage × 2
+        // Calibrage calé sur le joueur (computeBountyHunterStats(), generator.js) : ~4 de vos coups pour
+        // le tuer, ~9 % de vos PV max par coup encaissé, DEF = 35 % de votre meilleure ATQ.
+        hunter: { turnsToKill: 4, hitPct: 0.09, defShare: 0.35 }
+    },
+
     // Boîtes de butin des succès (chantier 2, façon DCC — chiffres validés par l'utilisateur, voir
     // CHANTIERS.md) : ouvertes sur-le-champ au déblocage (openAchievementBox()). PO = fourchette
     // `goldBase` × (1 + perFloor × étage) × `goldMult` du palier.
@@ -640,6 +684,18 @@ const ui = {
     gameOverAchievements: document.getElementById('game-over-achievements'),
     winAchievements: document.getElementById('win-achievements'),
     achievementToast: document.getElementById('achievement-toast'),
+    bountyStatus: document.getElementById('bounty-status'),
+    showZone: document.getElementById('show-zone'),
+    showHost: document.getElementById('show-host'),
+    showTaunt: document.getElementById('show-taunt'),
+    showPopularity: document.getElementById('show-popularity'),
+    showButtons: {
+        polite: document.getElementById('btn-show-polite'),
+        retort: document.getElementById('btn-show-retort'),
+        provoke: document.getElementById('btn-show-provoke'),
+        insult: document.getElementById('btn-show-insult')
+    },
+    btnShowRefuse: document.getElementById('btn-show-refuse'),
     achievementsCount: document.getElementById('achievements-count'),
     btnAchievements: document.getElementById('btn-achievements'),
     achievementsOverlay: document.getElementById('achievements-overlay'),
@@ -855,6 +911,14 @@ function restoreSaveForName(name) {
     gameState.runStats = normalizeRunStats(saved.runStats);
     if (!gameState.runStats.maxFloor || gameState.runStats.maxFloor < gameState.currentFloor) gameState.runStats.maxFloor = gameState.currentFloor;
     if (!gameState.achievements || typeof gameState.achievements !== 'object') gameState.achievements = {};
+    // Prime (chantier 3) : complétée pour une sauvegarde antérieure ; une escouade en cours est abandonnée
+    // comme tout combat (on atterrit toujours sur l'exploration).
+    gameState.bounty = { ...createEmptyBounty(), ...(saved.bounty || {}) };
+    gameState.pendingBountySquad = 0;
+    // Émission DeathWatch en cours : abandonnée comme tout choix bloquant (celle de cet étage est perdue).
+    gameState.showChoicePending = false;
+    gameState.pendingShow = null;
+    gameState.pendingShowAfterPact = null;
 
     // Nettoyage de l'état transitoire/bloquant
     gameState.inCombat = false;
@@ -1367,6 +1431,7 @@ function updateUI() {
     // restoreSaveForName()) : updateUI() est déjà appelée après quasiment toute action modifiant
     // l'état, donc un seul point d'accroche suffit à couvrir toute la boucle de jeu.
     updateAchievementsButton(); // Compteur 🏆 X/N de l'en-tête (chantier 2)
+    updateBountyUI(); // Badge 🎯 de la prime (chantier 3)
     saveGame();
 }
 
@@ -2296,6 +2361,12 @@ function getStealthChance() {
 // Point d'entrée d'une rencontre aléatoire : tente d'abord la furtivité avant de basculer sur un
 // combat classique si le monstre repère le joueur.
 function handleStealthEncounter() {
+    // Chasseur de primes (chantier 3) : il vous traque — aucun jet de détection, aucune esquive possible.
+    const hunter = maybeSpawnBountyHunter();
+    if (hunter) {
+        initiateCombat(hunter);
+        return;
+    }
     // LABYRINTHE (anomalies.js) : mobs rencontrés dans le quartier qui garde l'escalier ont plus de
     // chances d'être élite ("escalier mieux gardé") — n'affecte aucun autre quartier de l'étage.
     const inStairsQuadrant = gameState.floorMap && gameState.floorMap.currentQuadrant === gameState.floorMap.stairsQuadrant;
@@ -2365,7 +2436,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending;
 }
 
 // Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
@@ -2471,7 +2542,7 @@ function triggerNextAmbushOrArrive() {
         travel.ambushesRemaining -= 1;
         logEvent("Une présence hostile vous barre la route !", "danger");
         gameState.pendingStairAfterCombat = false; // Ce n'est pas encore l'arrivée
-        initiateCombat(); // Mob générique du quartier actuel (pas le boss : simple embuscade de trajet)
+        initiateCombat(maybeSpawnBountyHunter()); // Mob générique du quartier (ou chasseur de primes), pas le boss : simple embuscade de trajet
         return;
     }
 
@@ -3054,6 +3125,8 @@ function recordRunEvent(type, data = {}) {
             if (data.item && data.item.rarityKey === 'camelote') s.junkGifts += 1;
             break;
         case 'overflowSold': s.overflowSold += 1; break;
+        case 'bounty': s.maxBounty = Math.max(s.maxBounty || 0, data.value || 0); break;
+        case 'hunterKilled': s.huntersKilled += 1; break;
         default: break; // 'explore', 'equip', 'itemStored', 'loyalty', 'death', 'victory'… : simple réévaluation
     }
     evaluateAchievements({ type, ...data });
@@ -3195,6 +3268,275 @@ function buildRunAchievementsSummary() {
     return `🏆 ${got.length}/${ACHIEVEMENTS.length} succès : ` + got.map(def => `${def.icon} ${def.title}`).join(' · ');
 }
 
+// ==========================================
+// CHASSEURS DE PRIMES (chantier 3 — voir NOTES_CHASSEURS.md ; chiffres dans config.bounty)
+// ==========================================
+// La prime (gameState.bounty.value, 0-100) monte avec les victoires FACILES (facilité calculée par la
+// chronique, voir computeWinEase()) et ne redescend QU'EN tuant un chasseur (choix de l'utilisateur).
+// Dès le palier « chasseurs », une partie des combats d'exploration et des embuscades de trajet est
+// remplacée par un chasseur calé sur le joueur (generateBountyHunter(), generator.js).
+
+function createEmptyBounty() {
+    return { value: 0, huntersKilled: 0, combatsSinceHunter: 99 };
+}
+
+// Palier de prime : 0 rien, 1 avis de recherche, 2 chasseurs en maraude, 3 escouade.
+function getBountyTier(value) {
+    const t = config.bounty.tiers;
+    if (value >= t.squad) return 3;
+    if (value >= t.hunters) return 2;
+    if (value >= t.wanted) return 1;
+    return 0;
+}
+
+const BOUNTY_TIER_MESSAGES = [
+    null,
+    "🎯 AVIS DE RECHERCHE : votre tête est mise à prix. Les gobelins chasseurs de primes commencent à prendre des notes.",
+    "🎯 Votre prime attire les chasseurs : des gobelins armés rôdent désormais sur votre piste.",
+    "🎯 ENNEMI PUBLIC N°1 : les chasseurs se déplacent maintenant en escouade."
+];
+
+// Profil de combat du joueur, sur lequel les chasseurs se calent : PV max, meilleure ATQ effective
+// (arme, arme à distance ou sort équipé), DEF effective (armure, Garde du compagnon comprises).
+function getPlayerCombatProfile() {
+    const eq = gameState.equipment || {};
+    const bonus = Math.max(
+        eq.weapon ? (eq.weapon.baseDmg || 0) : 0,
+        eq.ranged ? (eq.ranged.baseDmg || 0) : 0,
+        eq.spell ? (eq.spell.baseDmg || 0) : 0
+    );
+    return { maxHp: gameState.maxHp, atk: gameState.atk + bonus, def: getEffectiveDef() };
+}
+
+function spawnBountyHunter(variantKey, bountyValue = gameState.bounty.value) {
+    return generateBountyHunter({ variantKey, player: getPlayerCombatProfile(), bountyValue, floor: gameState.currentFloor });
+}
+
+// Remplace éventuellement le prochain combat par un chasseur (exploration et embuscades de trajet).
+// Jamais sous le palier « chasseurs », jamais deux de suite (minCombatsBetween victoires d'écart) ; au
+// palier « escouade », un Chef d'escouade suivra (gameState.pendingBountySquad, voir onBountyVictory()).
+function maybeSpawnBountyHunter() {
+    const b = gameState.bounty;
+    const tier = getBountyTier(b.value);
+    if (tier < 2 || b.combatsSinceHunter < config.bounty.minCombatsBetween) return null;
+    const chance = tier >= 3 ? config.bounty.encounterChance.squad : config.bounty.encounterChance.hunters;
+    if (Math.random() * 100 >= chance) return null;
+    b.combatsSinceHunter = 0;
+    gameState.pendingBountySquad = tier >= 3 ? 1 : 0;
+    const hunter = spawnBountyHunter();
+    logEvent(`🎯 [${hunter.name}] vous a retrouvé${tier >= 3 ? ", escouade en renfort" : ""} ! Votre prime de ${b.value} l'intéresse beaucoup.`, "danger");
+    return hunter;
+}
+
+// Fait varier la prime (bornée 0..max). Au franchissement d'un palier vers le haut : alerte, et affiche
+// l'« AVIS DE RECHERCHE » sur la scène d'exploration (jamais en plein combat).
+function addBounty(amount) {
+    const b = gameState.bounty;
+    if (!amount) return 0;
+    const before = b.value;
+    b.value = Math.max(0, Math.min(config.bounty.max, before + amount));
+    const oldTier = getBountyTier(before), newTier = getBountyTier(b.value);
+    if (newTier > oldTier) {
+        logEvent(BOUNTY_TIER_MESSAGES[newTier], "danger");
+        if (!gameState.inCombat) setSceneHeader('🎯', 'Avis de Recherche', 'Prime', { key: 'wantedPoster', value: b.value });
+    }
+    recordRunEvent('bounty', { value: b.value });
+    updateBountyUI();
+    return b.value - before;
+}
+
+// Après chaque victoire (winCombat()) : un chasseur tué paie sa prime et la remet à 0 (puis l'escouade
+// enchaîne son Chef s'il en reste un) ; toute autre victoire fait monter la prime selon sa facilité.
+// Renvoie true si un nouveau combat vient d'être lancé (winCombat() doit alors s'arrêter là).
+function onBountyVictory(enemy) {
+    const b = gameState.bounty;
+    const cfg = config.bounty;
+    if (enemy && enemy.isBountyHunter) {
+        const reward = Math.round((enemy.bountyValue || 0) * gameState.currentFloor * cfg.rewardGoldPerPoint);
+        gameState.gold += reward;
+        b.huntersKilled += 1;
+        b.value = 0;
+        logEvent(`🎯 Chasseur neutralisé : vous empochez sa prime (${reward} PO). Votre tête ne vaut plus rien… pour l'instant.`, "success");
+        addLoot({ source: 'elite' });
+        recordRunEvent('hunterKilled');
+        updateBountyUI();
+        if (gameState.pendingBountySquad > 0) {
+            gameState.pendingBountySquad -= 1;
+            const chief = spawnBountyHunter('chief', enemy.bountyValue);
+            logEvent(`🎯 [${chief.name}] surgit pour venger son équipier !`, "danger");
+            initiateCombat(chief);
+            return true;
+        }
+        return false;
+    }
+    b.combatsSinceHunter += 1;
+    const last = gameState.runStats && gameState.runStats.recentWins[gameState.runStats.recentWins.length - 1];
+    const ease = last ? last.ease : 0;
+    const gain = ease >= cfg.easyEase ? cfg.gainEasy : (ease >= cfg.mediumEase ? cfg.gainMedium : 0);
+    if (gain > 0) addBounty(gain);
+    return false;
+}
+
+// Badge 🎯 de l'en-tête : masqué sans prime, couleur selon le palier.
+function updateBountyUI() {
+    if (!ui.bountyStatus) return;
+    const value = gameState.bounty ? gameState.bounty.value : 0;
+    ui.bountyStatus.classList.toggle('hidden', value <= 0);
+    if (value <= 0) return;
+    const tier = getBountyTier(value);
+    const colors = ['#a8a29e', '#facc15', '#fb923c', '#ef4444'];
+    const labels = ["Prime", "Avis de recherche", "Chasseurs en maraude", "Escouade"];
+    ui.bountyStatus.innerText = `🎯 ${value}`;
+    ui.bountyStatus.style.color = colors[tier];
+    ui.bountyStatus.style.borderColor = colors[tier];
+    ui.bountyStatus.title = `Prime ${value}/100 — ${labels[tier]}. Elle monte avec vos victoires faciles et ne retombe qu'en tuant un chasseur de primes.`;
+}
+
+// ==========================================
+// ÉMISSION DEATHWATCH (chantier 4 — catalogue pur dans deathwatch.js, chiffres dans config.show)
+// ==========================================
+// À l'arrivée sur chaque nouvel étage (dès config.show.firstFloor), un choix bloquant : le présentateur
+// lance une pique tirée de la partie, le crawler répond sur l'un des 4 tons (du Poli sans risque à
+// l'Insulte en direct) ou refuse. Jet d20 + popularité contre le seuil du ton : boîte de succès en cas
+// de réussite, sanction sinon (voir answerShow()).
+
+// Popularité : +1 au jet par tranche de config.show.popularityPerAchievements succès débloqués.
+function getShowPopularity() {
+    return Math.floor(countUnlockedAchievements() / config.show.popularityPerAchievements);
+}
+
+// Contexte des piques : la partie en cours + le bilan de l'étage qui vient de se terminer
+// (`lastFloor`, capturé par advanceToNextFloor() avant la remise à zéro de floorStats).
+function buildShowContext(lastFloor = {}) {
+    const rs = gameState.runStats || createEmptyRunStats();
+    const joke = findRidiculousEquippedItem();
+    const c = gameState.companion;
+    return {
+        crawler: gameState.playerName || "Crawler",
+        etage: gameState.currentFloor,
+        fuites: gameState.fleesThisRun || 0,
+        degats: lastFloor.damageTaken || 0,
+        mobs: lastFloor.mobsKilled || 0,
+        pieges: lastFloor.traps || 0,
+        sortsRates: rs.backfires || 0,
+        objet: joke ? joke.name : null,
+        compagnon: c ? c.name : null,
+        compagnonATerre: !!(c && c.downed),
+        compagnonsPartis: (rs.companionsLeft || 0) + (rs.companionsDismissed || 0),
+        prime: gameState.bounty ? gameState.bounty.value : 0,
+        succes: countUnlockedAchievements(),
+        niveau: gameState.level,
+        or: gameState.gold,
+        mainsNues: rs.unarmedKills || 0,
+        maxHp: gameState.maxHp,
+        pvPct: gameState.maxHp > 0 ? Math.round(gameState.hp / gameState.maxHp * 100) : 0
+    };
+}
+
+// Ouvre l'émission (appelée par advanceToNextFloor(), ou par choosePactBlessing() si le Pacte passait
+// avant). Pose showChoicePending (bloquant) et gameState.pendingShow (pique + répliques tirées).
+function triggerShow(lastFloor = {}) {
+    const ctx = buildShowContext(lastFloor);
+    const taunt = pickShowTaunt(ctx);
+    const replies = {};
+    SHOW_TONES.forEach(t => { replies[t.key] = pickShowLine(SHOW_REPLIES[t.key]); });
+    gameState.pendingShow = { tauntId: taunt.id, text: fillShowTemplate(taunt.text, ctx), replies };
+    gameState.showChoicePending = true;
+    setSceneHeader('📺', SHOW_HOST.show, 'Émission', 'showStudio');
+    logEvent(`📺 ${SHOW_HOST.show} — ${SHOW_HOST.name} : ${gameState.pendingShow.text}`, "info");
+    updateShowZone();
+    if (ui.showZone) ui.showZone.classList.remove('hidden');
+}
+
+// Enjeu affiché sous chaque bouton : seuil, gain et risque, pour décider en connaissance de cause.
+function describeShowStake(toneKey) {
+    const a = config.show.answers[toneKey];
+    const tierLabel = (k) => `${ACHIEVEMENT_TIERS[k].box} ${ACHIEVEMENT_TIERS[k].label}`;
+    const failLabels = { time: `−${a.failHours} H`, elite: "combat contre un élite", hunter: `chasseur de primes (+${a.bountyGain} prime)` };
+    if (toneKey === 'polite') return "Sans jet · petit cadeau";
+    return `Jet ≥ ${a.dc} · réussite : boîte ${tierLabel(a.box)} · échec : ${failLabels[a.fail]}`;
+}
+
+function updateShowZone() {
+    const show = gameState.pendingShow;
+    if (!show || !ui.showZone) return;
+    if (ui.showHost) ui.showHost.innerText = `${SHOW_HOST.name}, présentateur de ${SHOW_HOST.show}`;
+    if (ui.showTaunt) ui.showTaunt.innerText = show.text;
+    if (ui.showPopularity) ui.showPopularity.innerText = `Popularité : +${getShowPopularity()} au jet (d20)`;
+    SHOW_TONES.forEach(t => {
+        const btn = ui.showButtons && ui.showButtons[t.key];
+        if (!btn) return;
+        btn.innerHTML = `<span class="block font-bold">${t.icon} ${t.label}</span>`
+            + `<span class="block text-[10px] normal-case tracking-normal italic opacity-90">${show.replies[t.key]}</span>`
+            + `<span class="block text-[10px] normal-case tracking-normal opacity-70">${describeShowStake(t.key)}</span>`;
+    });
+}
+
+function closeShow() {
+    gameState.showChoicePending = false;
+    gameState.pendingShow = null;
+    if (ui.showZone) ui.showZone.classList.add('hidden');
+}
+
+// Réponse du crawler (ou 'refuse'). Renvoie { tone, roll, total, success } pour les tests.
+function answerShow(toneKey) {
+    if (!gameState.showChoicePending || !gameState.pendingShow) return null;
+    const show = gameState.pendingShow;
+    closeShow();
+    const s = gameState.runStats;
+
+    if (toneKey === 'refuse') {
+        logEvent(`Vous : ${pickShowLine(SHOW_REPLIES.refuse)} — ${pickShowLine(SHOW_REACTIONS.refuse)}`, "info");
+        s.showRefusals = (s.showRefusals || 0) + 1;
+        recordRunEvent('show', { tone: 'refuse' });
+        updateUI();
+        return { tone: 'refuse', success: null };
+    }
+
+    const a = config.show.answers[toneKey];
+    if (!a) return null;
+    logEvent(`Vous : ${show.replies[toneKey] || ''}`, "info");
+
+    if (toneKey === 'polite') {
+        const gold = rollAchievementGold(a.goldMult);
+        gameState.gold += gold;
+        logEvent(`${pickShowLine(SHOW_REACTIONS.polite)} (+${gold} PO)`, "success");
+        recordRunEvent('show', { tone: 'polite', success: true });
+        updateUI();
+        return { tone: 'polite', success: true };
+    }
+
+    const roll = 1 + Math.floor(Math.random() * config.show.dieSides);
+    const popularity = getShowPopularity();
+    const total = roll + popularity;
+    const success = total >= a.dc;
+    logEvent(`🎲 d${config.show.dieSides} : ${roll}${popularity ? ` + ${popularity} (popularité)` : ''} = ${total} — ${a.dc} requis : ${success ? 'RÉUSSITE' : 'ÉCHEC'} !`, success ? "success" : "danger");
+
+    if (success) {
+        logEvent(pickShowLine(SHOW_REACTIONS.success[toneKey]), "success");
+        if (toneKey === 'insult') s.showInsultWins = (s.showInsultWins || 0) + 1;
+        recordRunEvent('show', { tone: toneKey, success: true });
+        openAchievementBox(a.box);
+        updateUI();
+        return { tone: toneKey, roll, total, success };
+    }
+
+    logEvent(pickShowLine(SHOW_REACTIONS.failure[toneKey]), "danger");
+    recordRunEvent('show', { tone: toneKey, success: false });
+    if (a.fail === 'time') {
+        // Jamais mortel : l'audience s'ennuie, elle ne tue pas (au moins 1 H reste toujours).
+        gameState.timeLeft = Math.max(1, gameState.timeLeft - a.failHours);
+        logEvent(`L'émission s'éternise (−${a.failHours} H).`, "danger");
+        updateUI();
+    } else if (a.fail === 'elite') {
+        initiateCombat(generateMob(gameState.currentDistrict, config.show.eliteBonus));
+    } else if (a.fail === 'hunter') {
+        addBounty(a.bountyGain);
+        initiateCombat(spawnBountyHunter());
+    }
+    return { tone: toneKey, roll, total, success };
+}
+
 // Fait effectivement passer à l'étage suivant (génération incluse) — dispatché depuis l'écran
 // d'escalier (voir triggerFloorTransition()/continueFromFloorTransition() plus bas), sauf pour
 // devJumpToUrbanFloor() (raccourci DEV, saute délibérément l'écran).
@@ -3212,6 +3554,8 @@ function advanceToNextFloor() {
     gameState.urbanMap = null;
     // Tally du nouvel étage repart à zéro — celui qui vient de se terminer a déjà été affiché sur
     // l'écran d'escalier (voir triggerFloorTransition()) avant cet appel.
+    // Bilan de l'étage qui vient de finir, pour les piques de l'émission DeathWatch (chantier 4).
+    const lastFloorForShow = { ...gameState.floorStats, traps: gameState.runStats ? gameState.runStats.trapsThisFloor : 0 };
     gameState.floorStats = { mobsKilled: 0, damageTaken: 0, itemsFound: 0, xpGained: 0 };
 
     // Réversion de l'éventuelle bénédiction du Pacte du Crawler (PACTE_DU_CRAWLER, voir
@@ -3250,6 +3594,15 @@ function advanceToNextFloor() {
     // (isActionBlocked() le bloque comme n'importe quel autre choix en attente).
     if (gameState.anomalyEffects.forcedPactChoice) {
         triggerPactChoice();
+    }
+
+    // Émission DeathWatch (chantier 4) : à chaque nouvel étage dès config.show.firstFloor — après le Pacte
+    // s'il vient d'être proposé (jamais deux choix bloquants affichés en même temps). Comme les succès,
+    // seulement dans une vraie partie (gameState.saveEnabled : nom confirmé), jamais pendant
+    // l'initialisation silencieuse ni dans les tests qui ne la demandent pas.
+    if (gameState.saveEnabled && gameState.currentFloor >= config.show.firstFloor) {
+        if (gameState.pactChoicePending) gameState.pendingShowAfterPact = lastFloorForShow;
+        else triggerShow(lastFloorForShow);
     }
 
     updateUI();
@@ -3441,6 +3794,12 @@ function choosePactBlessing(choice) {
             : `Bénédiction PV acceptée : +${hpDelta} PV max, ${atkDelta} ATQ.`,
         "success"
     );
+    // Émission DeathWatch mise en attente derrière le Pacte (voir advanceToNextFloor()).
+    if (gameState.pendingShowAfterPact) {
+        const lastFloor = gameState.pendingShowAfterPact;
+        gameState.pendingShowAfterPact = null;
+        triggerShow(lastFloor);
+    }
     updateUI();
 }
 
@@ -3495,6 +3854,13 @@ const EPITAPH_TEMPLATES = {
         "Plus de temps, plus de chance : le Donjon s'est refermé sur l'étage {{etage}}.",
         "Le chronomètre a gagné à l'étage {{etage}}. Il gagne toujours, en fin de compte."
     ],
+    // Pool dédié (chantier 3) : tué par un chasseur de primes — remplace le pool 'combat'.
+    chasseurPrime: [
+        "Livré(e) mort(e) par [{{mob}}] à l'étage {{etage}}. La prime a été versée le jour même.",
+        "[{{mob}}] a encaissé la récompense. Le crawler, lui, a encaissé le reste. Étage {{etage}}.",
+        "Recherché(e) mort(e) ou vif(ve). [{{mob}}] a choisi, à l'étage {{etage}}.",
+        "Victime de son propre succès : trop fort(e), trop vite, trop recherché(e). Étage {{etage}}."
+    ],
     mobFaible: [
         "Terrassé(e) par [{{mob}}], un adversaire {{deltaNiveau}} niveaux en dessous, à l'étage {{etage}}. Le Donjon en rit encore.",
         "[{{mob}}], largement plus faible, a quand même eu raison du crawler à l'étage {{etage}}. Statistiquement improbable. Historiquement vrai.",
@@ -3541,7 +3907,7 @@ function findRidiculousEquippedItem() {
 // tueur éventuel). Fonction pure hors lecture de gameState/Math.random — appelée uniquement par
 // gameOver().
 function generateEpitaph(deathContext) {
-    const { cause, enemyName } = deathContext;
+    const { cause, enemyName, bountyHunter } = deathContext;
     const floor = gameState.currentFloor;
     const fleesThisRun = gameState.fleesThisRun || 0;
     const ridiculousItem = findRidiculousEquippedItem();
@@ -3551,7 +3917,9 @@ function generateEpitaph(deathContext) {
     if (cause === 'combat' || cause === 'backfire') {
         const mobLevel = getMobLevelEquivalent();
         deltaNiveau = gameState.level - mobLevel;
-        if (cause === 'combat' && deltaNiveau >= NECROLOGIE_WEAK_MOB_DELTA) {
+        if (cause === 'combat' && bountyHunter) {
+            pool = EPITAPH_TEMPLATES.chasseurPrime; // Règle spéciale : abattu par un chasseur de primes
+        } else if (cause === 'combat' && deltaNiveau >= NECROLOGIE_WEAK_MOB_DELTA) {
             pool = EPITAPH_TEMPLATES.mobFaible; // Règle spéciale : mob très inférieur -> épitaphe dédiée
         } else if (cause === 'backfire') {
             pool = EPITAPH_TEMPLATES.backfire; // Règle spéciale : mort par backfire -> épitaphe dédiée
@@ -4840,7 +5208,7 @@ function triggerNextCityAmbushOrArrive() {
         travel.ambushesRemaining -= 1;
         logEvent("Une présence hostile vous barre la route !", "danger");
         gameState.pendingUrbanAdvanceAfterCombat = null; // Ce n'est pas encore l'arrivée
-        initiateCombat(); // Mob générique du thème d'étage (gameState.currentDistrict)
+        initiateCombat(maybeSpawnBountyHunter()); // Mob générique du thème d'étage (ou chasseur de primes)
         return;
     }
 
@@ -7347,10 +7715,11 @@ function attemptFlee() {
         return;
     }
     let fleeChance = 60; // 60% de réussite de base (pourra dépendre de compétences/stats plus tard)
-    const scoutHelps = hasActiveCompanion('scout');
+    const scoutHelps = hasActiveCompanion('scout') && !enemy.isBountyHunter;
     if (scoutHelps) {
         fleeChance += config.companions.scout.fleeBonus; // Compagnon "Éclaireur" : facilite la fuite
     }
+    if (enemy.isBountyHunter) fleeChance = config.bounty.fleeChance; // Chasseur de primes : une fois sur deux, sans aide
 
     if (Math.random() * 100 < fleeChance) {
         const scoutNote = scoutHelps
@@ -7367,6 +7736,11 @@ function attemptFlee() {
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
         changeCompanionLoyalty(config.companions.loyalty.flee); // Fuir n'inspire pas confiance à votre compagnon
         recordRunEvent('flee');
+        if (enemy.isBountyHunter) {
+            gameState.pendingBountySquad = 0;
+            addBounty(config.bounty.fleeGain);
+            logEvent(`🎯 Votre fuite fait grimper votre prime (+${config.bounty.fleeGain}).`, "danger");
+        }
         if (gameState.pendingTravel) {
             logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
             gameState.pendingTravel = null;
@@ -7423,12 +7797,15 @@ function winCombat() {
         addLoot({ source: 'boss', itemLevel });
         if (Math.random() * 100 < itemBalance.boss.secondItemChance) addLoot({ source: 'boss', itemLevel });
         awardBossSignatureItem(defeatedEnemy, itemLevel);
-    } else if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
+    } else if (!(defeatedEnemy && defeatedEnemy.isBountyHunter) && Math.random() * 100 < 40) { // 40% de chance de loot post-combat (un chasseur de primes paie sa propre récompense, voir onBountyVictory())
         addLoot({ source: defeatedEnemy && isEliteMob(defeatedEnemy) ? 'elite' : 'mob' });
     }
 
     // Chronique de run (chantier 2) : victoire, type de coup final, facilité (domination).
     if (defeatedEnemy) recordRunEvent('win', { enemy: defeatedEnemy, kind: gameState.lastAttackKind });
+    // Prime (chantier 3) : récompense d'un chasseur ou hausse selon la facilité ; une escouade enchaîne
+    // son Chef ici, avant toute suite de trajet.
+    if (defeatedEnemy && onBountyVictory(defeatedEnemy)) return;
 
     // Si ce combat était une salle de boss du quartier (escalier ou non), la salle est désormais
     // calme : on la marque vaincue et on retire le lieu connu correspondant, s'il existait.
@@ -7803,7 +8180,8 @@ function gameOver(timeout = false, killer = null) {
             cause = 'combat'; // Filet de sécurité si jamais appelé sans tueur précisé
         }
     }
-    const epitaph = generateEpitaph({ cause, enemyName });
+    const bountyHunter = !!(killer && typeof killer === 'object' && killer.isBountyHunter); // Chantier 3 : épitaphe dédiée
+    const epitaph = generateEpitaph({ cause, enemyName, bountyHunter });
     recordEpitaph(epitaph, { cause });
     // Succès posthumes (chantier 2) : même règle « mob très inférieur » que la nécrologie.
     const weakMob = cause === 'combat' && (gameState.level - getMobLevelEquivalent()) >= NECROLOGIE_WEAK_MOB_DELTA;
@@ -7958,6 +8336,8 @@ ui.btnRecruitHostile.addEventListener('click', recruitCompanion);
 ui.btnAttackCompanion.addEventListener('click', attackCompanionEncounter);
 ui.companionStatusBar.addEventListener('click', openCompanionSheet);
 if (ui.btnAchievements) ui.btnAchievements.addEventListener('click', openAchievementsScreen);
+SHOW_TONES.forEach(t => { if (ui.showButtons && ui.showButtons[t.key]) ui.showButtons[t.key].addEventListener('click', () => answerShow(t.key)); });
+if (ui.btnShowRefuse) ui.btnShowRefuse.addEventListener('click', () => answerShow('refuse'));
 if (ui.btnCloseAchievements) ui.btnCloseAchievements.addEventListener('click', closeAchievementsScreen);
 
 // Clics sur l'écran marchand/professeur (ville spécialisée)

@@ -25,8 +25,8 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 |---|----------|---------|--------|-----------|
 | 1 | Rework des compagnons | M | **Codé** — à playtester | — |
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
-| 3 | Chasseurs de primes gobelins (anti-snowball) | M | Idée (socle prêt) | 2 (fait) |
-| 4 | Émission de changement d'étage (DeathWatch) | L | Idée | 2 (piques), 1 et 3 (conséquences) |
+| 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Codé** — à playtester | 2 (fait) |
+| 4 | Émission de changement d'étage (DeathWatch) | L | **Codé** — à playtester | 2, 1, 3 (faits) |
 | 5 | Rework de la carte (3 lots) | XL | Idée | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
@@ -263,29 +263,156 @@ compagnon congédié passent aussi par la revente d'office (ils étaient perdus 
 L'indice de domination est calculé et testé, mais pas encore utilisé : c'est le point d'entrée du
 chantier 3.
 
-## 3. Chasseurs de primes gobelins — M — Idée
+## 3. Chasseurs de primes gobelins — M — Codé (à playtester)
 
 **Demande** : des gobelins chasseurs de primes traquent les crawlers qui tuent beaucoup de mobs
 facilement (anti-snowball).
-**Idée de structure** : jauge de « prime » alimentée par l'indicateur de facilité de la chronique (2) ;
-au-delà de seuils, rencontres de chasseurs (mob élite dédié, qui scale sur le NIVEAU du joueur plutôt
-que sur l'étage), traque visible (annonce, jauge), prime qui redescend avec des combats difficiles ou
-en payant. Récompense spécifique pour qui les bat (la prime elle-même ?). Nouveaux sprites à prévoir.
-À définir : fréquence maximale, si la traque peut suivre sur un étage urbain, interaction avec la furtivité.
 
-## 4. Émission de changement d'étage (DeathWatch) — L — Idée
+### Exploré (état actuel)
+- **Socle prêt (chantier 2)** : chaque victoire enregistre sa facilité (`computeWinEase()` : 1 sans
+  dégât, 0 à 40 % des PV max perdus) dans `runStats.recentWins`, et `computeDominance()` en fait la
+  moyenne glissante sur 10 victoires. Rien ne l'utilise encore.
+- **Aucun frein au snowball aujourd'hui** : les mobs ne scalent que sur l'ÉTAGE (`getFloorScaling()`,
+  `getMobLevelEquivalent()` = étage). Un crawler en avance (bon objet signature, compagnon équipé, boîtes
+  de succès) écrase tout l'étage sans contrepartie.
+- **Points d'accroche** : `resolveCardEvent()` (tirage D100 de l'exploration) → `handleStealthEncounter()`
+  (détection, esquive, attaque furtive) → `initiateCombat()` ; embuscades de trajet (lieux connus, villes)
+  ; `winCombat()` / `attemptFlee()` (issue) ; villes urbaines (marchand) pour un éventuel paiement.
+- **Mob dédié possible sans toucher au bestiaire des quartiers** : l'archétype `goblinoid` existe
+  (silhouette + palette) ; un chasseur défini hors `baseMobs` n'exige pas de détail signature dans les
+  tests, mais peut en avoir un. `isEliteMob()` / icône 💀 / `config.mobDamageScaling.eliteDamageMult`
+  s'appliquent à tout mob marqué élite.
+
+### Suggéré (à valider)
+**A. Prime (0-100), la « tête mise à prix »** — `gameState.bounty`, visible dans l'en-tête (🎯 + jauge).
+- Monte avec les victoires FACILES : facilité ≥ 0,8 → +8 ; 0,5-0,8 → +3.
+- Redescend : victoire difficile (facilité < 0,5) → −5 ; nouvel étage → −10 ; payer en ville (voir C).
+- Paliers : 30 = « Avis de recherche » (alerte, rien d'autre) ; 60 = chasseurs en maraude ; 90 = escouade.
+
+**B. Les chasseurs** — « Gobelin Chasseur de Primes » (+ variantes Pisteur à distance / Cogneur au
+contact, Chef d'escouade à 90+).
+- Rencontre : dès 60 de prime, une partie des combats d'exploration et des embuscades de trajet sont
+  remplacés par un chasseur (≈ 10 % à 60, ≈ 20 % à 90, jamais deux d'affilée).
+- **Force indexée sur le JOUEUR** (PV max, ATQ et DEF effectives, niveau), pas sur l'étage : c'est ce qui
+  en fait un vrai frein au snowball, calibré pour qu'un combat coûte environ 30-40 % de vos PV.
+- Ils vous traquent : **aucune esquive furtive possible**, et fuir ne marche qu'une fois sur deux (et
+  fait monter la prime de +10).
+- Escouade (90+) : deux chasseurs d'affilée.
+
+**C. Issues**
+- Tuer un chasseur : une récompense égale à la prime (PO ≈ prime × étage × 2), un objet de rang
+  « élite », et la prime retombe à 0 (« votre tête ne vaut plus rien, pour l'instant »).
+- Racheter sa tête chez un marchand d'étage urbain : coût ≈ prime × étage × 4 PO, prime remise à 0.
+- Mourir face à un chasseur : épitaphe dédiée dans la nécrologie.
+
+**D. Présentation** : vignette « AVIS DE RECHERCHE » (affiche avec votre silhouette) au passage des
+paliers, sprite dédié (gobelin à chapeau, badge et filet), 2-3 succès bonus (« Tête mise à prix »,
+« Chasseur chassé » après 3 chasseurs, « Casier judiciaire vierge » en rachetant sa prime).
+
+### Décisions (utilisateur)
+- **Force calée sur le JOUEUR**, pas sur l'étage.
+- **La prime ne redescend QU'EN tuant un chasseur** (retombe alors à 0). Pas de baisse avec les combats
+  difficiles ni les étages, pas de rachat chez le marchand (le point C « racheter sa tête » est abandonné).
+- **Aucune esquive furtive ; fuite une fois sur deux**, et une fuite réussie fait monter la prime de +10.
+
+### Chiffres (validés par l'utilisateur)
+| Élément | Valeur |
+|---|---|
+| Gain de prime par victoire | facilité ≥ 0,8 : +8 · 0,5-0,8 : +3 · < 0,5 : 0 · fuite devant un chasseur : +10 |
+| Paliers | 30 avis de recherche · 60 chasseurs en maraude · 90 escouade (2 chasseurs d'affilée) |
+| Chance qu'un combat / une embuscade soit un chasseur | 10 % dès 60 · 20 % dès 90 · au moins 3 combats entre deux chasseurs |
+| Stats du chasseur | DEF = 35 % de votre meilleure ATQ ; PV = ce qu'il faut pour tenir ~4 de vos coups ; ATQ = ce qu'il faut pour vous prendre ~9 % de vos PV max par coup (≈ 30-40 % sur le combat) — élite 💀 |
+| Variantes | Pisteur (à distance, −10 % PV) · Cogneur (+15 % ATQ, −10 % DEF) · Chef d'escouade à 90+ (+30 % PV) |
+| Récompense | PO = prime × étage × 2 · un objet de rang élite · prime remise à 0 |
+
+### Planifié (lots)
+1. **Prime** : `gameState.bounty` (valeur, chasseurs tués, combats depuis le dernier chasseur), gains
+   après chaque victoire (facilité déjà calculée par la chronique), badge 🎯 dans l'en-tête, alertes aux
+   paliers.
+2. **Chasseurs** : catalogue `bountyHunters` (bestiary.js), `computeBountyHunterStats()` pure (calée sur le
+   joueur), apparition dans `handleStealthEncounter()` (sans jet de détection) et dans les embuscades de
+   trajet (lieux connus et villes), escouade enchaînée par `winCombat()`.
+3. **Issues** : récompense et remise à 0 à la victoire ; fuite à 50 % et +10 ; épitaphe dédiée.
+4. **Présentation** : sprite de gobelin chasseur (détail signature), vignette « AVIS DE RECHERCHE »,
+   3 succès bonus (« Tête mise à prix » 60, « Ennemi public n°1 » 90, « Chasseur chassé » 3 chasseurs).
+5. **Tests** (`tests/regression/bounty.js`, simulation longue) + `NOTES_CHASSEURS.md`.
+
+### Codé
+Les 5 lots sont livrés (détail et points à surveiller : `NOTES_CHASSEURS.md`). Précision apportée en
+codant : un chasseur tué ne donne QUE sa récompense (pas en plus le butin normal de 40 % d'un mob).
+
+## 4. Émission de changement d'étage (DeathWatch) — L — Codé (à playtester)
 
 **Demande** : émission au changement d'étage, dialogues plus ou moins risqués, choix avec lancer de dés ;
-risqué = danger mais grosse récompense si réussite. Exemple : le commentateur reprend des éléments de la
-partie et envoie des piques ; plusieurs réponses prédéfinies plus ou moins provocatrices ; cadeaux, ou
-envoyé contre des mobs/crawlers plus ou moins difficiles.
-**Idée de structure** : s'accroche à l'écran d'escalier existant (`triggerFloorTransition()`), avant
-l'annonce d'anomalie. Piques générées depuis la chronique (2) (templates à trous, comme les épitaphes
-de la nécrologie). 3-4 réponses de la plus polie à la plus provocatrice, chacune avec une difficulté de
-jet (réutiliser les dés du combat) et une table récompense/sanction. Sanctions : combat de mob/élite,
-crawler hostile (1), chasseurs de primes (3), anomalie supplémentaire ; récompenses : objet, PO,
-cadeau du public, bonus pour l'étage. Plusieurs émissions/présentateurs possibles (rotation).
-À définir : fréquence (chaque étage ou aléatoire), scène dédiée (plateau TV), nombre d'émissions en V1.
+risqué = danger mais grosse récompense si réussite. Exemple : DeathWatch — le commentateur reprend des
+éléments de la partie du crawler et lui envoie des piques ; plusieurs réponses prédéfinies plus ou moins
+provocatrices ; cadeaux, ou envoyé contre des mobs/crawlers plus ou moins difficiles.
+
+### Exploré (état actuel)
+- **Moment** : « Descendre » → écran d'escalier (`triggerFloorTransition()`, bilan + annonce d'anomalie,
+  `floorTransitionPending`) → « Continuer » → `advanceToNextFloor()`. Précédent utile : le Pacte du
+  Crawler (`triggerPactChoice()`) est un choix bloquant posé À L'ARRIVÉE sur le nouvel étage
+  (`pactChoicePending`, dans `isActionBlocked()`) — le bon modèle pour une émission dont la conséquence
+  peut être un combat (impossible pendant l'écran d'escalier, qui n'est pas une scène de jeu).
+- **Matière pour les piques** (chantier 2) : `runStats` (fuites, pièges, sorts ratés, victoires à mains
+  nues, à un poil…), `floorStats` de l'étage qui vient de finir, nécrologie, compagnon (loyauté, à terre,
+  congédié), objet ridicule porté (`jokeItem`, déjà utilisé par les épitaphes), prime (chantier 3), succès.
+  Le moteur de gabarits à trous des épitaphes (`{{mob}}`, `{{etage}}`…) se réutilise tel quel.
+- **Dés** : `config.rangedCombat.dieSides` (d6 opposés) et l'animation `showDie()` existent déjà.
+- **Récompenses prêtes** : boîtes Bronze/Argent/Or (`openAchievementBox()`), PO, potions, XP du public
+  (`audienceGift`). **Sanctions prêtes** : combat forcé (`initiateCombat()`, mob élite via `generateMob(…,
+  eliteBonus)`), crawler hostile (`companionCandidateToMob()`), chasseur de primes (`spawnBountyHunter()` /
+  `addBounty()`), perte de temps ou de PO.
+- **Décor** : drone caméra de l'émission (`cameraDrone`), PNJ marchand/professeur dessinés, vignettes
+  d'exploration — de quoi composer un plateau TV sans nouvel archétype.
+
+### Suggéré (à valider)
+**A. L'émission** : à l'arrivée sur un nouvel étage, un écran « 📺 DeathWatch » (bloquant, comme le
+Pacte) : plateau TV (présentateur, drone caméra, applaudimètre), le présentateur lance UNE pique tirée
+de votre partie (« 12 fuites, [Nom]. Vous battez le record de l'étage… en course à pied. »), puis vous
+répondez.
+
+**B. Quatre réponses, du plus sûr au plus risqué** (jet d20 + petit bonus de popularité = 1 par tranche
+de 5 succès) :
+| Réponse | Jet | Réussite | Échec |
+|---|---|---|---|
+| 😇 Poli(e) | aucun | petit cadeau (PO) | — |
+| 😏 Pique en retour | ≥ 8 | boîte Bronze | l'audience s'ennuie : −2 H |
+| 😈 Provocation | ≥ 12 | boîte Argent | combat immédiat contre un mob élite |
+| 🤬 Insulte en direct | ≥ 16 | boîte Or | un chasseur de primes est lâché sur vous (+20 prime et combat) |
+Un « Refuser l'interview » (aucun effet, le public boude) reste possible.
+
+**C. Contenu** : ~30 piques à trous classées par déclencheur (fuites, pièges, sorts ratés, objet
+ridicule, compagnon, prime, dégâts de l'étage, repli générique), ~5 réparties par ton de réponse, et une
+réaction du présentateur par issue. Plusieurs présentateurs possibles plus tard (rotation).
+
+**D. Présentation** : overlay dédié avec une scène « plateau TV » (même moteur de vignettes), le dé qui
+roule (`showDie()`), le verdict et la récompense/sanction dans le journal. Succès bonus possibles
+(« Chouchou du public », « Interdit d'antenne »).
+
+### Décisions (utilisateur)
+- **À chaque étage dès le 2**, à l'arrivée (après le Pacte du Crawler s'il y en a un).
+- **Tableau B validé tel quel** (seuils 8 / 12 / 16 sur d20 + popularité, boîtes Bronze / Argent / Or,
+  sanctions −2 H / mob élite / chasseur de primes +20, refus possible). « Petit cadeau » du Poli : la
+  moitié des PO d'une boîte Bronze.
+- **Un seul présentateur** (DeathWatch), bien écrit ; d'autres émissions plus tard.
+
+### Planifié (lots)
+1. **Catalogue pur** `deathwatch.js` (nouveau, `index.html` ET `GAME_FILES`) : présentateur, ~30 piques à
+   trous avec leur déclencheur, répliques par ton, réactions du présentateur, `pickShowTaunt()` /
+   `fillShowTemplate()` purs.
+2. **Moteur** : `triggerShow()` à l'arrivée d'étage (`showChoicePending`/`pendingShow`, dans
+   `isActionBlocked()`), contexte tiré de la partie (bilan de l'étage fini capturé avant sa remise à zéro),
+   `answerShow(tone)` (jet, boîte ou sanction), file d'attente derrière le Pacte.
+3. **Présentation** : vignette « plateau TV » (présentateur, enseigne EN DIRECT, drone caméra,
+   applaudimètre), zone de réponses avec l'enjeu de chaque bouton.
+4. **Succès** : « Chouchou du public » (réussir l'insulte en direct), « Interdit d'antenne » (refuser 3 fois).
+5. **Tests** (`tests/regression/deathwatch.js`, simulation longue) + `NOTES_DEATHWATCH.md`.
+
+### Codé
+Les 5 lots sont livrés (détail et points à surveiller : `NOTES_DEATHWATCH.md`). Précisions apportées en
+codant : l'émission n'a lieu que dans une vraie partie (nom confirmé), comme les succès ; l'échec « −2 H »
+ne peut jamais tuer (au moins 1 H reste).
 
 ## 5. Rework de la carte — XL — Idée (à découper)
 

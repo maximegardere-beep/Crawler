@@ -221,6 +221,46 @@ Object.assign(MOB_DETAILS, {
             <path d="M-8 -38 h10" stroke="#05060c" stroke-width="0.9" opacity="0.7"/>
             <path d="M-18 -1.5 q6 -4 12 0" fill="#2a2925" stroke="#05060c" stroke-width="1"/>`,
         bounds: [-23, 23]
+    },
+    // Chasseurs de primes (chantier 3, bountyHunters dans bestiary.js — hors baseMobs) : chapeau de
+    // chasseur, étoile de shérif en fer-blanc, et l'outil de chaque variante.
+    // Gobelin Pisteur de Primes — chapeau à large bord, étoile, longue-vue en bandoulière, avis plié.
+    'Gobelin Pisteur de Primes': {
+        palette: { base: '#7c9a4e', dark: '#4a5e2c', accent: '#d4a72c' },
+        markup: `
+            <ellipse cx="2" cy="-66" rx="12.5" ry="2.4" fill="#5b3a22" stroke="#05060c" stroke-width="1.1"/>
+            <path d="M-5 -67 q7 -8 13 0 z" fill="#6b4428" stroke="#05060c" stroke-width="1"/>
+            <path d="M-3 -44 l1.2 2.4 l2.6 0.3 l-1.9 1.8 l0.5 2.6 l-2.4 -1.3 l-2.4 1.3 l0.5 -2.6 l-1.9 -1.8 l2.6 -0.3 z" fill="#d4a72c" stroke="#05060c" stroke-width="0.6"/>
+            <path d="M-9 -52 L12 -30" stroke="#5b3a22" stroke-width="1.6"/>
+            <rect x="9" y="-35" width="9" height="3.2" rx="1.2" fill="#8a929c" stroke="#05060c" stroke-width="0.8" transform="rotate(30 13 -33)"/>
+            <rect x="-15" y="-36" width="6" height="7.5" fill="#e8e1c8" stroke="#05060c" stroke-width="0.7"/>
+            <path d="M-14 -33 h4 M-14 -31 h3" stroke="#991b1b" stroke-width="0.7"/>`,
+        bounds: [-16, 21]
+    },
+    // Gobelin Cogneur de Primes — bandana, étoile, gourdin clouté, filet roulé à la ceinture.
+    'Gobelin Cogneur de Primes': {
+        palette: { base: '#6f8f45', dark: '#44582a', accent: '#b91c1c' },
+        markup: `
+            <path d="M-8 -66 q10 -6 19 0 l-1 3 q-8 -3 -17 0 z" fill="#b91c1c" stroke="#05060c" stroke-width="1"/>
+            <path d="M11 -64 l5 3 l-4 1" fill="#b91c1c" stroke="#05060c" stroke-width="0.8"/>
+            <path d="M-3 -44 l1.2 2.4 l2.6 0.3 l-1.9 1.8 l0.5 2.6 l-2.4 -1.3 l-2.4 1.3 l0.5 -2.6 l-1.9 -1.8 l2.6 -0.3 z" fill="#d4a72c" stroke="#05060c" stroke-width="0.6"/>
+            <path d="M14 -30 L21 -52" stroke="#6b4428" stroke-width="3.2" stroke-linecap="round"/>
+            <circle cx="20" cy="-50" r="0.9" fill="#cbd5e1"/><circle cx="18.6" cy="-46" r="0.9" fill="#cbd5e1"/>
+            <ellipse cx="-9" cy="-24" rx="5" ry="3" fill="none" stroke="#a8a29e" stroke-width="1" stroke-dasharray="1.5 1"/>`,
+        bounds: [-15, 22]
+    },
+    // Chef d'Escouade Gobelin — chapeau à plume, grande étoile, porte-voix, cartouchière.
+    "Chef d'Escouade Gobelin": {
+        palette: { base: '#6a8840', dark: '#3f5224', accent: '#facc15' },
+        markup: `
+            <ellipse cx="2" cy="-67" rx="13" ry="2.4" fill="#3f2a1a" stroke="#05060c" stroke-width="1.1"/>
+            <path d="M-6 -68 q8 -9 15 0 z" fill="#4a3220" stroke="#05060c" stroke-width="1"/>
+            <path d="M8 -74 q6 -8 11 -6 q-5 2 -9 7 z" fill="#b91c1c" stroke="#05060c" stroke-width="0.7"/>
+            <path d="M-3 -46 l1.6 3.2 l3.4 0.4 l-2.5 2.4 l0.7 3.4 l-3.2 -1.8 l-3.2 1.8 l0.7 -3.4 l-2.5 -2.4 l3.4 -0.4 z" fill="#facc15" stroke="#05060c" stroke-width="0.6"/>
+            <path d="M-11 -50 L10 -28" stroke="#3f2a1a" stroke-width="2.2"/>
+            <path d="M-8 -47 v2 M-4 -43 v2 M0 -39 v2 M4 -35 v2" stroke="#d4a72c" stroke-width="1.4"/>
+            <path d="M13 -44 l7 -3 v8 z" fill="#8a929c" stroke="#05060c" stroke-width="0.8"/>`,
+        bounds: [-14, 21], top: -76
     }
 });
 
