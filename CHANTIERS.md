@@ -26,7 +26,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 1 | Rework des compagnons | M | **Codé** — à playtester | — |
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Codé** — à playtester | 2 (fait) |
-| 4 | Émission de changement d'étage (DeathWatch) | L | Idée | 2 (piques), 1 et 3 (conséquences) |
+| 4 | Émission de changement d'étage (DeathWatch) | L | **Suggéré** | 2, 1, 3 (faits) |
 | 5 | Rework de la carte (3 lots) | XL | Idée | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
@@ -341,19 +341,57 @@ paliers, sprite dédié (gobelin à chapeau, badge et filet), 2-3 succès bonus 
 Les 5 lots sont livrés (détail et points à surveiller : `NOTES_CHASSEURS.md`). Précision apportée en
 codant : un chasseur tué ne donne QUE sa récompense (pas en plus le butin normal de 40 % d'un mob).
 
-## 4. Émission de changement d'étage (DeathWatch) — L — Idée
+## 4. Émission de changement d'étage (DeathWatch) — L — Suggéré
 
 **Demande** : émission au changement d'étage, dialogues plus ou moins risqués, choix avec lancer de dés ;
-risqué = danger mais grosse récompense si réussite. Exemple : le commentateur reprend des éléments de la
-partie et envoie des piques ; plusieurs réponses prédéfinies plus ou moins provocatrices ; cadeaux, ou
-envoyé contre des mobs/crawlers plus ou moins difficiles.
-**Idée de structure** : s'accroche à l'écran d'escalier existant (`triggerFloorTransition()`), avant
-l'annonce d'anomalie. Piques générées depuis la chronique (2) (templates à trous, comme les épitaphes
-de la nécrologie). 3-4 réponses de la plus polie à la plus provocatrice, chacune avec une difficulté de
-jet (réutiliser les dés du combat) et une table récompense/sanction. Sanctions : combat de mob/élite,
-crawler hostile (1), chasseurs de primes (3), anomalie supplémentaire ; récompenses : objet, PO,
-cadeau du public, bonus pour l'étage. Plusieurs émissions/présentateurs possibles (rotation).
-À définir : fréquence (chaque étage ou aléatoire), scène dédiée (plateau TV), nombre d'émissions en V1.
+risqué = danger mais grosse récompense si réussite. Exemple : DeathWatch — le commentateur reprend des
+éléments de la partie du crawler et lui envoie des piques ; plusieurs réponses prédéfinies plus ou moins
+provocatrices ; cadeaux, ou envoyé contre des mobs/crawlers plus ou moins difficiles.
+
+### Exploré (état actuel)
+- **Moment** : « Descendre » → écran d'escalier (`triggerFloorTransition()`, bilan + annonce d'anomalie,
+  `floorTransitionPending`) → « Continuer » → `advanceToNextFloor()`. Précédent utile : le Pacte du
+  Crawler (`triggerPactChoice()`) est un choix bloquant posé À L'ARRIVÉE sur le nouvel étage
+  (`pactChoicePending`, dans `isActionBlocked()`) — le bon modèle pour une émission dont la conséquence
+  peut être un combat (impossible pendant l'écran d'escalier, qui n'est pas une scène de jeu).
+- **Matière pour les piques** (chantier 2) : `runStats` (fuites, pièges, sorts ratés, victoires à mains
+  nues, à un poil…), `floorStats` de l'étage qui vient de finir, nécrologie, compagnon (loyauté, à terre,
+  congédié), objet ridicule porté (`jokeItem`, déjà utilisé par les épitaphes), prime (chantier 3), succès.
+  Le moteur de gabarits à trous des épitaphes (`{{mob}}`, `{{etage}}`…) se réutilise tel quel.
+- **Dés** : `config.rangedCombat.dieSides` (d6 opposés) et l'animation `showDie()` existent déjà.
+- **Récompenses prêtes** : boîtes Bronze/Argent/Or (`openAchievementBox()`), PO, potions, XP du public
+  (`audienceGift`). **Sanctions prêtes** : combat forcé (`initiateCombat()`, mob élite via `generateMob(…,
+  eliteBonus)`), crawler hostile (`companionCandidateToMob()`), chasseur de primes (`spawnBountyHunter()` /
+  `addBounty()`), perte de temps ou de PO.
+- **Décor** : drone caméra de l'émission (`cameraDrone`), PNJ marchand/professeur dessinés, vignettes
+  d'exploration — de quoi composer un plateau TV sans nouvel archétype.
+
+### Suggéré (à valider)
+**A. L'émission** : à l'arrivée sur un nouvel étage, un écran « 📺 DeathWatch » (bloquant, comme le
+Pacte) : plateau TV (présentateur, drone caméra, applaudimètre), le présentateur lance UNE pique tirée
+de votre partie (« 12 fuites, [Nom]. Vous battez le record de l'étage… en course à pied. »), puis vous
+répondez.
+
+**B. Quatre réponses, du plus sûr au plus risqué** (jet d20 + petit bonus de popularité = 1 par tranche
+de 5 succès) :
+| Réponse | Jet | Réussite | Échec |
+|---|---|---|---|
+| 😇 Poli(e) | aucun | petit cadeau (PO) | — |
+| 😏 Pique en retour | ≥ 8 | boîte Bronze | l'audience s'ennuie : −2 H |
+| 😈 Provocation | ≥ 12 | boîte Argent | combat immédiat contre un mob élite |
+| 🤬 Insulte en direct | ≥ 16 | boîte Or | un chasseur de primes est lâché sur vous (+20 prime et combat) |
+Un « Refuser l'interview » (aucun effet, le public boude) reste possible.
+
+**C. Contenu** : ~30 piques à trous classées par déclencheur (fuites, pièges, sorts ratés, objet
+ridicule, compagnon, prime, dégâts de l'étage, repli générique), ~5 réparties par ton de réponse, et une
+réaction du présentateur par issue. Plusieurs présentateurs possibles plus tard (rotation).
+
+**D. Présentation** : overlay dédié avec une scène « plateau TV » (même moteur de vignettes), le dé qui
+roule (`showDie()`), le verdict et la récompense/sanction dans le journal. Succès bonus possibles
+(« Chouchou du public », « Interdit d'antenne »).
+
+### Décisions
+- (en attente de validation)
 
 ## 5. Rework de la carte — XL — Idée (à découper)
 
