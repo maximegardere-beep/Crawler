@@ -25,7 +25,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 |---|----------|---------|--------|-----------|
 | 1 | Rework des compagnons | M | **Codé** — à playtester | — |
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
-| 3 | Chasseurs de primes gobelins (anti-snowball) | M | Idée (socle prêt) | 2 (fait) |
+| 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Suggéré** | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | Idée | 2 (piques), 1 et 3 (conséquences) |
 | 5 | Rework de la carte (3 lots) | XL | Idée | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
@@ -263,15 +263,54 @@ compagnon congédié passent aussi par la revente d'office (ils étaient perdus 
 L'indice de domination est calculé et testé, mais pas encore utilisé : c'est le point d'entrée du
 chantier 3.
 
-## 3. Chasseurs de primes gobelins — M — Idée
+## 3. Chasseurs de primes gobelins — M — Suggéré
 
 **Demande** : des gobelins chasseurs de primes traquent les crawlers qui tuent beaucoup de mobs
 facilement (anti-snowball).
-**Idée de structure** : jauge de « prime » alimentée par l'indicateur de facilité de la chronique (2) ;
-au-delà de seuils, rencontres de chasseurs (mob élite dédié, qui scale sur le NIVEAU du joueur plutôt
-que sur l'étage), traque visible (annonce, jauge), prime qui redescend avec des combats difficiles ou
-en payant. Récompense spécifique pour qui les bat (la prime elle-même ?). Nouveaux sprites à prévoir.
-À définir : fréquence maximale, si la traque peut suivre sur un étage urbain, interaction avec la furtivité.
+
+### Exploré (état actuel)
+- **Socle prêt (chantier 2)** : chaque victoire enregistre sa facilité (`computeWinEase()` : 1 sans
+  dégât, 0 à 40 % des PV max perdus) dans `runStats.recentWins`, et `computeDominance()` en fait la
+  moyenne glissante sur 10 victoires. Rien ne l'utilise encore.
+- **Aucun frein au snowball aujourd'hui** : les mobs ne scalent que sur l'ÉTAGE (`getFloorScaling()`,
+  `getMobLevelEquivalent()` = étage). Un crawler en avance (bon objet signature, compagnon équipé, boîtes
+  de succès) écrase tout l'étage sans contrepartie.
+- **Points d'accroche** : `resolveCardEvent()` (tirage D100 de l'exploration) → `handleStealthEncounter()`
+  (détection, esquive, attaque furtive) → `initiateCombat()` ; embuscades de trajet (lieux connus, villes)
+  ; `winCombat()` / `attemptFlee()` (issue) ; villes urbaines (marchand) pour un éventuel paiement.
+- **Mob dédié possible sans toucher au bestiaire des quartiers** : l'archétype `goblinoid` existe
+  (silhouette + palette) ; un chasseur défini hors `baseMobs` n'exige pas de détail signature dans les
+  tests, mais peut en avoir un. `isEliteMob()` / icône 💀 / `config.mobDamageScaling.eliteDamageMult`
+  s'appliquent à tout mob marqué élite.
+
+### Suggéré (à valider)
+**A. Prime (0-100), la « tête mise à prix »** — `gameState.bounty`, visible dans l'en-tête (🎯 + jauge).
+- Monte avec les victoires FACILES : facilité ≥ 0,8 → +8 ; 0,5-0,8 → +3.
+- Redescend : victoire difficile (facilité < 0,5) → −5 ; nouvel étage → −10 ; payer en ville (voir C).
+- Paliers : 30 = « Avis de recherche » (alerte, rien d'autre) ; 60 = chasseurs en maraude ; 90 = escouade.
+
+**B. Les chasseurs** — « Gobelin Chasseur de Primes » (+ variantes Pisteur à distance / Cogneur au
+contact, Chef d'escouade à 90+).
+- Rencontre : dès 60 de prime, une partie des combats d'exploration et des embuscades de trajet sont
+  remplacés par un chasseur (≈ 10 % à 60, ≈ 20 % à 90, jamais deux d'affilée).
+- **Force indexée sur le JOUEUR** (PV max, ATQ et DEF effectives, niveau), pas sur l'étage : c'est ce qui
+  en fait un vrai frein au snowball, calibré pour qu'un combat coûte environ 30-40 % de vos PV.
+- Ils vous traquent : **aucune esquive furtive possible**, et fuir ne marche qu'une fois sur deux (et
+  fait monter la prime de +10).
+- Escouade (90+) : deux chasseurs d'affilée.
+
+**C. Issues**
+- Tuer un chasseur : une récompense égale à la prime (PO ≈ prime × étage × 2), un objet de rang
+  « élite », et la prime retombe à 0 (« votre tête ne vaut plus rien, pour l'instant »).
+- Racheter sa tête chez un marchand d'étage urbain : coût ≈ prime × étage × 4 PO, prime remise à 0.
+- Mourir face à un chasseur : épitaphe dédiée dans la nécrologie.
+
+**D. Présentation** : vignette « AVIS DE RECHERCHE » (affiche avec votre silhouette) au passage des
+paliers, sprite dédié (gobelin à chapeau, badge et filet), 2-3 succès bonus (« Tête mise à prix »,
+« Chasseur chassé » après 3 chasseurs, « Casier judiciaire vierge » en rachetant sa prime).
+
+### Décisions
+- (en attente de validation)
 
 ## 4. Émission de changement d'étage (DeathWatch) — L — Idée
 
