@@ -27,7 +27,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Codé** — à playtester | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | **Codé** — à playtester | 2, 1, 3 (faits) |
-| 5 | Rework de la carte (3 lots) | XL | Idée | — |
+| 5 | Rework de la carte + génération des étages | XL | **Plan final proposé** (à valider) | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
 | 8 | Sons | M | Idée (ancien backlog) | hébergement des fichiers non tranché |
@@ -414,16 +414,231 @@ Les 5 lots sont livrés (détail et points à surveiller : `NOTES_DEATHWATCH.md`
 codant : l'émission n'a lieu que dans une vraie partie (nom confirmé), comme les succès ; l'échec « −2 H »
 ne peut jamais tuer (au moins 1 H reste).
 
-## 5. Rework de la carte — XL — Idée (à découper)
+## 5. Rework de la carte + génération des étages — XL — Plan final proposé
 
-**Demande** : zoom, réseau plus complexe et logique, et surtout bouton carte pour les étages non urbains.
-**Découpage proposé** (livrables séparés, dans cet ordre) :
-- **5a. Carte des étages classiques** (le plus attendu) : le bouton `#btn-toggle-map` existe déjà, masqué
-  hors étage urbain ; `renderGraphMiniMap()` est générique et `computeGraphLayout()` avait été gardée
-  exprès pour ça. Il faut un layout des pièces/quartiers, le brouillard de guerre (pièces visitées et
-  lieux connus), et le déplacement vers les lieux connus depuis la carte.
-- **5b. Zoom** (pincer / molette + boutons) sur le moteur commun.
-- **5c. Réseau urbain plus complexe et logique** (génération des villes/routes).
+**Demande** : zoom, réseau plus complexe et logique, bouton carte pour les étages non urbains ; **revoir
+la génération des couloirs et des salles, de mauvaise qualité**. Méthode demandée : prendre le temps,
+**plusieurs tours de suggestions et d'itérations** avant le plan final et le code.
+**Inspiration** (artwork du wiki DCC, « Floors 1 & 2, The Tutorial Floors ») : un *Borough* = 4 blocs de
+quartier séparés par de grandes avenues ; chaque bloc est un dédale de salles rectangulaires reliées par
+des couloirs, avec une salle de boss de quartier, des salles sûres, (beaucoup de) toilettes et une guilde
+tutoriel ; les avenues se prolongent au-delà du borough.
+
+### Exploré (état actuel — `generateFloorMap()` / `generateQuadrant()`, app.js)
+Mesures sur 500 étages générés :
+- **Aucune géométrie** : une pièce n'a ni position ni taille, seulement une liste de voisins. ~48 pièces
+  identiques par étage (10-14 par quartier, jamais selon la profondeur). Une carte ne peut donc être
+  qu'un dessin arbitraire du graphe — c'est pour ça qu'elle n'existe pas encore.
+- **Couloirs arbitraires** : le type « artère »/« ruelle » est tiré au hasard (40/60) sans lien avec la
+  structure ; les « boucles » relient deux pièces quelconques du quartier (raccourcis incohérents, 2,4 %
+  de couloirs en double).
+- **Structure pauvre** : arbre en « tronc » (70 % des nouvelles pièces se raccrochent à la dernière),
+  profondeur max ~5,6, 18 % de culs-de-sac, degré max 7 ; aucune salle n'a de taille ni de fonction
+  hors boss / salle sûre.
+- **Jonctions entre quartiers** : une seule par paire voisine (anneau 0-1-2-3), entre deux pièces tirées
+  au hasard → **9 % débouchent directement dans une salle de boss**, 12 % dans une salle sûre.
+- **Exploration** : toucher la scène fait avancer vers un voisin non visité au hasard ; sans voisin
+  inconnu, trajet automatique vers la bifurcation la plus proche. Le joueur ne choisit jamais sa direction.
+- **Réutilisable** : la mini-carte graphique générique (`renderGraphMiniMap()` : caméra, pan, marqueurs)
+  et le brouillard « villes connues » des étages urbains ; tout le reste du jeu ne voit l'étage qu'à
+  travers `roomsById`, `neighbors`, `computeDistance()`, `enterRoom()`, les lieux connus et les anomalies
+  (LABYRINTHE, CAFET_ASSOMBRIE).
+
+### Suggestions — tour 1 (direction générale, rien de figé)
+Piste « Borough » (prototype jetable dessiné pour la discussion, hors dépôt) :
+- **Étage = une grille** : 4 blocs de quartier (2×2) séparés par des avenues ; chaque bloc a une vraie
+  géométrie (grille de cases).
+- **Salles** rectangulaires de tailles variées, placées sans chevauchement ; grande salle de boss au fond
+  du bloc ; salles sûres ; 2-3 portes par bloc sur les avenues (jamais dans une salle de boss).
+- **Couloirs** courts : arbre couvrant minimal entre salles voisines + quelques boucles LOCALES ; la
+  longueur réelle du couloir remplace « artère/ruelle » pour le coût et le risque des trajets.
+- **Avenues** = réseau de transit entre blocs (rapide), point de passage obligé d'un quartier à l'autre.
+- **Carte** : dessin fidèle salles + couloirs, brouillard de guerre (pièces visitées, portes aperçues),
+  zoom et pan (moteur des étages urbains).
+
+Questions ouvertes pour le tour 2 : échelle (un borough par étage ou plusieurs en profondeur), rôle des
+avenues, types de salles (toilettes, guildes…), liberté de déplacement, style de la carte, étages urbains.
+
+### Réponses au tour 1 (utilisateur)
+1. **Échelle** : un seul borough de 4 quartiers par étage (simple).
+2. **Avenues** : zone à part entière — plus rapide et plus sûre, plus de crawlers, et plus de chasseurs de
+   primes quand la prime est élevée.
+3. **Types de salles** : ni guildes, ni toilettes, ni réserves pour l'instant — mais une **plateforme
+   flexible** qui permette plus tard des correctifs et des ajouts sans refonte.
+4. **Déplacement** : un entre-deux entre « au hasard » et « libre » → idées demandées.
+5. **Carte** : **stylisée** (pas un plan fidèle).
+6. **Étages urbains** : on verra après.
+
+### Suggestions — tour 2 (maquette jetable : carte stylisée + vue joueur, hors dépôt)
+**Déplacement « entre-deux » (4 idées, cumulables)**
+- **M1 — Voyage sur carte** : toucher sur la carte une pièce déjà visitée ou *aperçue* (porte vue) = y
+  aller, avec coût en temps et risque d'embuscade selon la longueur réelle du chemin (le système des lieux
+  connus, généralisé à toute la zone connue). L'inconnu, lui, reste à découvrir en explorant.
+- **M2 — Portes aux bifurcations** : dans une salle à 2+ sorties inconnues, la scène montre 2-3 portes
+  (gauche / fond / droite) ; toucher une porte = explorer par là, toucher ailleurs = au hasard comme
+  aujourd'hui. Jamais bloquant.
+- **M3 — Cap** : choisir un cap sur la carte (une porte d'avenue, un coin inexploré) ; l'exploration s'en
+  rapproche à chaque pas quand c'est possible.
+- **M4 — Flair** (plus tard, lié à la Furtivité / l'Éclaireur) : chance d'entrevoir ce qu'il y a derrière
+  une porte (danger, butin) avant de choisir.
+- Recommandation : **M1 + M2** pour la V1, M3/M4 plus tard.
+
+**Avenues (zone à part entière)** : un réseau de tronçons et de carrefours autour et entre les 4 blocs ;
+seul passage d'un quartier à l'autre (2-3 portes par bloc, jamais dans une salle de boss). On peut y
+explorer comme dans un bloc, avec **sa propre table d'événements** : moins de combats et de pièges, plus de
+rencontres de crawlers, chasseurs de primes plus fréquents dès que la prime est élevée ; déplacements
+moins coûteux en temps.
+
+**Carte stylisée** : blocs teintés par quartier, salles en pastilles de 3 tailles (S / M / L), couloirs en
+traits droits, avenues en larges bandes avec leurs carrefours ; brouillard (plein = visité, pointillé =
+aperçu, rien = inconnu) ; zoom et pan (moteur de la carte urbaine).
+
+**Plateforme flexible (le cœur du chantier)**
+- `floorgen.js` (pur) : génère la géométrie (blocs, salles, couloirs, portes, avenues) à partir de
+  réglages centralisés — changer une taille, un nombre de salles ou de boucles = une valeur à modifier.
+- `ROOM_TYPES` (catalogue) : un type de salle = une entrée (libellé, icône, style sur la carte, taille,
+  placement : profondeur / près d'une porte, nombre par bloc, événement à l'entrée). Ajouter plus tard des
+  toilettes ou une guilde = une entrée + son effet, sans toucher au générateur.
+- `ZONE_TYPES` : chaque zone (bloc de quartier, avenue, et plus tard d'autres) pointe vers sa table
+  d'événements et ses coûts de déplacement.
+- Compatibilité : chaque salle garde `id` / `neighbors` / `type` / `visited` (le reste du jeu continue de
+  fonctionner), avec en plus sa géométrie et son état « aperçu » ; la distance de trajet vient de la
+  longueur réelle des couloirs.
+
+### Questions pour le tour 3
+1. Déplacement : M1 + M2 ? M3 / M4 dès maintenant ou plus tard ?
+2. Avenues : exploration libre (comme un bloc) ou simple transit avec événements pendant le trajet ?
+3. Taille d'un quartier : ~12-14 salles comme aujourd'hui, ou plus avec la profondeur ?
+4. Carte : panneau sous la scène (comme la carte urbaine) ou plein écran ?
+5. Sauvegardes en cours : l'étage actuel reste jouable sans carte, la nouvelle génération arrive au
+   prochain étage — ok ?
+
+### Réponses au tour 2 (utilisateur)
+1. **Déplacement : M1 (voyage sur carte) + M2 (portes aux bifurcations).** M3/M4 plus tard.
+2. **Avenues : exploration libre**, comme dans un bloc.
+3. **Taille** : même nombre de salles qu'aujourd'hui (~12-14 par quartier).
+4. **Carte : panneau sous la scène** (comme la carte urbaine).
+5. **Sauvegardes** : on peut supprimer les anciennes, pas de migration nécessaire.
+
+### Suggestions — tour 3 (le détail, pour converger vers le plan final)
+Maquette jetable (hors dépôt) : scène avec 3 portes (M2) + panneau carte, et voyage sur carte (M1).
+
+**A. Génération d'un bloc de quartier** (grille de 22 × 16 cases, réglable)
+1. Salle de boss d'abord : grande (5 × 4), placée loin des portes.
+2. Puis ~11-13 salles de 1 × 1 à 4 × 3 cases, jamais collées (1 case d'écart minimum) ; 1 à 2 salles sûres
+   (petites, à mi-profondeur). Taille S / M / L déduite de la surface, pour la carte.
+3. Couloirs : arbre couvrant minimal entre salles voisines + 1 à 3 boucles COURTES (seulement entre
+   salles proches) ; aucun doublon possible.
+4. 2 à 3 portes sur les avenues, sur des salles au bord du bloc, jamais la salle de boss ; la salle de boss
+   est au moins à 3 salles de toute porte.
+5. Garde-fous vérifiés à la génération (sinon on régénère) : bloc connexe, boss atteignable, profondeur
+   du boss, nombre de salles.
+
+**B. Avenues** : une croix + un anneau autour des 4 blocs, découpés en *tronçons* (≈ 12-16 au total) et
+*carrefours* ; chaque tronçon est une « salle » de la zone avenue, reliée aux portes des blocs qui la
+bordent. Explorer une avenue = avancer d'un tronçon (−1 H) avec sa propre table d'événements.
+Proposition de table (**à valider**, D100, à côté de celle des salles actuelles) :
+| Événement | Salles (actuel) | Avenue (proposé) |
+|---|---|---|
+| Rien | 37 | 40 |
+| Combat | 25 | 12 |
+| Butin | 4 | 4 |
+| Piège | 10 | 3 |
+| Contretemps | 8 | 5 |
+| Petite trouvaille | 3 | 5 |
+| PO | 3 | 6 |
+| Cadeau du public | 4 | 8 |
+| Rencontre de crawler | 3 | 12 |
+| Ambiance | 3 | 5 |
++ chasseurs de primes **deux fois plus fréquents** sur les avenues quand la prime est ≥ 60 ;
++ trajets sur carte qui empruntent une avenue : **temps ×0,5 et risque d'embuscade ×0,5** sur ces tronçons.
+
+**C. Départ et escalier** : arrivée sur l'étage au carrefour central (zone avenue, sûre) ; l'escalier reste
+gardé par le boss d'un des 4 quartiers (inchangé) ; le quartier courant = celui du bloc où l'on se trouve
+(les avenues gardent le dernier quartier traversé pour le décor et les mobs).
+
+**D. M2 — portes** : dans une salle à 2+ sorties inconnues, la scène montre une porte par sortie (3 max),
+étiquetée par sa direction réelle sur la carte (Nord / Est / Sud / Ouest) et un indice (« vers l'avenue »,
+ou l'icône de la salle si elle est déjà aperçue). Toucher une porte = y aller ; toucher la scène ailleurs =
+au hasard. Une seule sortie inconnue : pas de porte, comme aujourd'hui.
+
+**E. M1 — voyage sur carte** : toucher une salle visitée ou *aperçue* (voisine d'une salle visitée) ouvre
+une bulle : destination, temps, risque, « Y aller / Annuler ». Temps et risque viennent de la longueur
+réelle du chemin (mêmes règles qu'aujourd'hui : ~9 % de risque par unité de distance, plafonné à 80 %,
+réduit par un compagnon Garde et par les avenues). La liste « Lieux connus » disparaît, remplacée par la
+carte (boss repérés, salles sûres et escalier y sont marqués).
+
+**F. Carte (panneau sous la scène)** : ouverte par « 🗺️ Carte », boutons ＋ / － / ◎ (recentrer), pan au
+doigt ; vue d'ensemble dézoomée (4 blocs + avenues) ou zoom sur le bloc courant ; brouillard : plein =
+visité, pointillé = aperçu, rien = inconnu ; marqueurs 👑 boss repéré, 🪜 escalier, 🛏 salle sûre, pion jaune
+= vous.
+
+**G. Plateforme flexible (modèle de données)**
+- `FLOOR_LAYOUT` (réglages) : taille des blocs et des avenues, nombre de salles, tailles min/max, nombre de
+  boucles et de portes, profondeur minimale du boss.
+- `ROOM_TYPES` : `{ key, label, icon, mapStyle, size, placement: { depth, nearDoor, perBlock }, onEnter }` —
+  aujourd'hui `normal`, `boss`, `safe` ; demain toilettes, guilde… = une entrée.
+- `ZONE_TYPES` : `{ key, eventTable, timeMult, ambushMult, hunterMult }` — `block` et `avenue`.
+- Salle = `{ id, zone, block, x, y, w, h, size, type, neighbors: [{ to, length }], visited, seen }` : le reste
+  du jeu garde `id` / `neighbors` / `type` / `visited` ; `computeDistance()` utilise `length`.
+- Anomalies : LABYRINTHE = +50 % de salles par bloc (grille agrandie d'autant) ; CAFET_ASSOMBRIE inchangée.
+- Sauvegardes : les anciennes deviennent incompatibles (version de format) — proposées à la suppression.
+
+### Questions pour le tour 4
+1. Table d'événements des avenues : ok, ou à retoucher ?
+2. Départ au carrefour central : ok ?
+3. Suppression de la liste « Lieux connus » au profit de la carte : ok, ou la garder en raccourci ?
+4. Portes étiquetées par direction réelle (Nord/Est…) ou simplement gauche / fond / droite ?
+5. Autre chose à ajouter avant que je rédige le plan final (lots, ordre, tests) ?
+
+### Réponses au tour 3 (utilisateur)
+1. Table d'événements des avenues : **validée telle quelle** (et chasseurs ×2 sur les avenues dès 60 de prime,
+   temps et risque ×0,5 sur les tronçons d'avenue).
+2. Départ : **aléatoire, mais hors de danger** (pas au carrefour central).
+3. Liste « Lieux connus » : **supprimée**, remplacée par la carte.
+4. Portes étiquetées **Nord / Sud / Est / Ouest**.
+
+### Décisions consolidées
+- Un seul borough de 4 blocs de quartier (2 × 2) + avenues (croix + anneau), ~12-14 salles par bloc.
+- Avenues = zone explorable à part entière (table ci-dessus, validée).
+- Déplacement : exploration au hasard par défaut + **M2** portes N/S/E/O aux bifurcations + **M1** voyage sur
+  carte vers toute salle visitée ou aperçue.
+- Carte **stylisée**, **panneau sous la scène**, zoom ＋/－/◎ et pan, brouillard visité / aperçu / inconnu.
+- **Départ aléatoire sûr** : une salle normale ou un tronçon d'avenue tiré au hasard, jamais une salle de boss
+  ni à moins de 3 salles d'une salle de boss, sans événement à l'arrivée.
+- Plateforme flexible : `FLOOR_LAYOUT`, `ROOM_TYPES`, `ZONE_TYPES` (ajouter un type de salle ou de zone = une
+  entrée de catalogue).
+- Anciennes sauvegardes incompatibles, proposées à la suppression. Étages urbains : inchangés pour l'instant.
+
+### Plan final proposé (à valider avant de coder)
+Découpé en lots testables, livrés dans cet ordre sur une même branche :
+1. **Générateur pur `floorgen.js`** (+ `FLOOR_LAYOUT`, `ROOM_TYPES`, `ZONE_TYPES`) : blocs (salles, couloirs,
+   portes), avenues (tronçons, carrefours), liens bloc ↔ avenue, garde-fous (connexité, profondeur du boss,
+   portes jamais sur un boss, aucun chevauchement), départ aléatoire sûr. Hasard injectable pour des tests
+   reproductibles. Outil `npm run sim:floors` (mêmes mesures que le diagnostic) pour vérifier la qualité
+   sur des centaines d'étages.
+2. **Branchement moteur** : `generateFloorMap()` délègue au générateur ; salles compatibles (`id` /
+   `neighbors` / `type` / `visited` + géométrie et état « aperçu ») ; `computeDistance()` sur la longueur réelle
+   × multiplicateurs de zone ; table d'événements par zone (`resolveCardEvent()`), chasseurs ×2 sur les
+   avenues ; LABYRINTHE (+50 % de salles) et CAFET_ASSOMBRIE adaptées ; sauvegarde versionnée.
+3. **M1 — voyage sur carte** : `travelToRoom()` (généralise le trajet vers un lieu connu : temps, embuscades,
+   Garde, avenues) ; suppression de « Lieux connus » (`knownLocations` : boss repéré, salle sûre, escalier
+   libre deviennent des marqueurs portés par la salle elle-même).
+4. **Carte stylisée** : rendu (blocs teintés, salles S/M/L, couloirs, avenues, marqueurs, brouillard), zoom ＋/－/◎
+   et pan (moteur de la carte urbaine), bulle « Y aller / Annuler » ; bouton « 🗺️ Carte » actif sur tous les
+   étages.
+5. **M2 — portes N/S/E/O** : vignette de bifurcation (une porte par sortie inconnue, 3 max, direction réelle +
+   indice), toucher une porte = y aller, ailleurs = au hasard.
+6. **Tests et documentation** : nouveaux domaines `tests/regression/floorgen.js` et `floor-map.js` ; tests
+   existants adaptés (salles sûres par quartier, lieux connus, LABYRINTHE, escalier libre) ; simulation longue
+   (exploration, portes, voyages) ; `NOTES_CARTE.md` ; `CLAUDE.md` (sections étage, lieux connus, carte).
+
+Validation visuelle dans Chromium à chaque lot qui touche l'écran (4 et 5). Points à surveiller signalés
+d'avance : les tests qui s'appuient sur l'ancienne structure (`generateQuadrant()`, lieux connus) seront
+réécrits, pas contournés ; la simulation longue devra connaître les nouveaux états (bulle de trajet).
+
+### Décisions
+- (plan final en attente de validation)
 
 ## 6. Mini-jeux d'exploration — ? — En attente
 

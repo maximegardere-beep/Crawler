@@ -192,7 +192,7 @@ gameState.anomalyEffects = createNeutralAnomalyEffects();
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 25, label: "Refonte graphique : scènes 2D, décors, crawler équipé, effets d'attaque, bestiaire et boss" };
+const APP_VERSION = { pr: 28, label: "Compagnons, succès sarcastiques, chasseurs de primes et émission DeathWatch" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
