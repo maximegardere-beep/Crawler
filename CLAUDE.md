@@ -836,11 +836,11 @@ Tailwind CDN, **aucun build step**.
    commit de merge et une GitHub Release portant le même numéro. Non automatisé pour l'instant (pas de
    script de release) — à faire à la main à chaque merge.
    **Compteur unique depuis la PR #25** (choix de l'utilisateur) : `APP_VERSION.pr`, le tag, la release et
-   le `?v=` d'`index.html` valent tous le numéro de la dernière PR mergée (25). Entre deux merges, chaque
-   changement d'un `.js` incrémente quand même le `?v=` (convention 4), et le merge suivant le recale sur le
-   nouveau numéro de PR. Attention : les valeurs 26 à 111 ont déjà servi de `?v=` avant cette fusion — un
-   navigateur qui aurait gardé en cache un fichier servi sous l'une d'elles pourrait le resservir ; en cas
-   de doute sur iPhone, vider le cache du site. `package.json` suit `APP_VERSION.pr`.
+   `package.json` valent le numéro de la dernière PR mergée (28, rattrapage groupé de #26-#28). Le `?v=`
+   d'`index.html` ne peut plus suivre ce numéro : les valeurs jusqu'à 34 ont déjà servi (entre deux merges,
+   convention 4) — il ne fait donc que croître (35 au rattrapage de la PR #28), jamais recalé vers le bas,
+   sans quoi un navigateur pourrait resservir un fichier gardé en cache sous une ancienne valeur. En cas de
+   doute sur iPhone, vider le cache du site.
 
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
