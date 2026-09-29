@@ -27,7 +27,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Codé** — à playtester | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | **Codé** — à playtester | 2, 1, 3 (faits) |
-| 5 | Rework de la carte + génération des étages | XL | **Exploré — suggestions, tour 1** | — |
+| 5 | Rework de la carte + génération des étages | XL | **Suggestions, tour 2** | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
 | 8 | Sons | M | Idée (ancien backlog) | hébergement des fichiers non tranché |
@@ -414,7 +414,7 @@ Les 5 lots sont livrés (détail et points à surveiller : `NOTES_DEATHWATCH.md`
 codant : l'émission n'a lieu que dans une vraie partie (nom confirmé), comme les succès ; l'échec « −2 H »
 ne peut jamais tuer (au moins 1 H reste).
 
-## 5. Rework de la carte + génération des étages — XL — Exploré, suggestions (tour 1)
+## 5. Rework de la carte + génération des étages — XL — Suggestions (tour 2)
 
 **Demande** : zoom, réseau plus complexe et logique, bouton carte pour les étages non urbains ; **revoir
 la génération des couloirs et des salles, de mauvaise qualité**. Méthode demandée : prendre le temps,
@@ -459,8 +459,62 @@ Piste « Borough » (prototype jetable dessiné pour la discussion, hors dépôt
 Questions ouvertes pour le tour 2 : échelle (un borough par étage ou plusieurs en profondeur), rôle des
 avenues, types de salles (toilettes, guildes…), liberté de déplacement, style de la carte, étages urbains.
 
+### Réponses au tour 1 (utilisateur)
+1. **Échelle** : un seul borough de 4 quartiers par étage (simple).
+2. **Avenues** : zone à part entière — plus rapide et plus sûre, plus de crawlers, et plus de chasseurs de
+   primes quand la prime est élevée.
+3. **Types de salles** : ni guildes, ni toilettes, ni réserves pour l'instant — mais une **plateforme
+   flexible** qui permette plus tard des correctifs et des ajouts sans refonte.
+4. **Déplacement** : un entre-deux entre « au hasard » et « libre » → idées demandées.
+5. **Carte** : **stylisée** (pas un plan fidèle).
+6. **Étages urbains** : on verra après.
+
+### Suggestions — tour 2 (maquette jetable : carte stylisée + vue joueur, hors dépôt)
+**Déplacement « entre-deux » (4 idées, cumulables)**
+- **M1 — Voyage sur carte** : toucher sur la carte une pièce déjà visitée ou *aperçue* (porte vue) = y
+  aller, avec coût en temps et risque d'embuscade selon la longueur réelle du chemin (le système des lieux
+  connus, généralisé à toute la zone connue). L'inconnu, lui, reste à découvrir en explorant.
+- **M2 — Portes aux bifurcations** : dans une salle à 2+ sorties inconnues, la scène montre 2-3 portes
+  (gauche / fond / droite) ; toucher une porte = explorer par là, toucher ailleurs = au hasard comme
+  aujourd'hui. Jamais bloquant.
+- **M3 — Cap** : choisir un cap sur la carte (une porte d'avenue, un coin inexploré) ; l'exploration s'en
+  rapproche à chaque pas quand c'est possible.
+- **M4 — Flair** (plus tard, lié à la Furtivité / l'Éclaireur) : chance d'entrevoir ce qu'il y a derrière
+  une porte (danger, butin) avant de choisir.
+- Recommandation : **M1 + M2** pour la V1, M3/M4 plus tard.
+
+**Avenues (zone à part entière)** : un réseau de tronçons et de carrefours autour et entre les 4 blocs ;
+seul passage d'un quartier à l'autre (2-3 portes par bloc, jamais dans une salle de boss). On peut y
+explorer comme dans un bloc, avec **sa propre table d'événements** : moins de combats et de pièges, plus de
+rencontres de crawlers, chasseurs de primes plus fréquents dès que la prime est élevée ; déplacements
+moins coûteux en temps.
+
+**Carte stylisée** : blocs teintés par quartier, salles en pastilles de 3 tailles (S / M / L), couloirs en
+traits droits, avenues en larges bandes avec leurs carrefours ; brouillard (plein = visité, pointillé =
+aperçu, rien = inconnu) ; zoom et pan (moteur de la carte urbaine).
+
+**Plateforme flexible (le cœur du chantier)**
+- `floorgen.js` (pur) : génère la géométrie (blocs, salles, couloirs, portes, avenues) à partir de
+  réglages centralisés — changer une taille, un nombre de salles ou de boucles = une valeur à modifier.
+- `ROOM_TYPES` (catalogue) : un type de salle = une entrée (libellé, icône, style sur la carte, taille,
+  placement : profondeur / près d'une porte, nombre par bloc, événement à l'entrée). Ajouter plus tard des
+  toilettes ou une guilde = une entrée + son effet, sans toucher au générateur.
+- `ZONE_TYPES` : chaque zone (bloc de quartier, avenue, et plus tard d'autres) pointe vers sa table
+  d'événements et ses coûts de déplacement.
+- Compatibilité : chaque salle garde `id` / `neighbors` / `type` / `visited` (le reste du jeu continue de
+  fonctionner), avec en plus sa géométrie et son état « aperçu » ; la distance de trajet vient de la
+  longueur réelle des couloirs.
+
+### Questions pour le tour 3
+1. Déplacement : M1 + M2 ? M3 / M4 dès maintenant ou plus tard ?
+2. Avenues : exploration libre (comme un bloc) ou simple transit avec événements pendant le trajet ?
+3. Taille d'un quartier : ~12-14 salles comme aujourd'hui, ou plus avec la profondeur ?
+4. Carte : panneau sous la scène (comme la carte urbaine) ou plein écran ?
+5. Sauvegardes en cours : l'étage actuel reste jouable sans carte, la nouvelle génération arrive au
+   prochain étage — ok ?
+
 ### Décisions
-- (tour 1 en cours)
+- (tour 2 en cours)
 
 ## 6. Mini-jeux d'exploration — ? — En attente
 
