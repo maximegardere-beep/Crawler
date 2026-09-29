@@ -27,7 +27,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Codé** — à playtester | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | **Codé** — à playtester | 2, 1, 3 (faits) |
-| 5 | Rework de la carte + génération des étages | XL | **Suggestions, tour 2** | — |
+| 5 | Rework de la carte + génération des étages | XL | **Suggestions, tour 3** | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
 | 8 | Sons | M | Idée (ancien backlog) | hébergement des fichiers non tranché |
@@ -414,7 +414,7 @@ Les 5 lots sont livrés (détail et points à surveiller : `NOTES_DEATHWATCH.md`
 codant : l'émission n'a lieu que dans une vraie partie (nom confirmé), comme les succès ; l'échec « −2 H »
 ne peut jamais tuer (au moins 1 H reste).
 
-## 5. Rework de la carte + génération des étages — XL — Suggestions (tour 2)
+## 5. Rework de la carte + génération des étages — XL — Suggestions (tour 3)
 
 **Demande** : zoom, réseau plus complexe et logique, bouton carte pour les étages non urbains ; **revoir
 la génération des couloirs et des salles, de mauvaise qualité**. Méthode demandée : prendre le temps,
@@ -513,8 +513,86 @@ aperçu, rien = inconnu) ; zoom et pan (moteur de la carte urbaine).
 5. Sauvegardes en cours : l'étage actuel reste jouable sans carte, la nouvelle génération arrive au
    prochain étage — ok ?
 
+### Réponses au tour 2 (utilisateur)
+1. **Déplacement : M1 (voyage sur carte) + M2 (portes aux bifurcations).** M3/M4 plus tard.
+2. **Avenues : exploration libre**, comme dans un bloc.
+3. **Taille** : même nombre de salles qu'aujourd'hui (~12-14 par quartier).
+4. **Carte : panneau sous la scène** (comme la carte urbaine).
+5. **Sauvegardes** : on peut supprimer les anciennes, pas de migration nécessaire.
+
+### Suggestions — tour 3 (le détail, pour converger vers le plan final)
+Maquette jetable (hors dépôt) : scène avec 3 portes (M2) + panneau carte, et voyage sur carte (M1).
+
+**A. Génération d'un bloc de quartier** (grille de 22 × 16 cases, réglable)
+1. Salle de boss d'abord : grande (5 × 4), placée loin des portes.
+2. Puis ~11-13 salles de 1 × 1 à 4 × 3 cases, jamais collées (1 case d'écart minimum) ; 1 à 2 salles sûres
+   (petites, à mi-profondeur). Taille S / M / L déduite de la surface, pour la carte.
+3. Couloirs : arbre couvrant minimal entre salles voisines + 1 à 3 boucles COURTES (seulement entre
+   salles proches) ; aucun doublon possible.
+4. 2 à 3 portes sur les avenues, sur des salles au bord du bloc, jamais la salle de boss ; la salle de boss
+   est au moins à 3 salles de toute porte.
+5. Garde-fous vérifiés à la génération (sinon on régénère) : bloc connexe, boss atteignable, profondeur
+   du boss, nombre de salles.
+
+**B. Avenues** : une croix + un anneau autour des 4 blocs, découpés en *tronçons* (≈ 12-16 au total) et
+*carrefours* ; chaque tronçon est une « salle » de la zone avenue, reliée aux portes des blocs qui la
+bordent. Explorer une avenue = avancer d'un tronçon (−1 H) avec sa propre table d'événements.
+Proposition de table (**à valider**, D100, à côté de celle des salles actuelles) :
+| Événement | Salles (actuel) | Avenue (proposé) |
+|---|---|---|
+| Rien | 37 | 40 |
+| Combat | 25 | 12 |
+| Butin | 4 | 4 |
+| Piège | 10 | 3 |
+| Contretemps | 8 | 5 |
+| Petite trouvaille | 3 | 5 |
+| PO | 3 | 6 |
+| Cadeau du public | 4 | 8 |
+| Rencontre de crawler | 3 | 12 |
+| Ambiance | 3 | 5 |
++ chasseurs de primes **deux fois plus fréquents** sur les avenues quand la prime est ≥ 60 ;
++ trajets sur carte qui empruntent une avenue : **temps ×0,5 et risque d'embuscade ×0,5** sur ces tronçons.
+
+**C. Départ et escalier** : arrivée sur l'étage au carrefour central (zone avenue, sûre) ; l'escalier reste
+gardé par le boss d'un des 4 quartiers (inchangé) ; le quartier courant = celui du bloc où l'on se trouve
+(les avenues gardent le dernier quartier traversé pour le décor et les mobs).
+
+**D. M2 — portes** : dans une salle à 2+ sorties inconnues, la scène montre une porte par sortie (3 max),
+étiquetée par sa direction réelle sur la carte (Nord / Est / Sud / Ouest) et un indice (« vers l'avenue »,
+ou l'icône de la salle si elle est déjà aperçue). Toucher une porte = y aller ; toucher la scène ailleurs =
+au hasard. Une seule sortie inconnue : pas de porte, comme aujourd'hui.
+
+**E. M1 — voyage sur carte** : toucher une salle visitée ou *aperçue* (voisine d'une salle visitée) ouvre
+une bulle : destination, temps, risque, « Y aller / Annuler ». Temps et risque viennent de la longueur
+réelle du chemin (mêmes règles qu'aujourd'hui : ~9 % de risque par unité de distance, plafonné à 80 %,
+réduit par un compagnon Garde et par les avenues). La liste « Lieux connus » disparaît, remplacée par la
+carte (boss repérés, salles sûres et escalier y sont marqués).
+
+**F. Carte (panneau sous la scène)** : ouverte par « 🗺️ Carte », boutons ＋ / － / ◎ (recentrer), pan au
+doigt ; vue d'ensemble dézoomée (4 blocs + avenues) ou zoom sur le bloc courant ; brouillard : plein =
+visité, pointillé = aperçu, rien = inconnu ; marqueurs 👑 boss repéré, 🪜 escalier, 🛏 salle sûre, pion jaune
+= vous.
+
+**G. Plateforme flexible (modèle de données)**
+- `FLOOR_LAYOUT` (réglages) : taille des blocs et des avenues, nombre de salles, tailles min/max, nombre de
+  boucles et de portes, profondeur minimale du boss.
+- `ROOM_TYPES` : `{ key, label, icon, mapStyle, size, placement: { depth, nearDoor, perBlock }, onEnter }` —
+  aujourd'hui `normal`, `boss`, `safe` ; demain toilettes, guilde… = une entrée.
+- `ZONE_TYPES` : `{ key, eventTable, timeMult, ambushMult, hunterMult }` — `block` et `avenue`.
+- Salle = `{ id, zone, block, x, y, w, h, size, type, neighbors: [{ to, length }], visited, seen }` : le reste
+  du jeu garde `id` / `neighbors` / `type` / `visited` ; `computeDistance()` utilise `length`.
+- Anomalies : LABYRINTHE = +50 % de salles par bloc (grille agrandie d'autant) ; CAFET_ASSOMBRIE inchangée.
+- Sauvegardes : les anciennes deviennent incompatibles (version de format) — proposées à la suppression.
+
+### Questions pour le tour 4
+1. Table d'événements des avenues : ok, ou à retoucher ?
+2. Départ au carrefour central : ok ?
+3. Suppression de la liste « Lieux connus » au profit de la carte : ok, ou la garder en raccourci ?
+4. Portes étiquetées par direction réelle (Nord/Est…) ou simplement gauche / fond / droite ?
+5. Autre chose à ajouter avant que je rédige le plan final (lots, ordre, tests) ?
+
 ### Décisions
-- (tour 2 en cours)
+- (tour 3 en cours)
 
 ## 6. Mini-jeux d'exploration — ? — En attente
 
