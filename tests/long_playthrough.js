@@ -19,6 +19,10 @@ const seenErrors = [];
 
 gameState.equipment.armor = { name: "Plastron d'Essai", baseArmor: 12, category: 'armors', mechanics: ['bleed', 'heal', 'adrenaline', 'stealth'] };
 gameState.equipment.weapon = { name: "Gourdin d'Essai", baseDmg: 12, category: 'weapons' };
+// Chantier 2 : une vraie partie (nom confirmé) pour que les succès se débloquent et que leurs boîtes
+// s'ouvrent pendant la simulation — les invariants ci-dessous doivent tenir malgré ce butin en plus.
+gameState.playerName = "Simulation";
+gameState.saveEnabled = true;
 gameState.equipment.ranged = { name: "Fronde d'Essai", baseDmg: 10, category: 'ranged' };
 
 // MAX_FLOORS=7 (et non 6) : la boucle s'arrête dès que floorsCleared atteint ce plafond, donc
@@ -131,6 +135,9 @@ try {
         if (gameState.hasWon) winTriggered = true;
 
         assert(!Number.isNaN(gameState.hp), `hp devient NaN à l'étape ${steps}`);
+        assert(Number.isFinite(gameState.gold) && gameState.gold >= 0, `PO invalides à l'étape ${steps}`);
+        assert(gameState.inventory.filter(i => i.category !== 'consumables').length <= gameState.maxInventory, `réserve d'équipement dépassée à l'étape ${steps}`);
+        assert(Object.keys(gameState.achievements).every(id => getAchievementById(id)), `succès inconnu enregistré à l'étape ${steps}`);
         assert(gameState.hp <= gameState.maxHp, `hp dépasse maxHp à l'étape ${steps}`);
         assert(gameState.combatDistance >= 0 && gameState.combatDistance <= config.rangedCombat.maxDistance, `combatDistance hors bornes à l'étape ${steps}`);
         assert(!Number.isNaN(gameState.mana) && gameState.mana >= 0 && gameState.mana <= gameState.maxMana, `mana hors bornes à l'étape ${steps}`);
@@ -254,7 +261,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");

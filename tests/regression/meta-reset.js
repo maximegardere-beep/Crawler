@@ -31,7 +31,7 @@ const KNOWN_GAMESTATE_KEYS = [
     'currentDistrict', 'currentEnemy', 'currentFloor', 'def', 'engageDefHalved', 'equipment', 'fleesThisRun', 'lastAttackKind',
     'floorMap', 'floorStats', 'floorTransitionPending', 'gold', 'hasWon', 'hp', 'inCombat',
     'inventory', 'knownLocations', 'lairChoicePending', 'lastPlayerActionWasBackfire',
-    'lastSavedAt', 'level', 'mana', 'maxHp', 'maxInventory', 'maxMana', 'maxTime', 'necrologie',
+    'lastSavedAt', 'level', 'runStats', 'achievements', 'mana', 'maxHp', 'maxInventory', 'maxMana', 'maxTime', 'necrologie',
     'pactBlessingDelta', 'pactChoicePending', 'pendingBossEncounter', 'pendingBossRoomId',
     'pendingCompanionCandidate', 'pendingLairDive', 'pendingLairId', 'pendingNextFloorAnomalies',
     'pendingSafehouseRoomId', 'pendingShopCityId', 'pendingSneakAttack', 'pendingStairAfterCombat', 'pendingStairsChoice',

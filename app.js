@@ -143,6 +143,11 @@ const gameState = {
     // faux au tout début de CHAQUE action joueur (tryPlayerAction()), même convention que
     // lastPlayerActionWasBackfire ci-dessus.
     engageDefHalved: false,
+    // Chronique du run (chantier 2, voir achievements.js / recordRunEvent()) : compteurs sur toute la
+    // partie, jamais remis à zéro en cours de run. Complétée par normalizeRunStats() à la restauration.
+    runStats: createEmptyRunStats(),
+    // Succès débloqués PAR CE CRAWLER : { [id]: { floor, at } } (voir unlockAchievement()).
+    achievements: {},
     // Journal des N dernières épitaphes (voir generateEpitaph()/recordEpitaph()), plus récente en
     // premier, plafonné à NECROLOGIE_MAX_ENTRIES. Persistant en save (aucun système de lecture dédié
     // pour l'instant, préparé pour un futur "journal" consultable). Absent d'une sauvegarde antérieure :
@@ -411,6 +416,16 @@ const config = {
         striker: { goldBonusPct: 10 }
     },
 
+    // Boîtes de butin des succès (chantier 2, façon DCC — chiffres validés par l'utilisateur, voir
+    // CHANTIERS.md) : ouvertes sur-le-champ au déblocage (openAchievementBox()). PO = fourchette
+    // `goldBase` × (1 + perFloor × étage) × `goldMult` du palier.
+    achievementBoxes: {
+        goldBase: { min: 10, max: 25, perFloor: 0.15 },
+        bronze: { goldChance: 60 },                                  // sinon une potion
+        silver: { itemChance: 50, goldChance: 30, goldMult: 2 },     // sinon 2 potions
+        gold: { goldMult: 3 }                                        // objet Rare+ garanti ET PO ×3
+    },
+
     // Réserve d'équipement (armes/armures/armes à distance — consommables et parchemins jamais
     // comptés, voir addLoot()) : valeur de départ à playtester, centralisée ici plutôt qu'en dur sur
     // gameState.maxInventory (voir son initialisation ci-dessous).
@@ -622,6 +637,15 @@ const ui = {
     gameOverLevel: document.getElementById('game-over-level'),
     gameOverDistrict: document.getElementById('game-over-district'),
     gameOverEpitaph: document.getElementById('game-over-epitaph'),
+    gameOverAchievements: document.getElementById('game-over-achievements'),
+    winAchievements: document.getElementById('win-achievements'),
+    achievementToast: document.getElementById('achievement-toast'),
+    achievementsCount: document.getElementById('achievements-count'),
+    btnAchievements: document.getElementById('btn-achievements'),
+    achievementsOverlay: document.getElementById('achievements-overlay'),
+    achievementsList: document.getElementById('achievements-list'),
+    achievementsTitleCount: document.getElementById('achievements-title-count'),
+    btnCloseAchievements: document.getElementById('btn-close-achievements'),
     btnRestart: document.getElementById('btn-restart'),
     winOverlay: document.getElementById('win-overlay'),
     winFloor: document.getElementById('win-floor'),
@@ -827,6 +851,10 @@ function restoreSaveForName(name) {
     if (needsBaseMaxHpMigration) gameState.baseMaxHp = saved.maxHp || gameState.maxHp;
     // Compagnon d'une sauvegarde antérieure au rework (leaveChance, pas de loyauté ni d'équipement).
     if (gameState.companion) gameState.companion = normalizeCompanion(gameState.companion);
+    // Chronique / succès (chantier 2) : complétés pour une sauvegarde antérieure ou partielle.
+    gameState.runStats = normalizeRunStats(saved.runStats);
+    if (!gameState.runStats.maxFloor || gameState.runStats.maxFloor < gameState.currentFloor) gameState.runStats.maxFloor = gameState.currentFloor;
+    if (!gameState.achievements || typeof gameState.achievements !== 'object') gameState.achievements = {};
 
     // Nettoyage de l'état transitoire/bloquant
     gameState.inCombat = false;
@@ -1338,6 +1366,7 @@ function updateUI() {
     // Autosauvegarde (no-op tant que gameState.saveEnabled est faux, voir confirmPlayerName() /
     // restoreSaveForName()) : updateUI() est déjà appelée après quasiment toute action modifiant
     // l'état, donc un seul point d'accroche suffit à couvrir toute la boucle de jeu.
+    updateAchievementsButton(); // Compteur 🏆 X/N de l'en-tête (chantier 2)
     saveGame();
 }
 
@@ -1969,6 +1998,7 @@ function equipItem(index) {
     }
 
     logEvent(`Vous équipez [${formatItemDisplayName(item)}] (${slotLabel}).`, "info");
+    recordRunEvent('equip', { item });
     if (slot === 'armor') recomputeMaxHp(); // Robuste : les PV max dépendent de l'armure portée
     updateUI();
     updateInventoryUI();
@@ -2155,6 +2185,7 @@ function resolveCardEvent() {
         applyPlayerDamage(dmg);
         setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
         logEvent(`${trap.text} (-${dmg} PV)`, "danger");
+        recordRunEvent('trap');
         if (gameState.hp <= 0) {
             gameOver(false, 'trap');
             return;
@@ -2594,6 +2625,7 @@ function changeCompanionLoyalty(delta) {
     const bal = config.companions.loyalty;
     const before = c.loyalty;
     c.loyalty = Math.max(0, Math.min(bal.max, before + delta));
+    if (c.loyalty !== before) recordRunEvent('loyalty');
     if (before >= bal.departureThreshold && c.loyalty < bal.departureThreshold) {
         logEvent(`${c.name} semble de moins en moins investi(e) dans l'aventure... (loyauté ${c.loyalty}/100 : risque de départ au prochain étage)`, "danger");
     }
@@ -2630,6 +2662,7 @@ function attemptCompanionDeparture() {
     logEvent(`${c.name} ne vous suit pas dans l'escalier : ${reason}${hasGear ? " (et garde ce que vous lui aviez donné)" : ""}.`, "danger");
     gameState.companion = null;
     updateCompanionUI();
+    recordRunEvent('companionLeft');
     return true;
 }
 
@@ -2764,10 +2797,6 @@ function computeAmbushBaseChance(distance) {
 
 // --- Dons (objets, sorts, potions) ---
 
-function companionReserveHasRoom() {
-    return gameState.inventory.filter(i => i.category !== 'consumables').length < gameState.maxInventory;
-}
-
 // Pose un objet sur l'emplacement du compagnon, avec la loyauté du don. Renvoie l'objet qu'il portait
 // à cet emplacement (à rendre au joueur) et la loyauté gagnée.
 function equipCompanionGift(item, slot) {
@@ -2777,6 +2806,7 @@ function equipCompanionGift(item, slot) {
     const previous = c.gear[slot] || null;
     c.gear[slot] = item;
     const gained = changeCompanionLoyalty(loyaltyGain);
+    recordRunEvent('companionGift', { item });
     return { previous, gained };
 }
 
@@ -2867,23 +2897,19 @@ function findCompanionPotionIndex() {
     return best;
 }
 
-// Renvoi volontaire du compagnon (fiche compagnon) : il part en vous rendant ce que vous lui aviez donné
-// (arme/armure dans la réserve s'il reste de la place, sinon laissées sur place ; sort au grimoire).
+// Renvoi volontaire du compagnon (fiche compagnon) : il part en vous rendant ce que vous lui aviez donné,
+// rangé comme n'importe quel butin (storeLootItem() : sort au grimoire, arme/armure dans la réserve, ou
+// revendue d'office si elle est pleine).
 function dismissCompanion() {
     const c = gameState.companion;
     if (!c || isActionBlocked()) return false;
-    const returned = [], lost = [];
+    logEvent(`Vous congédiez ${c.name}, qui s'éloigne en haussant les épaules.`, "info");
+    gameState.companion = null;
     ['weapon', 'armor', 'spell'].forEach(slot => {
         const item = c.gear && c.gear[slot];
-        if (!item) return;
-        if (slot === 'spell') { gameState.spellbook.push(item); returned.push(item); }
-        else if (companionReserveHasRoom()) { gameState.inventory.push(item); returned.push(item); }
-        else lost.push(item);
+        if (item) storeLootItem(item, `Rendu par ${c.name} — `);
     });
-    let note = returned.length ? ` Il vous rend ${returned.map(i => `[${formatItemDisplayName(i)}]`).join(', ')}.` : "";
-    if (lost.length) note += ` Réserve pleine : ${lost.map(i => `[${i.name}]`).join(', ')} reste(nt) sur place.`;
-    logEvent(`Vous congédiez ${c.name}, qui s'éloigne en haussant les épaules.${note}`, "info");
-    gameState.companion = null;
+    recordRunEvent('companionDismissed');
     updateCompanionUI();
     updateUI();
     updateInventoryUI();
@@ -2970,6 +2996,205 @@ function openDismissCompanionConfirm() {
     ui.itemInspectOverlay.classList.remove('hidden');
 }
 
+// ==========================================
+// CHRONIQUE DE RUN ET SUCCÈS (chantier 2 — catalogue pur dans achievements.js, voir NOTES_SUCCES.md)
+// ==========================================
+
+// Point d'entrée UNIQUE de la chronique : chaque hook du moteur (victoire, fuite, piège, repos, achat…)
+// appelle recordRunEvent(type, data), qui met à jour gameState.runStats puis évalue les succès.
+// Les compteurs avancent toujours ; les succès ne se débloquent que dans une vraie partie
+// (gameState.saveEnabled, posé une fois le nom du crawler confirmé — jamais pendant l'initialisation
+// silencieuse au chargement ni dans les tests qui ne le demandent pas explicitement).
+let achievementsEvaluating = false; // Garde anti-réentrance : une boîte ouverte émet elle-même des événements
+
+function recordRunEvent(type, data = {}) {
+    if (!gameState.runStats) gameState.runStats = createEmptyRunStats();
+    const s = gameState.runStats;
+    switch (type) {
+        case 'damageTaken':
+            s.damageTaken += data.amount || 0;
+            break;
+        case 'win': {
+            const enemy = data.enemy || {};
+            const track = enemy.runTrack || {};
+            const hpLost = Math.max(0, s.damageTaken - (track.startDamageTaken ?? s.damageTaken));
+            s.kills += 1;
+            if (enemy.isBoss) s.bossKills += 1;
+            else if (typeof isEliteMob === 'function' && isEliteMob(enemy)) s.eliteKills += 1;
+            if (data.kind === 'unarmed') s.unarmedKills += 1;
+            if (data.kind === 'magic') s.spellKills += 1;
+            if (track.sneak) s.sneakKills += 1;
+            if (track.playerAttacks === 1) s.oneShotKills += 1;
+            if (hpLost === 0) s.flawlessWins += 1;
+            if (gameState.hp > 0 && gameState.hp <= gameState.maxHp * 0.05) s.clutchWins += 1;
+            s.recentWins.push({ ease: computeWinEase(hpLost, gameState.maxHp) });
+            if (s.recentWins.length > DOMINANCE_WINDOW) s.recentWins.splice(0, s.recentWins.length - DOMINANCE_WINDOW);
+            break;
+        }
+        case 'flee': s.flees += 1; break;
+        case 'trap': s.trapsThisFloor += 1; break;
+        case 'rest': s.rests += 1; break;
+        case 'descend':
+            if ((data.timeLeft ?? gameState.timeLeft) < 5) s.lateDescents += 1;
+            break;
+        case 'floor':
+            s.trapsThisFloor = 0;
+            s.maxFloor = Math.max(s.maxFloor || 1, gameState.currentFloor);
+            break;
+        case 'purchase': s.shopPurchases += 1; break;
+        case 'backfire': s.backfires += 1; break;
+        case 'spellLearned': {
+            const name = data.item && (data.item.spellName || data.item.name);
+            if (name && !s.spellsLearned.includes(name)) s.spellsLearned.push(name);
+            break;
+        }
+        case 'companionLeft': s.companionsLeft += 1; break;
+        case 'companionDismissed': s.companionsDismissed += 1; break;
+        case 'companionGift':
+            if (data.item && data.item.rarityKey === 'camelote') s.junkGifts += 1;
+            break;
+        case 'overflowSold': s.overflowSold += 1; break;
+        default: break; // 'explore', 'equip', 'itemStored', 'loyalty', 'death', 'victory'… : simple réévaluation
+    }
+    evaluateAchievements({ type, ...data });
+}
+
+// Rejoue le `check` de chaque succès encore verrouillé. Les succès posthumes ne sont évalués qu'à la mort.
+function evaluateAchievements(event) {
+    if (!gameState.saveEnabled || achievementsEvaluating) return [];
+    if (!gameState.achievements) gameState.achievements = {};
+    achievementsEvaluating = true;
+    const unlocked = [];
+    try {
+        ACHIEVEMENTS.forEach(def => {
+            if (gameState.achievements[def.id]) return;
+            if (def.posthumous && event.type !== 'death') return;
+            let ok = false;
+            try { ok = !!def.check(gameState.runStats, event, gameState); } catch (e) { ok = false; }
+            if (ok) unlocked.push(def);
+        });
+        unlocked.forEach(def => unlockAchievement(def, event));
+    } finally {
+        achievementsEvaluating = false;
+    }
+    if (unlocked.length > 0) {
+        showAchievementToast(unlocked);
+        updateAchievementsButton();
+    }
+    return unlocked;
+}
+
+// Débloque un succès : l'inscrit dans la sauvegarde du crawler, l'annonce, et ouvre sa boîte — sauf à la
+// mort (boîte « livrée à titre posthume », c'est-à-dire à personne).
+function unlockAchievement(def, event = {}) {
+    gameState.achievements[def.id] = { floor: gameState.currentFloor, at: Date.now() };
+    const tier = ACHIEVEMENT_TIERS[def.tier] || ACHIEVEMENT_TIERS.bronze;
+    logEvent(`🏆 Succès débloqué : ${def.icon} ${def.title} — ${def.text}`, "success");
+    if (def.posthumous || event.type === 'death' || gameState.hp <= 0) {
+        logEvent(`${tier.box} Boîte ${tier.label} livrée à titre posthume. Le public apprécie le geste.`, "info");
+        return;
+    }
+    openAchievementBox(def.tier);
+}
+
+function rollAchievementGold(mult = 1) {
+    const g = config.achievementBoxes.goldBase;
+    const base = g.min + Math.floor(Math.random() * (g.max - g.min + 1));
+    return Math.max(1, Math.round(base * (1 + g.perFloor * (gameState.currentFloor || 1)) * mult));
+}
+
+function giveAchievementPotion() {
+    return storeLootItem(generateItem({ category: 'consumables' }), "🎁 Boîte — ");
+}
+
+// Ouvre une boîte de succès (chiffres : config.achievementBoxes, validés par l'utilisateur). Tout objet
+// passe par addLoot()/storeLootItem() : réserve pleine = revente d'office, comme n'importe quel butin.
+function openAchievementBox(tierKey) {
+    const box = config.achievementBoxes;
+    const tier = ACHIEVEMENT_TIERS[tierKey] || ACHIEVEMENT_TIERS.bronze;
+    logEvent(`${tier.box} Vous ouvrez une boîte ${tier.label} de la part de vos sponsors !`, "loot");
+    const roll = Math.random() * 100;
+    const giveGold = (mult) => {
+        const amount = rollAchievementGold(mult);
+        gameState.gold += amount;
+        logEvent(`🎁 Boîte — ${amount} PO !`, "loot");
+        return amount;
+    };
+    if (tierKey === 'gold') {
+        addLoot({ source: 'boss', minRarityKey: 'rare' });
+        giveGold(box.gold.goldMult);
+    } else if (tierKey === 'silver') {
+        if (roll < box.silver.itemChance) addLoot({ source: 'treasure' });
+        else if (roll < box.silver.itemChance + box.silver.goldChance) giveGold(box.silver.goldMult);
+        else { giveAchievementPotion(); giveAchievementPotion(); }
+    } else {
+        if (roll < box.bronze.goldChance) giveGold(1);
+        else giveAchievementPotion();
+    }
+    updateInventoryUI();
+}
+
+// --- Affichage ---
+
+// Annonce non bloquante, en haut de l'écran, quelques secondes (jamais un choix à faire).
+let achievementToastTimer = null;
+function showAchievementToast(unlocked) {
+    if (!ui.achievementToast || !unlocked.length) return;
+    const last = unlocked[unlocked.length - 1];
+    ui.achievementToast.innerHTML = unlocked.length > 1
+        ? `🏆 ${unlocked.length} succès débloqués ! <span class="opacity-80">${unlocked.map(d => d.icon).join(' ')}</span>`
+        : `🏆 Succès débloqué : ${last.icon} ${last.title}`;
+    ui.achievementToast.classList.remove('hidden');
+    if (achievementToastTimer) clearTimeout(achievementToastTimer);
+    achievementToastTimer = setTimeout(() => ui.achievementToast.classList.add('hidden'), 3500);
+}
+
+function countUnlockedAchievements() {
+    return Object.keys(gameState.achievements || {}).filter(id => getAchievementById(id)).length;
+}
+
+function updateAchievementsButton() {
+    if (ui.achievementsCount) ui.achievementsCount.innerText = `${countUnlockedAchievements()}/${ACHIEVEMENTS.length}`;
+}
+
+// Liste des succès (HTML pur) : débloqués d'abord, puis verrouillés ; un secret verrouillé reste « ??? ».
+function buildAchievementsListHtml(unlockedMap = gameState.achievements || {}) {
+    const sorted = [...ACHIEVEMENTS].sort((a, b) => (unlockedMap[b.id] ? 1 : 0) - (unlockedMap[a.id] ? 1 : 0));
+    return sorted.map(def => {
+        const got = unlockedMap[def.id];
+        const tier = ACHIEVEMENT_TIERS[def.tier] || ACHIEVEMENT_TIERS.bronze;
+        const hidden = !got && def.secret;
+        const title = hidden ? '???' : def.title;
+        const text = hidden ? 'Succès secret.' : def.text;
+        return `<li class="flex gap-2 items-start rounded border px-2 py-1.5 ${got ? 'border-amber-700/70 bg-amber-950/20' : 'border-gray-800 bg-gray-950/40 opacity-60'}">
+            <span class="text-lg leading-none shrink-0">${hidden ? '❔' : def.icon}</span>
+            <span class="min-w-0 flex-1">
+                <span class="block font-bold ${got ? 'text-amber-200' : 'text-gray-400'}">${title} <span class="text-[9px] font-normal" style="color:${tier.color}">${tier.box} ${tier.label}</span></span>
+                <span class="block text-[10px] text-gray-400">${text}</span>
+                ${got ? `<span class="block text-[9px] text-gray-500">Étage ${got.floor}</span>` : ''}
+            </span>
+        </li>`;
+    }).join('');
+}
+
+function openAchievementsScreen() {
+    if (!ui.achievementsOverlay) return;
+    ui.achievementsTitleCount.innerText = `${countUnlockedAchievements()}/${ACHIEVEMENTS.length}`;
+    ui.achievementsList.innerHTML = buildAchievementsListHtml();
+    ui.achievementsOverlay.classList.remove('hidden');
+}
+
+function closeAchievementsScreen() {
+    if (ui.achievementsOverlay) ui.achievementsOverlay.classList.add('hidden');
+}
+
+// Succès du run affichés sur les écrans de fin (icônes + titres).
+function buildRunAchievementsSummary() {
+    const got = ACHIEVEMENTS.filter(def => (gameState.achievements || {})[def.id]);
+    if (got.length === 0) return "Aucun succès. Même pas celui de la mort ? Impressionnant.";
+    return `🏆 ${got.length}/${ACHIEVEMENTS.length} succès : ` + got.map(def => `${def.icon} ${def.title}`).join(' · ');
+}
+
 // Fait effectivement passer à l'étage suivant (génération incluse) — dispatché depuis l'écran
 // d'escalier (voir triggerFloorTransition()/continueFromFloorTransition() plus bas), sauf pour
 // devJumpToUrbanFloor() (raccourci DEV, saute délibérément l'écran).
@@ -3013,6 +3238,7 @@ function advanceToNextFloor() {
     showFloorArrivalScene();
     logEvent(`--- DÉBUT DE L'ÉTAGE ${gameState.currentFloor} ---`, "info");
     attemptCompanionDeparture(); // Seul moment où un compagnon peu loyal peut partir (voir config.companions.loyalty)
+    recordRunEvent('floor');
     if (gameState.activeAnomalies.length > 0) {
         logEvent(`⚠️ Anomalie(s) active(s) : ${gameState.activeAnomalies.map(a => `${a.icon} ${a.name}`).join(', ')}.`, "danger");
     }
@@ -3136,6 +3362,7 @@ function closeStairsChoice() {
 function descendStairs() {
     if (!gameState.stairsChoicePending) return;
     closeStairsChoice();
+    recordRunEvent('descend', { timeLeft: gameState.timeLeft });
     triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
 }
 
@@ -3384,6 +3611,7 @@ function storeLootItem(item, prefix = "") {
         gameState.floorStats.itemsFound += 1;
         logEvent(`${prefix}Sort appris : [${formatItemDisplayName(item)}] !`, "loot");
         updateSpellbookUI();
+        recordRunEvent('spellLearned', { item });
         return true;
     }
     const isConsumable = item.category === 'consumables';
@@ -3393,10 +3621,24 @@ function storeLootItem(item, prefix = "") {
         gameState.floorStats.itemsFound += 1;
         logEvent(`${prefix}Objet obtenu : [${formatItemDisplayName(item)}] !`, "loot");
         updateInventoryUI();
+        recordRunEvent('itemStored', { item });
         return true;
     }
-    logEvent(`${prefix}Vous trouvez [${formatItemDisplayName(item)}], mais votre réserve d'équipement est pleine !`, "danger");
+    // Réserve pleine : revendu d'office à LOOT_OVERFLOW_SELL_RATIO du prix de revente marchand plutôt que
+    // perdu (demandé par l'utilisateur) — le seul point de passage de tout butin (exploration, combat, boss,
+    // objet signature, boîte de succès), donc la règle s'applique partout sans rien dupliquer.
+    const price = getOverflowSellPrice(item);
+    gameState.gold += price;
+    logEvent(`${prefix}Réserve pleine : [${formatItemDisplayName(item)}] est revendu d'office pour ${price} PO (moitié du prix marchand).`, "info");
+    recordRunEvent('overflowSold', { item, price });
     return false;
+}
+
+// Part du prix de revente marchand (getSellPrice()) obtenue pour un butin revendu d'office, réserve pleine.
+const LOOT_OVERFLOW_SELL_RATIO = 0.5;
+
+function getOverflowSellPrice(item) {
+    return Math.max(1, Math.round(getSellPrice(item) * LOOT_OVERFLOW_SELL_RATIO));
 }
 
 // Objet signature d'un boss précis (bestiary.js, districtBosses.*.signatureItem) : garanti à la
@@ -3422,6 +3664,7 @@ function applyPlayerDamage(amount) {
     if (!amount || amount <= 0) return;
     gameState.hp = Math.max(0, gameState.hp - amount);
     gameState.floorStats.damageTaken += amount;
+    recordRunEvent('damageTaken', { amount }); // Chronique de run (chantier 2)
 }
 
 // Point de passage UNIQUE pour tout gain de PV du joueur (potion, trouvaille, régénération passive,
@@ -4811,6 +5054,7 @@ function buyShopItem(stockIndex) {
         gameState.spellbook.push(item);
         logEvent(`Vous achetez [${formatItemDisplayName(item)}] pour ${item.price} PO.`, "success");
         updateSpellbookUI();
+        recordRunEvent('spellLearned', { item });
     } else {
         const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
         if (equipmentCount >= gameState.maxInventory) {
@@ -4823,6 +5067,7 @@ function buyShopItem(stockIndex) {
         logEvent(`Vous achetez [${formatItemDisplayName(item)}] pour ${item.price} PO.`, "success");
         updateInventoryUI();
     }
+    recordRunEvent('purchase', { item });
     updateUI();
     updateShopUI();
 }
@@ -5186,6 +5431,7 @@ function restAtSafehouse(kind = 'nap') {
     gameState.safehouseChoicePending = false;
     gameState.pendingSafehouseRoomId = null;
     ui.safehouseChoiceZone.classList.add('hidden');
+    recordRunEvent('rest');
     updateUI();
 }
 
@@ -5209,6 +5455,7 @@ function triggerCafetRoom(room) {
     applyPlayerDamage(trapDmg);
     setSceneHeader('🕯️', 'Cafétéria Assombrie', 'Danger', 'cafeteria');
     logEvent(`Un piège vicieux se déclenche dans l'obscurité de la cafétéria abandonnée ! (-${trapDmg} PV)`, "danger");
+    recordRunEvent('trap');
     if (gameState.hp <= 0) {
         gameOver(false, 'trap');
         return;
@@ -5468,6 +5715,9 @@ function announceBossPhaseChange(enemy, phase) {
 
 function initiateCombat(forcedEnemy = null) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
+    // Suivi du combat pour la chronique (chantier 2) : dégâts subis au départ, ouverture furtive, nombre
+    // d'attaques portées (victoire en un coup) — voir recordRunEvent('win').
+    if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
 
@@ -6001,6 +6251,7 @@ function performPlayerAttack(attackerAtk, options, label) {
         }
     }
     enemy.hp -= playerDamage;
+    if (enemy.runTrack) enemy.runTrack.playerAttacks += 1;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage);
     // Effet d'attaque en 3 temps (fx.js, chantier « sprites & effets ») : le chiffre, la secousse et la
@@ -7067,6 +7318,7 @@ function attackMagic() {
         playSpellBackfireFx(); // la lueur crachote et s'éteint en fumée (fx.js)
         logEvent(`[${spell.spellName}] part de travers et fait un flop retentissant. Aucun dégât (mana quand même dépensé).`, "danger");
         gameState.lastPlayerActionWasBackfire = true; // Voir gameOver()/generateEpitaph() : attribution du décès si la riposte qui suit est fatale
+        recordRunEvent('backfire');
         resolveEnemyReaction(); // Un mob de mêlée hors de portée ne peut pas punir ce tour perdu, mais tente de se rapprocher
         gainSkillXp('magic', SKILL_XP_PER_USE); // On apprend même de ses échecs
         return;
@@ -7114,6 +7366,7 @@ function attemptFlee() {
         setSceneHeader('🏃', 'Fuite Réussie', 'Exploration', 'fled');
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
         changeCompanionLoyalty(config.companions.loyalty.flee); // Fuir n'inspire pas confiance à votre compagnon
+        recordRunEvent('flee');
         if (gameState.pendingTravel) {
             logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
             gameState.pendingTravel = null;
@@ -7173,6 +7426,9 @@ function winCombat() {
     } else if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
         addLoot({ source: defeatedEnemy && isEliteMob(defeatedEnemy) ? 'elite' : 'mob' });
     }
+
+    // Chronique de run (chantier 2) : victoire, type de coup final, facilité (domination).
+    if (defeatedEnemy) recordRunEvent('win', { enemy: defeatedEnemy, kind: gameState.lastAttackKind });
 
     // Si ce combat était une salle de boss du quartier (escalier ou non), la salle est désormais
     // calme : on la marque vaincue et on retire le lieu connu correspondant, s'il existait.
@@ -7328,6 +7584,7 @@ function performExploreStep() {
     }
 
     enterRoom(nextRoom);
+    recordRunEvent('explore'); // Réévalue les succès liés à l'état (PO en poche, réserve pleine…)
     updateUI();
 }
 
@@ -7548,6 +7805,9 @@ function gameOver(timeout = false, killer = null) {
     }
     const epitaph = generateEpitaph({ cause, enemyName });
     recordEpitaph(epitaph, { cause });
+    // Succès posthumes (chantier 2) : même règle « mob très inférieur » que la nécrologie.
+    const weakMob = cause === 'combat' && (gameState.level - getMobLevelEquivalent()) >= NECROLOGIE_WEAK_MOB_DELTA;
+    recordRunEvent('death', { cause, weakMob });
 
     logEvent(reason, "danger");
     logEvent("--- GAME OVER ---", "danger");
@@ -7559,6 +7819,7 @@ function gameOver(timeout = false, killer = null) {
     ui.gameOverLevel.innerText = gameState.level;
     ui.gameOverDistrict.innerText = gameState.currentDistrict;
     if (ui.gameOverEpitaph) ui.gameOverEpitaph.innerText = epitaph;
+    if (ui.gameOverAchievements) ui.gameOverAchievements.innerText = buildRunAchievementsSummary();
     renderScene('gameOver', { cause });
     ui.gameOverOverlay.classList.remove('hidden');
 
@@ -7578,6 +7839,8 @@ function winGame() {
 
     ui.winFloor.innerText = gameState.currentFloor;
     ui.winLevel.innerText = gameState.level;
+    recordRunEvent('victory'); // Sortie de secours (chantier 2)
+    if (ui.winAchievements) ui.winAchievements.innerText = buildRunAchievementsSummary();
     ui.winOverlay.classList.remove('hidden');
 
     updateUI();
@@ -7694,6 +7957,8 @@ ui.btnFleeCompanion.addEventListener('click', fleeCompanionEncounter);
 ui.btnRecruitHostile.addEventListener('click', recruitCompanion);
 ui.btnAttackCompanion.addEventListener('click', attackCompanionEncounter);
 ui.companionStatusBar.addEventListener('click', openCompanionSheet);
+if (ui.btnAchievements) ui.btnAchievements.addEventListener('click', openAchievementsScreen);
+if (ui.btnCloseAchievements) ui.btnCloseAchievements.addEventListener('click', closeAchievementsScreen);
 
 // Clics sur l'écran marchand/professeur (ville spécialisée)
 ui.btnTrainSkill.addEventListener('click', trainSkill);

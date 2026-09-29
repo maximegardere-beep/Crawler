@@ -13,6 +13,8 @@ Tailwind CDN, **aucun build step**.
 - `safehouses.js` — types de salles sécurisées (narratif seul pour l'instant)
 - `generator.js` — génération procédurale (mobs, objets, parchemins de sorts, boss, compagnons)
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
+- `achievements.js` — chronique de run et succès (catalogue pur `ACHIEVEMENTS`, paliers, `createEmptyRunStats()`,
+  indice de domination `computeDominance()`), chargé juste après `anomalies.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
   que le fichier concerné) : `crawler.js` (crawler + cadavre vu de dessus), `npcs.js` (compagnon, marchand,
   professeur), `mobs.js` (10 silhouettes d'archétype avec palette naturelle, couronne de boss),
@@ -272,6 +274,22 @@ Tailwind CDN, **aucun build step**.
   mentions d'état ennemi existantes (ébloui/corrodé/garde hérissée/folie/enrage) — toutes expliquent le
   calcul du coup en cours (DEF ennemie modifiée), aucune n'est une simple redite des badges du
   Chantier 2, donc aucune n'a été retirée.
+- **Chronique de run + succès** (chantier 2, voir `NOTES_SUCCES.md`) : `gameState.runStats`
+  (compteurs sur toute la partie) alimenté par un point d'entrée UNIQUE, `recordRunEvent(type, data)`,
+  appelé depuis les hooks existants (`applyPlayerDamage()`, `winCombat()` — avec `enemy.runTrack` posé
+  par `initiateCombat()` —, `attemptFlee()`, piège, `restAtSafehouse()`, `descendStairs()`,
+  `advanceToNextFloor()`, `buyShopItem()`, flop de `attackMagic()`, `storeLootItem()`, fonctions
+  compagnon, `equipItem()`, `performExploreStep()`, `gameOver()`, `winGame()`) ; tout nouveau compteur
+  s'ajoute à `createEmptyRunStats()` (achievements.js). Succès **par crawler** (`gameState.achievements`,
+  sauvegardé) : `evaluateAchievements()` rejoue les `check(stats, event, state)` du catalogue à chaque
+  événement, **jamais tant que `gameState.saveEnabled` est faux** (chargement silencieux, tests) ;
+  chaque déblocage ouvre une **boîte** façon DCC (`openAchievementBox()`, `config.achievementBoxes`,
+  Bronze/Argent/Or) sauf les succès posthumes (à la mort). Indice de domination (`computeDominance()`,
+  facilité des 10 dernières victoires) prêt pour les chasseurs de primes. UI : `#achievement-toast`
+  (annonce non bloquante), `#btn-achievements` → `#achievements-overlay` (secrets en « ??? »), succès du
+  run sur Game Over/Victoire. **Revente d'office** : `storeLootItem()`, réserve pleine, revend le butin
+  pour `LOOT_OVERFLOW_SELL_RATIO` (50 %) du prix de revente marchand (`getOverflowSellPrice()`) au lieu
+  de le perdre.
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
@@ -816,7 +834,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests

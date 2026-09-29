@@ -24,8 +24,8 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | # | Chantier | Ampleur | Statut | Dépend de |
 |---|----------|---------|--------|-----------|
 | 1 | Rework des compagnons | M | **Codé** — à playtester | — |
-| 2 | Chronique de run + Succès sarcastiques | M | Idée | — |
-| 3 | Chasseurs de primes gobelins (anti-snowball) | M | Idée | 2 (compteurs de run) |
+| 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
+| 3 | Chasseurs de primes gobelins (anti-snowball) | M | Idée (socle prêt) | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | Idée | 2 (piques), 1 et 3 (conséquences) |
 | 5 | Rework de la carte (3 lots) | XL | Idée | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
@@ -150,20 +150,118 @@ qualificatifs des objets donnés non appliqués au compagnon (V1).
 
 ---
 
-## 2. Chronique de run + Succès sarcastiques — M — Idée
+## 2. Chronique de run + Succès sarcastiques — M — Codé (à playtester)
 
 **Demande** : système de succès sarcastiques.
-**Idée de structure** :
-- **Chronique de run** (socle) : compteurs et faits marquants du run dans `gameState` (sauvegardés),
-  alimentés par les hooks uniques déjà existants (`winCombat()`, `applyPlayerDamage()`, `gainXp()`,
-  `addLoot()`, `attemptFlee()`, `gameOver()`…) — comme `floorStats`, mais sur tout le run. Inclut un
-  indicateur de « facilité » des victoires (PV perdus / ATQ du mob, niveau du joueur vs étage), dont le
-  chantier 3 a besoin.
-- **Succès** : catalogue pur (fichier dédié type `achievements.js`), conditions lues sur la chronique,
-  titre + texte sarcastique à la DCC, annonce discrète au déblocage. Persistance **entre les parties**
-  (clé `localStorage` à part, hors sauvegarde du crawler) + écran de consultation.
-- Questions ouvertes : récompenses (purement cosmétiques, ou petits bonus « sponsors » à la DCC ?),
-  nombre de succès pour une première version (~20-30 ?).
+
+### Exploré (état actuel)
+- **Compteurs existants, tous partiels** : `floorStats` (mobs tués, dégâts subis, objets, XP — remis à
+  zéro à chaque étage), `fleesThisRun` (fuites du run, seul compteur « run »), `signaturesAwarded`,
+  `necrologie` (épitaphes, dans la sauvegarde du crawler). Rien sur les boss/élites tués, les coups
+  critiques, les morts évitées de justesse, l'or gagné/dépensé, les pièges, les sorts ratés…
+- **Hooks uniques déjà en place** (le travail de fond est fait) : `winCombat()`, `applyPlayerDamage()`,
+  `applyPlayerHeal()`, `gainXp()`, `storeLootItem()`, `attemptFlee()`, `gameOver(cause)`, `winGame()`,
+  `advanceToNextFloor()`, `restAtSafehouse()`, `buyShopItem()`/`sellItem()`, `attackMagic()` (flop),
+  les fonctions compagnon. Brancher un compteur = une ligne par hook.
+- **Persistance** : une entrée `localStorage` par crawler (`SAVE_KEY_PREFIX`), et `resetGame()` recharge
+  la page. **Rien ne survit à la mort d'un crawler** hors de sa sauvegarde : des succès « entre les
+  parties » demandent une clé à part (comme `SAVE_BACKUP_KEY`), jamais effacée par le nettoyage des
+  sauvegardes.
+- **Affichage** : bannière de phase boss (`#phase-transition-banner`) = modèle d'annonce non bloquante ;
+  panneau d'inspection = modèle de fiche ; écran de départ = point d'entrée hors partie.
+
+### Suggéré (à valider)
+**A. Chronique de run (socle, sert aussi aux chantiers 3 et 4)** — `gameState.runStats`, sauvegardé
+avec le crawler, jamais remis à zéro pendant le run : mobs/élites/boss tués (et par type d'attaque :
+arme, tir, mains nues, sort, attaque furtive), dégâts infligés/subis, plus gros coup, victoires « à un
+fil » (< 10 % PV), fuites, pièges, sorts ratés, PO gagnées/dépensées, objets vendus, Camelote portée,
+compagnons recrutés/à terre/dons, siestes/sommeils, étages atteints. Plus un **indice de domination**
+(fonction pure) : moyenne glissante des dernières victoires, PV perdus rapportés aux PV max et écart
+niveau/étage — c'est lui que les chasseurs de primes liront.
+
+**B. Succès** — catalogue pur `achievements.js` (`{ id, icon, title, text, secret?, check(stats, event) }`),
+évalué par `recordRunEvent(event)` aux hooks ci-dessus. Première fournée d'une trentaine, en 4 familles :
+- *Combat* : « Premier sang (le vôtre) », « Le Rat de trop » (mort face à un mob très inférieur),
+  « Pacifiste contrarié » (10 victoires à mains nues), « Kiteur professionnel » (gagner sans jamais
+  être touché), « À un poil de cul » (gagner à 1 PV), « Couronné » (1er boss), « Régicide en série » (10 boss).
+- *Fuite & survie* : « Stratégie de repli » (10 fuites), « Le temps, c'est de la mort » (mort par
+  épuisement du temps), « Jambes de coton » (3 pièges sur un même étage).
+- *Économie & objets* : « Soldes monstres » (tout acheter chez un marchand), « Style Camelote » (finir un
+  étage tout équipé de Camelote), « Collectionneur » (5 objets signature), « Radin » (1 000 PO sans rien
+  dépenser).
+- *Social* : « Meilleurs amis » (loyauté 100), « Ghosté » (compagnon parti), « Cadeau empoisonné »
+  (donner un objet Camelote à un compagnon), « Congédié par SMS ».
+- *Magie & chaos* : « Abracadabroum » (5 sorts ratés), « Mort par sa propre main » (mort par backfire).
+- *Progression* : étages 3/6/9/12/15, « Sortie » (victoire finale), « Premier cadavre ».
+Des secrets (« ??? » tant qu'ils ne sont pas débloqués) pour garder de la surprise.
+
+**C. Persistance entre les parties** : clé `localStorage` dédiée — succès débloqués (date, nom du
+crawler, étage) + quelques compteurs à vie (parties, morts, boss) pour les succès « méta » (« Habitué
+des pompes funèbres » : 10 morts). Jamais touchée par le nettoyage des sauvegardes.
+
+**D. Affichage** : annonce non bloquante « 🏆 Succès débloqué » (quelques secondes, dans le style de la
+bannière de phase, jamais pendant un beat de combat important), écran « Succès » (compteur X/N,
+débloqués + verrouillés, secrets masqués) accessible depuis l'écran de départ ET en jeu, et la liste des
+succès du run sur l'écran Game Over / Victoire.
+
+**E. Récompense — à trancher** :
+1. *Cosmétique pur* (V1 la plus simple, aucun impact d'équilibrage).
+2. *Boîtes de butin façon DCC* : chaque succès donne une boîte (Bronze / Argent / Or selon sa
+   difficulté) ouverte sur-le-champ — PO, potion ou objet (rareté selon la boîte, via `addLoot()`).
+   Très fidèle au livre, mais c'est de l'équilibrage (convention 5) : chiffres à valider.
+
+### Décisions (validées par l'utilisateur)
+- **Récompense : boîtes de butin façon DCC** (Bronze / Argent / Or), chiffres validés ci-dessous.
+- **Succès PAR CRAWLER** (dans sa sauvegarde, perdus avec elle) — pas de collection globale ni de
+  compteurs « à vie ». Les succès de mort restent, débloqués sur l'écran Game Over (boîte livrée « à
+  titre posthume », donc sans effet).
+- **35 succès** pour la V1 (catalogue ci-dessous, validé tel quel).
+- **Ajout demandé à la validation** : tout butin trouvé réserve pleine (exploration, combat, boss, objet
+  signature, boîte de succès) est **revendu d'office à 50 % du prix de revente marchand**, au lieu d'être
+  perdu.
+
+### Chiffres des boîtes (validés)
+| Boîte | Contenu |
+|---|---|
+| 🥉 Bronze | 60 % : 10-25 PO × (1 + 0,15 × étage) · 40 % : une potion |
+| 🥈 Argent | 50 % : un objet « trésor » (+1 palier de rareté) · 30 % : le double de PO du Bronze · 20 % : 2 potions |
+| 🥇 Or | un objet garanti Rare minimum (+1 palier, comme un boss) **et** le triple de PO du Bronze |
+
+### Catalogue (35 — B = Bronze, A = Argent, O = Or, 🔒 = secret)
+- **Combat** : 🩸 Premier sang (le vôtre) (B) · 🗡️ Première victime (B) · 💥 Coup de maître — tuer d'un
+  seul coup (B) · 🪶 À un poil — gagner avec ≤ 5 % de PV (A) · 🧤 Intouchable — 10 victoires sans une
+  égratignure (A) · 🥊 Pacifiste contrarié — 10 victoires à mains nues (A) · 🔪 Dans le dos — 10
+  victoires ouvertes par une attaque furtive (A) · 🧙 Magicien du dimanche — 25 victoires achevées au sort
+  (A) · 💀 Élitiste — 5 élites (A) · 👑 Couronné — 1er boss (A) · 👑 Régicide en série — 10 boss (O).
+- **Fuite & survie** : 🏃 Stratégie de repli — 10 fuites (B) · 🦶 Jambes de coton — 3 pièges sur un même
+  étage (B) · 🛌 Syndicaliste — 10 repos (B) · ⏳ Retardataire chronique — descendre avec moins de 5 H (A).
+- **Économie & objets** : 🧦 Style Camelote — arme ET armure Camelote portées (B) · 🗃️ Accumulateur —
+  réserve pleine (B) · 🛒 Client fidèle — 5 achats (A) · 💰 Radin — 1 000 PO en poche (A) · ✨
+  Collectionneur — 3 objets signature (O).
+- **Social** : 🤝 Meilleurs amis — loyauté 100 (A) · 🎁 Cadeau empoisonné (B 🔒) · 📱 Rupture par SMS
+  (B 🔒) · 👻 Ghosté (B 🔒).
+- **Magie** : 🎆 Abracadabroum — 5 sorts ratés (B) · 📚 Rat de bibliothèque — 5 sorts différents (A).
+- **Progression** : 🪜 Touriste — étage 3 (B) · 🏙️ Citadin — étage 6 (A) · 🧗 Spéléologue confirmé —
+  étage 9 (A) · 🕳️ Abonné aux abysses — étage 12 (O) · 🚪 Sortie de secours — victoire finale (O).
+- **Posthumes** (🔒) : ⚰️ Premier cadavre · 🐀 Le Rat de trop · 🔥 Mort par sa propre main · ⌛ Le temps,
+  c'est de la mort.
+
+### Planifié (lots)
+0. **Revente d'office** réserve pleine (50 % du prix de revente), dans `storeLootItem()` — seul point de
+   passage de tout butin.
+1. **Chronique** : `gameState.runStats` (sauvegardé, migré à zéro) + un seul point d'entrée
+   `recordRunEvent(type, data)` appelé depuis les hooks existants ; indice de domination pur
+   (`computeDominance()`) pour le chantier 3.
+2. **Catalogue** `achievements.js` (nouveau fichier, `index.html` ET `GAME_FILES`) ; `gameState.achievements`.
+3. **Boîtes** : `config.achievementBoxes`, ouverture immédiate au déblocage.
+4. **Affichage** : annonce non bloquante, bouton 🏆 X/N → écran Succès, succès du run sur Game Over / Victoire.
+5. **Tests** (`tests/regression/achievements.js`, simulation longue) + `NOTES_SUCCES.md`.
+
+### Codé
+Les 6 lots sont livrés (détail : `NOTES_SUCCES.md`). En plus de la demande : les objets rendus par un
+compagnon congédié passent aussi par la revente d'office (ils étaient perdus réserve pleine).
+L'indice de domination est calculé et testé, mais pas encore utilisé : c'est le point d'entrée du
+chantier 3.
 
 ## 3. Chasseurs de primes gobelins — M — Idée
 
