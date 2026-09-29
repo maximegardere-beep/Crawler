@@ -821,6 +821,10 @@ const EXPLORE_VIGNETTES = {
     citySafe: (ctx) => propAt('citySign', 222, 124, { text: ctx.cityName }) + crawlerAt(CRAWLER_X),
     urbanGuardian: (ctx) => propAt(ctx.isExit ? 'exitDoor' : 'stairsDown', 184, 124) + mobAt(ctx.enemy, 236, 'stand') + crawlerAt(CRAWLER_X),
     lairSpotted: () => propAt('lairEntrance', 212, 124) + crawlerAt(CRAWLER_X),
+    // Émission DeathWatch (chantier 4) : le plateau vient à vous — enseigne EN DIRECT, applaudimètre,
+    // drone caméra, et le présentateur qui vous tend son micro.
+    showStudio: () => propAt('onAirSign', 120, 42) + propAt('applauseMeter', 60, 124) + propAt('cameraDrone', 250, 30)
+        + `<g transform="translate(200 124)">${SCENE_HOST_SVG}</g>` + crawlerAt(CRAWLER_X),
     // Chasseurs de primes (chantier 3) : l'avis de recherche placardé, montant de la prime courante.
     wantedPoster: (ctx) => propAt('wantedPoster', 200, 124, { value: ctx.value }) + crawlerAt(CRAWLER_X),
     stairs: () => propAt('stairsDown', 214, 124) + crawlerAt(CRAWLER_X)

@@ -32,6 +32,7 @@ function createEmptyRunStats() {
         companionsLeft: 0, companionsDismissed: 0, junkGifts: 0,
         overflowSold: 0,
         maxBounty: 0, huntersKilled: 0, // Chasseurs de primes (chantier 3)
+        showInsultWins: 0, showRefusals: 0, // Émission DeathWatch (chantier 4)
         maxFloor: 1,
         // Victoires récentes (au plus DOMINANCE_WINDOW), pour l'indice de domination (chantier 3) :
         // { ease } = 1 si aucun PV perdu, 0 si ≥ DOMINANCE_HARD_FIGHT des PV max perdus.
@@ -163,6 +164,14 @@ const ACHIEVEMENTS = [
     { id: 'hunter_hunted', icon: '🪤', tier: 'silver', title: "Chasseur chassé",
         text: "Trois chasseurs de primes neutralisés. Le syndicat des gobelins envisage une grève.",
         check: (s) => s.huntersKilled >= 3 },
+
+    // --- Émission DeathWatch (chantier 4) ---
+    { id: 'crowd_favorite', icon: '📺', tier: 'silver', title: "Chouchou du public",
+        text: "Vous avez insulté le présentateur en direct, et le public vous a ADORÉ. Chip ne s'en remettra pas.",
+        check: (s) => s.showInsultWins >= 1 },
+    { id: 'off_air', icon: '🔇', tier: 'bronze', secret: true, title: "Interdit d'antenne",
+        text: "Trois interviews refusées. La production parle de vous remplacer par un mannequin. Il a plus de charisme.",
+        check: (s) => s.showRefusals >= 3 },
 
     // --- Magie & chaos ---
     { id: 'abracadaboom', icon: '🎆', tier: 'bronze', title: "Abracadabroum",

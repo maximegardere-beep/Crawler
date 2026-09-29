@@ -26,7 +26,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 1 | Rework des compagnons | M | **Codé** — à playtester | — |
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Codé** — à playtester | 2 (fait) |
-| 4 | Émission de changement d'étage (DeathWatch) | L | **Suggéré** | 2, 1, 3 (faits) |
+| 4 | Émission de changement d'étage (DeathWatch) | L | **Codé** — à playtester | 2, 1, 3 (faits) |
 | 5 | Rework de la carte (3 lots) | XL | Idée | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
@@ -341,7 +341,7 @@ paliers, sprite dédié (gobelin à chapeau, badge et filet), 2-3 succès bonus 
 Les 5 lots sont livrés (détail et points à surveiller : `NOTES_CHASSEURS.md`). Précision apportée en
 codant : un chasseur tué ne donne QUE sa récompense (pas en plus le butin normal de 40 % d'un mob).
 
-## 4. Émission de changement d'étage (DeathWatch) — L — Suggéré
+## 4. Émission de changement d'étage (DeathWatch) — L — Codé (à playtester)
 
 **Demande** : émission au changement d'étage, dialogues plus ou moins risqués, choix avec lancer de dés ;
 risqué = danger mais grosse récompense si réussite. Exemple : DeathWatch — le commentateur reprend des
@@ -390,8 +390,29 @@ réaction du présentateur par issue. Plusieurs présentateurs possibles plus ta
 roule (`showDie()`), le verdict et la récompense/sanction dans le journal. Succès bonus possibles
 (« Chouchou du public », « Interdit d'antenne »).
 
-### Décisions
-- (en attente de validation)
+### Décisions (utilisateur)
+- **À chaque étage dès le 2**, à l'arrivée (après le Pacte du Crawler s'il y en a un).
+- **Tableau B validé tel quel** (seuils 8 / 12 / 16 sur d20 + popularité, boîtes Bronze / Argent / Or,
+  sanctions −2 H / mob élite / chasseur de primes +20, refus possible). « Petit cadeau » du Poli : la
+  moitié des PO d'une boîte Bronze.
+- **Un seul présentateur** (DeathWatch), bien écrit ; d'autres émissions plus tard.
+
+### Planifié (lots)
+1. **Catalogue pur** `deathwatch.js` (nouveau, `index.html` ET `GAME_FILES`) : présentateur, ~30 piques à
+   trous avec leur déclencheur, répliques par ton, réactions du présentateur, `pickShowTaunt()` /
+   `fillShowTemplate()` purs.
+2. **Moteur** : `triggerShow()` à l'arrivée d'étage (`showChoicePending`/`pendingShow`, dans
+   `isActionBlocked()`), contexte tiré de la partie (bilan de l'étage fini capturé avant sa remise à zéro),
+   `answerShow(tone)` (jet, boîte ou sanction), file d'attente derrière le Pacte.
+3. **Présentation** : vignette « plateau TV » (présentateur, enseigne EN DIRECT, drone caméra,
+   applaudimètre), zone de réponses avec l'enjeu de chaque bouton.
+4. **Succès** : « Chouchou du public » (réussir l'insulte en direct), « Interdit d'antenne » (refuser 3 fois).
+5. **Tests** (`tests/regression/deathwatch.js`, simulation longue) + `NOTES_DEATHWATCH.md`.
+
+### Codé
+Les 5 lots sont livrés (détail et points à surveiller : `NOTES_DEATHWATCH.md`). Précisions apportées en
+codant : l'émission n'a lieu que dans une vraie partie (nom confirmé), comme les succès ; l'échec « −2 H »
+ne peut jamais tuer (au moins 1 H reste).
 
 ## 5. Rework de la carte — XL — Idée (à découper)
 

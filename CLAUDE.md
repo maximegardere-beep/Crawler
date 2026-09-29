@@ -15,6 +15,8 @@ Tailwind CDN, **aucun build step**.
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
 - `achievements.js` — chronique de run et succès (catalogue pur `ACHIEVEMENTS`, paliers, `createEmptyRunStats()`,
   indice de domination `computeDominance()`), chargé juste après `anomalies.js`
+- `deathwatch.js` — émission DeathWatch (catalogue pur : présentateur, piques à trous, répliques, réactions,
+  `pickShowTaunt()`/`fillShowTemplate()`), chargé juste après `achievements.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
   que le fichier concerné) : `crawler.js` (crawler + cadavre vu de dessus), `npcs.js` (compagnon, marchand,
   professeur), `mobs.js` (10 silhouettes d'archétype avec palette naturelle, couronne de boss),
@@ -301,6 +303,15 @@ Tailwind CDN, **aucun build step**.
   deux embuscades de trajet ; escouade à 90+ (`gameState.pendingBountySquad`, Chef enchaîné par
   `winCombat()`). Fuite à `fleeChance` (50 %) fixe. Épitaphe dédiée `EPITAPH_TEMPLATES.chasseurPrime`
   (pool spécial, comme `mobFaible`).
+- **Émission DeathWatch** (chantier 4, voir `NOTES_DEATHWATCH.md`, chiffres dans `config.show`) : à
+  l'arrivée sur chaque étage dès le 2, SEULEMENT dans une vraie partie (`gameState.saveEnabled`, comme les
+  succès), `advanceToNextFloor()` ouvre `triggerShow(lastFloor)` (bilan de l'étage fini capturé avant sa
+  remise à zéro) — ou la diffère derrière le Pacte du Crawler (`pendingShowAfterPact`, ouverte par
+  `choosePactBlessing()`). Choix bloquant `gameState.showChoicePending` (dans `isActionBlocked()`) +
+  `pendingShow` ; zone `#show-zone`, vignette `showStudio`. `answerShow(tone)` : Poli (sans jet, PO),
+  Pique en retour / Provocation / Insulte en direct (jet d20 + popularité `getShowPopularity()` contre
+  8/12/16 : boîte Bronze/Argent/Or via `openAchievementBox()`, sinon −2 H jamais mortelles / combat élite /
+  +20 prime et chasseur de primes), ou Refuser.
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
@@ -845,7 +856,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests
@@ -883,7 +894,7 @@ Tailwind CDN, **aucun build step**.
   Son auto-résolveur doit connaître TOUT état bloquant existant (`xyzChoicePending`) : en oublier un
   fige la simulation dessus jusqu'à épuisement du temps imparti (voir `shopChoicePending`/
   `lairChoicePending`/`floorTransitionPending`/`pactChoicePending`/`stairsChoicePending` — la simulation
-  descend toujours —, ajoutés après coup).
+  descend toujours —, `showChoicePending`, ajoutés après coup).
 - Les deux n'affichent que les échecs + un résumé final (pas une ligne par test réussi).
 - **CI** (`.github/workflows/ci.yml`) : sur chaque push (toute branche) et chaque pull request,
   `actions/checkout` + `actions/setup-node` (Node 20) puis `npm test` et `npm run test:long` — pas de

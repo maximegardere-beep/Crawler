@@ -1278,6 +1278,27 @@ const BACKDROP_PROPS = {
         },
         light: () => null
     },
+    // Émission DeathWatch (chantier 4) : enseigne lumineuse « EN DIRECT ». Origine : point de fixation au mur.
+    onAirSign: {
+        markup: () => `
+            <rect x="-32" y="-9" width="64" height="18" rx="3" fill="#1c1917" stroke="#05060c" stroke-width="1.4"/>
+            <rect class="bd-neon-flicker" x="-29" y="-6" width="58" height="12" rx="2" fill="#b91c1c"/>
+            <circle cx="-23" cy="0" r="2.4" fill="#fecaca"/>
+            <text x="4" y="3" text-anchor="middle" font-size="7.5" font-weight="bold" fill="#fef2f2">EN DIRECT</text>`,
+        light: () => ({ dx: 0, dy: 0, color: '#ef4444', radius: 40, flicker: true })
+    },
+    // Applaudimètre de plateau sur pied (chantier 4). Origine : pied, au sol.
+    applauseMeter: {
+        markup: () => `
+            <rect x="-2" y="-34" width="4" height="34" fill="#3a3e44" stroke="#05060c" stroke-width="1"/>
+            <rect x="-10" y="-70" width="20" height="38" rx="3" fill="#1f2937" stroke="#05060c" stroke-width="1.4"/>
+            <rect x="-6" y="-44" width="12" height="7" fill="#16a34a"/>
+            <rect x="-6" y="-52" width="12" height="7" fill="#65a30d"/>
+            <rect x="-6" y="-60" width="12" height="7" fill="#ca8a04"/>
+            <rect class="bd-blink" x="-6" y="-67" width="12" height="6" fill="#dc2626"/>
+            <text x="0" y="-72" text-anchor="middle" font-size="4.5" font-weight="bold" fill="#e5e7eb">APPLAUDIMÈTRE</text>`,
+        light: () => null
+    },
     // Avis de recherche (chantier 3, chasseurs de primes) : affiche placardée sur un poteau, portrait
     // grossier du crawler, « RECHERCHÉ » et une prime. Origine : pied du poteau, au sol.
     wantedPoster: {

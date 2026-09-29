@@ -17,6 +17,7 @@ let urbanFloorsSeen = 0, cityTravels = 0, winTriggered = false;
 let shopEncounters = 0, lairEncounters = 0, floorTransitionsSeen = 0, pactChoicesSeen = 0, safehouseEncounters = 0, stairsChoices = 0;
 const seenErrors = [];
 const huntersSeen = new Set(); // Chasseurs de primes rencontrés (chantier 3)
+let showsSeen = 0; // Émissions DeathWatch (chantier 4)
 
 gameState.equipment.armor = { name: "Plastron d'Essai", baseArmor: 12, category: 'armors', mechanics: ['bleed', 'heal', 'adrenaline', 'stealth'] };
 gameState.equipment.weapon = { name: "Gourdin d'Essai", baseDmg: 12, category: 'weapons' };
@@ -41,6 +42,10 @@ try {
             bossesEncountered++;
             if (gameState.currentEnemy && isEliteMob(gameState.currentEnemy)) eliteMobsSeen++;
             fightBossNow();
+        } else if (gameState.showChoicePending) {
+            // Émission DeathWatch (chantier 4) : fait tourner les 5 réponses pour exercer boîtes et sanctions.
+            showsSeen++;
+            answerShow(['polite', 'retort', 'provoke', 'insult', 'refuse'][showsSeen % 5]);
         } else if (gameState.stairsChoicePending) {
             // Escalier libre (voir offerStairsChoice()) : la simulation descend toujours.
             stairsChoices++;
@@ -241,6 +246,9 @@ try {
         } else if (gameState.pactChoicePending) {
             pactChoicesSeen++;
             choosePactBlessing('hp'); // Priorité à la survie sur l'étage final
+        } else if (gameState.showChoicePending) {
+            showsSeen++;
+            answerShow('polite'); // Émission DeathWatch : pas de risque inutile avant la Sortie
         } else if (gameState.inCombat) {
             if (gameState.currentEnemy) {
                 gameState.currentEnemy.hp = -9999;
@@ -264,7 +272,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), ${showsSeen} émissions DeathWatch, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");

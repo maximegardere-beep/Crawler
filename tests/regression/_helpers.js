@@ -107,6 +107,10 @@ function resetTransientState() {
     gameState.achievements = {};
     gameState.bounty = createEmptyBounty(); // Chasseurs de primes (chantier 3)
     gameState.pendingBountySquad = 0;
+    gameState.showChoicePending = false; // Émission DeathWatch (chantier 4)
+    gameState.pendingShow = null;
+    gameState.pendingShowAfterPact = null;
+    if (ui.showZone) ui.showZone.classList.add('hidden');
     if (ui.gameOverOverlay) ui.gameOverOverlay.classList.add('hidden');
 }
 
