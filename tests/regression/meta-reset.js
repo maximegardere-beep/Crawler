@@ -34,10 +34,10 @@ const KNOWN_GAMESTATE_KEYS = [
     'lastSavedAt', 'level', 'mana', 'maxHp', 'maxInventory', 'maxMana', 'maxTime', 'necrologie',
     'pactBlessingDelta', 'pactChoicePending', 'pendingBossEncounter', 'pendingBossRoomId',
     'pendingCompanionCandidate', 'pendingLairDive', 'pendingLairId', 'pendingNextFloorAnomalies',
-    'pendingSafehouseRoomId', 'pendingShopCityId', 'pendingSneakAttack', 'pendingStairAfterCombat',
+    'pendingSafehouseRoomId', 'pendingShopCityId', 'pendingSneakAttack', 'pendingStairAfterCombat', 'pendingStairsChoice',
     'pendingStealthEncounter', 'pendingTravel', 'pendingUrbanAdvanceAfterCombat', 'pendingUrbanBossCityId',
-    'pendingUrbanBossEncounter', 'pendingUrbanTravel', 'playerName', 'safehouseChoicePending', 'saveEnabled',
-    'shopChoicePending', 'skills', 'spellbook', 'status', 'stealthChoicePending', 'timeLeft',
+    'pendingUrbanBossEncounter', 'pendingUrbanTravel', 'playerName', 'safehouseChoicePending', 'saveEnabled', 'stairsChoicePending',
+    'shopChoicePending', 'signaturesAwarded', 'skills', 'spellbook', 'status', 'stealthChoicePending', 'timeLeft',
     'urbanMap', 'xp', 'xpToNextLevel'
 ];
 

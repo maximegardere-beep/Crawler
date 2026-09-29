@@ -136,7 +136,8 @@
            #scene-crawler-anchor de la scène, placées par scene.js). Généré par showFloatingDamage()
            (app.js), qui pose `left` en inline (offset aléatoire ±8px) — la classe ne fixe QUE `top`/
            l'animation. Rouge/orangé = dégâts SUBIS par le joueur, blanc/jaune = dégâts INFLIGÉS par
-           le joueur ; taille ×1.4 pour un coup lourd (télégraphe exécuté, ruée d'enrage, phase 3). */
+           le joueur ; taille (inline) et grossissement `--fd-pop` selon la part des PV max de la cible,
+           voir floatingDamageScale() (app.js). */
         .floating-damage {
             position: absolute;
             top: 32%;
@@ -149,9 +150,6 @@
             text-shadow: 0 1px 2px rgba(0,0,0,0.85);
             animation: floatDamage 0.45s ease-out forwards;
         }
-        .floating-damage-heavy {
-            font-size: 18px;
-        }
         .floating-damage-dealt {
             color: #fde047;
         }
@@ -160,7 +158,7 @@
         }
         @keyframes floatDamage {
             0%   { opacity: 0; transform: translate(-50%, 4px) scale(0.85); }
-            20%  { opacity: 1; transform: translate(-50%, -4px) scale(1.08); }
+            20%  { opacity: 1; transform: translate(-50%, -4px) scale(var(--fd-pop, 1.08)); }
             100% { opacity: 0; transform: translate(-50%, -24px) scale(1); }
         }
         @keyframes floatDamageFadeOnly {
@@ -718,8 +716,23 @@
             </div>
         </div>
 
+        <!-- Escalier libre (voir offerStairsChoice() dans app.js) : descendre tout de suite, ou rester sur
+             l'étage pour y revenir plus tard (lieu connu / ville de la Carte Urbaine). -->
+        <div id="stairs-choice-zone" class="hidden p-4 bg-amber-950/20 border border-amber-900/30 rounded-lg relative">
+            <span class="absolute text-[10px] text-amber-900/60 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Escalier</span>
+            <div class="grid grid-cols-2 gap-2">
+                <button id="btn-descend-stairs" class="min-h-[44px] px-3 py-3 bg-gray-900 border border-amber-600/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-xs text-amber-300 uppercase tracking-wider transition-all">
+                    🪜 Descendre
+                </button>
+                <button id="btn-stay-on-floor" class="min-h-[44px] px-3 py-3 bg-gray-900 border border-gray-700/80 hover:border-gray-400 hover:bg-gray-800/30 rounded text-xs text-gray-300 uppercase tracking-wider transition-all">
+                    🧭 Rester sur l'étage
+                </button>
+            </div>
+        </div>
+
         <!-- Salle sécurisée (voir enterRoom()/restAtSafehouse()/leaveSafehouse() dans app.js) : choix
-             explicite repos payant / repartir gratuit, jamais de soin automatique. -->
+             explicite sieste / sommeil réparateur (payants en temps) / partir (gratuit), jamais de soin
+             automatique. -->
         <div id="safehouse-choice-zone" class="hidden p-4 bg-green-950/20 border border-green-900/30 rounded-lg relative">
             <span class="absolute text-[10px] text-green-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Salle Sécurisée</span>
             <!-- Scène de l'abri (renderScene('safehouse') dans scene.js) : porte blindée, panneau
@@ -730,12 +743,16 @@
                     <g id="safehouse-scene-crawler"></g>
                 </svg>
             </div>
-            <div class="grid grid-cols-2 gap-2">
-                <button id="btn-rest-safehouse" class="px-3 py-3 bg-gray-900 border border-green-700/80 hover:border-green-400 hover:bg-green-900/30 rounded text-xs text-green-300 uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-green-700/80 disabled:hover:bg-gray-900">
-                    🛌 Repos (-2H)
+            <!-- Libellés des deux repos (coût + PV/mana rendus) écrits par updateSafehouseRestButtons(). -->
+            <div class="grid grid-cols-3 gap-2">
+                <button id="btn-nap-safehouse" class="min-h-[44px] px-2 py-2 bg-gray-900 border border-green-700/80 hover:border-green-400 hover:bg-green-900/30 rounded text-[11px] leading-tight text-green-300 uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-green-700/80 disabled:hover:bg-gray-900">
+                    💤 Sieste
                 </button>
-                <button id="btn-leave-safehouse" class="px-3 py-3 bg-gray-900 border border-gray-700/80 hover:border-gray-400 hover:bg-gray-800/30 rounded text-xs text-gray-300 uppercase tracking-wider transition-all">
-                    🚶 Repartir
+                <button id="btn-sleep-safehouse" class="min-h-[44px] px-2 py-2 bg-gray-900 border border-sky-700/80 hover:border-sky-400 hover:bg-sky-900/30 rounded text-[11px] leading-tight text-sky-300 uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-sky-700/80 disabled:hover:bg-gray-900">
+                    🛌 Sommeil réparateur
+                </button>
+                <button id="btn-leave-safehouse" class="min-h-[44px] px-2 py-2 bg-gray-900 border border-gray-700/80 hover:border-gray-400 hover:bg-gray-800/30 rounded text-[11px] leading-tight text-gray-300 uppercase tracking-wider transition-all">
+                    🚶 Partir
                 </button>
             </div>
         </div>
@@ -786,6 +803,7 @@
         <!-- Rencontre de compagnon ami : recruter ou laisser partir (sans risque) -->
         <div id="companion-choice-friendly" class="hidden p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-lg relative">
             <span class="absolute text-[10px] text-emerald-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Crawler Rencontré</span>
+            <div id="companion-info-friendly" class="mb-3 flex flex-col gap-0.5 text-[11px]"></div>
             <div class="grid grid-cols-2 gap-2">
                 <button id="btn-recruit-friendly" class="px-3 py-3 bg-gray-900 border border-emerald-700/80 hover:border-emerald-400 hover:bg-emerald-900/30 rounded text-xs text-emerald-300 uppercase tracking-wider transition-all">
                     🤝 Recruter
@@ -799,6 +817,7 @@
         <!-- Rencontre de compagnon hostile (ou trahison d'un compagnon déjà recruté) : fuir, tenter de le recruter, ou attaquer -->
         <div id="companion-choice-hostile" class="hidden p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
             <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Crawler Hostile</span>
+            <div id="companion-info-hostile" class="mb-3 flex flex-col gap-0.5 text-[11px]"></div>
             <div class="grid grid-cols-3 gap-2">
                 <button id="btn-flee-companion" class="px-2 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-[11px] text-gray-400 uppercase tracking-wider transition-all">
                     🏃 Fuir
@@ -849,14 +868,17 @@
             </button>
         </div>
 
-        <!-- Compagnon actif (hors combat) : nom, spécialité, barre de risque de départ (vert = fidèle,
-             rouge = sur le point d'abandonner l'équipe — voir attemptCompanionAbandon() dans app.js) -->
-        <div id="companion-status-bar" class="hidden flex items-center justify-between text-[10px] text-gray-500 bg-gray-950/50 border border-gray-800 rounded px-3 py-2">
-            <span>🐾 <span id="companion-name-display" class="text-emerald-400 font-bold">-</span> <span id="companion-specialty-display" class="text-gray-600">(-)</span></span>
-            <div class="w-16 bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden shrink-0">
-                <div id="companion-leave-bar" class="h-full rounded-full transition-all duration-500" style="width:0%; background:#22c55e;"></div>
-            </div>
-        </div>
+        <!-- Compagnon actif (hors combat) : nom, spécialité, PV, barre de loyauté (vert = loyal, rouge =
+             risque de départ au prochain étage) — toucher ouvre sa fiche (openCompanionSheet() dans app.js) -->
+        <button id="companion-status-bar" type="button" class="hidden w-full min-h-[44px] flex items-center justify-between gap-2 text-[10px] text-gray-500 bg-gray-950/50 border border-gray-800 hover:border-emerald-800 rounded px-3 py-2 text-left">
+            <span class="min-w-0 truncate">🐾 <span id="companion-name-display" class="text-emerald-400 font-bold">-</span> <span id="companion-specialty-display" class="text-gray-600">(-)</span> <span id="companion-hp-display" class="text-gray-400"></span></span>
+            <span class="flex items-center gap-1 shrink-0">
+                <span class="text-[9px] uppercase tracking-wider text-gray-600">🤝</span>
+                <span class="w-16 bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                    <span id="companion-loyalty-bar" class="block h-full rounded-full transition-all duration-500" style="width:60%; background:#22c55e;"></span>
+                </span>
+            </span>
+        </button>
 
         <!-- Vitals compacts (PV + ATK/DEF) : masqués en combat, où PV apparaît déjà à droite de la carte -->
         <div id="player-vitals-compact" class="flex items-center justify-center gap-4 py-1">
@@ -891,7 +913,7 @@
         <section class="flex flex-col gap-2">
             <div class="flex justify-between items-end">
                 <h2 class="text-xs uppercase tracking-widest text-gray-600 font-bold">Inventaire</h2>
-                <span class="text-[10px] text-gray-500">Équipement: <span id="inventory-count">0</span>/5 <span class="text-gray-700">· Consommables illimités</span></span>
+                <span class="text-[10px] text-gray-500">Équipement: <span id="inventory-count">0</span>/<span id="inventory-max">8</span> <span class="text-gray-700">· Consommables illimités</span></span>
             </div>
             <div class="flex gap-4 text-[11px] text-gray-500 bg-gray-950/50 border border-gray-800 rounded px-3 py-2 flex-wrap">
                 <span>⚔️ Arme : <span id="equipped-weapon" class="text-gray-300">Aucune</span></span>
@@ -899,9 +921,8 @@
                 <span>🛡️ Armure : <span id="equipped-armor" class="text-gray-300">Aucune</span></span>
             </div>
 
-            <!-- Badges des enchantements de l'armure équipée (voir MECHANIC_ICONS dans app.js) :
-                 généralise l'ancien indicateur "Silencieux" isolé à tous les états/buffs d'armure,
-                 fonctionnels (colorés) ou encore cosmétiques (grisés) — voir applyArmorMechanic(). -->
+            <!-- Badges des qualificatifs de l'équipement porté (arme, distance, armure — voir
+                 buildQualifierBadgesHtml() dans app.js), effet exact en infobulle. -->
             <div id="equipped-armor-badges" class="flex gap-1 flex-wrap text-[9px]"></div>
 
             <!-- Barre de raccourci consommables : toujours visible, icône seule, touche = utiliser -->
@@ -910,7 +931,7 @@
             <!-- Déroulant : armes/armures sous forme de cartes (même style que les cartes
                  d'exploration) + les mêmes consommables, en icônes, avec un bouton pour les jeter -->
             <details id="inventory-details">
-                <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-300 text-[10px] py-1 text-gray-500">🎒 Voir l'inventaire complet (arme/armure/consommables)</summary>
+                <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-300 text-[10px] py-1 text-gray-500">🎒 Voir l'inventaire complet (arme/armure/consommables) — toucher un objet pour l'inspecter</summary>
                 <div class="mt-2 flex flex-col gap-3">
                     <div id="inventory-equipment-cards" class="grid grid-cols-2 gap-3">
                         <p class="col-span-2 text-[10px] text-gray-600 italic">Aucune arme ni armure en réserve.</p>
@@ -931,8 +952,8 @@
             <span class="text-[10px] text-gray-500">Sort équipé : <span id="equipped-spell" class="text-gray-300">Aucun</span></span>
             <details id="spellbook-details">
                 <summary class="cursor-pointer uppercase tracking-widest hover:text-gray-300 text-[10px] py-1 text-gray-500">📖 Voir les sorts appris</summary>
-                <div class="mt-2 grid grid-cols-2 gap-3" id="spellbook-cards">
-                    <p class="col-span-2 text-[10px] text-gray-600 italic">Aucun parchemin appris pour l'instant.</p>
+                <div class="mt-2 flex flex-col gap-2" id="spellbook-cards">
+                    <p class="text-[10px] text-gray-600 italic">Aucun parchemin appris pour l'instant.</p>
                 </div>
             </details>
         </section>
@@ -1051,6 +1072,16 @@
         </div>
     </div>
 
+    <!-- Inspection d'un objet (openItemInspect() dans app.js) : stats, niveau d'objet, chaque
+         qualificatif avec son effet exact, valeur, comparaison avec l'objet porté au même emplacement,
+         et les actions du contexte (équiper, jeter, acheter, vendre). Toucher le fond referme. -->
+    <div id="item-inspect-overlay" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+        <div id="item-inspect-panel" class="bg-gray-900 border-2 border-gray-700 rounded-xl p-4 max-w-sm w-full max-h-[85vh] overflow-y-auto shadow-2xl">
+            <div id="item-inspect-body" class="flex flex-col gap-3 text-[11px] text-gray-300"></div>
+            <div id="item-inspect-actions" class="mt-4 flex flex-col gap-2"></div>
+        </div>
+    </div>
+
     <!-- Écran Game Over : recouvre toute l'interface, quel que soit le scroll -->
     <div id="game-over-overlay" class="hidden fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-6">
         <div class="bg-gray-900 border-2 border-red-800 rounded-xl p-6 max-w-sm w-full text-center shadow-[0_0_50px_rgba(153,27,27,0.5)]">
@@ -1125,30 +1156,30 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=25"></script>
-    <script src="items.js?v=25"></script>
-    <script src="spells.js?v=25"></script>
-    <script src="districts.js?v=25"></script>
-    <script src="safehouses.js?v=25"></script>
-    <script src="generator.js?v=25"></script>
-    <script src="anomalies.js?v=25"></script>
-    <script src="sprites/crawler.js?v=25"></script>
-    <script src="sprites/npcs.js?v=25"></script>
-    <script src="sprites/mobs.js?v=25"></script>
-    <script src="sprites/mob-details-a.js?v=25"></script>
-    <script src="sprites/mob-details-b.js?v=25"></script>
-    <script src="sprites/mob-auras.js?v=25"></script>
-    <script src="sprites/bosses-a.js?v=25"></script>
-    <script src="sprites/bosses-b.js?v=25"></script>
-    <script src="sprites/items-generic.js?v=25"></script>
-    <script src="sprites/items-melee.js?v=25"></script>
-    <script src="sprites/items-ranged.js?v=25"></script>
-    <script src="sprites/items-armor.js?v=25"></script>
-    <script src="sprites/items-signature.js?v=25"></script>
-    <script src="sprites/fx.js?v=25"></script>
-    <script src="backdrops.js?v=25"></script>
-    <script src="scene.js?v=25"></script>
-    <script src="fx.js?v=25"></script>
-    <script src="app.js?v=25"></script>
+    <script src="bestiary.js?v=31"></script>
+    <script src="items.js?v=31"></script>
+    <script src="spells.js?v=31"></script>
+    <script src="districts.js?v=31"></script>
+    <script src="safehouses.js?v=31"></script>
+    <script src="generator.js?v=31"></script>
+    <script src="anomalies.js?v=31"></script>
+    <script src="sprites/crawler.js?v=31"></script>
+    <script src="sprites/npcs.js?v=31"></script>
+    <script src="sprites/mobs.js?v=31"></script>
+    <script src="sprites/mob-details-a.js?v=31"></script>
+    <script src="sprites/mob-details-b.js?v=31"></script>
+    <script src="sprites/mob-auras.js?v=31"></script>
+    <script src="sprites/bosses-a.js?v=31"></script>
+    <script src="sprites/bosses-b.js?v=31"></script>
+    <script src="sprites/items-generic.js?v=31"></script>
+    <script src="sprites/items-melee.js?v=31"></script>
+    <script src="sprites/items-ranged.js?v=31"></script>
+    <script src="sprites/items-armor.js?v=31"></script>
+    <script src="sprites/items-signature.js?v=31"></script>
+    <script src="sprites/fx.js?v=31"></script>
+    <script src="backdrops.js?v=31"></script>
+    <script src="scene.js?v=31"></script>
+    <script src="fx.js?v=31"></script>
+    <script src="app.js?v=31"></script>
 </body>
 </html>

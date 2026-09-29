@@ -125,9 +125,12 @@ function findMobByName(name) {
     return baseMobs.find(mob => mob.name === name);
 }
 
-// `signatureItem` (chantier "rework combat", Chantier 2) : objet UNIQUE garanti à chaque défaite de
-// ce boss précis (voir winCombat() dans app.js), en plus du loot aléatoire de rareté minimale garantie
-// — toujours au palier Légendaire, stats fixes (canEnchant:false, déjà "complet"), un seul mécanisme
+// `signatureItem` (chantier "rework combat", Chantier 2) : objet UNIQUE de ce boss précis, garanti à
+// sa PREMIÈRE défaite de la partie puis tiré à itemBalance.boss.signatureRepeatChance (voir
+// awardBossSignatureItem() dans app.js), en plus du loot aléatoire du boss — toujours au palier
+// Légendaire. baseDmg/baseArmor/baseValue sont des stats de BASE (chantier "refonte des objets") :
+// mises à l'échelle par la rareté et le niveau d'objet (étage) comme tout objet, voir
+// buildSignatureItem() dans generator.js. Pas de qualificatif aléatoire (canEnchant:false), un seul mécanisme
 // thématique parmi ceux réellement implémentés (voir IMPLEMENTED_WEAPON_MECHANICS/
 // IMPLEMENTED_ARMOR_MECHANICS dans app.js — "confusion", utilisé comme `effect` narratif de certains
 // boss ci-dessous, n'a pas de mécanique de combat réelle : les objets signature associés utilisent
@@ -137,31 +140,31 @@ function findMobByName(name) {
 // existante, couronnée dans la scène de combat (jamais de silhouette dédiée par boss).
 const districtBosses = {
     "Tunnels de Métro Abandonnés": { name: "Le Chef de Gare Nécrosé", hp: 220, atk: 15, def: 10, xpReward: 90, effect: "stun", isBoss: true, visualArchetype: "zombie",
-        signatureItem: { name: "Sifflet du Chef de Gare Nécrosé", category: "weapons", baseDmg: 30, baseValue: 90, canEnchant: false, mechanics: ["stun"], signature: true } },
+        signatureItem: { name: "Sifflet du Chef de Gare Nécrosé", category: "weapons", baseDmg: 8, baseValue: 36, canEnchant: false, mechanics: ["stun"], signature: true } },
     "Jardins Carnivores": { name: "La Mère-Liane", hp: 210, atk: 14, def: 9, xpReward: 90, effect: "poison", isBoss: true, visualArchetype: "plant",
-        signatureItem: { name: "Tronçon de Liane Toxique", category: "weapons", baseDmg: 28, baseValue: 88, canEnchant: false, mechanics: ["poison"], signature: true } },
+        signatureItem: { name: "Tronçon de Liane Toxique", category: "weapons", baseDmg: 7, baseValue: 35, canEnchant: false, mechanics: ["poison"], signature: true } },
     "Bureaux de l'Administration Pénitentiaire": { name: "Le Directeur Général (Édition Cauchemar)", hp: 230, atk: 16, def: 11, xpReward: 100, effect: "slow", isBoss: true, ranged: true, visualArchetype: "zombie",
-        signatureItem: { name: "Tampon Encreur du Directeur", category: "ranged", baseDmg: 32, baseValue: 95, canEnchant: false, mechanics: ["slow"], signature: true } },
+        signatureItem: { name: "Tampon Encreur du Directeur", category: "ranged", baseDmg: 9, baseValue: 38, canEnchant: false, mechanics: ["slow"], signature: true } },
     "Usine de Transformation Alimentaire": { name: "Le Boucher Sans Visage", hp: 250, atk: 18, def: 12, xpReward: 110, effect: "bleed", isBoss: true, visualArchetype: "zombie",
-        signatureItem: { name: "Couperet du Boucher Sans Visage", category: "weapons", baseDmg: 34, baseValue: 100, canEnchant: false, mechanics: ["bleed"], signature: true } },
+        signatureItem: { name: "Couperet du Boucher Sans Visage", category: "weapons", baseDmg: 9, baseValue: 40, canEnchant: false, mechanics: ["bleed"], signature: true } },
     "Bibliothèque des Oubliés": { name: "Le Gardien des Mots Perdus", hp: 240, atk: 17, def: 10, xpReward: 120, effect: "confusion", isBoss: true, visualArchetype: "shade",
-        signatureItem: { name: "Reliure du Gardien des Mots Perdus", category: "armors", baseArmor: 16, baseValue: 92, canEnchant: false, mechanics: ["fear"], signature: true } },
+        signatureItem: { name: "Reliure du Gardien des Mots Perdus", category: "armors", baseArmor: 6, baseValue: 37, canEnchant: false, mechanics: ["fear"], signature: true } },
     "Laboratoire de Fous": { name: "Le Professeur Démentiel", hp: 260, atk: 20, def: 8, xpReward: 130, effect: "poison", isBoss: true, visualArchetype: "zombie",
-        signatureItem: { name: "Seringue Géante du Professeur Démentiel", category: "weapons", baseDmg: 30, baseValue: 98, canEnchant: false, mechanics: ["poison"], signature: true } },
+        signatureItem: { name: "Seringue Géante du Professeur Démentiel", category: "weapons", baseDmg: 8, baseValue: 39, canEnchant: false, mechanics: ["poison"], signature: true } },
     "Rue des Illusions": { name: "Le Maître des Illusions", hp: 220, atk: 16, def: 9, xpReward: 100, effect: "confusion", isBoss: true, visualArchetype: "shade",
-        signatureItem: { name: "Cape en Lambeaux du Maître des Illusions", category: "armors", baseArmor: 14, baseValue: 90, canEnchant: false, mechanics: ["fear"], signature: true } },
+        signatureItem: { name: "Cape en Lambeaux du Maître des Illusions", category: "armors", baseArmor: 5, baseValue: 36, canEnchant: false, mechanics: ["fear"], signature: true } },
     "Catacombes des Chaussettes Perdues": { name: "Le Roi des Chaussettes Solitaires", hp: 200, atk: 14, def: 13, xpReward: 90, effect: "slow", isBoss: true, visualArchetype: "mannequin",
-        signatureItem: { name: "Chaussette Royale Dépareillée", category: "armors", baseArmor: 17, baseValue: 85, canEnchant: false, mechanics: ["slow"], signature: true } },
+        signatureItem: { name: "Chaussette Royale Dépareillée", category: "armors", baseArmor: 6, baseValue: 34, canEnchant: false, mechanics: ["slow"], signature: true } },
     "Marché Noir du Donjon": { name: "Le Baron des Ombres", hp: 270, atk: 19, def: 14, xpReward: 140, effect: "stun", isBoss: true, visualArchetype: "shade",
-        signatureItem: { name: "Canne-Épée du Baron des Ombres", category: "weapons", baseDmg: 33, baseValue: 105, canEnchant: false, mechanics: ["stun"], signature: true } },
+        signatureItem: { name: "Canne-Épée du Baron des Ombres", category: "weapons", baseDmg: 9, baseValue: 42, canEnchant: false, mechanics: ["stun"], signature: true } },
     "Salle des Machines Infernales": { name: "L'IA Malveillante", hp: 300, atk: 22, def: 15, xpReward: 150, effect: "stun", isBoss: true, ranged: true, visualArchetype: "machine",
-        signatureItem: { name: "Canon à Impulsions de l'IA Malveillante", category: "ranged", baseDmg: 36, baseValue: 115, canEnchant: false, mechanics: ["stun"], signature: true } },
+        signatureItem: { name: "Canon à Impulsions de l'IA Malveillante", category: "ranged", baseDmg: 10, baseValue: 46, canEnchant: false, mechanics: ["stun"], signature: true } },
     "Parking Souterrain Maudit": { name: "Le Gardien du Parking Éternel", hp: 235, atk: 16, def: 13, xpReward: 105, effect: "stun", isBoss: true, visualArchetype: "vehicle",
-        signatureItem: { name: "Barre de Péage Maudite", category: "weapons", baseDmg: 29, baseValue: 93, canEnchant: false, mechanics: ["stun"], signature: true } },
+        signatureItem: { name: "Barre de Péage Maudite", category: "weapons", baseDmg: 8, baseValue: 37, canEnchant: false, mechanics: ["stun"], signature: true } },
     "Piscine Municipale Désaffectée": { name: "Le Grand Requin Gonflable", hp: 245, atk: 17, def: 9, xpReward: 110, effect: "bleed", isBoss: true, visualArchetype: "beast",
-        signatureItem: { name: "Dents du Grand Requin Gonflable", category: "weapons", baseDmg: 31, baseValue: 96, canEnchant: false, mechanics: ["bleed"], signature: true } },
+        signatureItem: { name: "Dents du Grand Requin Gonflable", category: "weapons", baseDmg: 8, baseValue: 38, canEnchant: false, mechanics: ["bleed"], signature: true } },
     "Studio de Télé-Achat Abandonné": { name: "L'Animateur Vedette Immortel", hp: 255, atk: 18, def: 10, xpReward: 115, effect: "confusion", isBoss: true, visualArchetype: "zombie",
-        signatureItem: { name: "Micro Électrifié de l'Animateur Vedette", category: "weapons", baseDmg: 30, baseValue: 94, canEnchant: false, mechanics: ["adrenaline"], signature: true } }
+        signatureItem: { name: "Micro Électrifié de l'Animateur Vedette", category: "weapons", baseDmg: 8, baseValue: 38, canEnchant: false, mechanics: ["adrenaline"], signature: true } }
 };
 
 function findBossForDistrict(districtName) {

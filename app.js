@@ -58,6 +58,9 @@ const gameState = {
     // `inventory` (voir spells.js/generateSpellScroll()) : un sort ne compte pas dans maxInventory,
     // pas plus qu'un consommable. Le sort actuellement équipé n'y figure jamais (voir equipSpell()).
     spellbook: [],
+    // Boss (nom de base) dont l'objet signature a déjà été obtenu dans cette partie : le premier est
+    // garanti, les suivants seulement à itemBalance.boss.signatureRepeatChance (voir awardBossSignatureItem()).
+    signaturesAwarded: [],
     // Écart de distance courant (0 = corps à corps). Aucune notion de posture : la distance de
     // départ dépend uniquement de la nature du mob (mob.ranged), et n'évolue ensuite que via les
     // actions dédiées S'approcher/S'éloigner (attemptSprint/attemptRetreat) — voir config.rangedCombat.
@@ -106,6 +109,8 @@ const gameState = {
     pendingLairId: null, // Repaire (gameState.urbanMap.lairsById) dont le choix est actuellement affiché
     pendingLairDive: null, // { lairId, combatsLeft, stage: 'trash'|'boss' } pendant une plongée en cours (voir winCombat())
     floorTransitionPending: false, // L'écran d'escalier (félicitations) est affiché, voir triggerFloorTransition()
+    stairsChoicePending: false, // Choix « Descendre / Rester sur l'étage » affiché, voir offerStairsChoice()
+    pendingStairsChoice: null, // Escalier concerné : { kind: 'room', roomId } ou { kind: 'city', cityId }
     hasWon: false, // Vrai une fois la Sortie de l'étage final franchie (voir winGame())
     companion: null, // Compagnon actuellement recruté (ou null)
     pendingCompanionCandidate: null, // Candidat en attente de décision (recruter/laisser/fuir/attaquer)
@@ -188,7 +193,7 @@ const config = {
         // attendant le rééquilibrage complet de cette table (proposition faite, pas encore validée).
         // loot/minorFind rééquilibrés (1->4 / 6->3, validé) : moins de petites trouvailles de PV
         // (régénération désormais surtout passive, voir applyTimeElapsedRegen()), plus d'objets sans
-        // toucher à leur rareté (gérée ailleurs par rollRarity()/getLootPowerScore()).
+        // toucher à leur rareté (gérée ailleurs par rollLootRarity(), voir itemBalance dans items.js).
         nothing: 37,        // Rien de notable
         combat: 25,         // Rencontre hostile
         loot: 4,            // Objet généré procéduralement
@@ -238,14 +243,6 @@ const config = {
         // étage ci-dessus et des modificateurs aléatoires déjà existants (qui gonflaient surtout les
         // PV) — appliqué au moment de la riposte, voir resolveEnemyCounterAttack().
         eliteDamageMult: 1.65
-    },
-
-    // Chantier "rework combat", Chantier 2 (récompenses de boss) : rareté plancher garantie sur le
-    // loot d'un boss (voir winCombat()/rollRarity() dans generator.js) — Légendaire est réservé à
-    // l'objet signature garanti séparément (voir bestiary.js, districtBosses.*.signatureItem), donc
-    // Épique comme plancher pour le loot ALÉATOIRE laisse une vraie place à la Légendaire "en bonus".
-    bossRewards: {
-        minRarityKey: 'epique'
     },
 
     // Chantier "rework combat", Chantier 2 (rework des boss) : un boss n'est plus "un mob avec plus
@@ -376,14 +373,42 @@ const config = {
         lairRoadsFinalFloor: 2
     },
 
-    // Salle sécurisée (chantier "QoL/équilibrage" — voir enterRoom()) : entrée à choix explicite,
-    // plus de soin automatique. Repos = ce coût en temps, contre un soin majoré PV (+ mana si un
-    // sort est équipé, même échelle) ; "Repartir" reste gratuit. Valeurs de départ, à ajuster par
-    // playtest.
+    // Salle sécurisée (voir enterRoom()/restAtSafehouse()) : entrée à choix explicite, jamais de soin
+    // automatique. Trois options : Partir (gratuit), Sieste et Sommeil réparateur — chacune coûte `cost`
+    // heures et rend `healPct` des PV PERDUS (et la même part du mana manquant si un sort est équipé),
+    // en pourcentage plutôt qu'en valeur absolue pour rester juste à tous les niveaux. Valeurs validées
+    // par l'utilisateur, à ajuster par playtest.
     safehouse: {
-        restCost: 2,
-        restHpMin: 25,
-        restHpMax: 40
+        nap: { cost: 2, healPct: 0.25 },
+        sleep: { cost: 8, healPct: 1.0 }
+    },
+
+    // Compagnons (chantier "rework des compagnons", voir NOTES_COMPAGNONS.md et CHANTIERS.md) : valeurs
+    // validées par l'utilisateur, à ajuster par playtest. Lues par les fonctions pures de generator.js
+    // (section 3) et par la logique de jeu d'app.js (section COMPAGNONS).
+    companions: {
+        xpPerWin: 15,
+        levelStatGain: 0.10, // +10 % des stats de base par niveau du compagnon
+        loyalty: {
+            start: 60, max: 100,
+            victory: 2, nap: 5, sleep: 10, flee: -5, downed: -10,
+            consumableGift: 3,
+            giftByRarity: { camelote: 2, commun: 5, rare: 8, epique: 12, legendaire: 18 },
+            // Jet de départ au changement d'étage, seulement sous `departureThreshold` :
+            // chance = (departureThreshold − loyauté) × departurePerPoint %.
+            departureThreshold: 40, departurePerPoint: 2
+        },
+        support: {
+            strikeRatio: 0.35,         // Frappe d'appoint : coup à chaque attaque du joueur (% de l'ATQ du compagnon)
+            opportunisticChance: 25,   // Autres spécialités : chance d'un coup d'opportunité au même ratio
+            spellCastChance: 30,       // Sort donné : chance de le lancer à la place du coup
+            spellRatio: 0.6            // ... pour 60 % de (ATQ + dégâts du sort)
+        },
+        guard: { interceptChance: 40, absorbMin: 0.3, absorbMax: 0.6, defShare: 0.5, ambushMult: 0.75 },
+        strayHitChance: 10, // Autres spécialités : "pris dans la mêlée", même absorption que la Garde
+        medic: { healChance: 25, healPct: 0.06, postVictoryHealPct: 0.04, manaMin: 6, manaMax: 11 },
+        scout: { stealthBonus: 10, fleeBonus: 15, trapAvoidChance: 50 },
+        striker: { goldBonusPct: 10 }
     },
 
     // Réserve d'équipement (armes/armures/armes à distance — consommables et parchemins jamais
@@ -493,6 +518,12 @@ const flavorText = {
             "Ceci a été \"testé\" par un précédent candidat. Il n'a pas survécu pour donner son avis.",
             "Le règlement exige un cadeau à distance. Personne n'a précisé qu'il devait toucher sa cible."
         ],
+        armor: [
+            "Protection garantie contre la pluie fine. Pour le reste, le Donjon décline toute responsabilité.",
+            "Le sponsor l'a trouvée dans une benne. Il a tenu à préciser : une benne PREMIUM.",
+            "Norme de sécurité respectée : la norme de 1987, abrogée depuis.",
+            "Ça vous protège un peu. Surtout de l'envie de vous en séparer, tant personne n'en voudrait."
+        ],
         spell: [
             "Un parchemin visiblement récupéré dans les objets trouvés d'un crawler précédent. Paix à son âme.",
             "La magie, ça se mérite. Ceci, en revanche, ça se subit.",
@@ -573,10 +604,14 @@ const ui = {
     sceneCrawlerAnchor: document.getElementById('scene-crawler-anchor'),
     advanceHint: document.getElementById('advance-hint'),
     bossChoiceZone: document.getElementById('boss-choice-zone'),
+    stairsChoiceZone: document.getElementById('stairs-choice-zone'),
+    btnDescendStairs: document.getElementById('btn-descend-stairs'),
+    btnStayOnFloor: document.getElementById('btn-stay-on-floor'),
     btnFightBoss: document.getElementById('btn-fight-boss'),
     btnRetreatBoss: document.getElementById('btn-retreat-boss'),
     safehouseChoiceZone: document.getElementById('safehouse-choice-zone'),
-    btnRestSafehouse: document.getElementById('btn-rest-safehouse'),
+    btnNapSafehouse: document.getElementById('btn-nap-safehouse'),
+    btnSleepSafehouse: document.getElementById('btn-sleep-safehouse'),
     btnLeaveSafehouse: document.getElementById('btn-leave-safehouse'),
     stealthChoiceZone: document.getElementById('stealth-choice-zone'),
     btnStealthEvade: document.getElementById('btn-stealth-evade'),
@@ -633,7 +668,10 @@ const ui = {
     companionStatusBar: document.getElementById('companion-status-bar'),
     companionNameDisplay: document.getElementById('companion-name-display'),
     companionSpecialtyDisplay: document.getElementById('companion-specialty-display'),
-    companionLeaveBar: document.getElementById('companion-leave-bar'),
+    companionLoyaltyBar: document.getElementById('companion-loyalty-bar'),
+    companionHpDisplay: document.getElementById('companion-hp-display'),
+    companionInfoFriendly: document.getElementById('companion-info-friendly'),
+    companionInfoHostile: document.getElementById('companion-info-hostile'),
     companionCombatIndicator: document.getElementById('companion-combat-indicator'),
     companionCombatName: document.getElementById('companion-combat-name'),
     companionCombatHpRing: document.getElementById('companion-combat-hp-ring'),
@@ -682,7 +720,13 @@ const ui = {
     giftRevealTitle: document.getElementById('gift-reveal-title'),
     giftRevealItemName: document.getElementById('gift-reveal-item-name'),
     giftRevealJoke: document.getElementById('gift-reveal-joke'),
-    btnGiftContinue: document.getElementById('btn-gift-continue')
+    btnGiftContinue: document.getElementById('btn-gift-continue'),
+    // Inspection d'un objet (voir openItemInspect())
+    itemInspectOverlay: document.getElementById('item-inspect-overlay'),
+    itemInspectPanel: document.getElementById('item-inspect-panel'),
+    itemInspectBody: document.getElementById('item-inspect-body'),
+    itemInspectActions: document.getElementById('item-inspect-actions'),
+    inventoryMax: document.getElementById('inventory-max')
 };
 
 // ==========================================
@@ -781,6 +825,8 @@ function restoreSaveForName(name) {
 
     Object.assign(gameState, saved);
     if (needsBaseMaxHpMigration) gameState.baseMaxHp = saved.maxHp || gameState.maxHp;
+    // Compagnon d'une sauvegarde antérieure au rework (leaveChance, pas de loyauté ni d'équipement).
+    if (gameState.companion) gameState.companion = normalizeCompanion(gameState.companion);
 
     // Nettoyage de l'état transitoire/bloquant
     gameState.inCombat = false;
@@ -802,6 +848,12 @@ function restoreSaveForName(name) {
     gameState.floorTransitionPending = false;
     gameState.pactChoicePending = false;
     gameState.pendingNextFloorAnomalies = null;
+    gameState.safehouseChoicePending = false;
+    gameState.pendingSafehouseRoomId = null;
+    // Escalier en attente : la salle du gardien est déjà un lieu connu (voir offerStairsChoice()), et une
+    // ville-escalier reste sur la Carte Urbaine — le choix sera reproposé en y retournant.
+    gameState.stairsChoicePending = false;
+    gameState.pendingStairsChoice = null;
 
     gameState.saveEnabled = true; // Réactive l'autosave après une restauration réussie
     return true;
@@ -1204,13 +1256,13 @@ function updateUI() {
             let magicUsable = false;
             if (spell) {
                 const spellDistanceOk = spell.spellCategory === 'melee' ? atMelee : !atMelee;
-                magicUsable = spellDistanceOk && gameState.mana >= spell.manaCost;
+                magicUsable = spellDistanceOk && gameState.mana >= getSpellManaCost(spell);
             }
             ui.btnAttackMagic.disabled = !magicUsable;
             ui.btnAttackMagic.classList.toggle('opacity-40', !magicUsable);
             ui.btnAttackMagic.classList.toggle('pointer-events-none', !magicUsable);
             ui.btnAttackMagic.innerHTML = spell
-                ? `${spell.icon || '✨'} ${spell.spellName}<span class="block text-[8px] normal-case opacity-70">🔷 ${spell.manaCost}</span>`
+                ? `${spell.icon || '✨'} ${spell.spellName}<span class="block text-[8px] normal-case opacity-70">🔷 ${getSpellManaCost(spell)}</span>`
                 : `✨ Magie<span class="block text-[8px] normal-case opacity-70">(aucun sort)</span>`;
         }
         // S'approcher (attemptSprint) / S'éloigner (attemptRetreat) : TOUJOURS affichés pendant un
@@ -1392,12 +1444,28 @@ function animateDieHit(dieEl, direction, value) {
 const FLOATING_DAMAGE_OFFSETS = [-7, 6, -3, 8, -8, 3, -5, 7];
 let floatingDamageOffsetIndex = 0;
 
+// Taille des chiffres de dégâts selon la PART des PV max de la cible touchée (pas le montant brut : les
+// dégâts grossissent avec les étages, un « 40 » énorme à l'étage 1 est banal à l'étage 12). Linéaire
+// entre `minRatio` (et en dessous : `minPx`) et `maxRatio` (et au-delà : `maxPx`) ; un coup lourd
+// ajoute `heavyBonusPx`, sans jamais dépasser `maxPx`. `pop` : grossissement au sommet de l'animation,
+// plus marqué pour un gros coup (coupé sous prefers-reduced-motion, qui ne garde que la taille).
+const FLOATING_DAMAGE_SIZE = { minPx: 13, maxPx: 28, minRatio: 0.03, maxRatio: 0.40, heavyBonusPx: 3, popMin: 1.08, popMax: 1.3 };
+function floatingDamageScale(amount, maxHp, heavy = false) {
+    const cfg = FLOATING_DAMAGE_SIZE;
+    const ratio = maxHp > 0 ? amount / maxHp : 0;
+    const t = Math.max(0, Math.min(1, (ratio - cfg.minRatio) / (cfg.maxRatio - cfg.minRatio)));
+    const fontPx = Math.min(cfg.maxPx, Math.round(cfg.minPx + t * (cfg.maxPx - cfg.minPx) + (heavy ? cfg.heavyBonusPx : 0)));
+    const pop = Math.round((cfg.popMin + t * (cfg.popMax - cfg.popMin)) * 100) / 100;
+    return { fontPx, pop };
+}
+
 // Chiffre de dégâts flottant (chantier "lisibilité combat", Chantier 3) : un chiffre par impact,
 // monte et s'estompe au-dessus du combattant touché (ancres #scene-mob-anchor/#scene-crawler-anchor,
 // placées sur chaque silhouette par scene.js — le chiffre s'ajoute EN PLUS du dé qui vole déjà,
 // jamais à sa place). `toPlayer` distingue les dégâts SUBIS par le joueur (rouge/orangé) des dégâts
-// qu'il INFLIGE (blanc/jaune) ; `heavy` grossit le chiffre (×1.4 environ) pour un coup marquant
-// (télégraphe exécuté, ruée d'enrage, phase 3). Fait aussi trembler le combattant touché dans la
+// qu'il INFLIGE (blanc/jaune) ; sa taille suit la part des PV max de la cible (floatingDamageScale()),
+// `heavy` l'agrandit encore un peu pour un coup marquant (télégraphe exécuté, ruée d'enrage, phase 3,
+// attaque furtive, charge). Fait aussi trembler le combattant touché dans la
 // scène (shakeSceneFighter(), scene.js). Se nettoie lui-même après son animation
 // (`animationend`), fonctionne aussi bien avec l'animation normale que le simple fondu de
 // prefers-reduced-motion (les deux déclenchent cet événement).
@@ -1406,6 +1474,10 @@ function showFloatingDamage(containerEl, amount, { heavy = false, toPlayer = fal
     const el = document.createElement('span');
     el.className = `floating-damage ${toPlayer ? 'floating-damage-taken' : 'floating-damage-dealt'}${heavy ? ' floating-damage-heavy' : ''}`;
     el.innerText = `-${Math.round(amount)}`;
+    const target = toPlayer ? gameState : gameState.currentEnemy;
+    const { fontPx, pop } = floatingDamageScale(amount, target ? target.maxHp : 0, heavy);
+    el.style.fontSize = `${fontPx}px`;
+    el.style.setProperty('--fd-pop', pop);
     const offsetX = FLOATING_DAMAGE_OFFSETS[floatingDamageOffsetIndex];
     floatingDamageOffsetIndex = (floatingDamageOffsetIndex + 1) % FLOATING_DAMAGE_OFFSETS.length;
     el.style.left = `calc(50% + ${offsetX}px)`;
@@ -1501,6 +1573,7 @@ function toggleMapPanel(forceOpen) {
 function updateInventoryUI() {
     const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
     ui.inventoryCount.innerText = equipmentCount;
+    if (ui.inventoryMax) ui.inventoryMax.innerText = gameState.maxInventory;
     // Objets équipés : icône (même dessin que sur le crawler, voir itemIconSvg() dans scene.js) + nom.
     const equippedLabel = (item) => item
         ? `<span class="inline-flex items-center gap-1 align-middle">${itemIconSvg(item, 22)}<span>${formatItemDisplayName(item)}</span></span>`
@@ -1508,9 +1581,10 @@ function updateInventoryUI() {
     ui.equippedWeapon.innerHTML = equippedLabel(gameState.equipment.weapon);
     ui.equippedArmor.innerHTML = equippedLabel(gameState.equipment.armor);
     if (ui.equippedArmorBadges) {
-        ui.equippedArmorBadges.innerHTML = gameState.equipment.armor
-            ? buildMechanicBadgesHtml(gameState.equipment.armor, IMPLEMENTED_ARMOR_MECHANICS)
-            : "";
+        // Qualificatifs de TOUT l'équipement porté (arme, distance, armure), pas seulement de l'armure.
+        ui.equippedArmorBadges.innerHTML = ['weapon', 'ranged', 'armor']
+            .map(slot => buildQualifierBadgesHtml(gameState.equipment[slot]))
+            .join('');
     }
     if (ui.equippedRanged) ui.equippedRanged.innerHTML = equippedLabel(gameState.equipment.ranged);
 
@@ -1536,9 +1610,8 @@ function updateInventoryUI() {
             card.style.borderColor = rarityColor;
             card.style.borderWidth = "2px";
             const statLine = (isWeapon || isRanged) ? `⚔️ ATK +${item.baseDmg}` : `🛡️ DEF +${item.baseArmor}`;
-            // Badges d'enchantement : uniquement sur les armures (voir applyArmorMechanic()) — les
-            // armes gardent leur affichage inchangé, leurs enchantements sont déjà tous fonctionnels.
-            const armorBadges = !isWeapon && !isRanged ? buildMechanicBadgesHtml(item, IMPLEMENTED_ARMOR_MECHANICS) : "";
+            // Badges de qualificatifs (arme, distance ou armure), effet exact en infobulle.
+            const armorBadges = buildQualifierBadgesHtml(item);
             card.innerHTML = `
                 <div class="flex justify-center leading-none">${itemIconSvg(item, 40) || `<span class="text-xl">${icon}</span>`}</div>
                 <div class="text-[10px] font-bold leading-tight">${item.name}</div>
@@ -1548,8 +1621,15 @@ function updateInventoryUI() {
                 <button data-action="equip" class="mt-1 text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>
                 <button data-action="discard" class="absolute top-1 right-1 text-[10px] text-red-700 hover:text-red-500" title="Jeter">🗑️</button>
             `;
-            card.querySelector('[data-action="equip"]').addEventListener('click', () => equipItem(i));
-            card.querySelector('[data-action="discard"]').addEventListener('click', () => discardItem(i));
+            card.querySelector('[data-action="equip"]').addEventListener('click', (e) => { if (e && e.stopPropagation) e.stopPropagation(); equipItem(i); });
+            card.querySelector('[data-action="discard"]').addEventListener('click', (e) => { if (e && e.stopPropagation) e.stopPropagation(); discardItem(i); });
+            // Toucher la carte (hors boutons) : inspection détaillée, avec les mêmes actions.
+            card.classList.add('cursor-pointer');
+            card.addEventListener('click', () => openItemInspect(item, { actions: [
+                { label: 'Équiper', onClick: () => equipItem(i) },
+                ...companionGiveAction(() => giveItemToCompanion(i)),
+                { label: 'Jeter', tone: 'danger', onClick: () => discardItem(i) }
+            ] }));
             ui.inventoryEquipmentCards.appendChild(card);
         });
     }
@@ -1563,8 +1643,11 @@ function updateInventoryUI() {
         const wrap = document.createElement('div');
         wrap.className = "relative";
         const btn = document.createElement('button');
-        btn.className = "w-9 h-9 flex items-center justify-center bg-gray-950 border border-green-900/50 rounded text-green-400 hover:brightness-125 text-lg";
-        btn.innerText = "🧪";
+        btn.className = "w-9 h-9 flex items-center justify-center bg-gray-950 border rounded hover:brightness-125";
+        // Fiole à la couleur de ce que l'objet rend (voir consumableFlaskKind() dans scene.js) : rouge = PV,
+        // bleu = mana, moitié-moitié = les deux ; la bordure du bouton reprend la même couleur.
+        btn.style.borderColor = CONSUMABLE_FLASKS[consumableFlaskKind(item)].border;
+        btn.innerHTML = itemIconSvg(item, 28);
         btn.title = `${item.name} — toucher pour utiliser`;
         btn.addEventListener('click', () => useConsumable(i));
         wrap.appendChild(btn);
@@ -1594,9 +1677,39 @@ function updateInventoryUI() {
     }
 }
 
-// Grimoire : sort équipé + liste des parchemins en réserve (gameState.spellbook), chacun avec un
-// bouton "Équiper" (voir equipSpell()). Même esprit que la partie équipement de updateInventoryUI(),
-// mais sur un inventaire séparé, jamais limité (voir addLoot()).
+// Regroupe les parchemins par sort (`spellName`) pour l'affichage du grimoire et de la boutique : un
+// seul emplacement par sort, qui cumule toutes ses raretés. Les données restent une simple liste
+// d'exemplaires (gameState.spellbook) — chaque exemplaire garde son `index` dans cette liste, pour
+// s'équiper ou se vendre séparément. `equipped` (facultatif) : sort équipé, ajouté à son groupe avec
+// `index: -1` (jamais vendable, voir sellSpell()). Groupes dans l'ordre de première apparition (le
+// sort équipé d'abord) ; exemplaires de la rareté la plus haute à la plus basse, puis par dégâts.
+const RARITY_RANK = Object.fromEntries(itemRarities.map((r, i) => [r.name, i]));
+function groupSpellbook(spellbook, equipped = null) {
+    const groups = [];
+    const byName = {};
+    const add = (spell, index) => {
+        const key = spell.spellName || spell.name;
+        if (!byName[key]) {
+            byName[key] = { spellName: key, icon: spell.icon, spellCategory: spell.spellCategory, copies: [] };
+            groups.push(byName[key]);
+        }
+        byName[key].copies.push({ spell, index, equipped: index === -1 });
+    };
+    if (equipped) add(equipped, -1);
+    spellbook.forEach((spell, i) => add(spell, i));
+    groups.forEach(g => g.copies.sort((a, b) =>
+        (RARITY_RANK[b.spell.rarity] || 0) - (RARITY_RANK[a.spell.rarity] || 0) || (b.spell.baseDmg || 0) - (a.spell.baseDmg || 0)));
+    return groups;
+}
+
+// Ligne de stats d'un exemplaire de sort (grimoire et boutique).
+function spellCopyStats(spell) {
+    return `⚔️ +${spell.baseDmg} · 🔷 ${getSpellManaCost(spell)}`;
+}
+
+// Grimoire : une carte par sort (groupSpellbook()), une ligne par exemplaire — rareté, dégâts, coût en
+// mana et bouton "Équiper" (voir equipSpell()) ; l'exemplaire équipé y figure avec la mention "Équipé".
+// Inventaire séparé de l'équipement classique, jamais limité (voir addLoot()).
 function updateSpellbookUI() {
     if (ui.equippedSpell) {
         ui.equippedSpell.innerText = gameState.equipment.spell ? formatItemDisplayName(gameState.equipment.spell) : "Aucun";
@@ -1604,29 +1717,54 @@ function updateSpellbookUI() {
     if (!ui.spellbookCards) return;
 
     ui.spellbookCards.innerHTML = "";
-    if (gameState.spellbook.length === 0) {
+    const groups = groupSpellbook(gameState.spellbook, gameState.equipment.spell);
+    if (groups.length === 0) {
         const empty = document.createElement('p');
-        empty.className = "col-span-2 text-[10px] text-gray-600 italic";
+        empty.className = "text-[10px] text-gray-600 italic";
         empty.innerText = "Aucun parchemin appris pour l'instant.";
         ui.spellbookCards.appendChild(empty);
         return;
     }
 
-    gameState.spellbook.forEach((spell, i) => {
-        const rarityColor = spell.rarityColor || "#57534e";
-        const categoryLabel = spell.spellCategory === 'melee' ? "Corps à corps" : "À distance";
+    groups.forEach(group => {
+        const best = group.copies[0].spell;
+        const categoryLabel = group.spellCategory === 'melee' ? "Corps à corps" : "À distance";
         const card = document.createElement('div');
-        card.className = "mini-card rounded-lg p-2 flex flex-col gap-1 text-center relative";
-        card.style.borderColor = rarityColor;
+        card.className = "mini-card rounded-lg p-2 flex flex-col gap-1";
+        card.style.borderColor = best.rarityColor || "#57534e";
         card.style.borderWidth = "2px";
+        const rows = group.copies.map((copy, i) => {
+            const color = copy.spell.rarityColor || "#57534e";
+            const action = copy.equipped
+                ? `<span class="shrink-0 text-[9px] uppercase tracking-wider font-bold text-emerald-700 px-2">Équipé</span>`
+                : `<button data-copy="${i}" class="shrink-0 min-h-[32px] text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>`;
+            return `<div data-inspect="${i}" class="flex items-center gap-2 border-t border-stone-300 pt-1 cursor-pointer">
+                <span class="text-[8px] font-bold uppercase tracking-wider w-16 shrink-0" style="color:${color}">${copy.spell.rarity || ''}</span>
+                <span class="flex-1 text-[9px] text-stone-600">${spellCopyStats(copy.spell)}</span>
+                ${action}
+            </div>`;
+        }).join('');
         card.innerHTML = `
-            <div class="text-xl leading-none">${spell.icon || '✨'}</div>
-            <div class="text-[10px] font-bold leading-tight">${spell.spellName}</div>
-            ${spell.rarity ? `<div class="text-[8px] font-bold uppercase tracking-wider" style="color:${rarityColor}">${spell.rarity}</div>` : ""}
-            <div class="text-[9px] text-stone-600">${categoryLabel} · ⚔️ +${spell.baseDmg} · 🔷 ${spell.manaCost}</div>
-            <button data-action="equip" class="mt-1 text-[9px] uppercase tracking-wider bg-stone-800 text-stone-100 rounded px-2 py-1 hover:bg-stone-700">Équiper</button>
+            <div class="flex items-center gap-2">
+                <span class="text-xl leading-none">${group.icon || '✨'}</span>
+                <span class="flex-1 min-w-0">
+                    <span class="block text-[10px] font-bold leading-tight">${group.spellName}</span>
+                    <span class="block text-[9px] text-stone-500">${categoryLabel}${group.copies.length > 1 ? ` · ${group.copies.length} exemplaires` : ''}</span>
+                </span>
+            </div>
+            ${rows}
         `;
-        card.querySelector('[data-action="equip"]').addEventListener('click', () => equipSpell(i));
+        group.copies.forEach((copy, i) => {
+            // Toucher la ligne d'un exemplaire : inspection (le bouton Équiper reste un raccourci).
+            const row = card.querySelector(`[data-inspect="${i}"]`);
+            if (row) row.addEventListener('click', () => openItemInspect(copy.spell, copy.equipped ? { compareTo: null } : { actions: [
+                { label: 'Équiper', onClick: () => equipSpell(copy.index) },
+                ...companionGiveAction(() => giveSpellToCompanion(copy.index))
+            ] }));
+            if (copy.equipped) return;
+            const btn = card.querySelector(`[data-copy="${i}"]`);
+            if (btn) btn.addEventListener('click', (e) => { if (e && e.stopPropagation) e.stopPropagation(); equipSpell(copy.index); });
+        });
         ui.spellbookCards.appendChild(card);
     });
 }
@@ -1648,38 +1786,167 @@ function discardItem(index) {
 // (jamais de perte d'objet lors d'un changement d'équipement).
 // Nom d'affichage d'un objet : ajoute son palier de rareté entre crochets s'il n'est pas Commun
 // (ex: "[Épique] Hache à Viande Tranchant et Lourd"), sinon le nom brut.
-// Icônes/labels des mécaniques d'enchantement (voir itemModifiers.effect dans items.js). Reprend
-// les mêmes émojis que les logs de combat (resolveWeaponMechanicEffect/resolveArmorMechanicEffect)
-// pour rester cohérent visuellement.
-const MECHANIC_ICONS = {
-    bleed: '🩸', stun: '💫', poison: '☢️', slow: '🐌', light: '✨', heal: '💚',
-    lifesteal: '🧛', drain: '🌀', corrode: '🧪', fear: '😱', adrenaline: '💉',
-    stealth: '🤫', random: '🎲', aoe: '💥', darkness: '🌑', pleasure_or_pain: '😬'
-};
-const MECHANIC_LABELS = {
-    bleed: 'Saignement', stun: 'Étourdissement', poison: 'Poison', slow: 'Ralentissement',
-    light: 'Éblouissement', heal: 'Régénération', lifesteal: 'Vol de vie', drain: 'Drain',
-    corrode: 'Corrosion', fear: 'Terreur', adrenaline: 'Adrénaline', stealth: 'Discrétion',
-    random: 'Aléatoire', aoe: 'Explosion', darkness: 'Ténèbres', pleasure_or_pain: 'Vibration'
-};
-
-// Construit les badges d'enchantement d'un objet équipable : un par mécanique portée, coloré si
-// elle a un effet de combat réel pour ce type d'objet (voir implementedList), grisé sinon (encore
-// purement cosmétique — voir le commentaire de IMPLEMENTED_ARMOR_MECHANICS/IMPLEMENTED_WEAPON_MECHANICS).
-// "stealth" (Silencieux) et "random" (Chaotique) sont toujours fonctionnels, quel que soit le type
-// d'objet (détection pré-combat pour le premier, pioche parmi les mécaniques réelles pour le second).
-function buildMechanicBadgesHtml(item, implementedList) {
-    if (!item || !item.mechanics || item.mechanics.length === 0) return '';
-    return item.mechanics.map(mechanic => {
-        const icon = MECHANIC_ICONS[mechanic] || '❔';
-        const label = MECHANIC_LABELS[mechanic] || mechanic;
-        const isFunctional = mechanic === 'random' || mechanic === 'stealth' || implementedList.includes(mechanic);
-        const cls = isFunctional
-            ? 'bg-amber-100 border-amber-400 text-amber-800'
-            : 'bg-stone-200 border-stone-400 text-stone-500 italic';
-        const title = isFunctional ? label : `${label} (cosmétique pour l'instant)`;
-        return `<span class="px-1 py-0.5 rounded border ${cls}" title="${title}">${icon} ${label}</span>`;
+// Badges de qualificatifs d'un objet (voir itemQualifiers dans items.js) : icône + nom + rang, en rouge
+// pour un défaut de Camelote. L'infobulle native (`title`) donne l'effet exact, chiffres compris —
+// le même texte que le panneau d'inspection (describeQualifier()).
+function buildQualifierBadgesHtml(item) {
+    const target = item ? (qualifierTarget(item.category) || 'weapon') : null;
+    return getItemQualifierList(item).map(({ key, rank }) => {
+        const q = itemQualifiers[key];
+        if (!q) return '';
+        const cls = q.kind === 'malus'
+            ? 'bg-red-100 border-red-400 text-red-800'
+            : 'bg-amber-100 border-amber-400 text-amber-800';
+        const title = escapeHtmlAttr(`${formatQualifierLabel(key, rank)} — ${describeQualifier(key, target, rank)}`);
+        return `<span class="px-1 py-0.5 rounded border ${cls}" title="${title}">${q.icon} ${formatQualifierLabel(key, rank)}</span>`;
     }).join('');
+}
+
+function escapeHtmlAttr(text) {
+    return String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+// ==========================================
+// INSPECTION D'UN OBJET (chantier "refonte des objets", étape 7)
+// ==========================================
+// Tout ce qu'il faut pour décider : stats, rareté, niveau d'objet, chaque qualificatif avec son effet
+// exact (describeQualifier(), la même source que le moteur), valeur marchande, et comparaison chiffrée
+// avec l'objet porté au même emplacement. Ouvert depuis l'inventaire, l'équipement porté, le grimoire et
+// la boutique (où l'achat/la vente passent désormais par ce panneau : plus de vente d'un toucher).
+
+const ITEM_CATEGORY_LABELS = { weapons: "Arme de mêlée", ranged: "Arme à distance", armors: "Armure", consumables: "Consommable", scrolls: "Parchemin de sort" };
+const EQUIPMENT_SLOT_BY_CATEGORY = { weapons: 'weapon', ranged: 'ranged', armors: 'armor', scrolls: 'spell' };
+
+// Stats chiffrées d'un objet, comparables entre deux objets de même catégorie. `better` : 'up' si une
+// valeur plus haute est meilleure, 'down' si plus basse (coût en mana).
+function describeItemStats(item) {
+    if (!item) return [];
+    const stats = [];
+    if (item.category === 'scrolls') {
+        stats.push({ key: 'dmg', icon: '⚔️', label: 'Dégâts', value: item.baseDmg || 0, prefix: '+', better: 'up' });
+        stats.push({ key: 'mana', icon: '🔷', label: 'Coût en mana', value: getSpellManaCost(item), better: 'down' });
+        return stats;
+    }
+    if (item.baseDmg !== undefined) stats.push({ key: 'dmg', icon: '⚔️', label: 'Dégâts', value: item.baseDmg, prefix: '+', better: 'up' });
+    if (item.baseArmor !== undefined) stats.push({ key: 'armor', icon: '🛡️', label: 'Armure', value: item.baseArmor, prefix: '+', better: 'up' });
+    if (item.heal > 0) stats.push({ key: 'heal', icon: '💚', label: 'Soin', value: item.heal, suffix: ' PV', better: 'up' });
+    if (item.mana > 0) stats.push({ key: 'manaGain', icon: '🔷', label: 'Mana rendu', value: item.mana, better: 'up' });
+    return stats;
+}
+
+// Objet porté au même emplacement (null pour un consommable, ou si c'est l'objet lui-même).
+function getEquippedCounterpart(item) {
+    const slot = item && EQUIPMENT_SLOT_BY_CATEGORY[item.category];
+    const equipped = slot ? gameState.equipment[slot] : null;
+    return equipped && equipped !== item ? equipped : null;
+}
+
+function formatStatDelta(stat, otherValue) {
+    const diff = stat.value - otherValue;
+    if (diff === 0) return `<span class="text-gray-500">= identique</span>`;
+    const good = stat.better === 'down' ? diff < 0 : diff > 0;
+    const arrow = diff > 0 ? '▲' : '▼';
+    return `<span class="${good ? 'text-emerald-400' : 'text-red-400'}">${arrow} ${diff > 0 ? '+' : '−'}${Math.abs(diff)}</span>`;
+}
+
+// HTML du panneau (fonction pure, sans DOM). `options.compareTo` : objet de comparaison (par défaut
+// celui porté au même emplacement) ; `options.priceLine` : ligne de prix du contexte (boutique).
+function buildItemInspectHtml(item, options = {}) {
+    if (!item) return '';
+    const compareTo = options.compareTo !== undefined ? options.compareTo : getEquippedCounterpart(item);
+    const target = qualifierTarget(item.category);
+    const rarityColor = item.rarityColor || '#9ca3af';
+    const icon = itemIconSvg(item, 56) || `<span class="text-4xl leading-none">${item.icon || '✨'}</span>`;
+    const level = item.itemLevel ? ` · Niveau d'objet ${item.itemLevel}` : '';
+    const categoryLabel = ITEM_CATEGORY_LABELS[item.category] || '';
+    const spellKind = item.category === 'scrolls' ? ` · ${item.spellCategory === 'melee' ? 'corps à corps' : 'à distance'}` : '';
+
+    const otherStats = Object.fromEntries(describeItemStats(compareTo).map(s => [s.key, s.value]));
+    const statsHtml = describeItemStats(item).map(stat => {
+        const delta = compareTo && otherStats[stat.key] !== undefined ? ` ${formatStatDelta(stat, otherStats[stat.key])}` : '';
+        return `<li class="flex justify-between gap-2"><span>${stat.icon} ${stat.label}</span><span class="font-bold text-gray-100">${stat.prefix || ''}${stat.value}${stat.suffix || ''}${delta}</span></li>`;
+    }).join('');
+
+    const qualifiers = getItemQualifierList(item);
+    const qualifiersHtml = qualifiers.length > 0
+        ? qualifiers.map(({ key, rank }) => {
+            const q = itemQualifiers[key];
+            if (!q) return '';
+            const malus = q.kind === 'malus';
+            return `<div class="border-l-2 pl-2 ${malus ? 'border-red-600' : 'border-amber-500'}">
+                <p class="font-bold ${malus ? 'text-red-300' : 'text-amber-200'}">${q.icon} ${formatQualifierLabel(key, rank)}${malus ? ' <span class="text-[9px] uppercase tracking-wider text-red-400">défaut</span>' : ''}</p>
+                <p class="text-gray-400">${describeQualifier(key, target || 'weapon', rank)}</p>
+            </div>`;
+        }).join('')
+        : `<p class="text-gray-500 italic">${item.category === 'consumables' ? 'Un consommable ne porte jamais de qualificatif.' : 'Aucun qualificatif.'}</p>`;
+
+    const value = getItemValue(item);
+    const valueHtml = `<p class="text-gray-400">💰 Valeur : <span class="text-yellow-300 font-bold">${value} PO</span> · revente <span class="text-emerald-300 font-bold">${getSellPrice(item)} PO</span></p>`;
+    const priceHtml = options.priceLine ? `<p class="text-gray-300 font-bold">${options.priceLine}</p>` : '';
+
+    const compareHtml = compareTo
+        ? `<div class="border-t border-gray-800 pt-2">
+            <p class="text-[10px] uppercase tracking-widest text-gray-500 mb-1">Actuellement porté</p>
+            <p class="text-gray-300">${formatItemDisplayName(compareTo)}</p>
+            ${getItemQualifierList(compareTo).length > 0 ? `<div class="flex gap-1 flex-wrap text-[9px] mt-1">${buildQualifierBadgesHtml(compareTo)}</div>` : ''}
+        </div>`
+        : '';
+
+    return `<div class="flex items-center gap-3">
+            <div class="shrink-0 w-14 h-14 flex items-center justify-center rounded-lg bg-gray-950 border" style="border-color:${rarityColor}">${icon}</div>
+            <div class="min-w-0">
+                <p class="font-bold text-sm text-gray-100 leading-tight">${item.name}</p>
+                <p class="text-[10px] uppercase tracking-wider font-bold" style="color:${rarityColor}">${item.rarity || 'Commun'}${level}</p>
+                <p class="text-[10px] text-gray-500">${categoryLabel}${spellKind}</p>
+            </div>
+        </div>
+        ${statsHtml ? `<ul class="flex flex-col gap-0.5 bg-gray-950/60 border border-gray-800 rounded px-2 py-1.5">${statsHtml}</ul>` : ''}
+        <div class="flex flex-col gap-1.5">${qualifiersHtml}</div>
+        ${valueHtml}${priceHtml}
+        ${compareHtml}`;
+}
+
+// Ouvre le panneau d'inspection. `options.actions` : [{ label, onClick, disabled, tone }] — chaque
+// action referme le panneau avant de s'exécuter. Un bouton « Fermer » est toujours ajouté.
+function openItemInspect(item, options = {}) {
+    if (!item || !ui.itemInspectOverlay) return;
+    ui.itemInspectBody.innerHTML = buildItemInspectHtml(item, options);
+    if (ui.itemInspectPanel) ui.itemInspectPanel.style.borderColor = item.rarityColor || '#374151';
+    renderInspectActions(options.actions || []);
+    ui.itemInspectOverlay.classList.remove('hidden');
+}
+
+// Boutons du panneau d'inspection (objet ou fiche compagnon) : chaque action referme le panneau avant
+// de s'exécuter ; un bouton « Fermer » est toujours ajouté.
+function renderInspectActions(actions) {
+    ui.itemInspectActions.innerHTML = '';
+    const tones = {
+        primary: 'bg-amber-900/40 border-amber-600 text-amber-200 hover:bg-amber-800/50',
+        good: 'bg-emerald-900/40 border-emerald-600 text-emerald-200 hover:bg-emerald-800/50',
+        danger: 'bg-red-950/40 border-red-800 text-red-300 hover:bg-red-900/50',
+        neutral: 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
+    };
+    [...actions, { label: 'Fermer', tone: 'neutral' }].forEach(action => {
+        const btn = document.createElement('button');
+        btn.className = `w-full min-h-[44px] py-2 border-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${tones[action.tone || 'primary']}`;
+        btn.innerText = action.label;
+        btn.disabled = !!action.disabled;
+        btn.addEventListener('click', () => {
+            closeItemInspect();
+            if (action.onClick) action.onClick();
+        });
+        ui.itemInspectActions.appendChild(btn);
+    });
+}
+
+function closeItemInspect() {
+    if (ui.itemInspectOverlay) ui.itemInspectOverlay.classList.add('hidden');
+}
+
+// Objet porté (arme, distance, armure, sort) : inspection seule, rien à comparer.
+function inspectEquippedSlot(slot) {
+    const item = gameState.equipment[slot];
+    if (item) openItemInspect(item, { compareTo: null });
 }
 
 function formatItemDisplayName(item) {
@@ -1702,6 +1969,7 @@ function equipItem(index) {
     }
 
     logEvent(`Vous équipez [${formatItemDisplayName(item)}] (${slotLabel}).`, "info");
+    if (slot === 'armor') recomputeMaxHp(); // Robuste : les PV max dépendent de l'armure portée
     updateUI();
     updateInventoryUI();
 }
@@ -1755,11 +2023,24 @@ function useConsumable(index) {
 // (gameState.equipment.spell), qui ne fait justement jamais partie de gameState.spellbook. Réservé à
 // l'interaction boutique (voir triggerShopEncounter()) : pas de vente "de rue" hors ville spécialisée.
 const SELL_VALUE_RATIO = 0.4;
+
+// Valeur marchande d'un objet (PO) : `value` calculée à la génération (rareté, niveau d'objet,
+// qualificatifs — voir computeItemValue() dans generator.js), `baseValue` brute en repli pour un objet
+// construit à la main (tests) ou antérieur à ce système.
+function getItemValue(item) {
+    if (!item) return 0;
+    return item.value ?? item.baseValue ?? 0;
+}
+
+function getSellPrice(item) {
+    return Math.max(1, Math.round(getItemValue(item) * SELL_VALUE_RATIO));
+}
+
 function sellItem(index) {
     const item = gameState.inventory[index];
     if (!item) return;
 
-    const price = Math.max(1, Math.round((item.baseValue || 0) * SELL_VALUE_RATIO));
+    const price = getSellPrice(item);
     gameState.gold += price;
     gameState.inventory.splice(index, 1);
     logEvent(`Vous vendez [${formatItemDisplayName(item)}] pour ${price} PO.`, "success");
@@ -1775,7 +2056,7 @@ function sellSpell(index) {
     const spell = gameState.spellbook[index];
     if (!spell) return;
 
-    const price = Math.max(1, Math.round((spell.baseValue || 0) * SELL_VALUE_RATIO));
+    const price = getSellPrice(spell);
     gameState.gold += price;
     gameState.spellbook.splice(index, 1);
     logEvent(`Vous vendez [${formatItemDisplayName(spell)}] pour ${price} PO.`, "success");
@@ -1813,6 +2094,13 @@ function applyTimeElapsedRegen(hours) {
         const tier = HP_REGEN_TIERS.find(t => hpRatio < t.belowRatio);
         applyPlayerHeal(tier.perHour * hours);
     }
+    // Le compagnon récupère au même rythme (jamais s'il est à terre : il faut un repos ou une potion)
+    const companion = gameState.companion;
+    if (companion && !companion.downed && companion.hp < companion.maxHp && !gameState.anomalyEffects.regenOutsideSafehouseZero) {
+        const ratio = companion.hp / companion.maxHp;
+        const tier = HP_REGEN_TIERS.find(t => ratio < t.belowRatio);
+        companion.hp = Math.min(companion.maxHp, companion.hp + tier.perHour * hours);
+    }
     if (gameState.equipment.spell && gameState.mana < gameState.maxMana) {
         const manaMult = gameState.anomalyEffects.manaRegenMult || 1; // SECHERESSE (anomalies.js)
         gameState.mana = Math.min(gameState.maxMana, gameState.mana + MANA_REGEN_PER_HOUR * hours * manaMult);
@@ -1849,7 +2137,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         setSceneHeader('💰', 'Trésor', 'Butin', 'treasure');
         logEvent("Vous trébuchez sur quelque chose de brillant...", "info");
-        addLoot(getLootPowerScore(null)); // Pas de monstre : estimation par l'étage courant
+        addLoot({ source: 'explore' });
         return;
     }
 
@@ -1857,6 +2145,12 @@ function resolveCardEvent() {
     cumulative += config.chances.trap;
     if (d100 < cumulative) {
         const trap = pick(flavorText.trap);
+        // Compagnon Éclaireur : repère le piège à temps une fois sur deux (config.companions.scout)
+        if (hasActiveCompanion('scout') && Math.random() * 100 < config.companions.scout.trapAvoidChance) {
+            setSceneHeader('⚠️', 'Piège Évité', 'Danger', 'trap');
+            logEvent(`${gameState.companion.name} repère le piège à temps : vous l'enjambez sans une égratignure.`, "success");
+            return;
+        }
         const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
         applyPlayerDamage(dmg);
         setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
@@ -1896,7 +2190,8 @@ function resolveCardEvent() {
     cumulative += config.chances.goldFind;
     if (d100 < cumulative) {
         const baseGold = Math.floor(Math.random() * 16) + 5; // 5 à 20 PO
-        const gold = Math.round(baseGold * (1 + gameState.currentFloor * 0.15) * (gameState.anomalyEffects.goldGainMult || 1)); // Proportionnel à l'étage, ECONOMIE_AUSTERE (anomalies.js)
+        const strikerMult = hasActiveCompanion('strike') ? 1 + config.companions.striker.goldBonusPct / 100 : 1; // Frappe d'appoint : il a l'œil pour les pièces
+        const gold = Math.round(baseGold * (1 + gameState.currentFloor * 0.15) * (gameState.anomalyEffects.goldGainMult || 1) * strikerMult); // Proportionnel à l'étage, ECONOMIE_AUSTERE (anomalies.js)
         gameState.gold += gold;
         setSceneHeader('💰', 'Pièces d\'Or', 'Butin', 'gold');
         logEvent(`${pick(flavorText.goldFind)} (+${gold} PO)`, "success");
@@ -1923,9 +2218,12 @@ function resolveCardEvent() {
             return;
         }
 
-        const candidate = generateCompanionCandidate();
+        const candidate = generateCompanionCandidate(gameState.currentFloor);
         gameState.pendingCompanionCandidate = candidate;
         gameState.companionChoicePending = true;
+        const summary = buildCompanionCandidateSummary(candidate);
+        if (ui.companionInfoFriendly) ui.companionInfoFriendly.innerHTML = summary;
+        if (ui.companionInfoHostile) ui.companionInfoHostile.innerHTML = summary;
 
         if (candidate.disposition === 'friendly') {
             setSceneHeader('🧍', candidate.name, 'Crawler Rencontré', 'crawlerFriendly');
@@ -1955,10 +2253,9 @@ function resolveCardEvent() {
 // jusqu'ici purement cosmétique — première vraie utilité).
 function getStealthChance() {
     let chance = 15 + (gameState.skills.stealth.level - 1) * 6;
-    if (gameState.companion && gameState.companion.specialty.type === 'scout') chance += 10;
-    if (gameState.equipment.weapon && gameState.equipment.weapon.mechanics && gameState.equipment.weapon.mechanics.includes('stealth')) chance += 15;
-    if (gameState.equipment.ranged && gameState.equipment.ranged.mechanics && gameState.equipment.ranged.mechanics.includes('stealth')) chance += 15;
-    if (gameState.equipment.armor && gameState.equipment.armor.mechanics && gameState.equipment.armor.mechanics.includes('stealth')) chance += 15;
+    if (hasActiveCompanion('scout')) chance += config.companions.scout.stealthBonus;
+    // Silencieux (bonus) et Grinçant (défaut de Camelote, bonus négatif) sur tout l'équipement porté.
+    chance += sumEquippedQualifier('stealth', 'bonus') + sumEquippedQualifier('squeaky', 'bonus');
     // NOCTURNE (anomalies.js) : détection des mobs accrue (pénalité sur la chance de base) mais
     // plafond relevé d'autant — récompense un fort investissement en Furtivité, punit un faible.
     chance -= gameState.anomalyEffects.detectionBonus || 0;
@@ -2037,7 +2334,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending;
 }
 
 // Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
@@ -2112,7 +2409,7 @@ function travelToKnownLocation(id, virtualLocation = null) {
 
     const timeCost = Math.max(1, Math.round(distance / 2));
     // Formule de départ, à ajuster par playtest : 9% de risque par unité de distance, plafonné à 80%
-    const ambushBaseChance = Math.min(80, distance * 9);
+    const ambushBaseChance = computeAmbushBaseChance(distance); // Compagnon Garde : moins d'embuscades
     let ambushCount = 0;
     if (Math.random() * 100 < ambushBaseChance) {
         ambushCount = 1;
@@ -2175,22 +2472,47 @@ function arriveAtDestination() {
 // COMPAGNONS (CRAWLERS RENCONTRÉS)
 // ==========================================
 
+// Chantier "rework des compagnons" (voir NOTES_COMPAGNONS.md) : stats indexées sur l'étage et qui
+// montent avec ses niveaux, loyauté plutôt que départ programmé, PV rendus au repos (« à terre » au lieu
+// d'être perdu), effets qui suivent la courbe, et dons d'objets / de sorts / de potions. Chiffres dans
+// config.companions ; fonctions pures (stats, loyauté d'un don, chance de départ) dans generator.js.
+
+// Compagnon qui AGIT : présent et debout. Un compagnon à terre reste dans le groupe mais n'apporte
+// plus rien (ni combat, ni bonus hors combat) jusqu'au prochain repos ou soin.
+function activeCompanion() {
+    const c = gameState.companion;
+    return c && !c.downed && c.hp > 0 ? c : null;
+}
+
+function hasActiveCompanion(type) {
+    const c = activeCompanion();
+    return !!c && c.specialty.type === type;
+}
+
 // Cache les deux zones de choix de compagnon (ami / hostile)
 function hideCompanionChoiceZones() {
     ui.companionChoiceFriendly.classList.add('hidden');
     ui.companionChoiceHostile.classList.add('hidden');
 }
 
-// Convertit un candidat compagnon en objet compatible avec le moteur de combat existant
-// (utilisé quand la rencontre tourne à l'affrontement, qu'il s'agisse du premier contact
-// ou d'une trahison d'un compagnon déjà recruté).
+// Résumé d'un candidat, affiché AVANT la décision (spécialité, effet, stats) — pure.
+function buildCompanionCandidateSummary(candidate) {
+    if (!candidate) return '';
+    return `<p class="font-bold text-gray-200">${candidate.name} · <span class="text-emerald-300">${candidate.specialty.label}</span></p>`
+        + `<p class="text-gray-400">${candidate.specialty.desc}</p>`
+        + `<p class="text-gray-500">❤️ ${candidate.maxHp} PV · ⚔️ ${candidate.atk} ATQ · 🛡️ ${candidate.def} DEF</p>`;
+}
+
+// Convertit un candidat compagnon en objet compatible avec le moteur de combat existant (rencontre qui
+// tourne à l'affrontement). Ses stats sont déjà à l'échelle de l'étage (generateCompanionCandidate()) ;
+// l'XP suit le même scaling que celle d'un mob.
 function companionCandidateToMob(candidate) {
     return {
         name: candidate.name,
-        hp: candidate.hp,
+        hp: candidate.maxHp || candidate.hp,
         atk: candidate.atk,
         def: candidate.def,
-        xpReward: 20,
+        xpReward: Math.round(20 * getFloorScaling(gameState.currentFloor || 1).xpMult),
         effect: null
     };
 }
@@ -2207,7 +2529,7 @@ function recruitCompanion() {
     const successChance = candidate.disposition === 'friendly' ? 70 : 30;
     if (Math.random() * 100 < successChance) {
         gameState.companion = candidate;
-        logEvent(`${candidate.name} accepte de vous accompagner ! (Spécialité : ${candidate.specialty.label})`, "success");
+        logEvent(`${candidate.name} accepte de vous accompagner ! (${candidate.specialty.label} : ${candidate.specialty.desc})`, "success");
         triggerHaptic('medium');
         updateCompanionUI();
         updateUI();
@@ -2262,9 +2584,23 @@ function attackCompanionEncounter() {
     initiateCombat(companionCandidateToMob(candidate));
 }
 
-// Un compagnon déjà recruté qui devient trop instable (voir gainCompanionXp) se retourne contre
-// le joueur : on relance exactement le même choix que pour une première rencontre hostile.
-// Raisons piochées au hasard quand le compagnon abandonne l'équipe (voir attemptCompanionAbandon()) :
+// --- Loyauté ---
+
+// Fait varier la loyauté (bornée 0..max) et prévient UNE fois quand elle passe sous le seuil de départ.
+// Renvoie la variation réellement appliquée.
+function changeCompanionLoyalty(delta) {
+    const c = gameState.companion;
+    if (!c || !delta) return 0;
+    const bal = config.companions.loyalty;
+    const before = c.loyalty;
+    c.loyalty = Math.max(0, Math.min(bal.max, before + delta));
+    if (before >= bal.departureThreshold && c.loyalty < bal.departureThreshold) {
+        logEvent(`${c.name} semble de moins en moins investi(e) dans l'aventure... (loyauté ${c.loyalty}/100 : risque de départ au prochain étage)`, "danger");
+    }
+    return c.loyalty - before;
+}
+
+// Raisons piochées au hasard quand le compagnon quitte le groupe (voir attemptCompanionDeparture()) :
 // registre volontairement absurde/thématique, cohérent avec le reste du bestiaire et des objets.
 const COMPANION_ABANDON_REASONS = [
     "en a assez de porter votre équipement de rechange",
@@ -2279,55 +2615,291 @@ const COMPANION_ABANDON_REASONS = [
     "s'est simplement perdu(e) en cherchant les toilettes, et n'est jamais revenu(e)"
 ];
 
-// Tente de faire abandonner le compagnon actif : un jet contre companion.leaveChance décide s'il
-// part maintenant. Contrairement à l'ancien système (seuil dur à 100% -> combat forcé), c'est une
-// probabilité pure, vérifiée à chaque montée de niveau du compagnon (voir gainCompanionXp()) : le
-// départ peut donc survenir bien avant que leaveChance n'atteigne 100%, ou au contraire tarder,
-// selon la chance. Un départ est toujours PACIFIQUE (aucun combat) : contrairement à une rencontre
-// hostile initiale (voir ui.companionChoiceHostile, un cas totalement séparé), le compagnon s'en
-// va simplement, avec une raison piochée au hasard. Retourne true s'il est effectivement parti.
-function attemptCompanionAbandon() {
-    const companion = gameState.companion;
-    if (!companion) return false;
-    if (Math.random() * 100 >= companion.leaveChance) return false;
+// Jet de départ, au changement d'étage uniquement (voir advanceToNextFloor()) : moment narratif et
+// prévisible, jamais au milieu d'un combat. Aucun risque tant que la loyauté reste au-dessus du seuil
+// (companionDepartureChance()). Départ toujours PACIFIQUE ; il garde ce qu'on lui a donné (contrairement
+// à un renvoi, voir dismissCompanion()). Renvoie true s'il est effectivement parti.
+function attemptCompanionDeparture() {
+    const c = gameState.companion;
+    if (!c) return false;
+    const chance = companionDepartureChance(c.loyalty);
+    if (chance <= 0 || Math.random() * 100 >= chance) return false;
 
     const reason = COMPANION_ABANDON_REASONS[Math.floor(Math.random() * COMPANION_ABANDON_REASONS.length)];
-    logEvent(`${companion.name} quitte l'équipe : ${reason}.`, "danger");
+    const hasGear = Object.values(c.gear || {}).some(Boolean);
+    logEvent(`${c.name} ne vous suit pas dans l'escalier : ${reason}${hasGear ? " (et garde ce que vous lui aviez donné)" : ""}.`, "danger");
     gameState.companion = null;
     updateCompanionUI();
     return true;
 }
 
-// Gain d'XP du compagnon (accordé après chaque victoire du joueur tant qu'il est actif).
-// Sa progression fait grimper la probabilité qu'il abandonne l'équipe (voir attemptCompanionAbandon(),
-// vérifiée à chaque montée de niveau).
+// --- Progression ---
+
+// Gain d'XP du compagnon (après chaque victoire du joueur tant qu'il est dans le groupe, même à terre).
+// Chaque niveau lui donne des stats (+levelStatGain des stats de base) — progresser le rend meilleur,
+// plus jamais seulement plus instable.
 function gainCompanionXp(amount) {
-    const companion = gameState.companion;
-    if (!companion || !amount) return;
+    const c = gameState.companion;
+    if (!c || !amount) return;
 
-    companion.xp += amount;
-    while (companion.xp >= companion.xpToNext) {
-        companion.xp -= companion.xpToNext;
-        companion.level += 1;
-        companion.xpToNext = Math.round(companion.xpToNext * 1.3);
-
-        const increment = 15 + Math.floor(Math.random() * 11); // +15 à +25 par niveau
-        companion.leaveChance = Math.min(100, companion.leaveChance + increment);
-
-        logEvent(`${companion.name} gagne en expérience (niveau ${companion.level}).`, "info");
-        if (companion.leaveChance >= 70) {
-            logEvent(`${companion.name} semble de moins en moins investi(e) dans l'aventure... (${companion.leaveChance}% de risque de départ)`, "danger");
-        }
-
-        // Jet d'abandon immédiatement après la montée de niveau : s'il part, inutile de continuer
-        // à faire monter les niveaux suivants dans cette même boucle (companion.xp restant est
-        // simplement perdu avec lui, comme le reste de son état).
-        if (attemptCompanionAbandon()) return;
+    c.xp += amount;
+    while (c.xp >= c.xpToNext) {
+        c.xp -= c.xpToNext;
+        c.level += 1;
+        c.xpToNext = Math.round(c.xpToNext * 1.3);
+        const oldMaxHp = c.maxHp;
+        Object.assign(c, computeCompanionLevelStats(c));
+        if (!c.downed) c.hp = Math.min(c.maxHp, c.hp + (c.maxHp - oldMaxHp)); // Les PV gagnés sont aussi rendus
+        logEvent(`${c.name} passe niveau ${c.level} (${c.maxHp} PV, ${c.atk} ATQ, ${c.def} DEF).`, "info");
     }
     updateCompanionUI();
 }
 
-// Reconstruit l'affichage compact du compagnon (hors combat) : nom, spécialité, barre de risque de départ
+// Victoire commune : XP, loyauté et soin post-combat du compagnon Premiers secours.
+function onCompanionVictory() {
+    const c = gameState.companion;
+    if (!c) return;
+    gainCompanionXp(config.companions.xpPerWin);
+    if (!gameState.companion) return;
+    if (!c.downed) changeCompanionLoyalty(config.companions.loyalty.victory);
+    if (hasActiveCompanion('medic') && gameState.hp < gameState.maxHp) {
+        const healed = applyPlayerHeal(Math.max(1, Math.round(gameState.maxHp * config.companions.medic.postVictoryHealPct)));
+        if (healed > 0) logEvent(`${c.name} panse vos plaies après le combat (+${healed} PV).`, "success");
+    }
+}
+
+// --- PV, à terre ---
+
+// Soigne le compagnon (et le relève s'il était à terre). Renvoie les PV réellement rendus.
+function healCompanion(amount) {
+    const c = gameState.companion;
+    if (!c || !(amount > 0)) return 0;
+    const before = c.hp;
+    c.hp = Math.min(c.maxHp, c.hp + Math.round(amount));
+    if (c.downed && c.hp > 0) {
+        c.downed = false;
+        logEvent(`${c.name} se relève, prêt(e) à reprendre du service.`, "success");
+    }
+    return c.hp - before;
+}
+
+// À appeler après tout coup encaissé par le compagnon : à 0 PV, il tombe « à terre » — il reste dans le
+// groupe (plus de perte définitive) mais n'aide plus jusqu'au prochain repos ou soin, et perd en loyauté.
+function checkCompanionDowned() {
+    const c = gameState.companion;
+    if (!c || c.downed || c.hp > 0) return false;
+    c.hp = 0;
+    c.downed = true;
+    logEvent(`${c.name} s'effondre, à terre : plus d'aide avant un repos ou une potion.`, "danger");
+    changeCompanionLoyalty(config.companions.loyalty.downed);
+    return true;
+}
+
+// Interception d'un coup destiné au joueur (seul point de passage, mobs ET boss) : la Garde s'interpose
+// souvent (guard.interceptChance), les autres spécialités sont parfois « prises dans la mêlée »
+// (strayHitChance). Le compagnon absorbe une part du coup ; son armure réduit ce qu'il perd lui-même.
+// Renvoie { playerDamage, note } — l'appelant log les dégâts puis appelle checkCompanionDowned().
+function companionInterceptHit(damage) {
+    const c = activeCompanion();
+    if (!c || !(damage > 0)) return { playerDamage: damage, note: "" };
+    const bal = config.companions;
+    const isGuard = c.specialty.type === 'guard';
+    const chance = isGuard ? bal.guard.interceptChance : bal.strayHitChance;
+    if (Math.random() * 100 >= chance) return { playerDamage: damage, note: "" };
+
+    const absorbPct = bal.guard.absorbMin + Math.random() * (bal.guard.absorbMax - bal.guard.absorbMin);
+    const absorbed = Math.min(damage, Math.round(damage * absorbPct));
+    if (absorbed <= 0) return { playerDamage: damage, note: "" };
+    const taken = Math.max(1, absorbed - Math.round(getCompanionDef(c) * 0.5));
+    c.hp = Math.max(0, c.hp - taken);
+    const verb = isGuard ? "encaisse" : "pris(e) dans la mêlée, encaisse";
+    const armorNote = taken < absorbed ? `, −${taken} PV pour lui` : "";
+    return { playerDamage: damage - absorbed, note: ` (${c.name} ${verb} ${absorbed} dégâts à votre place${armorNote})` };
+}
+
+// --- Aide en combat ---
+
+// Appui du compagnon après chaque attaque du joueur (voir performPlayerAttack()) : un sort donné a une
+// chance d'être lancé ; sinon la Frappe d'appoint frappe à chaque fois, les autres spécialités sur un
+// coup d'opportunité. Dégâts en part de l'ATQ EFFECTIVE (arme donnée comprise), sans jet de défense.
+function companionCombatSupport(enemy) {
+    const c = activeCompanion();
+    if (!c || !enemy || enemy.hp <= 0) return;
+    const s = config.companions.support;
+    const spell = c.gear && c.gear.spell;
+    if (spell && Math.random() * 100 < s.spellCastChance) {
+        const dmg = Math.max(1, Math.round((getCompanionAtk(c) + (spell.baseDmg || 0)) * s.spellRatio * (gameState.anomalyEffects.spellMult || 1)));
+        enemy.hp -= dmg;
+        logEvent(`${c.name} lance [${spell.spellName || spell.name}] ! (+${dmg} dégâts)`, "info");
+        return;
+    }
+    const isStriker = c.specialty.type === 'strike';
+    if (!isStriker && Math.random() * 100 >= s.opportunisticChance) return;
+    const dmg = Math.max(1, Math.round(getCompanionAtk(c) * s.strikeRatio));
+    enemy.hp -= dmg;
+    logEvent(`${c.name} ${isStriker ? "porte un coup supplémentaire" : "profite d'une ouverture"} ! (+${dmg} dégâts)`, "info");
+}
+
+// Compagnon Premiers secours : chance de soigner le joueur après une riposte ennemie (part de ses PV max,
+// pour suivre la courbe), et de lui rendre un peu de mana si un sort est équipé.
+function companionMedicAfterRiposte() {
+    const c = activeCompanion();
+    const m = config.companions.medic;
+    if (!c || c.specialty.type !== 'medic' || Math.random() * 100 >= m.healChance) return;
+    const actualHeal = applyPlayerHeal(Math.max(5, Math.round(gameState.maxHp * m.healPct)));
+    logEvent(`${c.name} vous soigne rapidement ! (+${actualHeal} PV)`, "success");
+    if (gameState.equipment.spell && gameState.mana < gameState.maxMana) {
+        const manaGain = m.manaMin + Math.floor(Math.random() * (m.manaMax - m.manaMin + 1));
+        gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaGain);
+        logEvent(`${c.name} restaure aussi un peu de votre mana ! (+${manaGain} Mana)`, "success");
+    }
+}
+
+// Risque d'embuscade d'un trajet (lieu connu, ville, zone inexplorée) : 9 % par unité de distance,
+// plafonné à 80 % — réduit par un compagnon Garde (il ouvre la marche).
+function computeAmbushBaseChance(distance) {
+    const base = Math.min(80, distance * 9);
+    return hasActiveCompanion('guard') ? base * config.companions.guard.ambushMult : base;
+}
+
+// --- Dons (objets, sorts, potions) ---
+
+function companionReserveHasRoom() {
+    return gameState.inventory.filter(i => i.category !== 'consumables').length < gameState.maxInventory;
+}
+
+// Pose un objet sur l'emplacement du compagnon, avec la loyauté du don. Renvoie l'objet qu'il portait
+// à cet emplacement (à rendre au joueur) et la loyauté gagnée.
+function equipCompanionGift(item, slot) {
+    const c = gameState.companion;
+    const loyaltyGain = companionGiftLoyalty(item);
+    item.companionGifted = true;
+    const previous = c.gear[slot] || null;
+    c.gear[slot] = item;
+    const gained = changeCompanionLoyalty(loyaltyGain);
+    return { previous, gained };
+}
+
+const COMPANION_SLOT_LABELS = { weapon: 'arme', armor: 'armure', spell: 'sort' };
+
+function describeCompanionGiftEffect(c, slot, before) {
+    if (slot === 'weapon') return `ATQ ${before} → ${getCompanionAtk(c)}`;
+    if (slot === 'armor') return `DEF ${before} → ${getCompanionDef(c)}`;
+    return `${config.companions.support.spellCastChance} % de chance de le lancer à chacune de vos attaques`;
+}
+
+// Donne un objet de la réserve (arme, arme à distance, armure — ou potion, voir
+// giveConsumableToCompanion()). L'objet qu'il portait au même emplacement revient dans la réserve (le
+// nombre d'objets de la réserve ne change donc jamais).
+function giveItemToCompanion(index) {
+    const c = gameState.companion;
+    const item = gameState.inventory[index];
+    if (!c || !item) return false;
+    if (item.category === 'consumables') return giveConsumableToCompanion(index);
+    const slot = companionGiftSlot(item);
+    if (!slot || slot === 'spell') return false;
+
+    const before = slot === 'weapon' ? getCompanionAtk(c) : getCompanionDef(c);
+    gameState.inventory.splice(index, 1);
+    const { previous, gained } = equipCompanionGift(item, slot);
+    if (previous) gameState.inventory.push(previous);
+    logEvent(`Vous donnez [${formatItemDisplayName(item)}] à ${c.name} (${describeCompanionGiftEffect(c, slot, before)}${gained > 0 ? `, +${gained} loyauté` : ""})${previous ? ` — il vous rend [${formatItemDisplayName(previous)}]` : ""}.`, "success");
+    updateCompanionUI();
+    updateUI();
+    updateInventoryUI();
+    return true;
+}
+
+// Donne un parchemin du grimoire : il l'apprend (un seul sort à la fois), l'ancien revient au grimoire.
+function giveSpellToCompanion(index) {
+    const c = gameState.companion;
+    const spell = gameState.spellbook[index];
+    if (!c || !spell) return false;
+    gameState.spellbook.splice(index, 1);
+    const { previous, gained } = equipCompanionGift(spell, 'spell');
+    if (previous) gameState.spellbook.push(previous);
+    logEvent(`Vous confiez [${formatItemDisplayName(spell)}] à ${c.name} (${describeCompanionGiftEffect(c, 'spell')}${gained > 0 ? `, +${gained} loyauté` : ""})${previous ? ` — il vous rend [${formatItemDisplayName(previous)}]` : ""}.`, "success");
+    updateCompanionUI();
+    updateUI();
+    updateSpellbookUI();
+    return true;
+}
+
+// Donne une potion : elle soigne le compagnon sur-le-champ (et le relève s'il est à terre). Refusé si la
+// potion ne rend pas de PV ou s'il est déjà en pleine forme — pas de potion gâchée.
+function giveConsumableToCompanion(index) {
+    const c = gameState.companion;
+    const item = gameState.inventory[index];
+    if (!c || !item || item.category !== 'consumables') return false;
+    if (!(item.heal > 0)) {
+        logEvent(`${c.name} n'a que faire de [${item.name}] : aucun PV à en tirer.`, "info");
+        return false;
+    }
+    if (!c.downed && c.hp >= c.maxHp) {
+        logEvent(`${c.name} est déjà en pleine forme — gardez [${item.name}] pour plus tard.`, "info");
+        return false;
+    }
+    gameState.inventory.splice(index, 1);
+    const healed = healCompanion(item.heal);
+    const gained = changeCompanionLoyalty(companionGiftLoyalty(item));
+    logEvent(`${c.name} boit [${item.name}] (+${healed} PV${gained > 0 ? `, +${gained} loyauté` : ""}).`, "success");
+    updateCompanionUI();
+    updateUI();
+    updateInventoryUI();
+    return true;
+}
+
+// Potion la plus adaptée pour soigner le compagnon : la plus petite qui couvre ses PV manquants, sinon
+// la plus forte. Renvoie son index dans l'inventaire, ou -1.
+function findCompanionPotionIndex() {
+    const c = gameState.companion;
+    if (!c) return -1;
+    const missing = c.maxHp - c.hp;
+    let best = -1;
+    gameState.inventory.forEach((item, i) => {
+        if (item.category !== 'consumables' || !(item.heal > 0)) return;
+        if (best === -1) { best = i; return; }
+        const cur = gameState.inventory[best];
+        const covers = item.heal >= missing, curCovers = cur.heal >= missing;
+        if (covers && (!curCovers || item.heal < cur.heal)) best = i;
+        else if (!covers && !curCovers && item.heal > cur.heal) best = i;
+    });
+    return best;
+}
+
+// Renvoi volontaire du compagnon (fiche compagnon) : il part en vous rendant ce que vous lui aviez donné
+// (arme/armure dans la réserve s'il reste de la place, sinon laissées sur place ; sort au grimoire).
+function dismissCompanion() {
+    const c = gameState.companion;
+    if (!c || isActionBlocked()) return false;
+    const returned = [], lost = [];
+    ['weapon', 'armor', 'spell'].forEach(slot => {
+        const item = c.gear && c.gear[slot];
+        if (!item) return;
+        if (slot === 'spell') { gameState.spellbook.push(item); returned.push(item); }
+        else if (companionReserveHasRoom()) { gameState.inventory.push(item); returned.push(item); }
+        else lost.push(item);
+    });
+    let note = returned.length ? ` Il vous rend ${returned.map(i => `[${formatItemDisplayName(i)}]`).join(', ')}.` : "";
+    if (lost.length) note += ` Réserve pleine : ${lost.map(i => `[${i.name}]`).join(', ')} reste(nt) sur place.`;
+    logEvent(`Vous congédiez ${c.name}, qui s'éloigne en haussant les épaules.${note}`, "info");
+    gameState.companion = null;
+    updateCompanionUI();
+    updateUI();
+    updateInventoryUI();
+    updateSpellbookUI();
+    return true;
+}
+
+// Action « Donner à <nom> » ajoutée aux panneaux d'inspection de la réserve et du grimoire.
+function companionGiveAction(onClick) {
+    const c = gameState.companion;
+    return c ? [{ label: `Donner à ${c.name}`, tone: 'good', onClick }] : [];
+}
+
+// --- Affichage ---
+
+// Reconstruit l'affichage compact du compagnon (hors combat) : nom, spécialité, PV, barre de loyauté.
 function updateCompanionUI() {
     const companion = gameState.companion;
     if (!companion) {
@@ -2337,10 +2909,65 @@ function updateCompanionUI() {
     ui.companionStatusBar.classList.remove('hidden');
     ui.companionNameDisplay.innerText = companion.name;
     ui.companionSpecialtyDisplay.innerText = `(${companion.specialty.label})`;
+    if (ui.companionHpDisplay) {
+        ui.companionHpDisplay.innerText = companion.downed ? "À terre" : `❤️ ${companion.hp}/${companion.maxHp}`;
+        ui.companionHpDisplay.style.color = companion.downed ? '#f87171' : '';
+    }
+    ui.companionLoyaltyBar.style.width = `${companion.loyalty}%`;
+    ui.companionLoyaltyBar.style.background = hpColor(companion.loyalty / 100); // Vert = loyal, rouge = prêt à partir
+    ui.companionStatusBar.title = `Loyauté ${companion.loyalty}/100 — toucher pour voir sa fiche`;
+}
 
-    const leavePct = companion.leaveChance / 100;
-    ui.companionLeaveBar.style.width = `${companion.leaveChance}%`;
-    ui.companionLeaveBar.style.background = hpColor(1 - leavePct); // Vert = fidèle, rouge = risque de départ élevé
+// Fiche du compagnon (HTML pur) : stats effectives, loyauté, équipement donné, mode d'emploi des dons.
+function buildCompanionSheetHtml(c) {
+    if (!c) return '';
+    const threshold = config.companions.loyalty.departureThreshold;
+    const loyaltyNote = c.loyalty < threshold
+        ? `<span class="text-red-400">risque de départ au prochain étage (${companionDepartureChance(c.loyalty)} %)</span>`
+        : `<span class="text-emerald-400">aucun risque de départ</span>`;
+    const gearRow = (slot, icon) => {
+        const item = c.gear && c.gear[slot];
+        return `<li class="flex justify-between gap-2"><span class="shrink-0">${icon} ${COMPANION_SLOT_LABELS[slot]}</span><span class="text-gray-200 text-right">${item ? formatItemDisplayName(item) : '<span class="text-gray-600 italic">rien</span>'}</span></li>`;
+    };
+    return `<div>
+            <p class="font-bold text-sm text-gray-100">🐾 ${c.name} <span class="text-[10px] text-gray-500">niveau ${c.level}</span></p>
+            <p class="text-emerald-300 font-bold">${c.specialty.label}</p>
+            <p class="text-gray-400">${c.specialty.desc}</p>
+        </div>
+        <ul class="flex flex-col gap-0.5 bg-gray-950/60 border border-gray-800 rounded px-2 py-1.5">
+            <li class="flex justify-between"><span>❤️ PV</span><span class="font-bold ${c.downed ? 'text-red-400' : 'text-gray-100'}">${c.downed ? 'À terre' : `${c.hp}/${c.maxHp}`}</span></li>
+            <li class="flex justify-between"><span>⚔️ ATQ</span><span class="font-bold text-gray-100">${getCompanionAtk(c)}</span></li>
+            <li class="flex justify-between"><span>🛡️ DEF</span><span class="font-bold text-gray-100">${getCompanionDef(c)}</span></li>
+            <li class="flex justify-between"><span>🤝 Loyauté</span><span class="font-bold text-gray-100">${c.loyalty}/100</span></li>
+        </ul>
+        <p class="text-[10px]">${loyaltyNote}</p>
+        <ul class="flex flex-col gap-0.5">${gearRow('weapon', '⚔️')}${gearRow('armor', '🛡️')}${gearRow('spell', '✨')}</ul>
+        <p class="text-[10px] text-gray-500">Touchez un objet de votre réserve ou un sort de votre grimoire pour le lui donner : il gagne en force et en loyauté. Une potion le soigne, et le relève s'il est à terre.</p>`;
+}
+
+function openCompanionSheet() {
+    const c = gameState.companion;
+    if (!c || !ui.itemInspectOverlay) return;
+    ui.itemInspectBody.innerHTML = buildCompanionSheetHtml(c);
+    if (ui.itemInspectPanel) ui.itemInspectPanel.style.borderColor = '#047857';
+    const actions = [];
+    const potionIndex = findCompanionPotionIndex();
+    if (potionIndex >= 0 && (c.downed || c.hp < c.maxHp)) {
+        const potion = gameState.inventory[potionIndex];
+        actions.push({ label: `Donner [${potion.name}] (+${potion.heal} PV)`, tone: 'good', onClick: () => giveConsumableToCompanion(potionIndex) });
+    }
+    actions.push({ label: 'Congédier', tone: 'danger', disabled: isActionBlocked(), onClick: openDismissCompanionConfirm });
+    renderInspectActions(actions);
+    ui.itemInspectOverlay.classList.remove('hidden');
+}
+
+// Confirmation du renvoi : jamais d'un seul toucher.
+function openDismissCompanionConfirm() {
+    const c = gameState.companion;
+    if (!c || !ui.itemInspectOverlay) return;
+    ui.itemInspectBody.innerHTML = `<p class="font-bold text-sm text-gray-100">Congédier ${c.name} ?</p><p class="text-gray-400">Il vous rendra ce que vous lui avez donné, puis partira pour de bon.</p>`;
+    renderInspectActions([{ label: `Oui, congédier ${c.name}`, tone: 'danger', onClick: dismissCompanion }]);
+    ui.itemInspectOverlay.classList.remove('hidden');
 }
 
 // Fait effectivement passer à l'étage suivant (génération incluse) — dispatché depuis l'écran
@@ -2385,6 +3012,7 @@ function advanceToNextFloor() {
 
     showFloorArrivalScene();
     logEvent(`--- DÉBUT DE L'ÉTAGE ${gameState.currentFloor} ---`, "info");
+    attemptCompanionDeparture(); // Seul moment où un compagnon peu loyal peut partir (voir config.companions.loyalty)
     if (gameState.activeAnomalies.length > 0) {
         logEvent(`⚠️ Anomalie(s) active(s) : ${gameState.activeAnomalies.map(a => `${a.icon} ${a.name}`).join(', ')}.`, "danger");
     }
@@ -2471,6 +3099,61 @@ function continueFromFloorTransition() {
     if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
     gameState.floorTransitionPending = false;
     advanceToNextFloor();
+}
+
+// Escalier libre (gardien vaincu, ou ville-escalier sans gardien) : au lieu de passer tout de suite à
+// l'étage suivant, propose « Descendre » (écran d'escalier, voir triggerFloorTransition()) ou « Rester
+// sur l'étage » (finir d'explorer, se soigner…). Bloque via gameState.stairsChoicePending (inclus dans
+// isActionBlocked()), comme un choix de boss. `context` : { kind: 'room', roomId } (étage classique —
+// la salle devient tout de suite un lieu connu, pour pouvoir y revenir quoi qu'il arrive) ou
+// { kind: 'city', cityId } (étage urbain — la ville reste sur la Carte Urbaine). Le choix est reproposé
+// à chaque retour (enterRoom()/arriveAtCity()). La Sortie de l'étage final n'y passe jamais (victoire
+// immédiate, choix de l'utilisateur).
+function offerStairsChoice(context) {
+    gameState.stairsChoicePending = true;
+    gameState.pendingStairsChoice = context;
+    if (context.kind === 'room' && gameState.floorMap) {
+        const room = gameState.floorMap.roomsById[context.roomId];
+        const district = room ? gameState.floorMap.quadrants[room.quadrant].district : 'quartier inconnu';
+        registerKnownLocation({ id: `stairs-${context.roomId}`, type: 'stairs', roomId: context.roomId, label: `Escalier libre (${district})` });
+    }
+    setSceneHeader('🪜', 'Escalier', 'Escalier', 'stairs');
+    logEvent(`L'escalier vers l'étage ${gameState.currentFloor + 1} est libre. Descendre maintenant, ou rester sur cet étage ?`, "info");
+    if (ui.stairsChoiceZone) ui.stairsChoiceZone.classList.remove('hidden');
+    updateUI();
+}
+
+// Referme le choix d'escalier (les deux boutons).
+function closeStairsChoice() {
+    const context = gameState.pendingStairsChoice;
+    gameState.stairsChoicePending = false;
+    gameState.pendingStairsChoice = null;
+    if (ui.stairsChoiceZone) ui.stairsChoiceZone.classList.add('hidden');
+    return context;
+}
+
+// Bouton « Descendre » : ouvre l'écran d'escalier (résumé de l'étage, anomalie du suivant).
+function descendStairs() {
+    if (!gameState.stairsChoicePending) return;
+    closeStairsChoice();
+    triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
+}
+
+// Bouton « Rester sur l'étage » : aucun effet, on reprend l'exploration (le temps continue de s'écouler).
+// Étage classique : l'escalier reste dans les lieux connus ; étage urbain : on reste dans la ville, qui
+// redevient une simple ville sûre jusqu'au prochain passage.
+function stayOnFloor() {
+    if (!gameState.stairsChoicePending) return;
+    const context = closeStairsChoice();
+    if (context && context.kind === 'city' && gameState.urbanMap) {
+        const city = gameState.urbanMap.citiesById[context.cityId];
+        setSceneHeader('🏙️', city ? city.name : 'Ville', 'Ville sûre', { key: 'citySafe', cityName: city ? city.name : '' });
+        logEvent("Vous laissez l'escalier pour plus tard. Il vous attendra ici.", "info");
+        updateUrbanMapUI();
+    } else {
+        logEvent("Vous laissez l'escalier pour plus tard : il reste dans vos lieux connus.", "info");
+    }
+    updateUI();
 }
 
 // ==========================================
@@ -2680,73 +3363,54 @@ function recordEpitaph(text, deathContext) {
     }
 }
 
-// Score de puissance (0 à 1) utilisé pour pondérer la rareté du loot obtenu (voir generateItem()
-// dans generator.js) : basé sur l'XP donnée par le monstre vaincu si disponible (capture à la fois
-// l'étage ET la puissance intrinsèque/les modificateurs du monstre), sinon estimé à partir du seul
-// étage courant (loot "Trésor" trouvé en explorant, sans combat).
-const LOOT_POWER_XP_REFERENCE = 400; // xpReward au-delà duquel le score de puissance est plafonné à 1
-function getLootPowerScore(enemy) {
-    if (enemy && enemy.xpReward) {
-        return Math.max(0, Math.min(1, enemy.xpReward / LOOT_POWER_XP_REFERENCE));
-    }
-    return Math.max(0, Math.min(1, gameState.currentFloor / 20));
-}
-
 // Ajoute un objet généré à l'inventaire. Les consommables ne sont jamais limités (slots dédiés
 // infinis) ; seuls les objets d'équipement (armes/armures/armes à distance) comptent dans la
 // capacité limitée (gameState.maxInventory). Un parchemin de sort (catégorie 'scrolls') rejoint
 // gameState.spellbook (inventaire magique dédié) plutôt que gameState.inventory : lui non plus
 // n'est jamais limité, au même titre que les consommables (voir equipSpell()).
-function addLoot(powerScore = 0, options = {}) {
-    // minRarityKey (chantier "rework combat" — loot garanti de rareté minimale sur un boss) : voir
-    // winCombat()/rollRarity() dans generator.js.
-    const item = generateItem(powerScore, null, options.minRarityKey || null);
+// `options` est transmis tel quel à generateItem() (generator.js) : `source` ('explore' | 'mob' |
+// 'elite' | 'boss' | 'treasure') pilote la rareté, `itemLevel` le niveau d'objet (défaut : étage).
+function addLoot(options = {}) {
+    // Chanceux (qualificatif porté) : chance que le butin monte d'un palier (voir rollLootRarity()).
+    const luckChance = sumEquippedQualifier('lucky', 'chance');
+    storeLootItem(generateItem(luckChance > 0 ? { ...options, luckChance } : options));
+}
+
+// Range un objet déjà construit (loot ou objet signature) : grimoire, inventaire, ou perdu si la
+// réserve d'équipement est pleine. `prefix` : décoration du message de log (objet signature).
+function storeLootItem(item, prefix = "") {
     if (item.category === 'scrolls') {
         gameState.spellbook.push(item);
         gameState.floorStats.itemsFound += 1;
-        logEvent(`Sort appris : [${formatItemDisplayName(item)}] !`, "loot");
+        logEvent(`${prefix}Sort appris : [${formatItemDisplayName(item)}] !`, "loot");
         updateSpellbookUI();
-        return;
+        return true;
     }
     const isConsumable = item.category === 'consumables';
     const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
     if (isConsumable || equipmentCount < gameState.maxInventory) {
         gameState.inventory.push(item);
         gameState.floorStats.itemsFound += 1;
-        logEvent(`Objet obtenu : [${formatItemDisplayName(item)}] !`, "loot");
+        logEvent(`${prefix}Objet obtenu : [${formatItemDisplayName(item)}] !`, "loot");
         updateInventoryUI();
-    } else {
-        logEvent("Vous trouvez un objet, mais votre réserve d'équipement est pleine !", "danger");
+        return true;
     }
+    logEvent(`${prefix}Vous trouvez [${formatItemDisplayName(item)}], mais votre réserve d'équipement est pleine !`, "danger");
+    return false;
 }
 
-// Chantier "rework combat", Chantier 2 : objet signature garanti à la défaite d'un boss précis (voir
-// bestiary.js, districtBosses.*.signatureItem) — copie fraîche à chaque victoire (jamais partagée
-// avec le template), toujours Légendaire, en plus du loot aléatoire déjà garanti de rareté minimale
-// (voir config.bossRewards/winCombat()).
-function awardBossSignatureItem(boss) {
+// Objet signature d'un boss précis (bestiary.js, districtBosses.*.signatureItem) : garanti à la
+// PREMIÈRE défaite de ce boss dans la partie (gameState.signaturesAwarded), puis seulement à
+// itemBalance.boss.signatureRepeatChance — plusieurs quartiers d'un même type reviennent au fil des
+// étages, un Légendaire garanti à chaque fois inonderait le joueur. Toujours Légendaire, au niveau
+// d'objet du butin du boss (voir buildSignatureItem() dans generator.js).
+function awardBossSignatureItem(boss, itemLevel = gameState.currentFloor) {
     if (!boss || !boss.signatureItem) return;
-    const item = JSON.parse(JSON.stringify(boss.signatureItem));
-    const legendary = itemRarities[itemRarities.length - 1];
-    item.rarity = legendary.name;
-    item.rarityColor = legendary.color;
-
-    if (item.category === 'scrolls') {
-        gameState.spellbook.push(item);
-        gameState.floorStats.itemsFound += 1;
-        logEvent(`✨ Objet signature obtenu : [${formatItemDisplayName(item)}] !`, "loot");
-        updateSpellbookUI();
-        return;
-    }
-    const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
-    if (equipmentCount < gameState.maxInventory) {
-        gameState.inventory.push(item);
-        gameState.floorStats.itemsFound += 1;
-        logEvent(`✨ Objet signature obtenu : [${formatItemDisplayName(item)}] !`, "loot");
-        updateInventoryUI();
-    } else {
-        logEvent(`✨ ${boss.name} laissait tomber [${formatItemDisplayName(item)}], mais votre réserve d'équipement est pleine !`, "danger");
-    }
+    const key = boss.baseName || boss.name;
+    const alreadyAwarded = gameState.signaturesAwarded.includes(key);
+    if (alreadyAwarded && Math.random() * 100 >= itemBalance.boss.signatureRepeatChance) return;
+    if (!alreadyAwarded) gameState.signaturesAwarded.push(key);
+    storeLootItem(buildSignatureItem(boss.signatureItem, itemLevel), "✨ Objet signature — ");
 }
 
 // Point de passage UNIQUE pour toute perte de PV du joueur (piège, saignement, riposte ennemie...) —
@@ -2779,7 +3443,10 @@ function applyPlayerHeal(amount) {
 // gameState.hp au nouveau maximum s'il le dépasse (jamais de PV "en trop" affichés).
 function recomputeMaxHp() {
     const mult = gameState.anomalyEffects.playerMaxHpMult || 1;
-    gameState.maxHp = Math.max(1, Math.round(gameState.baseMaxHp * mult));
+    // Robuste (qualificatif d'armure) : PV max +%, tant que l'armure est portée.
+    const sturdy = getItemQualifierValues(gameState.equipment.armor, 'sturdy', 'armor');
+    const gearMult = sturdy ? 1 + sturdy.pct / 100 : 1;
+    gameState.maxHp = Math.max(1, Math.round(gameState.baseMaxHp * mult * gearMult));
     if (gameState.hp > gameState.maxHp) gameState.hp = gameState.maxHp;
 }
 
@@ -3887,7 +4554,7 @@ function travelToCity(cityId) {
     }
 
     const timeCost = Math.max(1, Math.round(distance / 2));
-    const ambushBaseChance = Math.min(80, distance * 9);
+    const ambushBaseChance = computeAmbushBaseChance(distance); // Compagnon Garde : moins d'embuscades
     let ambushCount = 0;
     if (Math.random() * 100 < ambushBaseChance) {
         ambushCount = 1;
@@ -3965,7 +4632,7 @@ function arriveAtCity() {
             winGame();
         } else {
             logEvent("La voie est libre !", "success");
-            triggerFloorTransition();
+            offerStairsChoice({ kind: 'city', cityId: city.id });
         }
         return;
     }
@@ -4081,12 +4748,12 @@ function declineLair() {
 // VILLES SPÉCIALISÉES (marchand/professeur — voir generateUrbanFloorMap())
 // ==========================================
 const SHOP_CATEGORY_LABELS = { weapons: "Armes", ranged: "Armes à distance", armors: "Armures", scrolls: "Magie (parchemins)" };
-const SHOP_MARKUP = 2.5; // Prix d'achat = baseValue × ce multiplicateur (voir SELL_VALUE_RATIO pour l'inverse)
+const SHOP_MARKUP = 2.5; // Prix d'achat = valeur × ce multiplicateur (voir SELL_VALUE_RATIO pour l'inverse)
 const TRAINER_COST_PER_LEVEL = 20; // Coût = ce montant × le niveau ACTUEL de la compétence
 
 // Stock FIXE d'un marchand (3 objets de sa spécialité, générés UNE seule fois à la première visite —
 // voir triggerShopEncounter()), avec une puissance proportionnelle à l'étage courant comme le reste
-// du loot (voir getLootPowerScore()). Chaque objet reçoit un prix d'achat dérivé de sa baseValue.
+// du loot (voir rollLootRarity()). Chaque objet reçoit un prix d'achat dérivé de sa valeur (getItemValue()).
 function generateShopStock(specialty) {
     const stock = [];
     // ECONOMIE_AUSTERE (anomalies.js) : remise fixe sur le prix d'achat, appliquée une fois à la
@@ -4094,8 +4761,8 @@ function generateShopStock(specialty) {
     // stock appartient à l'anomalie de CET étage précis.
     const discount = 1 - (gameState.anomalyEffects.shopDiscountPct || 0);
     for (let i = 0; i < 3; i++) {
-        const item = generateItem(getLootPowerScore(null), specialty);
-        item.price = Math.max(1, Math.round((item.baseValue || 1) * SHOP_MARKUP * discount));
+        const item = generateItem({ source: 'explore', category: specialty });
+        item.price = Math.max(1, Math.round(getItemValue(item) * SHOP_MARKUP * discount));
         stock.push(item);
     }
     return stock;
@@ -4215,9 +4882,13 @@ function updateShopUI() {
             const row = document.createElement('button');
             const affordable = gameState.gold >= item.price;
             row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-yellow-600 hover:bg-yellow-950/20 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-gray-800 disabled:hover:bg-gray-900/80";
-            row.disabled = !affordable;
+            // Jamais désactivée : un objet trop cher reste inspectable (le bouton Acheter, lui, est grisé).
+            if (!affordable) row.classList.add('opacity-60');
             row.innerHTML = `<span class="flex items-center gap-1.5 min-w-0">${itemIconSvg(item, 24)}<span class="truncate">${formatItemDisplayName(item)}</span></span><span class="text-yellow-400 shrink-0">${item.price} PO</span>`;
-            row.addEventListener('click', () => buyShopItem(index));
+            row.addEventListener('click', () => openItemInspect(item, {
+                priceLine: `Prix : ${item.price} PO (vous avez ${gameState.gold} PO)`,
+                actions: [{ label: `Acheter — ${item.price} PO`, disabled: !affordable, onClick: () => buyShopItem(index) }]
+            }));
             ui.shopStockList.appendChild(row);
         });
 
@@ -4230,32 +4901,43 @@ function updateShopUI() {
             ui.shopSellList.appendChild(empty);
         }
         sellable.forEach((item, index) => {
-            const price = Math.max(1, Math.round((item.baseValue || 0) * SELL_VALUE_RATIO));
+            const price = getSellPrice(item);
             const row = document.createElement('button');
             row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
             row.innerHTML = `<span class="flex items-center gap-1.5 min-w-0">${itemIconSvg(item, 24)}<span class="truncate">${formatItemDisplayName(item)}</span></span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
-            row.addEventListener('click', () => { sellItem(index); updateShopUI(); });
+            row.addEventListener('click', () => openItemInspect(item, {
+                actions: [{ label: `Vendre — +${price} PO`, tone: 'good', onClick: () => { sellItem(index); updateShopUI(); } }]
+            }));
             ui.shopSellList.appendChild(row);
         });
 
         // Vente de parchemins (chantier "QoL/équilibrage", Chantier D) : même présentation que la
-        // vente d'inventaire ci-dessus, mais sur gameState.spellbook via sellSpell() — l'équipé
+        // vente d'inventaire ci-dessus, mais sur gameState.spellbook via sellSpell(), regroupée par sort
+        // comme le grimoire (groupSpellbook()) avec une ligne — donc une vente — par exemplaire. L'équipé
         // (gameState.equipment.spell) n'y figure structurellement jamais (voir equipSpell()).
         ui.shopSellSpellsList.innerHTML = "";
-        const sellableSpells = gameState.spellbook;
-        if (sellableSpells.length === 0) {
+        const spellGroups = groupSpellbook(gameState.spellbook);
+        if (spellGroups.length === 0) {
             const empty = document.createElement('p');
             empty.className = "text-[10px] text-gray-600 italic";
             empty.innerText = "Aucun parchemin à vendre pour l'instant.";
             ui.shopSellSpellsList.appendChild(empty);
         }
-        sellableSpells.forEach((spell, index) => {
-            const price = Math.max(1, Math.round((spell.baseValue || 0) * SELL_VALUE_RATIO));
-            const row = document.createElement('button');
-            row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
-            row.innerHTML = `<span class="truncate">${formatItemDisplayName(spell)}</span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
-            row.addEventListener('click', () => { sellSpell(index); updateShopUI(); });
-            ui.shopSellSpellsList.appendChild(row);
+        spellGroups.forEach(group => {
+            const header = document.createElement('p');
+            header.className = "text-[10px] font-bold text-gray-400 pt-1";
+            header.innerText = `${group.icon || '✨'} ${group.spellName}`;
+            ui.shopSellSpellsList.appendChild(header);
+            group.copies.forEach(({ spell, index }) => {
+                const price = getSellPrice(spell);
+                const row = document.createElement('button');
+                row.className = "w-full flex justify-between items-center gap-1 px-2 py-1.5 bg-gray-900/80 border border-gray-800 rounded text-[10px] text-gray-300 hover:border-emerald-600 hover:bg-emerald-950/20 transition-all cursor-pointer";
+                row.innerHTML = `<span class="flex items-center gap-2 min-w-0"><span class="font-bold uppercase text-[9px] shrink-0" style="color:${spell.rarityColor || '#9ca3af'}">${spell.rarity || ''}</span><span class="truncate text-gray-400">${spellCopyStats(spell)}</span></span><span class="text-emerald-400 shrink-0">+${price} PO</span>`;
+                row.addEventListener('click', () => openItemInspect(spell, {
+                    actions: [{ label: `Vendre — +${price} PO`, tone: 'good', onClick: () => { sellSpell(index); updateShopUI(); } }]
+                }));
+                ui.shopSellSpellsList.appendChild(row);
+            });
         });
     } else {
         const skill = gameState.skills[city.specialty];
@@ -4378,6 +5060,10 @@ function enterRoom(room) {
     room.visited = true;
 
     if (room.type === 'boss') {
+        if (room.defeated && room.guardsStairs) {
+            offerStairsChoice({ kind: 'room', roomId: room.id }); // Retour à un escalier laissé pour plus tard
+            return;
+        }
         if (room.defeated) {
             setSceneHeader('🏚️', 'Antre Silencieuse', 'Exploration', 'emptyLair');
             logEvent("L'antre est silencieuse désormais ; le boss a déjà été vaincu.", "normal");
@@ -4405,14 +5091,7 @@ function enterRoom(room) {
         );
         registerKnownLocation({ id: `safe-${room.id}`, type: 'safeRoom', roomId: room.id, label: safehouse.name, icon: safehouse.icon });
 
-        // Garde-fou : le repos ne doit JAMAIS pouvoir amener timeLeft à 0 (voir CLAUDE.md) — bouton
-        // désactivé dès l'affichage plutôt que vérifié seulement au clic, pour que ce soit visible
-        // avant toute tentative. REPAS_DE_FAMILLE (anomalies.js) rend le repos gratuit en temps : le
-        // garde-fou ne s'applique donc pas dans ce cas.
-        const freeMeals = gameState.anomalyEffects.freeSafehouseMeals;
-        const canRest = freeMeals || gameState.timeLeft - config.safehouse.restCost > 0;
-        ui.btnRestSafehouse.disabled = !canRest;
-        ui.btnRestSafehouse.title = canRest ? "" : "Pas assez de temps pour vous reposer";
+        updateSafehouseRestButtons();
         ui.safehouseChoiceZone.classList.remove('hidden');
         renderScene('safehouse');
         updateUI();
@@ -4432,32 +5111,77 @@ function enterRoom(room) {
     }
 }
 
-// Choix "Repos" d'une salle sécurisée (voir enterRoom()) : coûte config.safehouse.restCost en temps
-// (sauf REPAS_DE_FAMILLE, anomalies.js — repas gratuits) contre un soin PV majoré (25-40, tiré au
-// hasard) ET du mana à la MÊME échelle si un sort est équipé (même montant tiré, clampé séparément
-// à chaque maximum). Le bouton est déjà désactivé côté UI si ce coût ferait tomber timeLeft à 0
-// (voir enterRoom()) : la vérification ici est une sécurité redondante, jamais le chemin normal.
-function restAtSafehouse() {
-    if (!gameState.safehouseChoicePending) return;
-    const restCost = config.safehouse.restCost;
+// Libellés des deux repos d'une salle sécurisée (boutons #btn-nap-safehouse/#btn-sleep-safehouse).
+const SAFEHOUSE_REST_LABELS = { nap: '💤 Sieste', sleep: '🛌 Sommeil réparateur' };
+
+// Ce qu'un repos rendrait maintenant (pure) : `healPct` des PV perdus et du mana manquant — le mana
+// seulement si un sort est équipé. Montants AVANT le multiplicateur de soin des anomalies
+// (PEAU_DE_VERRE), appliqué ensuite par applyPlayerHeal() comme à tout soin.
+function safehouseRestAmounts(kind, state = gameState) {
+    const rest = config.safehouse[kind];
+    const hp = Math.round(rest.healPct * Math.max(0, state.maxHp - state.hp));
+    const mana = state.equipment.spell ? Math.round(rest.healPct * Math.max(0, state.maxMana - state.mana)) : 0;
+    return { hp, mana };
+}
+
+// Vrai si le repos `kind` est possible : garde-fou, un repos ne doit JAMAIS pouvoir amener timeLeft à 0
+// (voir CLAUDE.md), sauf REPAS_DE_FAMILLE (anomalies.js) qui rend les deux repos gratuits en temps.
+function canRestAtSafehouse(kind) {
+    return !!gameState.anomalyEffects.freeSafehouseMeals || gameState.timeLeft - config.safehouse[kind].cost > 0;
+}
+
+// Met à jour les deux boutons de repos à l'entrée dans la salle : coût en temps, PV (et mana) rendus, et
+// bouton désactivé dès l'affichage si le temps manque — visible avant toute tentative, pas seulement au clic.
+function updateSafehouseRestButtons() {
+    const free = gameState.anomalyEffects.freeSafehouseMeals;
+    [['nap', ui.btnNapSafehouse], ['sleep', ui.btnSleepSafehouse]].forEach(([kind, btn]) => {
+        if (!btn) return;
+        const { hp, mana } = safehouseRestAmounts(kind);
+        const lines = [free ? '0H' : `-${config.safehouse[kind].cost}H`, `+${hp} PV`];
+        if (gameState.equipment.spell) lines.push(`+${mana} mana`);
+        const can = canRestAtSafehouse(kind);
+        btn.disabled = !can;
+        btn.title = can ? "" : "Pas assez de temps pour vous reposer";
+        btn.innerHTML = `<span class="block mb-0.5">${SAFEHOUSE_REST_LABELS[kind]}</span>`
+            + lines.map(l => `<span class="block text-[10px] normal-case tracking-normal opacity-80 whitespace-nowrap">${l}</span>`).join('');
+    });
+}
+
+// Repos dans une salle sécurisée (voir enterRoom()) : `kind` 'nap' (Sieste) ou 'sleep' (Sommeil
+// réparateur), voir config.safehouse. Coûte `cost` heures (sauf REPAS_DE_FAMILLE, anomalies.js — repas
+// gratuits) et rend `healPct` des PV perdus, plus la même part du mana manquant si un sort est équipé
+// (safehouseRestAmounts()). Le bouton est déjà désactivé si ce coût ferait tomber timeLeft à 0 (voir
+// updateSafehouseRestButtons()) : la vérification ici est une sécurité redondante, jamais le chemin normal.
+function restAtSafehouse(kind = 'nap') {
+    if (!gameState.safehouseChoicePending || !config.safehouse[kind]) return;
+    if (!canRestAtSafehouse(kind)) return;
+    const cost = config.safehouse[kind].cost;
     const freeMeals = gameState.anomalyEffects.freeSafehouseMeals;
-    if (!freeMeals && gameState.timeLeft - restCost <= 0) return;
 
-    if (!freeMeals) gameState.timeLeft = Math.max(0, gameState.timeLeft - restCost);
-    const healAmount = Math.round(config.safehouse.restHpMin + Math.random() * (config.safehouse.restHpMax - config.safehouse.restHpMin));
-    const healed = applyPlayerHeal(healAmount);
-
-    const hasSpell = !!gameState.equipment.spell;
+    const amounts = safehouseRestAmounts(kind);
+    if (!freeMeals) gameState.timeLeft = Math.max(0, gameState.timeLeft - cost);
+    const healed = applyPlayerHeal(amounts.hp);
     let manaNote = "";
-    if (hasSpell) {
+    if (amounts.mana > 0) {
         const manaBefore = gameState.mana;
-        gameState.mana = Math.min(gameState.maxMana, gameState.mana + healAmount);
+        gameState.mana = Math.min(gameState.maxMana, gameState.mana + amounts.mana);
         const manaGained = Math.round(gameState.mana - manaBefore);
         if (manaGained > 0) manaNote = `, +${manaGained} mana`;
     }
 
-    const costNote = freeMeals ? "repas offerts par la maison, aucun temps perdu" : `-${restCost}H`;
-    logEvent(`Vous vous reposez longuement (${costNote}, +${healed} PV${manaNote}).`, "success");
+    const costNote = freeMeals ? "repas offerts par la maison, aucun temps perdu" : `-${cost}H`;
+    const intro = kind === 'sleep' ? "Vous dormez à poings fermés" : "Vous piquez un petit somme";
+    logEvent(`${intro} (${costNote}, +${healed} PV${manaNote}).`, "success");
+
+    // Le compagnon se repose aussi : même part de ses PV perdus (et il se relève s'il était à terre),
+    // et un repos partagé renforce sa loyauté.
+    const companion = gameState.companion;
+    if (companion) {
+        const companionHealed = healCompanion(Math.round(config.safehouse[kind].healPct * (companion.maxHp - companion.hp)));
+        const gained = changeCompanionLoyalty(config.companions.loyalty[kind]);
+        logEvent(`${companion.name} en profite aussi (+${companionHealed} PV${gained > 0 ? `, +${gained} loyauté` : ""}).`, "success");
+        updateCompanionUI();
+    }
 
     gameState.safehouseChoicePending = false;
     gameState.pendingSafehouseRoomId = null;
@@ -4465,7 +5189,7 @@ function restAtSafehouse() {
     updateUI();
 }
 
-// Choix "Repartir" d'une salle sécurisée : gratuit, aucun effet — la salle reste visitée et déjà
+// Choix "Partir" d'une salle sécurisée : gratuit, aucun effet — la salle reste visitée et déjà
 // enregistrée comme lieu connu (voir enterRoom()), simplement réutilisable lors d'un futur passage.
 function leaveSafehouse() {
     if (!gameState.safehouseChoicePending) return;
@@ -4489,7 +5213,7 @@ function triggerCafetRoom(room) {
         gameOver(false, 'trap');
         return;
     }
-    addLoot(1); // Trésor nettement supérieur à la normale : score de puissance maximal (voir getRarityWeights())
+    addLoot({ source: 'treasure' }); // Trésor nettement supérieur à la normale : monte d'un palier de rareté (voir rollLootRarity())
     logEvent("Malgré le piège, un trésor bien caché récompense votre prudence.", "success");
 }
 
@@ -4766,7 +5490,7 @@ function initiateCombat(forcedEnemy = null) {
         // telegraph/defBuffed/frenzied : uniquement lus/écrits côté boss (voir performBossCounterAttack()
         // dans app.js, Chantier 2 du rework combat) — restent toujours neutres sur un mob normal/élite.
         // enraged/enrageCooldown : Chantier 3 (enrage distance), tous mobs confondus, boss inclus.
-        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, telegraph: null, defBuffed: null, frenzied: false, enraged: null, enrageCooldown: null };
+        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, distracted: null, telegraph: null, defBuffed: null, frenzied: false, enraged: null, enrageCooldown: null };
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
         // Compteur de tours de kiting (Chantier 3) : un boss démarre à 1 (s'enrage plus vite qu'un
         // mob normal, voir NOTES_COMBAT.md Chantier 2) plutôt qu'à 0.
@@ -5027,7 +5751,7 @@ function setCombatDistance(value) {
 function resolveDistanceRound(enemy, playerWantsToWiden) {
     const cfg = config.rangedCombat;
     gameState.timeLeft = Math.max(0, gameState.timeLeft - cfg.timeCostPerRound);
-    const playerRoll = 1 + Math.floor(Math.random() * cfg.dieSides) + Math.floor(gameState.level / cfg.levelAdvantageDivisor);
+    const playerRoll = 1 + Math.floor(Math.random() * cfg.dieSides) + Math.floor(gameState.level / cfg.levelAdvantageDivisor) + sumEquippedQualifier('swift', 'bonus'); // Véloce
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
     const diff = playerRoll - mobRoll; // positif = le joueur l'emporte ce round
     const delta = playerWantsToWiden ? diff : -diff;
@@ -5072,8 +5796,8 @@ function rollDamage(attackerAtk, defenderDef, options = {}) {
 // qu'il est corrodé (effet "corrode") — les deux se cumulent si les deux sont actifs à la fois.
 function getEffectiveDef() {
     const armorBonus = gameState.equipment.armor ? (gameState.equipment.armor.baseArmor || 0) : 0;
-    const companionBonus = (gameState.companion && gameState.companion.specialty.type === 'guard')
-        ? Math.round(gameState.companion.def * 0.5)
+    const companionBonus = hasActiveCompanion('guard')
+        ? Math.round(getCompanionDef(gameState.companion) * config.companions.guard.defShare)
         : 0;
     let effectiveDef = gameState.def + armorBonus + companionBonus;
     if (gameState.status.blinded && gameState.status.blinded.rounds > 0) {
@@ -5150,6 +5874,19 @@ function performPlayerAttack(attackerAtk, options, label) {
             resolveEnemyReaction();
             return true;
         }
+    }
+
+    // Qualificatifs de l'objet utilisé pour CE coup (options.gear : arme, arme à distance ou sort ;
+    // options.gearTarget : 'weapon' | 'spell') — voir itemQualifiers dans items.js.
+    const gear = options.gear || null;
+    const gearTarget = options.gearTarget || 'weapon';
+    const gearQ = (key) => (gear ? getItemQualifierValues(gear, key, gearTarget) : null);
+    const wobbly = gearQ('wobbly');
+    if (wobbly && Math.random() * 100 < wobbly.chance) {
+        showDie(ui.combatPlayerDie, "🥴");
+        logEvent(`🥴 Votre [${gear.name}] bancal vous glisse des mains : coup complètement raté !`, "danger");
+        resolveEnemyReaction();
+        return false;
     }
 
     // Un joueur ralenti inflige moitié moins de dégâts, le temps que l'effet se dissipe
@@ -5232,7 +5969,37 @@ function performPlayerAttack(attackerAtk, options, label) {
     // consommée au tout début de la PROCHAINE action (tryPlayerAction()), même convention que
     // lastPlayerActionWasBackfire, jamais ici (getEffectiveDef() reste pure, aussi utilisée pour le
     // simple affichage UI).
-    const playerDamage = rollDamage(attackerAtk, effectiveEnemyDef, effectiveOptions);
+    // Aiguisé/Amplifié : dégâts +% ; Perforant : part de la DEF ignorée ; Précis : coup critique.
+    let gearNote = "";
+    const keen = gearQ('keen') || gearQ('amplified');
+    if (keen) effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * (1 + keen.pct / 100) };
+    const pierce = gearQ('pierce');
+    if (pierce) effectiveOptions = { ...effectiveOptions, defReduction: 1 - (1 - (effectiveOptions.defReduction ?? 0)) * (1 - pierce.pct / 100) };
+    const precise = gearQ('precise');
+    if (precise && Math.random() * 100 < precise.chance) {
+        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * precise.mult };
+        gearNote += " (critique !)";
+    }
+    let playerDamage = rollDamage(attackerAtk, effectiveEnemyDef, effectiveOptions);
+    // Électrique/Explosif : dégâts bonus proportionnels au coup, qui ignorent la DEF (ajoutés au coup
+    // lui-même, avant le test de victoire). Explosif peut aussi blesser le porteur, sans jamais le tuer.
+    const shock = gearQ('shock');
+    if (shock && Math.random() * 100 < shock.chance) {
+        const bonus = Math.max(1, Math.round(playerDamage * shock.pct / 100));
+        playerDamage += bonus;
+        gearNote += ` (⚡ +${bonus})`;
+    }
+    const blast = gearQ('aoe');
+    if (blast && Math.random() * 100 < blast.chance) {
+        const bonus = Math.max(1, Math.round(playerDamage * blast.pct / 100));
+        playerDamage += bonus;
+        gearNote += ` (💥 +${bonus})`;
+        if (Math.random() * 100 < blast.selfChance && gameState.hp > 1) {
+            const selfDamage = Math.min(gameState.hp - 1, Math.max(1, Math.round(gameState.maxHp * blast.selfPct / 100)));
+            applyPlayerDamage(selfDamage);
+            logEvent(`💥 L'explosion vous roussit au passage (-${selfDamage} PV). Pour tout le monde, on avait dit.`, "danger");
+        }
+    }
     enemy.hp -= playerDamage;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage);
@@ -5248,14 +6015,10 @@ function performPlayerAttack(attackerAtk, options, label) {
     // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
     // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
     // pure redite de ce que les badges du Chantier 2 montrent déjà sans rapport avec CE coup précis).
-    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
+    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
 
-    // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
-    if (gameState.companion && gameState.companion.specialty.type === 'strike' && enemy.hp > 0) {
-        const bonusDamage = Math.max(1, Math.round(gameState.companion.atk * 0.4));
-        enemy.hp -= bonusDamage;
-        logEvent(`${gameState.companion.name} porte un coup supplémentaire ! (+${bonusDamage} dégâts)`, "info");
-    }
+    // Appui du compagnon : sort donné, Frappe d'appoint ou coup d'opportunité (voir companionCombatSupport())
+    companionCombatSupport(enemy);
 
     if (enemy.hp <= 0) {
         setTimeout(() => {
@@ -5269,185 +6032,197 @@ function performPlayerAttack(attackerAtk, options, label) {
     return true;
 }
 
-// Mécaniques d'arme qui ont un vrai effet de combat (utilisées aussi par "random"/Chaotique,
-// qui en tire une au hasard à chaque déclenchement).
-const IMPLEMENTED_WEAPON_MECHANICS = ['bleed', 'stun', 'poison', 'slow', 'light', 'heal', 'lifesteal', 'drain', 'corrode', 'fear', 'adrenaline'];
+// ==========================================
+// QUALIFICATIFS EN COMBAT (chantier "refonte des objets" — catalogue itemQualifiers dans items.js)
+// ==========================================
+// Tous les chiffres viennent de getQualifierValues() (generator.js), la même source que le texte
+// d'inspection (describeQualifier()) : ce qui est écrit sur l'objet est exactement ce qui se passe.
 
-// Résout l'effet concret d'une mécanique nommée sur l'ennemi/le joueur.
-// Séparé de applyWeaponMechanic() pour que "random" (Chaotique) puisse réutiliser cette logique
-// après avoir tiré une mécanique au hasard, sans dupliquer le switch.
-function resolveWeaponMechanicEffect(mechanicName, weapon, enemy) {
-    switch (mechanicName) {
+// Qualificatifs d'un objet, avec rang. Un objet construit à la main (tests) ou antérieur à la refonte
+// n'a que `mechanics` : rang I par défaut.
+function getItemQualifierList(item) {
+    if (!item) return [];
+    if (item.qualifiers) return item.qualifiers;
+    return (item.mechanics || []).map(key => ({ key, rank: 1 }));
+}
+
+// Valeurs d'un qualificatif précis porté par un objet (null s'il ne le porte pas). `target` par défaut
+// déduit de la catégorie (arme si inconnue, pour les objets de test sans catégorie).
+function getItemQualifierValues(item, key, target = null) {
+    const entry = getItemQualifierList(item).find(q => q.key === key);
+    if (!entry) return null;
+    return getQualifierValues(key, target || qualifierTarget(item.category) || 'weapon', entry.rank);
+}
+
+// Somme d'un champ d'un qualificatif passif sur tout l'équipement porté (arme, arme à distance,
+// armure) — Silencieux, Véloce, Chanceux, Grinçant.
+function sumEquippedQualifier(key, field) {
+    const slots = [['weapon', 'weapon'], ['ranged', 'weapon'], ['armor', 'armor']];
+    return slots.reduce((sum, [slot, target]) => {
+        const values = getItemQualifierValues(gameState.equipment[slot], key, target);
+        return sum + (values && values[field] ? values[field] : 0);
+    }, 0);
+}
+
+// Effets déclenchables sur une cible donnée (pioche de Chaotique) : les procs de statut/soin, hors
+// Chaotique lui-même et hors bonus de dégâts (Électrique/Explosif, résolus dans performPlayerAttack()).
+function getRandomizableQualifiers(target) {
+    return Object.keys(itemQualifiers).filter(key => {
+        const block = itemQualifiers[key][target];
+        return block && itemQualifiers[key].kind === 'proc' && !block.passive && !['random', 'shock', 'aoe'].includes(key);
+    });
+}
+
+// Applique l'effet d'un qualificatif déclenché. `foe` : la cible de l'arme/du sort, ou l'attaquant pour
+// une armure. `baseDamage` : dégâts du coup porté (arme/sort) ou encaissé (armure) — base des effets
+// sur la durée et du vol de vie. `source` ('weapon' | 'armor' | 'spell') ne change que le message.
+function resolveQualifierEffect(key, v, foe, baseDamage, source = 'weapon') {
+    const byArmor = source === 'armor';
+    foe.status = foe.status || {};
+    switch (key) {
         case 'bleed':
-            enemy.status.bleed = { rounds: 3, dmgPerRound: Math.max(2, Math.round((weapon.baseDmg || 5) * 0.3)) };
-            logEvent(`🩸 [${enemy.name}] se met à saigner !`, "danger");
-            break;
-        case 'stun':
-            enemy.status.stunned = true;
-            logEvent(`💫 [${enemy.name}] est étourdi par le choc !`, "danger");
+            foe.status.bleed = { rounds: v.rounds, dmgPerRound: Math.max(1, Math.round(baseDamage * v.pct / 100)) };
+            logEvent(byArmor ? `🩸 Les pointes de votre armure entaillent [${foe.name}] !` : `🩸 [${foe.name}] se met à ${source === 'spell' ? 'brûler' : 'saigner'} !`, "danger");
             break;
         case 'poison':
-            // Même compteur générique que "bleed" (dégâts sur la durée) : plus de rounds, moins de dégâts/round
-            enemy.status.bleed = { rounds: 5, dmgPerRound: Math.max(1, Math.round((weapon.baseDmg || 5) * 0.15)) };
-            logEvent(`☢️ [${enemy.name}] est empoisonné !`, "danger");
+            foe.status.bleed = { rounds: v.rounds, dmgPerRound: Math.max(1, Math.round(baseDamage * v.pct / 100)) };
+            logEvent(byArmor ? `☢️ Votre armure empoisonne [${foe.name}] au contact !` : `☢️ [${foe.name}] est empoisonné !`, "danger");
+            break;
+        case 'stun':
+            foe.status.stunned = true;
+            logEvent(byArmor ? `💫 Le choc en retour étourdit [${foe.name}] !` : `💫 [${foe.name}] est étourdi par le choc !`, "danger");
             break;
         case 'slow':
-            enemy.status.slowed = { rounds: 2 };
-            logEvent(`🐌 [${enemy.name}] est ralenti, gelé sur place !`, "danger");
+            foe.status.slowed = { rounds: v.rounds };
+            logEvent(`🐌 [${foe.name}] est gelé sur place ! (ses dégâts −50 %)`, "danger");
+            break;
+        case 'pleasure_or_pain':
+            foe.status.distracted = { rounds: v.rounds, miss: v.miss };
+            logEvent(`😬 Un bourdonnement insupportable déconcentre [${foe.name}] !`, "danger");
             break;
         case 'light':
-            enemy.status.blinded = { rounds: 2 };
-            logEvent(`✨ [${enemy.name}] est ébloui par un éclat de lumière !`, "danger");
+            foe.status.blinded = { rounds: v.rounds };
+            logEvent(`✨ [${foe.name}] est ébloui par un éclat de lumière ! (DEF −50 %)`, "danger");
+            break;
+        case 'corrode':
+            foe.status.corroded = { rounds: v.rounds };
+            logEvent(`🧪 L'armure de [${foe.name}] se corrode ! (DEF −40 %)`, "danger");
+            break;
+        case 'fear':
+            foe.status.feared = { rounds: v.rounds };
+            logEvent(`😱 [${foe.name}] est pris de terreur ! (dégâts −35 %)`, "danger");
+            break;
+        case 'adrenaline':
+            gameState.status.adrenaline = { rounds: v.rounds, mult: 1 + v.pct / 100 };
+            logEvent(`💉 Une décharge d'adrénaline vous parcourt ! (dégâts +${v.pct} %)`, "success");
             break;
         case 'heal': {
-            const healAmount = Math.max(3, Math.round((weapon.baseDmg || 5) * 0.4));
-            const actualHeal = applyPlayerHeal(healAmount);
-            logEvent(`💚 Votre arme régénère vos blessures (+${actualHeal} PV).`, "success");
+            const actualHeal = applyPlayerHeal(Math.max(1, Math.round(gameState.maxHp * v.pct / 100)));
+            logEvent(`💚 ${byArmor ? 'Votre armure' : 'Votre arme'} régénère vos blessures (+${actualHeal} PV).`, "success");
             break;
         }
         case 'lifesteal': {
-            const baseAmount = gameState._lastPlayerDamage || weapon.baseDmg || 5;
-            const stolen = Math.max(2, Math.round(baseAmount * 0.3));
-            const actualHeal = applyPlayerHeal(stolen);
-            logEvent(`🧛 Vous volez ${actualHeal} PV à [${enemy.name}].`, "success");
+            const actualHeal = applyPlayerHeal(Math.max(1, Math.round(baseDamage * v.pct / 100)));
+            if (actualHeal > 0) logEvent(`🧛 ${byArmor ? 'Votre armure siphonne' : 'Vous volez'} ${actualHeal} PV${byArmor ? '' : ` à [${foe.name}]`}.`, "success");
             break;
         }
-        case 'drain':
-            enemy.atk = Math.max(1, Math.round(enemy.atk * 0.85));
-            logEvent(`🌀 Vous drainez son énergie, [${enemy.name}] semble affaibli.`, "info");
-            break;
-        case 'corrode':
-            enemy.status.corroded = { rounds: 3 };
-            logEvent(`🧪 [${enemy.name}] voit son armure se corroder ! (DEF réduite)`, "danger");
-            break;
-        case 'fear':
-            enemy.status.feared = { rounds: 3 };
-            logEvent(`😱 [${enemy.name}] est pris de terreur ! (ATQ réduite)`, "danger");
-            break;
-        case 'adrenaline': {
-            gameState.status.adrenaline = { rounds: 2, mult: 1.35 };
-            logEvent("💉 Une décharge d'adrénaline vous parcourt ! (dégâts boostés)", "success");
+        case 'drain': {
+            // Pourcentages de l'ATQ D'ORIGINE (mémorisée au premier drain), pas cumulés en cascade :
+            // le plafond affiché (−40 %) est exactement le plafond réel.
+            const drained = foe.drainedPct || 0;
+            const step = Math.min(v.pct, v.cap - drained);
+            if (step <= 0) break;
+            if (foe.atkBeforeDrain === undefined) foe.atkBeforeDrain = foe.atk;
+            foe.drainedPct = drained + step;
+            foe.atk = Math.max(1, Math.round(foe.atkBeforeDrain * (1 - foe.drainedPct / 100)));
+            logEvent(`🌀 Vous drainez [${foe.name}] : ATQ −${step} % (total −${foe.drainedPct} %).`, "info");
             break;
         }
     }
 }
 
-// Applique la mécanique spéciale de l'arme équipée (Tranchant->saignement, Lourd->étourdissement, etc.),
-// avec une chance de déclenchement. Appelée uniquement après une attaque à l'arme réussie.
-// Applique la/les mécanique(s) spéciale(s) de l'arme équipée (Tranchant->saignement,
-// Lourd->étourdissement, etc.). Un objet rare peut porter plusieurs enchantements à la fois (voir
-// itemRarities) : chacun a sa PROPRE chance de se déclencher, indépendamment des autres, ce qui
-// rend un objet à 2-3 enchantements sensiblement plus fiable qu'un objet à un seul.
+// Qualificatifs d'un objet déclenchés par UN coup : arme/sort après un coup porté, armure après un
+// coup encaissé. Chaque qualificatif a sa PROPRE chance, indépendante des autres.
+function triggerItemQualifiers(item, target, foe, baseDamage) {
+    getItemQualifierList(item).forEach(({ key, rank }) => {
+        const q = itemQualifiers[key];
+        const v = getQualifierValues(key, target, rank);
+        if (!q || !v || q.kind !== 'proc' || ['shock', 'aoe'].includes(key)) return;
+        if (v.passive) {
+            resolveQualifierEffect(key, v, foe, baseDamage, target); // Vampirique : chaque coup, sans jet
+            return;
+        }
+        if (Math.random() * 100 >= v.chance) return;
+        if (key === 'random') {
+            const pool = getRandomizableQualifiers(target);
+            const picked = pool[Math.floor(Math.random() * pool.length)];
+            logEvent(`🎲 Chaotique : ${itemQualifiers[picked].name} !`, "info");
+            resolveQualifierEffect(picked, getQualifierValues(picked, target, rank), foe, baseDamage, target);
+            return;
+        }
+        resolveQualifierEffect(key, v, foe, baseDamage, target);
+    });
+}
+
+// Qualificatifs de l'arme (ou du sort) qui vient de toucher. Appelée uniquement après une attaque
+// réussie (performPlayerAttack() a renvoyé vrai). Pas de updateUI() ici : ne pas écraser l'affichage
+// des PV avant que l'animation du coup n'arrive à destination.
 function applyWeaponMechanic(weaponOverride = null) {
     const weapon = weaponOverride || gameState.equipment.weapon;
     const enemy = gameState.currentEnemy;
-    if (!weapon || !weapon.mechanics || weapon.mechanics.length === 0 || !enemy) return;
-
-    const triggerChance = 30; // 30% de chance, par enchantement, que celui-ci se déclenche
-    weapon.mechanics.forEach(mechanic => {
-        if (Math.random() * 100 >= triggerChance) return;
-
-        if (mechanic === 'random') {
-            // Chaotique : tire une mécanique au hasard parmi celles qui ont un vrai effet
-            const picked = IMPLEMENTED_WEAPON_MECHANICS[Math.floor(Math.random() * IMPLEMENTED_WEAPON_MECHANICS.length)];
-            resolveWeaponMechanicEffect(picked, weapon, enemy);
-        } else if (IMPLEMENTED_WEAPON_MECHANICS.includes(mechanic)) {
-            resolveWeaponMechanicEffect(mechanic, weapon, enemy);
-        }
-        // "pleasure_or_pain" (Vibrant), "aoe" (Explosif) et "darkness" (Ténébreux) restent des effets
-        // purement comiques/cosmétiques, sans mécanique de combat pour l'instant. "stealth" (Silencieux)
-        // n'a rien à faire ICI (pas de déclenchement pendant un échange) : il compte avant le combat,
-        // dans getStealthChance(), pour éviter de se faire repérer en explorant.
-    });
-    // Pas de updateUI() ici, pour la même raison que dans gainSkillXp() : ne pas écraser
-    // l'affichage des PV avant que l'animation du dé n'ait eu le temps d'arriver à destination.
+    if (!weapon || !enemy) return;
+    triggerItemQualifiers(weapon, qualifierTarget(weapon.category) || 'weapon', enemy, gameState._lastPlayerDamage || 0);
 }
 
-// Mécaniques d'armure qui ont un vrai effet de combat, symétrique de IMPLEMENTED_WEAPON_MECHANICS.
-// Avant ceci, un enchantement roulé sur une armure (autre que "Silencieux") ne servait à RIEN :
-// seule l'arme équipée déclenchait applyWeaponMechanic(). Une armure Légendaire pouvait donc
-// gâcher 2-3 de ses slots. Chaque mécanique retombe désormais sur l'ATTAQUANT (saignement,
-// étourdissement, poison, ralentissement, éblouissement, drain, corrosion, terreur — une punition
-// réactive) ou soigne/galvanise le PORTEUR (Régénérant, Vampirique, Galvanisant).
-const IMPLEMENTED_ARMOR_MECHANICS = ['bleed', 'stun', 'poison', 'slow', 'light', 'heal', 'lifesteal', 'drain', 'corrode', 'fear', 'adrenaline'];
-
-// Résout l'effet concret d'une mécanique d'armure sur l'attaquant (ou le porteur pour heal/lifesteal/
-// adrenaline). Séparé de applyArmorMechanic() pour que "random" (Chaotique) puisse réutiliser cette
-// logique après avoir tiré une mécanique au hasard, sans dupliquer le switch (voir resolveWeaponMechanicEffect,
-// son équivalent côté arme).
-function resolveArmorMechanicEffect(mechanicName, armor, attacker, incomingDamage) {
-    switch (mechanicName) {
-        case 'bleed':
-            attacker.status.bleed = { rounds: 3, dmgPerRound: Math.max(2, Math.round((armor.baseArmor || 5) * 0.3)) };
-            logEvent(`🩸 Les pointes de votre armure entaillent [${attacker.name}] !`, "danger");
-            break;
-        case 'stun':
-            attacker.status.stunned = true;
-            logEvent(`💫 Le choc en retour étourdit [${attacker.name}] !`, "danger");
-            break;
-        case 'poison':
-            attacker.status.bleed = { rounds: 5, dmgPerRound: Math.max(1, Math.round((armor.baseArmor || 5) * 0.15)) };
-            logEvent(`☢️ Votre armure empoisonne [${attacker.name}] au contact !`, "danger");
-            break;
-        case 'slow':
-            attacker.status.slowed = { rounds: 2 };
-            logEvent(`🐌 [${attacker.name}] est ralenti en vous frappant !`, "danger");
-            break;
-        case 'light':
-            attacker.status.blinded = { rounds: 2 };
-            logEvent(`✨ Un éclat de votre armure éblouit [${attacker.name}] !`, "danger");
-            break;
-        case 'heal': {
-            const healAmount = Math.max(3, Math.round((armor.baseArmor || 5) * 0.4));
-            const actualHeal = applyPlayerHeal(healAmount);
-            logEvent(`💚 Votre armure régénère vos blessures (+${actualHeal} PV).`, "success");
-            break;
-        }
-        case 'lifesteal': {
-            const stolen = Math.max(2, Math.round((incomingDamage || 0) * 0.3));
-            const actualHeal = applyPlayerHeal(stolen);
-            logEvent(`🧛 Votre armure vampirique siphonne ${actualHeal} PV sur le coup encaissé.`, "success");
-            break;
-        }
-        case 'drain':
-            attacker.atk = Math.max(1, Math.round(attacker.atk * 0.85));
-            logEvent(`🌀 Votre armure draine l'énergie de [${attacker.name}], qui semble affaibli.`, "info");
-            break;
-        case 'corrode':
-            attacker.status.corroded = { rounds: 3 };
-            logEvent(`🧪 Le contact avec votre armure corrode celle de [${attacker.name}] !`, "danger");
-            break;
-        case 'fear':
-            attacker.status.feared = { rounds: 3 };
-            logEvent(`😱 [${attacker.name}] recule, terrifié par votre armure !`, "danger");
-            break;
-        case 'adrenaline':
-            gameState.status.adrenaline = { rounds: 2, mult: 1.35 };
-            logEvent("💉 Encaisser ce coup vous galvanise ! (dégâts boostés)", "success");
-            break;
-    }
-}
-
-// Applique la/les mécanique(s) spéciale(s) de l'armure équipée, à chaque coup encaissé (symétrique
-// de applyWeaponMechanic(), déclenchée par resolveEnemyCounterAttack() plutôt que par une attaque
-// du joueur). Chaque enchantement a sa propre chance de se déclencher, indépendamment des autres.
+// Qualificatifs de l'armure portée, à chaque coup encaissé (appelée après la riposte d'un mob, et après
+// chaque frappe d'un boss). Épineux renvoie une part des dégâts sans jamais achever l'attaquant : la
+// mort d'un mob se résout toujours sur une action du joueur ou un effet sur la durée.
 function applyArmorMechanic(attacker, incomingDamage) {
     const armor = gameState.equipment.armor;
-    if (!armor || !armor.mechanics || armor.mechanics.length === 0 || !attacker) return;
+    if (!armor || !attacker || gameState.hp <= 0) return;
+    const thorns = getItemQualifierValues(armor, 'thorns', 'armor');
+    if (thorns && incomingDamage > 0 && attacker.hp > 1) {
+        const reflected = Math.min(attacker.hp - 1, Math.max(1, Math.round(incomingDamage * thorns.pct / 100)));
+        attacker.hp -= reflected;
+        logEvent(`🌵 Votre armure épineuse renvoie ${reflected} dégâts à [${attacker.name}].`, "info");
+    }
+    triggerItemQualifiers(armor, 'armor', attacker, incomingDamage);
+}
 
-    const triggerChance = 30; // Même taux que applyWeaponMechanic(), par cohérence
-    armor.mechanics.forEach(mechanic => {
-        if (Math.random() * 100 >= triggerChance) return;
+// Ténébreux (armure) : chance d'esquiver complètement une attaque ennemie.
+function rollPlayerDodge(enemy) {
+    const values = getItemQualifierValues(gameState.equipment.armor, 'darkness', 'armor');
+    if (!values || Math.random() * 100 >= values.chance) return false;
+    logEvent(`🌑 Vous vous fondez dans l'ombre et esquivez l'attaque de [${enemy.name}] !`, "success");
+    return true;
+}
 
-        if (mechanic === 'random') {
-            const picked = IMPLEMENTED_ARMOR_MECHANICS[Math.floor(Math.random() * IMPLEMENTED_ARMOR_MECHANICS.length)];
-            resolveArmorMechanicEffect(picked, armor, attacker, incomingDamage);
-        } else if (IMPLEMENTED_ARMOR_MECHANICS.includes(mechanic)) {
-            resolveArmorMechanicEffect(mechanic, armor, attacker, incomingDamage);
-        }
-        // "stealth" (Silencieux) reste géré à part (détection, avant combat) ; "pleasure_or_pain",
-        // "aoe" et "darkness" restent cosmétiques, comme sur les armes (voir IMPLEMENTED_WEAPON_MECHANICS).
-    });
+// Ralenti (Gelé) et apeuré (Terrifiant) réduisent les dégâts de l'ennemi ; chaque état perd un tour à
+// chaque riposte. Commun aux mobs et aux boss (voir performBossCounterAttack()).
+function consumeEnemyAttackDebuffs(enemy) {
+    let mult = 1;
+    let note = "";
+    const status = enemy.status || {};
+    if (status.slowed && status.slowed.rounds > 0) {
+        mult *= 0.5;
+        note += " (ralenti)";
+        status.slowed.rounds -= 1;
+        if (status.slowed.rounds <= 0) status.slowed = null;
+    }
+    if (status.feared && status.feared.rounds > 0) {
+        mult *= 0.65;
+        note += " (apeuré)";
+        status.feared.rounds -= 1;
+        if (status.feared.rounds <= 0) status.feared = null;
+    }
+    return { mult, note };
+}
+
+// Coût en mana effectif d'un sort (Économe le réduit).
+function getSpellManaCost(spell) {
+    if (!spell) return 0;
+    const thrifty = getItemQualifierValues(spell, 'thrifty', 'spell');
+    return thrifty ? Math.max(1, Math.round(spell.manaCost * (1 - thrifty.pct / 100))) : spell.manaCost;
 }
 
 // Tente d'appliquer un effet de statut au joueur selon le trait élémentaire du monstre
@@ -5457,6 +6232,12 @@ function applyMobEffectOnPlayer(enemy) {
     if (!enemy.effect) return;
     const triggerChance = 25; // 25% de chance que le trait élémentaire du monstre fasse effet
     if (Math.random() * 100 >= triggerChance) return;
+    // Tenace (qualificatif d'armure) : chance de résister à l'effet qui allait s'appliquer.
+    const tenacious = getItemQualifierValues(gameState.equipment.armor, 'tenacious', 'armor');
+    if (tenacious && Math.random() * 100 < tenacious.chance) {
+        logEvent(`🛡️ Tenace, vous résistez à l'effet de [${enemy.name}].`, "success");
+        return;
+    }
 
     switch (enemy.effect) {
         case 'burn':
@@ -5624,6 +6405,10 @@ function getBossPhase(enemy) {
 // résumé après la rafale plutôt que N lignes quasi identiques. Renvoie toujours playerDamage, silent
 // ou non, pour que ce résumé puisse être construit à partir des montants réellement encaissés.
 function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = false, silent = false) {
+    // Ténébreux (armure) : chaque frappe peut être esquivée à part entière.
+    if (rollPlayerDodge(enemy)) return 0;
+    // Gelé/Terrifiant : réduction posée pour tout le tour par performBossCounterAttack().
+    if (enemy._debuffAtkMult && enemy._debuffAtkMult !== 1) atk = Math.max(1, Math.round(atk * enemy._debuffAtkMult));
     const pressureFloor = pressureFloorOverride !== undefined
         ? pressureFloorOverride
         : gameState.maxHp * config.mobDamageScaling.pressureFloorFrac;
@@ -5631,18 +6416,10 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
         pressureFloor,
         minMitigation: config.mobDamageScaling.minMitigation
     });
-    let playerDamage = dmg;
-    let companionAbsorbNote = "";
-    if (gameState.companion && gameState.companion.specialty.type === 'guard' && gameState.companion.hp > 0) {
-        const interceptChance = 40;
-        if (Math.random() * 100 < interceptChance) {
-            const absorbPct = 0.3 + Math.random() * 0.3;
-            const absorbed = Math.min(gameState.companion.hp, Math.round(dmg * absorbPct));
-            playerDamage = dmg - absorbed;
-            gameState.companion.hp -= absorbed;
-            companionAbsorbNote = ` (${gameState.companion.name} encaisse ${absorbed} dégâts à votre place)`;
-        }
-    }
+    // Interception par le compagnon (Garde souvent, les autres parfois) — voir companionInterceptHit()
+    const intercept = companionInterceptHit(dmg);
+    const playerDamage = intercept.playerDamage;
+    const companionAbsorbNote = intercept.note;
     const hpBefore = gameState.hp;
     applyPlayerDamage(playerDamage);
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
@@ -5653,10 +6430,8 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
         if (heavy) triggerHeavyImpact(); // Chantier 4 : même flag, mêmes 3 occasions — voir triggerHeavyImpact()
     });
     if (!silent) logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
-    if (gameState.companion && gameState.companion.hp <= 0) {
-        logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
-        gameState.companion = null;
-    }
+    checkCompanionDowned(); // À 0 PV : à terre jusqu'au prochain repos ou soin (plus de perte définitive)
+    applyArmorMechanic(enemy, playerDamage); // Qualificatifs d'armure : aussi contre un boss (rien si le joueur est tombé)
     return playerDamage;
 }
 
@@ -5675,7 +6450,10 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
 function performBossCounterAttack(enemy, onDone) {
     const wasEnraged = !!(enemy.status && enemy.status.enraged && enemy.status.enraged.rounds > 0);
     const dmgBefore = gameState.floorStats.damageTaken;
+    // Gelé/Terrifiant (qualificatifs) : réduisent aussi les frappes d'un boss, pour tout ce tour.
+    enemy._debuffAtkMult = consumeEnemyAttackDebuffs(enemy).mult;
     performBossCounterAttackInner(enemy, () => {
+        enemy._debuffAtkMult = 1;
         if (wasEnraged && enemy.status.enraged) {
             if (gameState.floorStats.damageTaken > dmgBefore) {
                 endMobEnrage(enemy);
@@ -5888,6 +6666,19 @@ function resolveEnemyCounterAttack(onDone) {
         return;
     }
 
+    // Déconcentré (qualificatif Vibrant) : chance de rater complètement sa riposte, le temps que l'effet dure.
+    if (enemy.status && enemy.status.distracted && enemy.status.distracted.rounds > 0) {
+        const distracted = enemy.status.distracted;
+        distracted.rounds -= 1;
+        if (distracted.rounds <= 0) enemy.status.distracted = null;
+        if (Math.random() * 100 < distracted.miss) {
+            logEvent(`😬 [${enemy.name}], déconcentré, frappe complètement à côté !`, "info");
+            showDie(ui.combatEnemyDie, "😬");
+            if (onDone) onDone();
+            return;
+        }
+    }
+
     // Compteur de kiting (Chantier 3) : atteindre ce point signifie que le mob RÉUSSIT à agir ce
     // tour-ci (quel que soit le chemin emprunté pour y arriver, boss ou non) — remise à sa base.
     resetMobKiting(enemy);
@@ -5914,21 +6705,14 @@ function resolveNonBossCounterAttack(enemy) {
 
     // Ennemi ralenti (arme "Gelé") ou apeuré (arme "Intimidant") : sa riposte inflige moins de dégâts.
     // Les deux réductions se cumulent si l'ennemi subit les deux effets à la fois.
-    let enemyAtk = enemy.atk;
-    let enemySlowedNote = "";
-    const enemyWasSlowed = enemy.status && enemy.status.slowed && enemy.status.slowed.rounds > 0;
-    if (enemyWasSlowed) {
-        enemyAtk = Math.round(enemyAtk * 0.5);
-        enemySlowedNote = " (ralenti)";
-        enemy.status.slowed.rounds -= 1;
-        if (enemy.status.slowed.rounds <= 0) enemy.status.slowed = null;
-    }
-    const enemyWasFeared = enemy.status && enemy.status.feared && enemy.status.feared.rounds > 0;
-    if (enemyWasFeared) {
-        enemyAtk = Math.round(enemyAtk * 0.65);
-        enemySlowedNote += " (apeuré)";
-        enemy.status.feared.rounds -= 1;
-        if (enemy.status.feared.rounds <= 0) enemy.status.feared = null;
+    const debuffs = consumeEnemyAttackDebuffs(enemy);
+    let enemyAtk = debuffs.mult !== 1 ? Math.round(enemy.atk * debuffs.mult) : enemy.atk;
+    const enemySlowedNote = debuffs.note;
+
+    // Ténébreux (armure) : l'attaque entière peut être esquivée.
+    if (rollPlayerDodge(enemy)) {
+        showDie(ui.combatEnemyDie, "🌑");
+        return;
     }
 
     // Élites (voir isEliteMob()) : multiplicateur de dégâts dédié, EN PLUS du scaling par étage et
@@ -5958,21 +6742,12 @@ function resolveNonBossCounterAttack(enemy) {
         minMitigation: config.mobDamageScaling.minMitigation
     });
 
-    // Compagnon "Garde rapprochée" : jet de dé pour déterminer s'il s'interpose et encaisse une
-    // partie du coup à la place du joueur (en plus de son bonus passif de DEF, voir getEffectiveDef).
-    // S'il tombe à 0 PV ce faisant, il est mis hors combat et quitte le groupe.
-    let playerDamage = enemyDamage;
-    let companionAbsorbNote = "";
-    if (gameState.companion && gameState.companion.specialty.type === 'guard' && gameState.companion.hp > 0) {
-        const interceptChance = 40; // 40% de chance de s'interposer sur ce coup
-        if (Math.random() * 100 < interceptChance) {
-            const absorbPct = 0.3 + Math.random() * 0.3; // 30% à 60% des dégâts du coup
-            const absorbed = Math.min(gameState.companion.hp, Math.round(enemyDamage * absorbPct));
-            playerDamage = enemyDamage - absorbed;
-            gameState.companion.hp -= absorbed;
-            companionAbsorbNote = ` (${gameState.companion.name} encaisse ${absorbed} dégâts à votre place)`;
-        }
-    }
+    // Compagnon : la Garde s'interpose souvent, les autres sont parfois pris dans la mêlée (en plus du
+    // bonus passif de DEF de la Garde, voir getEffectiveDef()) — voir companionInterceptHit().
+    const guardWasActive = hasActiveCompanion('guard');
+    const intercept = companionInterceptHit(enemyDamage);
+    const playerDamage = intercept.playerDamage;
+    const companionAbsorbNote = intercept.note;
 
     const hpBefore = gameState.hp;
     applyPlayerDamage(playerDamage);
@@ -5980,18 +6755,15 @@ function resolveNonBossCounterAttack(enemy) {
     playMobAttackFx(enemy, { heldPlayerHp: hpBefore }, () => {
         showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
     });
-    const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
+    const guardNote = guardWasActive
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
         : "";
     // Note d'état déplacée après les dégâts plutôt qu'entre le nom et "vous inflige" (chantier
     // "lisibilité combat", Chantier 8) : lecture plus naturelle, aucune info retirée.
     logEvent(`[${enemy.name}] vous inflige ${playerDamage} dégâts${enemySlowedNote}${wasBlinded ? " (vous étiez ébloui)" : ""}${wasCorroded ? " (armure corrodée)" : ""}${guardNote}${companionAbsorbNote}.`, "danger");
 
-    // Le compagnon tombe s'il vient d'encaisser le coup de trop : il quitte le groupe.
-    if (gameState.companion && gameState.companion.hp <= 0) {
-        logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
-        gameState.companion = null;
-    }
+    // Le compagnon tombe s'il vient d'encaisser le coup de trop : à terre jusqu'au prochain repos ou soin.
+    checkCompanionDowned();
 
     // L'éblouissement et la corrosion se dissipent d'un round à chaque riposte encaissée
     if (wasBlinded) {
@@ -6015,18 +6787,8 @@ function resolveNonBossCounterAttack(enemy) {
         return;
     }
 
-    // Compagnon "Premiers secours" : chance de soigner le joueur après la riposte ennemie, et de lui
-    // restaurer un peu de mana au passage si un sort est équipé.
-    if (gameState.companion && gameState.companion.specialty.type === 'medic' && Math.random() * 100 < 25) {
-        const heal = 8 + Math.floor(Math.random() * 8); // 8 à 15 PV
-        const actualHeal = applyPlayerHeal(heal);
-        logEvent(`${gameState.companion.name} vous soigne rapidement ! (+${actualHeal} PV)`, "success");
-        if (gameState.equipment.spell && gameState.mana < gameState.maxMana) {
-            const manaGain = 6 + Math.floor(Math.random() * 6); // 6 à 11 Mana
-            gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaGain);
-            logEvent(`${gameState.companion.name} restaure aussi un peu de votre mana ! (+${manaGain} Mana)`, "success");
-        }
-    }
+    // Compagnon "Premiers secours" : chance de soigner le joueur après la riposte ennemie (et un peu de mana)
+    companionMedicAfterRiposte();
 
     applyMobEffectOnPlayer(enemy);
     applyArmorMechanic(enemy, playerDamage);
@@ -6072,7 +6834,7 @@ function attackWeapon() {
     const weaponBonus = equippedGear ? (equippedGear.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
 
-    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0 }, "à l'arme");
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0, gear: equippedGear }, "à l'arme");
     if (landed) {
         gainSkillXp('weapon', SKILL_XP_PER_USE);
         applyWeaponMechanic(equippedGear); // Ne fait rien si le combat vient de se terminer ou si l'arme n'a pas de mécanique
@@ -6109,7 +6871,7 @@ function attackRanged() {
     const weaponBonus = equippedGear ? (equippedGear.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
 
-    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0 }, "à distance");
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0, gear: equippedGear }, "à distance");
     if (landed) {
         gainSkillXp('weapon', SKILL_XP_PER_USE);
         applyWeaponMechanic(equippedGear);
@@ -6151,7 +6913,7 @@ function attemptSprint() {
 
     const cfg = config.rangedCombat;
     gameState.timeLeft = Math.max(0, gameState.timeLeft - cfg.timeCostPerRound); // Manche contestée (voir resolveDistanceRound())
-    const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor);
+    const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor) + sumEquippedQualifier('swift', 'bonus'); // Véloce
     const rollOnce = () => 1 + Math.floor(Math.random() * cfg.dieSides) + levelBonus;
     const playerRoll = Math.max(rollOnce(), rollOnce()); // Avantage : deux dés, le meilleur gardé
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
@@ -6190,7 +6952,7 @@ function attemptRetreat() {
 
     const cfg = config.rangedCombat;
     gameState.timeLeft = Math.max(0, gameState.timeLeft - cfg.timeCostPerRound); // Manche contestée (voir resolveDistanceRound())
-    const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor);
+    const levelBonus = Math.floor(gameState.level / cfg.levelAdvantageDivisor) + sumEquippedQualifier('swift', 'bonus'); // Véloce
     const rollOnce = () => 1 + Math.floor(Math.random() * cfg.dieSides) + levelBonus;
     const playerRoll = Math.max(rollOnce(), rollOnce()); // Avantage : deux dés, le meilleur gardé
     const mobRoll = 1 + Math.floor(Math.random() * cfg.dieSides);
@@ -6245,7 +7007,7 @@ function attemptEngage() {
     const effectiveAtk = gameState.atk + weaponBonus;
     const defReduction = weapon ? 0 : 0.35; // Pas d'arme équipée : mêmes mains nues qu'attackUnarmed()
     const label = weapon ? "en chargeant à l'arme" : "en chargeant à mains nues";
-    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier: config.engageAction.atkMultiplier, defReduction }, label);
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier: config.engageAction.atkMultiplier, defReduction, gear: weapon }, label);
     if (landed) {
         gainSkillXp(weapon ? 'weapon' : 'unarmed', SKILL_XP_PER_USE);
         if (weapon) applyWeaponMechanic(weapon);
@@ -6274,14 +7036,15 @@ function attackMagic() {
         logEvent(`Trop près pour lancer [${spell.spellName}] — éloignez-vous !`, "danger");
         return;
     }
-    if (gameState.mana < spell.manaCost) {
-        logEvent(`Mana insuffisant pour lancer [${spell.spellName}] (${spell.manaCost} requis).`, "danger");
+    const manaCost = getSpellManaCost(spell); // Économe (qualificatif de sort) le réduit
+    if (gameState.mana < manaCost) {
+        logEvent(`Mana insuffisant pour lancer [${spell.spellName}] (${manaCost} requis).`, "danger");
         return;
     }
     if (!tryPlayerAction()) return;
     gameState.lastAttackKind = 'magic'; // Posture du crawler (scene.js) : paume ouverte, lueur du sort
 
-    gameState.mana -= spell.manaCost;
+    gameState.mana -= manaCost;
 
     const skill = gameState.skills.magic;
     // Chantier "QoL/équilibrage" (Chantier C, voir NOTES_QOL_EQUILIBRAGE.md) : le mana paie la
@@ -6291,7 +7054,12 @@ function attackMagic() {
     // Le backfire reste le prix du chaos, et devient PLUS punitif à haut niveau qu'avant (plancher
     // abaissé) pour continuer à justifier ce risque une fois la compétence Magie montée.
     const mb = config.magicBalance;
-    const backfireChance = Math.max(mb.backfireMin, mb.backfireBase + mb.backfirePerLevel * (skill.level - 1)) + (gameState.anomalyEffects.backfireBonusPct || 0);
+    let backfireChance = Math.max(mb.backfireMin, mb.backfireBase + mb.backfirePerLevel * (skill.level - 1)) + (gameState.anomalyEffects.backfireBonusPct || 0);
+    // Qualificatifs de sort : Canalisé réduit le risque d'échec (jamais sous 1 %), Bredouillant l'augmente.
+    const channeled = getItemQualifierValues(spell, 'channeled', 'spell');
+    if (channeled) backfireChance = Math.max(1, backfireChance - channeled.bonus);
+    const stutter = getItemQualifierValues(spell, 'stutter', 'spell');
+    if (stutter) backfireChance += stutter.bonus;
     const atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
 
     if (Math.random() * 100 < backfireChance) {
@@ -6307,10 +7075,13 @@ function attackMagic() {
     const effectiveAtk = gameState.atk + (spell.baseDmg || 0);
     const used = performPlayerAttack(
         effectiveAtk,
-        { atkMultiplier, varianceRange: 0.35, defReduction: 0.15 }, // Les sorts ignorent un peu de DEF (thématique), pas toute
+        { atkMultiplier, varianceRange: 0.35, defReduction: 0.15, gear: spell, gearTarget: 'spell' }, // Les sorts ignorent un peu de DEF (thématique), pas toute
         `avec [${spell.spellName}]`
     );
-    if (used) gainSkillXp('magic', SKILL_XP_PER_USE);
+    if (used) {
+        gainSkillXp('magic', SKILL_XP_PER_USE);
+        applyWeaponMechanic(spell); // Qualificatifs du sort (brûlure, poison, gel, vol de vie…)
+    }
 }
 
 // Tentative de fuite : quitte le combat sans le gagner ni obtenir de loot/XP.
@@ -6324,12 +7095,13 @@ function attemptFlee() {
         return;
     }
     let fleeChance = 60; // 60% de réussite de base (pourra dépendre de compétences/stats plus tard)
-    if (gameState.companion && gameState.companion.specialty.type === 'scout') {
-        fleeChance += 15; // Compagnon "Éclaireur" : facilite la fuite
+    const scoutHelps = hasActiveCompanion('scout');
+    if (scoutHelps) {
+        fleeChance += config.companions.scout.fleeBonus; // Compagnon "Éclaireur" : facilite la fuite
     }
 
     if (Math.random() * 100 < fleeChance) {
-        const scoutNote = (gameState.companion && gameState.companion.specialty.type === 'scout')
+        const scoutNote = scoutHelps
             ? ` (${gameState.companion.name} vous a montré une ouverture)`
             : "";
         gameState.currentEnemy = null;
@@ -6341,6 +7113,7 @@ function attemptFlee() {
         gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
         setSceneHeader('🏃', 'Fuite Réussie', 'Exploration', 'fled');
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
+        changeCompanionLoyalty(config.companions.loyalty.flee); // Fuir n'inspire pas confiance à votre compagnon
         if (gameState.pendingTravel) {
             logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
             gameState.pendingTravel = null;
@@ -6383,27 +7156,30 @@ function winCombat() {
     const xpGained = (defeatedEnemy && defeatedEnemy.xpReward) || 10;
     gainXp(xpGained);
 
-    // Le compagnon actif progresse aussi (fait grimper son risque de départ — voir gainCompanionXp)
-    if (gameState.companion) {
-        gainCompanionXp(15);
-    }
+    // Le compagnon progresse aussi, gagne en loyauté, et le Premiers secours panse vos plaies
+    onCompanionVictory();
 
-    // Butin : garanti pour un boss (avec une chance de second objet), sinon la chance standard.
-    // La rareté du loot est pondérée par la puissance du monstre vaincu (voir getLootPowerScore).
-    // Chantier "rework combat" (Chantier 2) : le loot d'un boss est en plus garanti au moins
-    // config.bossRewards.minRarityKey, et un objet signature UNIQUE à ce boss tombe systématiquement
-    // (voir awardBossSignatureItem()/bestiary.js).
-    const lootPower = getLootPowerScore(defeatedEnemy);
+    // Butin (chantier "refonte des objets", voir itemBalance dans items.js) : la rareté dépend de
+    // l'étage, plus de la puissance du monstre. Un boss garantit un objet (un palier au-dessus, au
+    // moins Rare) avec une chance d'un second, plus son objet signature (voir
+    // awardBossSignatureItem()) ; le boss d'un repaire lâche un butin d'un niveau d'objet au-dessus.
+    // Un mob normal a 40 % de chance de lâcher un objet, un élite une chance de monter d'un palier.
     if (wasBoss) {
-        addLoot(lootPower, { minRarityKey: config.bossRewards.minRarityKey });
-        if (Math.random() * 100 < 50) addLoot(lootPower, { minRarityKey: config.bossRewards.minRarityKey }); // 50% de chance d'un deuxième objet
-        awardBossSignatureItem(defeatedEnemy);
+        const isLairBoss = !!(gameState.pendingLairDive && gameState.pendingLairDive.stage === 'boss');
+        const itemLevel = gameState.currentFloor + (isLairBoss ? itemBalance.lairBossLevelBonus : 0);
+        addLoot({ source: 'boss', itemLevel });
+        if (Math.random() * 100 < itemBalance.boss.secondItemChance) addLoot({ source: 'boss', itemLevel });
+        awardBossSignatureItem(defeatedEnemy, itemLevel);
     } else if (Math.random() * 100 < 40) { // 40% de chance de loot post-combat
-        addLoot(lootPower);
+        addLoot({ source: defeatedEnemy && isEliteMob(defeatedEnemy) ? 'elite' : 'mob' });
     }
 
     // Si ce combat était une salle de boss du quartier (escalier ou non), la salle est désormais
     // calme : on la marque vaincue et on retire le lieu connu correspondant, s'il existait.
+    // Pièce / ville du gardien vaincu, gardées pour le choix d'escalier plus bas (ces deux champs sont
+    // remis à zéro juste en dessous).
+    const defeatedBossRoomId = gameState.pendingBossRoomId;
+    const defeatedUrbanBossCityId = gameState.pendingUrbanBossCityId;
     if (gameState.pendingBossRoomId) {
         const bossRoom = gameState.floorMap && gameState.floorMap.roomsById[gameState.pendingBossRoomId];
         if (bossRoom) bossRoom.defeated = true;
@@ -6467,7 +7243,7 @@ function winCombat() {
     if (gameState.pendingStairAfterCombat) {
         gameState.pendingStairAfterCombat = false;
         logEvent("La voie vers l'escalier est libre !", "success");
-        triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
+        offerStairsChoice({ kind: 'room', roomId: defeatedBossRoomId }); // offerStairsChoice() appelle déjà updateUI()
         return;
     }
     // Équivalent urbain : victoire sur le gardien de l'escalier (étage suivant) ou de la Sortie
@@ -6480,7 +7256,7 @@ function winCombat() {
             winGame(); // winGame() appelle déjà updateUI()
         } else {
             logEvent("La voie vers l'escalier est libre !", "success");
-            triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
+            offerStairsChoice({ kind: 'city', cityId: defeatedUrbanBossCityId }); // offerStairsChoice() appelle déjà updateUI()
         }
         return;
     }
@@ -6571,7 +7347,7 @@ function autoTravelToNearestFrontier() {
     const location = { id: 'frontier', type: 'frontier', roomId: frontierRoomId, label: 'Zone inexplorée la plus proche' };
     const distance = computeDistance(gameState.floorMap.currentRoomId, frontierRoomId);
     const timeCost = Math.max(1, Math.round(distance / 2));
-    const ambushBaseChance = Math.min(80, distance * 9);
+    const ambushBaseChance = computeAmbushBaseChance(distance); // Compagnon Garde : moins d'embuscades
     let ambushCount = 0;
     if (Math.random() * 100 < ambushBaseChance) {
         ambushCount = 1;
@@ -6615,11 +7391,10 @@ function explore() {
 // ==========================================
 // ÉCRAN DE DÉPART ET CADEAU DE BIENVENUE
 // ==========================================
-// Poids du cadeau de bienvenue (#start-screen-overlay -> #gift-reveal-overlay) : Arme > Rien > Tir >
-// Magie, comme demandé. Valeurs de départ, ajustables par playtest comme le reste de l'équilibrage
-// du jeu (voir generateWelcomeGiftItem() dans generator.js : toujours au palier Commun, quel que
-// soit le type tiré ici).
-const WELCOME_GIFT_WEIGHTS = { weapon: 40, nothing: 30, ranged: 20, spell: 10 };
+// Poids du cadeau de bienvenue (#start-screen-overlay -> #gift-reveal-overlay) : on repart presque
+// toujours avec QUELQUE CHOSE (« Rien » n'est plus qu'une mauvaise blague à 5 %), mais toujours de la
+// Camelote (voir generateWelcomeGiftItem() dans generator.js) : le premier vrai équipement se gagne.
+const WELCOME_GIFT_WEIGHTS = { weapon: 38, ranged: 25, armor: 17, spell: 15, nothing: 5 };
 
 function rollWelcomeGiftType() {
     const total = Object.values(WELCOME_GIFT_WEIGHTS).reduce((sum, w) => sum + w, 0);
@@ -6666,14 +7441,17 @@ function revealWelcomeGift() {
 
     if (type === 'weapon') gameState.equipment.weapon = item;
     else if (type === 'ranged') gameState.equipment.ranged = item;
-    else if (type === 'spell') {
+    else if (type === 'armor') {
+        gameState.equipment.armor = item;
+        recomputeMaxHp();
+    } else if (type === 'spell') {
         gameState.equipment.spell = item;
         gameState.mana = gameState.maxMana;
     }
 
     if (ui.giftRevealTitle) {
-        const labels = { weapon: "Une arme", ranged: "Une arme à distance", spell: "Un parchemin de sort", nothing: "Rien du tout" };
-        const icons = { weapon: '⚔️', ranged: '🏹', spell: '📜', nothing: '🎁' };
+        const labels = { weapon: "Une arme", ranged: "Une arme à distance", armor: "Une armure", spell: "Un parchemin de sort", nothing: "Rien du tout" };
+        const icons = { weapon: '⚔️', ranged: '🏹', armor: '🛡️', spell: '📜', nothing: '🎁' };
         ui.giftRevealIcon.innerText = icons[type];
         ui.giftRevealTitle.innerText = labels[type];
         ui.giftRevealItemName.innerText = item ? formatItemDisplayName(item) : "";
@@ -6724,7 +7502,10 @@ function devJumpToUrbanFloor() {
     gameState.pendingUrbanTravel = null;
     gameState.floorTransitionPending = false;
     gameState.pactChoicePending = false;
+    gameState.stairsChoicePending = false;
+    gameState.pendingStairsChoice = null;
     ui.combatZone.classList.add('hidden');
+    if (ui.stairsChoiceZone) ui.stairsChoiceZone.classList.add('hidden');
     ui.bossChoiceZone.classList.add('hidden');
     ui.stealthChoiceZone.classList.add('hidden');
     ui.companionChoiceFriendly.classList.add('hidden');
@@ -6845,6 +7626,16 @@ ui.btnStartConfirm.addEventListener('click', confirmPlayerName);
 ui.startNameInput.addEventListener('keydown', (e) => { if (e && e.key === 'Enter') confirmPlayerName(); });
 ui.btnGiftContinue.addEventListener('click', dismissGiftReveal);
 
+// Inspection d'un objet : toucher le fond referme ; toucher un objet porté l'inspecte.
+if (ui.itemInspectOverlay) {
+    ui.itemInspectOverlay.addEventListener('click', (e) => { if (e && e.target === ui.itemInspectOverlay) closeItemInspect(); });
+}
+[['equippedWeapon', 'weapon'], ['equippedRanged', 'ranged'], ['equippedArmor', 'armor'], ['equippedSpell', 'spell']].forEach(([uiKey, slot]) => {
+    if (!ui[uiKey]) return;
+    ui[uiKey].classList.add('cursor-pointer');
+    ui[uiKey].addEventListener('click', () => inspectEquippedSlot(slot));
+});
+
 // Écran "Nettoyer les sauvegardes" (voir openManageSaves() dans app.js)
 if (ui.btnOpenManageSaves) ui.btnOpenManageSaves.addEventListener('click', openManageSaves);
 if (ui.btnManageSavesClose) ui.btnManageSavesClose.addEventListener('click', closeManageSaves);
@@ -6884,9 +7675,12 @@ document.addEventListener('keydown', (e) => {
 // Clics sur les boutons de choix de boss (Combattre / Repérer et partir)
 ui.btnFightBoss.addEventListener('click', fightBossNow);
 ui.btnRetreatBoss.addEventListener('click', retreatFromBoss);
+ui.btnDescendStairs.addEventListener('click', descendStairs);
+ui.btnStayOnFloor.addEventListener('click', stayOnFloor);
 
 // Clics sur les boutons de choix de salle sécurisée (Repos / Repartir)
-ui.btnRestSafehouse.addEventListener('click', restAtSafehouse);
+ui.btnNapSafehouse.addEventListener('click', () => restAtSafehouse('nap'));
+ui.btnSleepSafehouse.addEventListener('click', () => restAtSafehouse('sleep'));
 ui.btnLeaveSafehouse.addEventListener('click', leaveSafehouse);
 
 // Clics sur les boutons de choix de furtivité (Esquiver / Attaque Furtive)
@@ -6899,6 +7693,7 @@ ui.btnDeclineCompanion.addEventListener('click', declineCompanion);
 ui.btnFleeCompanion.addEventListener('click', fleeCompanionEncounter);
 ui.btnRecruitHostile.addEventListener('click', recruitCompanion);
 ui.btnAttackCompanion.addEventListener('click', attackCompanionEncounter);
+ui.companionStatusBar.addEventListener('click', openCompanionSheet);
 
 // Clics sur l'écran marchand/professeur (ville spécialisée)
 ui.btnTrainSkill.addEventListener('click', trainSkill);

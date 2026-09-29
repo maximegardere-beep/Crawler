@@ -12,9 +12,9 @@ let failures = 0;
 function assert(cond, msg) { if (!cond) { failures++; console.error("FAIL:", msg); } }
 
 let steps = 0, floorsCleared = 0, combatsWon = 0, bossesEncountered = 0;
-let stealthEncounters = 0, companionEncounters = 0, eliteMobsSeen = 0, armorMechanicProcs = 0;
+let stealthEncounters = 0, companionEncounters = 0, companionGifts = 0, eliteMobsSeen = 0, armorMechanicProcs = 0;
 let urbanFloorsSeen = 0, cityTravels = 0, winTriggered = false;
-let shopEncounters = 0, lairEncounters = 0, floorTransitionsSeen = 0, pactChoicesSeen = 0, safehouseEncounters = 0;
+let shopEncounters = 0, lairEncounters = 0, floorTransitionsSeen = 0, pactChoicesSeen = 0, safehouseEncounters = 0, stairsChoices = 0;
 const seenErrors = [];
 
 gameState.equipment.armor = { name: "Plastron d'Essai", baseArmor: 12, category: 'armors', mechanics: ['bleed', 'heal', 'adrenaline', 'stealth'] };
@@ -36,11 +36,18 @@ try {
             bossesEncountered++;
             if (gameState.currentEnemy && isEliteMob(gameState.currentEnemy)) eliteMobsSeen++;
             fightBossNow();
+        } else if (gameState.stairsChoicePending) {
+            // Escalier libre (voir offerStairsChoice()) : la simulation descend toujours.
+            stairsChoices++;
+            descendStairs();
         } else if (gameState.safehouseChoicePending) {
-            // Salle sécurisée (voir enterRoom()) : alterne repos/repartir pour exercer les deux
+            // Salle sécurisée (voir enterRoom()) : alterne sieste/sommeil/partir pour exercer les trois
             // issues — sans cette branche, la simulation resterait bloquée dessus (isActionBlocked()).
+            // Un repos impossible (temps insuffisant) reste un no-op : on repart alors.
             safehouseEncounters++;
-            if (steps % 2 === 0) restAtSafehouse(); else leaveSafehouse();
+            const choice = steps % 3;
+            if (choice === 0) restAtSafehouse('nap'); else if (choice === 1) restAtSafehouse('sleep');
+            if (gameState.safehouseChoicePending) leaveSafehouse();
         } else if (gameState.stealthChoicePending) {
             stealthEncounters++;
             attemptStealthAttack();
@@ -49,6 +56,12 @@ try {
             const candidate = gameState.pendingCompanionCandidate;
             if (candidate && candidate.disposition === 'friendly') recruitCompanion();
             else attackCompanionEncounter();
+            // Rework des compagnons : exerce les dons (arme/armure de la réserve, sort du grimoire).
+            if (gameState.companion && !gameState.inCombat) {
+                const giftIndex = gameState.inventory.findIndex(i => i.category === 'weapons' || i.category === 'armors' || i.category === 'ranged');
+                if (giftIndex >= 0 && giveItemToCompanion(giftIndex)) companionGifts++;
+                if (gameState.spellbook.length > 0 && giveSpellToCompanion(0)) companionGifts++;
+            }
         } else if (gameState.shopChoicePending) {
             // Ville spécialisée (marchand/professeur, voir triggerShopEncounter()) : achète/forme si
             // possible, repart dans tous les cas — pas de round-trip infini sur l'écran boutique.
@@ -122,7 +135,10 @@ try {
         assert(gameState.combatDistance >= 0 && gameState.combatDistance <= config.rangedCombat.maxDistance, `combatDistance hors bornes à l'étape ${steps}`);
         assert(!Number.isNaN(gameState.mana) && gameState.mana >= 0 && gameState.mana <= gameState.maxMana, `mana hors bornes à l'étape ${steps}`);
         if (gameState.companion) {
-            assert(gameState.companion.leaveChance >= 0 && gameState.companion.leaveChance <= 100, `leaveChance hors bornes à l'étape ${steps}`);
+            const c = gameState.companion;
+            assert(c.loyalty >= 0 && c.loyalty <= 100, `loyauté du compagnon hors bornes à l'étape ${steps}`);
+            assert(!Number.isNaN(c.hp) && c.hp >= 0 && c.hp <= c.maxHp, `PV du compagnon hors bornes à l'étape ${steps}`);
+            assert(c.downed === (c.hp <= 0) || (c.downed && c.hp === 0), `état « à terre » incohérent à l'étape ${steps}`);
         }
         if (gameState.urbanMap) {
             const um = gameState.urbanMap;
@@ -158,19 +174,30 @@ try {
     seenErrors.push(err);
 }
 
-// Intégration compagnon : force un abandon via de VRAIS winCombat() répétés
+// Intégration compagnon (rework) : de VRAIS winCombat() répétés le font progresser SANS jamais le faire
+// partir ; seul un changement d'étage avec une loyauté basse peut le faire partir.
 try {
-    gameState.companion = { name: "Intégration Test", xp: 0, level: 1, xpToNext: 30, leaveChance: 0, specialty: { type: 'scout', label: 'Éclaireur' }, hp: 40, maxHp: 40 };
-    let combatsForCompanion = 0, abandoned = false;
-    while (combatsForCompanion < 60 && !abandoned) {
+    gameState.companion = generateCompanionCandidate(gameState.currentFloor || 1);
+    const startAtk = gameState.companion.atk;
+    for (let i = 0; i < 30; i++) {
         gameState.inCombat = true;
         gameState.currentEnemy = { name: "Cobaye Compagnon", hp: -9999, maxHp: 50, atk: 5, def: 2, xpReward: 15, status: {} };
         winCombat();
-        combatsForCompanion++;
-        if (!gameState.companion) abandoned = true;
     }
-    assert(abandoned, `Le compagnon doit finir par abandonner via de vrais winCombat() (${combatsForCompanion} combats)`);
-    assert(gameState.companionChoicePending !== true, "Aucun choix de compagnon ne doit rester bloqué après un abandon");
+    assert(gameState.companion !== null, "Le compagnon ne part jamais sur une série de victoires");
+    assert(gameState.companion.level > 1 && gameState.companion.atk > startAtk, "Le compagnon progresse (niveaux + stats) au fil des victoires");
+    assert(gameState.companion.loyalty === 100 || gameState.companion.loyalty > config.companions.loyalty.start, "Les victoires communes font monter la loyauté");
+    gameState.companion.loyalty = 0;
+    const floorBefore = gameState.currentFloor;
+    let floorsTried = 0;
+    while (gameState.companion && floorsTried < 20) {
+        gameState.currentFloor = 1;
+        advanceToNextFloor();
+        floorsTried++;
+    }
+    assert(gameState.companion === null, `Un compagnon à 0 de loyauté finit par partir au changement d'étage (${floorsTried} étages)`);
+    assert(gameState.companionChoicePending !== true, "Aucun choix de compagnon ne doit rester bloqué après un départ");
+    gameState.currentFloor = floorBefore;
 } catch (err) {
     seenErrors.push(err);
 }
@@ -227,7 +254,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon, ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");

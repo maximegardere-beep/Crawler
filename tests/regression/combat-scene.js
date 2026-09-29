@@ -568,7 +568,7 @@ function isRedHex(hex) {
     assert(resolveItemSpriteKey({ name: 'Truc Inconnu', category: 'ranged' }) === 'generic:ranged' && resolveItemSpriteKey({ name: 'Truc', category: 'armors' }) === 'generic:armors', "resolveItemSpriteKey() : objet sans dessin -> dessin générique de sa catégorie");
     delete ITEM_SPRITES['Objet de Test'];
     ['weapons', 'ranged', 'armors'].forEach(cat => {
-        const item = generateItem(5, cat);
+        const item = generateItem({ floor: 8, category: cat });
         assert(item.baseName && item.name.startsWith(item.baseName) && baseItems[cat].some(b => b.name === item.baseName), `generateItem('${cat}') : baseName = nom d'origine de l'objet`);
     });
     const broken = Object.keys(ITEM_SPRITES).filter(k => !['melee', 'ranged', 'armor'].includes(ITEM_SPRITES[k].kind) || /undefined|NaN/.test(ITEM_SPRITES[k].art));
@@ -663,7 +663,7 @@ function isRedHex(hex) {
     const badTip = Object.keys(ITEM_SPRITES).filter(k => !Array.isArray(ITEM_SPRITES[k].tip) || ITEM_SPRITES[k].tip.length !== 2);
     assert(badTip.length === 0, `Chaque sprite a son point d'enchantement (tip) (${badTip.join(', ')})`);
 
-    const generated = generateItem(5, 'ranged');
+    const generated = generateItem({ floor: 8, category: 'ranged', rarityKey: 'commun' });
     assert(resolveItemSpriteKey(generated) === generated.baseName && !resolveItemSpriteKey(generated).startsWith('generic:'), "Un objet généré retrouve son propre sprite par son nom d'origine");
 
     // Icônes d'inventaire
@@ -673,6 +673,18 @@ function isRedHex(hex) {
     const icon = itemIconSvg(enchanted, 32);
     assert(icon.includes(ENCHANT_COLORS.poison) && icon.includes(ENCHANT_COLORS.stun), "Icône : une pastille par enchantement, à sa couleur");
     assert(itemIconSvg({ name: 'Parchemin', category: 'scrolls' }) === '', "Parchemin : pas d'icône d'équipement");
+
+    // Fioles des consommables : rouge = PV, bleu = mana, moitié-moitié = les deux
+    const kinds = baseItems.consumables.map(c => consumableFlaskKind({ ...c, category: 'consumables' }));
+    assert(kinds.includes('heal') && kinds.includes('mana') && kinds.includes('mixed'), "Consommables : les trois types de fiole existent au catalogue");
+    assert(consumableFlaskKind({ heal: 0, mana: 45 }) === 'mana' && consumableFlaskKind({ heal: 10, mana: 25 }) === 'mixed'
+        && consumableFlaskKind({ heal: 25 }) === 'heal' && consumableFlaskKind({ heal: 0 }) === 'heal', "consumableFlaskKind : PV, mana, mixte, et 'heal' par défaut");
+    const flask = kind => itemIconSvg({ name: 'Fiole', category: 'consumables', heal: kind === 'mana' ? 0 : 20, mana: kind === 'heal' ? 0 : 20 }, 28);
+    assert(['heal', 'mana', 'mixed'].every(k => flask(k).startsWith('<svg') && !/undefined|NaN|id=/.test(flask(k))), "Chaque fiole est une icône valide, sans identifiant");
+    assert(flask('heal').includes(CONSUMABLE_FLASKS.heal.liquid) && !flask('heal').includes(CONSUMABLE_FLASKS.mana.liquid), "Fiole de PV : liquide rouge seulement");
+    assert(flask('mana').includes(CONSUMABLE_FLASKS.mana.liquid) && !flask('mana').includes(CONSUMABLE_FLASKS.heal.liquid), "Fiole de mana : liquide bleu seulement");
+    assert(flask('mixed').includes(CONSUMABLE_FLASKS.mana.liquid) && flask('mixed').includes(CONSUMABLE_FLASKS.heal.liquid), "Fiole mixte : les deux liquides");
+    assert(['heal', 'mana', 'mixed'].every(k => /^#[0-9a-f]{6}$/i.test(CONSUMABLE_FLASKS[k].border)), "Chaque type de fiole a sa couleur de bordure");
 
     // Enchantements visibles sur le crawler
     resetTransientState();
@@ -886,4 +898,32 @@ function isRedHex(hex) {
     }
     const without = Object.values(districtBosses).find(b => !SCENE_BOSS_SPRITES[b.name]);
     if (without) assert(resolveMobSprite(without).key.startsWith(`${without.visualArchetype}|`), "Boss sans sprite unique : silhouette de son archétype");
+}
+
+// ===================================================================
+// Chiffres de dégâts : taille selon la part des PV max de la cible, entre un minimum et un maximum.
+// ===================================================================
+{
+    const cfg = FLOATING_DAMAGE_SIZE;
+    assert(floatingDamageScale(1, 100).fontPx === cfg.minPx && floatingDamageScale(0, 0).fontPx === cfg.minPx, "Petit coup (ou PV max inconnus) : taille minimale");
+    assert(floatingDamageScale(500, 100).fontPx === cfg.maxPx && floatingDamageScale(500, 100, true).fontPx === cfg.maxPx, "Coup énorme, même lourd : taille plafonnée au maximum");
+    let growing = true;
+    for (let dmg = 1; dmg <= 60; dmg++) {
+        const a = floatingDamageScale(dmg - 1, 100), b = floatingDamageScale(dmg, 100);
+        if (b.fontPx < a.fontPx || b.pop < a.pop) growing = false;
+    }
+    assert(growing, "La taille et le grossissement ne décroissent jamais quand les dégâts augmentent");
+    assert(floatingDamageScale(20, 100).fontPx === floatingDamageScale(200, 1000).fontPx, "Même part des PV max, même taille (indépendant de l'étage)");
+    assert(floatingDamageScale(10, 100, true).fontPx === floatingDamageScale(10, 100).fontPx + cfg.heavyBonusPx, "Coup lourd : un peu plus gros");
+    assert(floatingDamageScale(1, 100).pop === cfg.popMin && floatingDamageScale(500, 100).pop === cfg.popMax, "Grossissement borné entre popMin et popMax");
+
+    resetTransientState();
+    const anchor = document.getElementById('scene-mob-anchor');
+    gameState.currentEnemy = { name: 'Cible', hp: 50, maxHp: 100 };
+    const before = anchor._children ? anchor._children.length : 0;
+    showFloatingDamage(anchor, 40, { toPlayer: false });
+    const shown = anchor._children[anchor._children.length - 1];
+    assert(anchor._children.length === before + 1 && shown.style.fontSize === `${floatingDamageScale(40, 100).fontPx}px` && shown.style.getPropertyValue('--fd-pop') === floatingDamageScale(40, 100).pop,
+        "showFloatingDamage : taille et grossissement calculés sur les PV max de l'ennemi");
+    gameState.currentEnemy = null;
 }

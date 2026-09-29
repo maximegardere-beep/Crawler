@@ -229,69 +229,293 @@ function generateBoss(districtName) {
 // ==========================================
 // 2. GÉNÉRATION DES OBJETS (LOOT)
 // ==========================================
+// Chantier "refonte des objets" (voir NOTES_ITEMS.md) : TOUT objet — arme, arme à distance,
+// armure, consommable, parchemin de sort, cadeau de départ, kit de test, objet signature de boss —
+// passe par les mêmes briques pures ci-dessous (rareté, niveau d'objet, stats, valeur), pour qu'un
+// réglage d'équilibrage (itemBalance, items.js) s'applique partout d'un coup.
 
-// Poids de tirage de chaque palier de rareté selon un score de puissance `t` (0 = très faible,
-// 1 = très puissant : boss profond ou mob très modifié). Interpolation linéaire entre deux jeux de
-// poids : à faible puissance, presque toujours du Commun/Rare ; à haute puissance, l'Épique et le
-// Légendaire deviennent des tirages courants. Valeurs de départ, à ajuster par playtest réel.
-function getRarityWeights(powerScore) {
-    const t = Math.max(0, Math.min(1, powerScore));
-    const lerp = (low, high) => low + (high - low) * t;
-    // Bas de fourchette (powerScore proche de 0, ex. loot early-game) légèrement redistribué : moins
-    // de Commun, plus de Rare/Épique/Légendaire — sans toucher la fréquence du loot lui-même, voir
-    // issue d'équilibrage "items blagues".
-    return {
-        commun: lerp(60, 15),
-        rare: lerp(30, 35),
-        epique: lerp(5.5, 35),
-        legendaire: lerp(1.5, 15)
-    };
+// Étage courant, sans dépendre de gameState quand ce fichier est chargé seul.
+function currentFloorForLoot() {
+    return (typeof gameState !== 'undefined' && gameState.currentFloor) || 1;
 }
 
-// Tire un palier de rareté au hasard, pondéré par le score de puissance (voir getRarityWeights()).
-// `minRarityKey` (optionnel, chantier "rework combat" — loot garanti de rareté minimale sur un boss,
-// voir winCombat()) relève le tirage au palier minimal donné s'il est tombé plus bas, SANS changer la
-// pondération du tirage lui-même (juste un plancher après coup).
-function rollRarity(powerScore, minRarityKey = null) {
-    const weights = getRarityWeights(powerScore);
-    const entries = itemRarities.map(r => ({ rarity: r, weight: weights[r.key] || 0 }));
-    const total = entries.reduce((sum, e) => sum + e.weight, 0);
+function getRarityByKey(key) {
+    return itemRarities.find(r => r.key === key) || null;
+}
+
+// Palier `steps` crans plus haut (ou plus bas si négatif), borné aux paliers existants.
+function shiftRarity(rarity, steps) {
+    const index = itemRarities.indexOf(rarity);
+    return itemRarities[Math.max(0, Math.min(itemRarities.length - 1, index + steps))];
+}
+
+// Poids de rareté du loot à un étage donné (première ligne de itemBalance.lootTables qui le couvre).
+function getLootRarityWeights(floor) {
+    const f = Math.max(1, floor || 1);
+    const tables = itemBalance.lootTables;
+    return (tables.find(row => f <= row.maxFloor) || tables[tables.length - 1]).weights;
+}
+
+/**
+ * Tire la rareté d'un objet de loot. `source` : 'explore' (trouvé en explorant, marchand) | 'mob' |
+ * 'elite' (CHANCE de monter d'un palier) | 'boss' (monte toujours d'un palier, plancher Rare) |
+ * 'treasure' (trésor exceptionnel, monte toujours d'un palier). `minRarityKey` : plancher
+ * supplémentaire optionnel, appliqué après coup. `luckChance` (%) : chance de monter d'un palier
+ * (qualificatif Chanceux de l'équipement porté, voir addLoot() dans app.js).
+ */
+function rollLootRarity({ source = 'explore', floor = currentFloorForLoot(), minRarityKey = null, luckChance = 0 } = {}) {
+    const weights = getLootRarityWeights(floor);
+    const total = itemRarities.reduce((sum, r) => sum + (weights[r.key] || 0), 0);
     let roll = Math.random() * total;
-    let picked = entries[entries.length - 1].rarity;
-    for (const e of entries) {
-        if (roll < e.weight) { picked = e.rarity; break; }
-        roll -= e.weight;
+    let rarity = itemRarities[1]; // Commun, par sécurité (poids tous nuls)
+    for (const r of itemRarities) {
+        const w = weights[r.key] || 0;
+        if (roll < w) { rarity = r; break; }
+        roll -= w;
     }
+    if (source === 'elite' && Math.random() * 100 < itemBalance.eliteUpgradeChance) rarity = shiftRarity(rarity, 1);
+    if (source === 'boss') {
+        rarity = shiftRarity(rarity, itemBalance.boss.tierBonus);
+        minRarityKey = minRarityKey || itemBalance.boss.minRarityKey;
+    }
+    if (source === 'treasure') rarity = shiftRarity(rarity, itemBalance.treasure.tierBonus);
+    if (luckChance > 0 && Math.random() * 100 < luckChance) rarity = shiftRarity(rarity, 1); // Chanceux (qualificatif porté)
     if (minRarityKey) {
-        const minIndex = itemRarities.findIndex(r => r.key === minRarityKey);
-        const pickedIndex = itemRarities.findIndex(r => r.key === picked.key);
-        if (minIndex >= 0 && pickedIndex < minIndex) return itemRarities[minIndex];
+        const min = getRarityByKey(minRarityKey);
+        if (min && itemRarities.indexOf(rarity) < itemRarities.indexOf(min)) rarity = min;
+    }
+    return rarity;
+}
+
+// Multiplicateur de niveau d'objet : 1 au niveau 1, puis +perLevel par niveau (voir itemBalance).
+// `kind` : 'equipment' (dégâts/armure) ou 'heal' (soins des consommables).
+function getItemLevelMult(itemLevel, kind = 'equipment') {
+    return 1 + itemBalance.levelScaling[kind] * (Math.max(1, itemLevel || 1) - 1);
+}
+
+// Stat moyenne (sans aléa) d'une stat de base à une rareté et un niveau d'objet donnés — fonction
+// pure, utilisée par buildItem() et par l'outil de calibrage (tests/tools/item-curve.js).
+function computeItemStat(baseStat, rarityKey, itemLevel, kind = 'equipment') {
+    return baseStat * getRarityByKey(rarityKey).statMult * getItemLevelMult(itemLevel, kind);
+}
+
+// Valeur marchande d'un objet (PO) : croît fortement avec la rareté, plus doucement avec le niveau
+// d'objet et le nombre de qualificatifs — voir itemBalance.value. Base de la revente (sellItem()) et
+// du prix du marchand (generateShopStock()).
+function computeItemValue(baseValue, rarityKey, itemLevel, enchantCount = 0) {
+    const rarity = getRarityByKey(rarityKey) || itemRarities[1];
+    const v = itemBalance.value;
+    const levelMult = 1 + v.perLevel * (Math.max(1, itemLevel || 1) - 1);
+    return Math.max(1, Math.round((baseValue || 0) * rarity.valueMult * levelMult * (1 + v.perEnchant * enchantCount)));
+}
+
+// Objet de base tiré dans un pool : seulement ceux déjà accessibles à cet étage (`minFloor`), et les
+// objets blagues (`jokeItem`) uniquement au palier Camelote.
+function pickBaseItem(pool, floor, rarity) {
+    const allowJokes = rarity.key === 'camelote';
+    let candidates = pool.filter(b => (b.minFloor || 1) <= floor && (allowJokes || !b.jokeItem));
+    if (candidates.length === 0) candidates = pool.filter(b => !b.jokeItem);
+    if (candidates.length === 0) candidates = pool;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+// --- Qualificatifs (itemQualifiers, items.js) ---------------------------------------------------
+
+// Cible d'un qualificatif selon la catégorie d'objet : armes de mêlée ET à distance partagent la cible
+// 'weapon' ; consommables : aucune (jamais de qualificatif).
+function qualifierTarget(category) {
+    if (category === 'weapons' || category === 'ranged') return 'weapon';
+    if (category === 'armors') return 'armor';
+    if (category === 'scrolls') return 'spell';
+    return null;
+}
+
+// Valeurs d'un qualificatif pour une cible et un rang (1 à 3) : chaque tableau du catalogue est
+// réduit à la valeur de ce rang, les scalaires sont repris tels quels. null si ce qualificatif
+// n'existe pas pour cette cible.
+function getQualifierValues(key, target, rank = 1) {
+    const q = itemQualifiers[key];
+    const block = q && q[target];
+    if (!block) return null;
+    const values = {};
+    for (const field in block) {
+        if (field === 'text') continue;
+        const raw = block[field];
+        values[field] = Array.isArray(raw) ? raw[Math.min(raw.length, Math.max(1, rank)) - 1] : raw;
+    }
+    return values;
+}
+
+// Phrase d'inspection exacte d'un qualificatif (chiffres du rang compris).
+function describeQualifier(key, target, rank = 1) {
+    const values = getQualifierValues(key, target, rank);
+    return values ? itemQualifiers[key][target].text(values) : '';
+}
+
+const QUALIFIER_RANK_LABELS = ['', 'I', 'II', 'III'];
+
+// "Tranchant II" (les défauts de Camelote, à rang unique, n'affichent pas de rang).
+function formatQualifierLabel(key, rank = 1) {
+    const q = itemQualifiers[key];
+    if (!q) return key;
+    return q.kind === 'malus' ? q.name : `${q.name} ${QUALIFIER_RANK_LABELS[rank] || rank}`;
+}
+
+// Un qualificatif par slot de la rareté, tous au rang maximal de la rareté (Rare I, Épique II,
+// Légendaire III). Le Ne slot pioche parmi les qualificatifs de tier <= N, jamais deux fois le même.
+function rollQualifiers(rarity, target) {
+    const picked = [];
+    for (let slotIndex = 0; slotIndex < rarity.slots; slotIndex++) {
+        const pool = Object.keys(itemQualifiers).filter(key => {
+            const q = itemQualifiers[key];
+            return q[target] && q.kind !== 'malus' && q.tier <= slotIndex + 1 && !picked.some(p => p.key === key);
+        });
+        if (pool.length === 0) continue;
+        picked.push({ key: pool[Math.floor(Math.random() * pool.length)], rank: rarity.maxRank });
     }
     return picked;
 }
 
+// Camelote : itemBalance.junkMalusChance % de chance de porter UN défaut (itemQualifiers kind 'malus').
+function rollJunkMalus(target) {
+    if (Math.random() * 100 >= itemBalance.junkMalusChance) return [];
+    const pool = Object.keys(itemQualifiers).filter(key => itemQualifiers[key].kind === 'malus' && itemQualifiers[key][target]);
+    if (pool.length === 0) return [];
+    return [{ key: pool[Math.floor(Math.random() * pool.length)], rank: 1 }];
+}
+
+// Pose les qualificatifs sur un objet : `qualifiers` (source de vérité, avec rangs), `mechanics`
+// (clés seules, lues par le rendu : couleurs, étincelles, traînée), nom complété, et défauts de
+// stats "Rouillé"/"Fêlé" directement comptés dans baseDmg/baseArmor (l'inspection montre le vrai chiffre).
+function applyQualifiers(item, qualifiers, target) {
+    if (qualifiers.length === 0) return;
+    item.qualifiers = qualifiers;
+    item.mechanics = qualifiers.map(q => q.key);
+    item.name = formatEnchantedName(item.name, qualifiers.map(q => itemQualifiers[q.key].name));
+    qualifiers.forEach(q => {
+        const values = getQualifierValues(q.key, target, q.rank);
+        if (q.key === 'rusty' && item.baseDmg !== undefined) item.baseDmg = Math.max(1, Math.round(item.baseDmg * (1 - values.pct / 100)));
+        if (q.key === 'cracked' && item.baseArmor !== undefined) item.baseArmor = Math.round(item.baseArmor * (1 - values.pct / 100));
+    });
+}
+
+// Nombre de qualificatifs qui AJOUTENT de la valeur (les défauts n'en ajoutent pas).
+function countValuableQualifiers(qualifiers) {
+    return (qualifiers || []).filter(q => itemQualifiers[q.key] && itemQualifiers[q.key].kind !== 'malus').length;
+}
+
+// "Nom de base Adjectif1, Adjectif2 et Adjectif3"
+function formatEnchantedName(baseName, names) {
+    if (names.length === 0) return baseName;
+    if (names.length === 1) return `${baseName} ${names[0]}`;
+    return `${baseName} ${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}`;
+}
+
+// Qualificatifs d'un objet tiré au sort selon sa rareté (défaut de Camelote, ou un par slot).
+function rollItemQualifiers(item, rarity, target) {
+    if (!target) return [];
+    if (rarity.key === 'camelote') return rollJunkMalus(target);
+    if (item.canEnchant === false || rarity.slots === 0) return [];
+    return rollQualifiers(rarity, target);
+}
+
+function applyRarity(item, rarity) {
+    item.rarity = rarity.name;
+    item.rarityKey = rarity.key;
+    item.rarityColor = rarity.color;
+}
+
+// Aléa ±statJitter pour que deux objets identiques ne soient jamais rigoureusement pareils —
+// `jitter: false` le coupe (objets fixes, tests).
+function statJitterMult(jitter) {
+    if (jitter === false) return 1;
+    return 1 + (Math.random() * 2 - 1) * itemBalance.statJitter;
+}
+
 /**
- * Génère un objet aléatoire, avec un palier de rareté (Commun/Rare/Épique/Légendaire) pondéré par
- * `powerScore` (0 à 1 : puissance du monstre vaincu, ou de l'étage courant à défaut de monstre —
- * voir getLootPowerScore() dans app.js). La rareté détermine à la fois le multiplicateur de stats
- * ET le nombre/la puissance des enchantements (voir itemRarities et itemModifiers.effect).
- *
- * @param {number} powerScore - Score de puissance entre 0 et 1 (voir getLootPowerScore()).
- * @returns {object} - L'objet final généré
+ * Construit un objet (arme, arme à distance, armure ou consommable) à partir d'un objet de base, d'une
+ * rareté et d'un niveau d'objet. Seule fonction qui met des stats d'objet à l'échelle.
  */
-function generateItem(powerScore = 0, forcedCategory = null, minRarityKey = null) {
-    // 1. Choix d'une catégorie d'objet (weapons, ranged, armors, consumables, scrolls), puis d'un
-    // objet de base dedans. "scrolls" (parchemins de sorts) n'a pas d'entrée dans baseItems : c'est
-    // le grimoire (spellCatalog, voir spells.js) qui lui sert de pool, via generateSpellScroll() —
-    // même chance de tirage que les 4 autres catégories, pour rester "looté par des mobs ou trouvé"
-    // exactement comme le reste de l'équipement. `forcedCategory` (optionnel) impose la catégorie au
-    // lieu de la tirer — utilisé par le stock d'un marchand spécialisé (voir generateShopStock()).
+function buildItem(base, category, rarity, itemLevel, options = {}) {
+    const item = JSON.parse(JSON.stringify(base));
+    item.category = category;
+    item.baseName = base.name; // nom d'origine, avant qualificatifs : clé du sprite (resolveItemSpriteKey())
+    applyRarity(item, rarity);
+    item.itemLevel = Math.max(1, itemLevel || 1);
+
+    const mult = rarity.statMult * statJitterMult(options.jitter);
+    const levelMult = getItemLevelMult(item.itemLevel, 'equipment');
+    if (item.baseDmg !== undefined) item.baseDmg = Math.max(1, Math.round(item.baseDmg * mult * levelMult));
+    if (item.baseArmor !== undefined) item.baseArmor = Math.round(item.baseArmor * mult * levelMult);
+    if (item.heal > 0) item.heal = Math.round(item.heal * mult * getItemLevelMult(item.itemLevel, 'heal'));
+    if (item.mana > 0) item.mana = Math.round(item.mana * mult);
+
+    const target = qualifierTarget(category);
+    const qualifiers = options.qualifiers || rollItemQualifiers(item, rarity, target);
+    applyQualifiers(item, qualifiers, target);
+    item.value = computeItemValue(base.baseValue, rarity.key, item.itemLevel, countValuableQualifiers(qualifiers));
+    return item;
+}
+
+/**
+ * Construit un parchemin de sort (même système de rareté/niveau d'objet qu'une arme). La rareté fait
+ * grimper baseDmg ET manaCost (ce dernier à moitié seulement, voir itemBalance.spellManaRarityWeight) ;
+ * le niveau d'objet ne fait grimper que baseDmg (le mana reste plafonné à 100). Le résultat rejoint gameState.spellbook, pas gameState.inventory (voir addLoot() dans app.js).
+ */
+function buildSpellScroll(base, rarity, itemLevel, options = {}) {
+    const scroll = JSON.parse(JSON.stringify(base));
+    scroll.category = 'scrolls';
+    scroll.spellCategory = base.category; // 'melee' | 'ranged' — voir attackMagic() dans app.js
+    scroll.spellName = base.name;
+    applyRarity(scroll, rarity);
+    scroll.itemLevel = Math.max(1, itemLevel || 1);
+
+    const jitter = statJitterMult(options.jitter);
+    const manaMult = 1 + (rarity.statMult - 1) * itemBalance.spellManaRarityWeight;
+    scroll.baseDmg = Math.max(1, Math.round(base.baseDmg * rarity.statMult * jitter * getItemLevelMult(scroll.itemLevel, 'equipment')));
+    scroll.manaCost = Math.max(5, Math.round(base.manaCost * manaMult * jitter));
+    scroll.name = `Parchemin : ${base.name}`;
+    const qualifiers = options.qualifiers || rollItemQualifiers(scroll, rarity, 'spell');
+    applyQualifiers(scroll, qualifiers, 'spell');
+    scroll.value = computeItemValue(base.baseValue, rarity.key, scroll.itemLevel, countValuableQualifiers(qualifiers));
+    return scroll;
+}
+
+/**
+ * Génère un parchemin de sort aléatoire. `options` : { floor, itemLevel, source, rarityKey,
+ * minRarityKey, jitter } — voir generateItem().
+ */
+function generateSpellScroll(options = {}) {
+    const floor = options.floor ?? currentFloorForLoot();
+    const itemLevel = options.itemLevel ?? floor;
+    const pool = spellCatalog.filter(s => (s.minFloor || 1) <= floor);
+    const candidates = pool.length > 0 ? pool : spellCatalog;
+    const base = candidates[Math.floor(Math.random() * candidates.length)];
+    const rarity = options.rarityKey
+        ? getRarityByKey(options.rarityKey)
+        : rollLootRarity({ source: options.source, floor, minRarityKey: options.minRarityKey, luckChance: options.luckChance });
+    return buildSpellScroll(base, rarity, itemLevel, options);
+}
+
+/**
+ * Génère un objet de loot aléatoire. `options` :
+ *  - floor (défaut : étage courant) — pilote la table de rareté et les objets de base accessibles ;
+ *  - itemLevel (défaut : floor) ;
+ *  - source ('explore' | 'mob' | 'elite' | 'boss' | 'treasure', voir rollLootRarity()) ;
+ *  - category — impose la catégorie au lieu de la tirer (stock d'un marchand spécialisé) ;
+ *  - rarityKey — impose la rareté ; minRarityKey — plancher de rareté ;
+ *  - jitter: false — coupe l'aléa ±10 % sur les stats.
+ * "scrolls" (parchemins) n'a pas d'entrée dans baseItems : c'est le grimoire (spellCatalog) qui lui sert
+ * de pool, via generateSpellScroll() — même chance de tirage que les 4 autres catégories.
+ */
+function generateItem(options = {}) {
+    const floor = options.floor ?? currentFloorForLoot();
+    const itemLevel = options.itemLevel ?? floor;
     const categories = [...Object.keys(baseItems), 'scrolls'];
     // SECHERESSE (anomalies.js) : double la chance de tirer un consommable (potion) — tirage pondéré
-    // uniquement dans ce cas précis, sinon comportement inchangé (même appel Math.random() qu'avant
-    // ce système pour le chemin sans anomalie, voir tests).
+    // uniquement dans ce cas précis.
     const potionMult = (typeof gameState !== 'undefined' && gameState.anomalyEffects) ? (gameState.anomalyEffects.potionDropMult || 1) : 1;
-    let categoryName = forcedCategory;
+    let categoryName = options.category || null;
     if (!categoryName) {
         if (potionMult !== 1 && categories.includes('consumables')) {
             const weights = categories.map(c => c === 'consumables' ? potionMult : 1);
@@ -306,196 +530,78 @@ function generateItem(powerScore = 0, forcedCategory = null, minRarityKey = null
             categoryName = categories[Math.floor(Math.random() * categories.length)];
         }
     }
-    if (categoryName === 'scrolls') {
-        return generateSpellScroll(powerScore, minRarityKey);
-    }
-    // Les objets "blagues" (jokeItem: true, voir items.js) sont exclus du loot normal : réservés au
-    // cadeau de bienvenue et au kit de test, jamais tirés en jouant.
-    const nonJokeItems = baseItems[categoryName].filter(item => !item.jokeItem);
-    const categoryItems = nonJokeItems.length > 0 ? nonJokeItems : baseItems[categoryName];
-    const baseItemIndex = Math.floor(Math.random() * categoryItems.length);
-    const finalItem = JSON.parse(JSON.stringify(categoryItems[baseItemIndex]));
-    finalItem.category = categoryName; // conserve la catégorie (utile pour l'UI/logique future)
-    finalItem.baseName = finalItem.name; // nom d'origine, avant préfixes/suffixes : clé du sprite (resolveItemSpriteKey())
+    if (categoryName === 'scrolls') return generateSpellScroll({ ...options, floor, itemLevel });
 
-    // 2. Tirage du palier de rareté, puis mise à l'échelle des stats de base (avec un peu
-    // d'aléatoire ±10% pour éviter que deux objets de même rareté soient rigoureusement identiques)
-    const rarity = rollRarity(powerScore, minRarityKey);
-    finalItem.rarity = rarity.name;
-    finalItem.rarityColor = rarity.color;
-
-    const statMult = rarity.statMult * (0.9 + Math.random() * 0.2);
-    if (finalItem.baseDmg !== undefined) finalItem.baseDmg = Math.max(1, Math.round(finalItem.baseDmg * statMult));
-    if (finalItem.baseArmor !== undefined) finalItem.baseArmor = Math.round(finalItem.baseArmor * statMult);
-    if (finalItem.heal !== undefined && finalItem.heal > 0) finalItem.heal = Math.round(finalItem.heal * statMult);
-    if (finalItem.mana !== undefined && finalItem.mana > 0) finalItem.mana = Math.round(finalItem.mana * statMult);
-
-    // 3. Enchantements : un par slot de la rareté tirée (voir itemRarities.slots). Le Ne slot
-    // pioche dans le pool des effets de tier <= N, donc plus l'objet est rare, plus ses derniers
-    // slots ont accès aux effets les plus puissants (tier 3, réservé au Légendaire).
-    const appliedNames = [];
-    const appliedMechanics = [];
-    if (finalItem.canEnchant !== false && rarity.slots > 0) {
-        for (let slotIndex = 0; slotIndex < rarity.slots; slotIndex++) {
-            const maxTier = slotIndex + 1;
-            const pool = itemModifiers.effect.filter(e => e.tier <= maxTier && !appliedNames.includes(e.name));
-            if (pool.length === 0) continue;
-            const picked = pool[Math.floor(Math.random() * pool.length)];
-            appliedNames.push(picked.name);
-            if (picked.mechanic) appliedMechanics.push(picked.mechanic);
-        }
-    }
-    if (appliedMechanics.length > 0) finalItem.mechanics = appliedMechanics;
-
-    // 4. Assemblage du nom : "Nom de base Adjectif1, Adjectif2 et Adjectif3"
-    if (appliedNames.length === 1) {
-        finalItem.name = `${finalItem.name} ${appliedNames[0]}`;
-    } else if (appliedNames.length === 2) {
-        finalItem.name = `${finalItem.name} ${appliedNames[0]} et ${appliedNames[1]}`;
-    } else if (appliedNames.length >= 3) {
-        finalItem.name = `${finalItem.name} ${appliedNames.slice(0, -1).join(", ")} et ${appliedNames[appliedNames.length - 1]}`;
-    }
-
-    return finalItem;
+    const rarity = options.rarityKey
+        ? getRarityByKey(options.rarityKey)
+        : rollLootRarity({ source: options.source, floor, minRarityKey: options.minRarityKey, luckChance: options.luckChance });
+    const base = pickBaseItem(baseItems[categoryName], floor, rarity);
+    return buildItem(base, categoryName, rarity, itemLevel, options);
 }
 
 /**
- * Génère un parchemin de sort, pioché dans le grimoire (spellCatalog, voir spells.js) puis mis à
- * l'échelle par un palier de rareté (même système que generateItem() : itemRarities/rollRarity).
- * Contrairement à une arme, un sort n'a pas de slots d'enchantement — sa rareté fait uniquement
- * grimper baseDmg ET manaCost ensemble (un sort plus puissant coûte aussi plus cher en mana).
- * Le résultat rejoint gameState.spellbook (inventaire magique), pas gameState.inventory (voir
- * addLoot() dans app.js) : `category: 'scrolls'` sert justement à ce tri.
- *
- * @param {number} powerScore - Score de puissance entre 0 et 1 (voir getLootPowerScore()).
- * @returns {object} - Le parchemin final généré
+ * Objet signature d'un boss (bestiary.js, districtBosses.*.signatureItem) : toujours Légendaire,
+ * mis à l'échelle par le niveau d'objet comme tout objet, mais sans aléa ni qualificatif aléatoire
+ * (son mécanisme thématique est fixe).
  */
-function generateSpellScroll(powerScore = 0, minRarityKey = null) {
-    const base = spellCatalog[Math.floor(Math.random() * spellCatalog.length)];
-    const scroll = JSON.parse(JSON.stringify(base));
-    scroll.category = 'scrolls';
-    scroll.spellCategory = base.category; // 'melee' | 'ranged' — voir attackMagic() dans app.js
-    scroll.spellName = base.name;
-    // Chantier "QoL/équilibrage" (Chantier D) : baseValue absent jusqu'ici — un parchemin ne pouvait
-    // ni se vendre correctement (sellItem()) ni afficher un prix marchand cohérent (generateShopStock()
-    // calculait déjà baseValue×SHOP_MARKUP, mais avec le repli `|| 1`, invisible faute de baseValue).
-    // Échelle sur base.baseDmg (NON scalé par la rareté — même convention que baseValue sur les objets
-    // classiques dans items.js, jamais affecté par statMult dans generateItem()), ratio ≈1.6 comparable
-    // aux armes (baseValue/baseDmg ≈1.5-2 sur items.js).
-    scroll.baseValue = Math.round(base.baseDmg * 1.6);
-
-    const rarity = rollRarity(powerScore, minRarityKey);
-    scroll.rarity = rarity.name;
-    scroll.rarityColor = rarity.color;
-
-    const statMult = rarity.statMult * (0.9 + Math.random() * 0.2);
-    scroll.baseDmg = Math.max(1, Math.round(scroll.baseDmg * statMult));
-    scroll.manaCost = Math.max(5, Math.round(scroll.manaCost * statMult));
-
-    scroll.name = `Parchemin : ${base.name}`;
-    return scroll;
+function buildSignatureItem(template, itemLevel) {
+    const legendary = itemRarities[itemRarities.length - 1];
+    const item = JSON.parse(JSON.stringify(template));
+    applyRarity(item, legendary);
+    item.itemLevel = Math.max(1, itemLevel || 1);
+    const levelMult = getItemLevelMult(item.itemLevel, 'equipment');
+    if (item.baseDmg !== undefined) item.baseDmg = Math.max(1, Math.round(item.baseDmg * legendary.statMult * levelMult));
+    if (item.baseArmor !== undefined) item.baseArmor = Math.round(item.baseArmor * legendary.statMult * levelMult);
+    // Son mécanisme thématique fixe, au rang maximal (III) — le nom de l'objet reste celui du boss.
+    item.qualifiers = (item.mechanics || []).map(key => ({ key, rank: legendary.maxRank }));
+    item.value = computeItemValue(template.baseValue, legendary.key, item.itemLevel, countValuableQualifiers(item.qualifiers));
+    return item;
 }
 
 /**
  * Génère l'objet du cadeau de bienvenue (écran de départ, voir revealWelcomeGift() dans app.js).
- * `type` ('weapon'/'ranged'/'spell', jamais 'nothing' — géré à part par l'appelant) est déjà tiré au
- * hasard pondéré par rollWelcomeGiftType() ; cette fonction ne fait que construire l'objet, toujours
- * au palier de rareté le plus faible (Commun, aucun enchantement) — "toujours faible qualité", quel
- * que soit le type tiré.
+ * `type` ('weapon'/'ranged'/'armor'/'spell', jamais 'nothing' — géré à part par l'appelant) est déjà
+ * tiré au hasard pondéré par rollWelcomeGiftType() ; toujours au palier Camelote (objets blagues
+ * compris, un défaut possible), niveau d'objet 1 : on démarre presque toujours équipé, mais mal.
  *
- * @param {string} type - 'weapon' | 'ranged' | 'spell'
+ * @param {string} type - 'weapon' | 'ranged' | 'armor' | 'spell'
  * @returns {object|null}
  */
 function generateWelcomeGiftItem(type) {
-    const commun = itemRarities[0];
-    if (type === 'weapon' || type === 'ranged') {
-        const categoryName = type === 'weapon' ? 'weapons' : 'ranged';
-        const pool = baseItems[categoryName];
-        const finalItem = JSON.parse(JSON.stringify(pool[Math.floor(Math.random() * pool.length)]));
-        finalItem.category = categoryName;
-        finalItem.baseName = finalItem.name;
-        finalItem.rarity = commun.name;
-        finalItem.rarityColor = commun.color;
-        return finalItem;
+    const junk = getRarityByKey('camelote');
+    const categoryName = { weapon: 'weapons', ranged: 'ranged', armor: 'armors' }[type];
+    if (categoryName) {
+        const pool = baseItems[categoryName].filter(b => (b.minFloor || 1) <= 1);
+        return buildItem(pool[Math.floor(Math.random() * pool.length)], categoryName, junk, 1, { jitter: false });
     }
     if (type === 'spell') {
-        const base = spellCatalog[Math.floor(Math.random() * spellCatalog.length)];
-        const scroll = JSON.parse(JSON.stringify(base));
-        scroll.category = 'scrolls';
-        scroll.spellCategory = base.category;
-        scroll.spellName = base.name;
-        scroll.rarity = commun.name;
-        scroll.rarityColor = commun.color;
-        scroll.baseValue = Math.round(base.baseDmg * 1.6); // Même échelle que generateSpellScroll()
-        scroll.name = `Parchemin : ${base.name}`;
-        return scroll;
+        const pool = spellCatalog.filter(s => (s.minFloor || 1) <= 1);
+        return buildSpellScroll(pool[Math.floor(Math.random() * pool.length)], junk, 1, { jitter: false });
     }
     return null;
 }
 
 /**
  * Génère une arme ou une arme à distance de test, toujours au palier Légendaire (tous les slots
- * d'enchantement) — bouton de test discret (voir giveTestKit() dans app.js), pour équiper le joueur
- * en un clic avec du matériel déjà pleinement enchanté et tester les mécaniques de combat sans
- * dépendre du loot aléatoire. Volontairement séparé de generateItem() (catégorie/rareté imposées
- * plutôt que tirées au hasard) pour ne rien changer à l'ordre des tirages du loot normal du jeu.
+ * d'enchantement) et au niveau d'objet de l'étage courant — bouton de test discret (voir giveTestKit()
+ * dans app.js), sans lien avec la progression normale d'une run.
  *
  * @param {string} categoryName - 'weapons' | 'ranged'
  * @returns {object}
  */
 function generateTestKitItem(categoryName) {
-    const rarity = itemRarities[itemRarities.length - 1]; // Légendaire : le palier le plus fort
-    const pool = baseItems[categoryName];
-    const finalItem = JSON.parse(JSON.stringify(pool[Math.floor(Math.random() * pool.length)]));
-    finalItem.category = categoryName;
-    finalItem.baseName = finalItem.name;
-    finalItem.rarity = rarity.name;
-    finalItem.rarityColor = rarity.color;
-    if (finalItem.baseDmg !== undefined) finalItem.baseDmg = Math.max(1, Math.round(finalItem.baseDmg * rarity.statMult));
-
-    const appliedNames = [];
-    const appliedMechanics = [];
-    if (finalItem.canEnchant !== false) {
-        for (let slotIndex = 0; slotIndex < rarity.slots; slotIndex++) {
-            const maxTier = slotIndex + 1;
-            const pool = itemModifiers.effect.filter(e => e.tier <= maxTier && !appliedNames.includes(e.name));
-            if (pool.length === 0) continue;
-            const picked = pool[Math.floor(Math.random() * pool.length)];
-            appliedNames.push(picked.name);
-            if (picked.mechanic) appliedMechanics.push(picked.mechanic);
-        }
-    }
-    if (appliedMechanics.length > 0) finalItem.mechanics = appliedMechanics;
-    if (appliedNames.length === 1) {
-        finalItem.name = `${finalItem.name} ${appliedNames[0]}`;
-    } else if (appliedNames.length === 2) {
-        finalItem.name = `${finalItem.name} ${appliedNames[0]} et ${appliedNames[1]}`;
-    } else if (appliedNames.length >= 3) {
-        finalItem.name = `${finalItem.name} ${appliedNames.slice(0, -1).join(", ")} et ${appliedNames[appliedNames.length - 1]}`;
-    }
-
-    return finalItem;
+    const pool = baseItems[categoryName].filter(b => !b.jokeItem);
+    const base = pool[Math.floor(Math.random() * pool.length)];
+    return buildItem(base, categoryName, itemRarities[itemRarities.length - 1], currentFloorForLoot(), { jitter: false });
 }
 
 /**
- * Génère un sort de test, toujours au palier Légendaire — même esprit que generateTestKitItem(),
- * variante de generateSpellScroll() à rareté imposée plutôt que tirée au hasard.
+ * Génère un sort de test, toujours au palier Légendaire — même esprit que generateTestKitItem().
  * @returns {object}
  */
 function generateTestKitSpell() {
-    const rarity = itemRarities[itemRarities.length - 1];
     const base = spellCatalog[Math.floor(Math.random() * spellCatalog.length)];
-    const scroll = JSON.parse(JSON.stringify(base));
-    scroll.category = 'scrolls';
-    scroll.spellCategory = base.category;
-    scroll.spellName = base.name;
-    scroll.rarity = rarity.name;
-    scroll.rarityColor = rarity.color;
-    scroll.baseValue = Math.round(base.baseDmg * 1.6); // Même échelle que generateSpellScroll(), jamais scalé par la rareté
-    scroll.baseDmg = Math.max(1, Math.round(scroll.baseDmg * rarity.statMult));
-    scroll.manaCost = Math.max(5, Math.round(scroll.manaCost * rarity.statMult));
-    scroll.name = `Parchemin : ${base.name}`;
-    return scroll;
+    return buildSpellScroll(base, itemRarities[itemRarities.length - 1], currentFloorForLoot(), { jitter: false });
 }
 
 // ==========================================
@@ -510,40 +616,137 @@ const companionNamePool = [
     "Doc Ferraille", "Kenji le Silencieux"
 ];
 
-// Spécialité procédurale : détermine comment le compagnon aide en combat une fois recruté
+// Spécialité procédurale : détermine comment le compagnon aide une fois recruté. `desc` est affiché au
+// recrutement et sur sa fiche : il résume l'effet en combat ET hors combat (chiffres dans config.companions).
 const companionSpecialties = [
-    { type: 'strike', label: "Frappe d'appoint", desc: "Porte un coup supplémentaire à chaque attaque du joueur." },
-    { type: 'guard', label: "Garde rapprochée", desc: "Réduit les dégâts subis par le joueur." },
-    { type: 'medic', label: "Premiers secours", desc: "Chance de soigner le joueur en cours de combat." },
-    { type: 'scout', label: "Éclaireur", desc: "Améliore les chances de fuite du joueur." }
+    { type: 'strike', label: "Frappe d'appoint", desc: "Frappe à chacune de vos attaques. Hors combat : +10 % de PO trouvées." },
+    { type: 'guard', label: "Garde rapprochée", desc: "Ajoute la moitié de sa DEF à la vôtre et encaisse souvent des coups à votre place. Hors combat : moins d'embuscades en trajet." },
+    { type: 'medic', label: "Premiers secours", desc: "Vous soigne parfois en combat et après chaque victoire. Rend aussi un peu de mana." },
+    { type: 'scout', label: "Éclaireur", desc: "Meilleure furtivité et fuite. Hors combat : évite un piège sur deux." }
 ];
 
+// Réglages compagnons (config.companions dans app.js), avec repli si config n'existe pas encore.
+function companionBalance() {
+    return (typeof config !== 'undefined' && config.companions) ? config.companions : null;
+}
+
 /**
- * Génère un candidat compagnon rencontré au hasard : nom, stats de base, spécialité procédurale,
- * et disposition (ami/hostile) tirée 50/50, sans pondération par quartier.
+ * Stats d'un compagnon à son niveau (pure) : base (fixée à l'embauche, déjà indexée sur l'étage) ×
+ * (1 + levelStatGain × (niveau − 1)). Ne touche PAS aux PV courants.
+ */
+function computeCompanionLevelStats(companion) {
+    const gain = (companionBalance() || { levelStatGain: 0.10 }).levelStatGain;
+    const mult = 1 + gain * Math.max(0, (companion.level || 1) - 1);
+    return {
+        maxHp: Math.max(1, Math.round(companion.baseHp * mult)),
+        atk: Math.max(1, Math.round(companion.baseAtk * mult)),
+        def: Math.max(0, Math.round(companion.baseDef * mult))
+    };
+}
+
+// ATQ / DEF effectives d'un compagnon : ses stats + l'arme / l'armure qu'on lui a données.
+function getCompanionAtk(companion) {
+    if (!companion) return 0;
+    const weapon = companion.gear && companion.gear.weapon;
+    return (companion.atk || 0) + (weapon ? (weapon.baseDmg || 0) : 0);
+}
+
+function getCompanionDef(companion) {
+    if (!companion) return 0;
+    const armor = companion.gear && companion.gear.armor;
+    return (companion.def || 0) + (armor ? (armor.baseArmor || 0) : 0);
+}
+
+// Emplacement du compagnon qui reçoit un objet donné : arme (mêlée OU distance, il n'en porte qu'une),
+// armure ou sort ; null pour un consommable (utilisé sur-le-champ) ou tout autre objet.
+function companionGiftSlot(item) {
+    if (!item) return null;
+    if (item.category === 'weapons' || item.category === 'ranged') return 'weapon';
+    if (item.category === 'armors') return 'armor';
+    if (item.category === 'scrolls') return 'spell';
+    return null;
+}
+
+// Loyauté rapportée par un don (pure). Un objet déjà donné une fois (`companionGifted`, posé au premier
+// don) ne rapporte plus rien : sans ça, donner / récupérer / redonner le même objet ferait monter la
+// loyauté à l'infini.
+function companionGiftLoyalty(item) {
+    const bal = companionBalance();
+    if (!item || !bal) return 0;
+    if (item.category === 'consumables') return bal.loyalty.consumableGift;
+    if (item.companionGifted) return 0;
+    return bal.loyalty.giftByRarity[item.rarityKey] ?? bal.loyalty.giftByRarity.commun;
+}
+
+// Chance (%) qu'un compagnon quitte le groupe au changement d'étage (pure) : nulle au-dessus du seuil.
+function companionDepartureChance(loyalty) {
+    const bal = companionBalance();
+    const threshold = bal ? bal.loyalty.departureThreshold : 40;
+    const perPoint = bal ? bal.loyalty.departurePerPoint : 2;
+    if (loyalty >= threshold) return 0;
+    return Math.min(100, (threshold - loyalty) * perPoint);
+}
+
+/**
+ * Génère un candidat compagnon rencontré au hasard : nom, stats de base INDEXÉES SUR L'ÉTAGE (même
+ * getFloorScaling() que les mobs, pour qu'il reste utile en profondeur), spécialité procédurale, et
+ * disposition (ami/hostile) tirée 50/50, sans pondération par quartier.
+ * @param {number} [floor] étage de la rencontre (défaut : étage courant)
  * @returns {object}
  */
-function generateCompanionCandidate() {
+function generateCompanionCandidate(floor) {
+    const f = floor ?? ((typeof gameState !== 'undefined' && gameState.currentFloor) || 1);
+    const scaling = getFloorScaling(f);
     const name = companionNamePool[Math.floor(Math.random() * companionNamePool.length)];
     const specialty = JSON.parse(JSON.stringify(
         companionSpecialties[Math.floor(Math.random() * companionSpecialties.length)]
     ));
-    const hp = 40 + Math.floor(Math.random() * 20);
+    const bal = companionBalance();
 
-    return {
+    const companion = {
         name,
-        hp, maxHp: hp,
-        atk: 8 + Math.floor(Math.random() * 6),
-        def: 4 + Math.floor(Math.random() * 4),
+        baseHp: Math.round((40 + Math.floor(Math.random() * 20)) * scaling.hpMult),
+        baseAtk: Math.round((8 + Math.floor(Math.random() * 6)) * scaling.atkMult),
+        baseDef: Math.round((4 + Math.floor(Math.random() * 4)) * scaling.defMult),
         specialty,
         disposition: Math.random() < 0.5 ? 'hostile' : 'friendly', // 50/50, pas de pondération par quartier
+        hiredFloor: f,
         xp: 0,
         level: 1,
         xpToNext: 30,
-        // Probabilité (0-100) qu'il abandonne l'équipe : grimpe avec son expérience, vérifiée à
-        // chaque montée de niveau (voir gainCompanionXp()/attemptCompanionAbandon() dans app.js).
-        leaveChance: 0
+        // Loyauté (0-100) : monte avec ce que vit le groupe (victoires, repos, dons), baisse quand vous
+        // fuyez ou qu'il tombe. Seul un compagnon peu loyal risque de partir, au changement d'étage.
+        loyalty: bal ? bal.loyalty.start : 60,
+        downed: false, // À terre (0 PV) : inactif jusqu'au prochain repos ou soin
+        gear: { weapon: null, armor: null, spell: null }
     };
+    Object.assign(companion, computeCompanionLevelStats(companion));
+    companion.hp = companion.maxHp;
+    return companion;
+}
+
+/**
+ * Migration douce d'un compagnon venant d'une sauvegarde antérieure au rework (pure, renvoie une copie) :
+ * `leaveChance` → loyauté, stats courantes → stats de base (les niveaux d'avant ne donnaient rien, donc
+ * on garde exactement les stats actuelles), équipement vide.
+ */
+function normalizeCompanion(companion) {
+    if (!companion) return null;
+    const c = { ...companion };
+    const gain = (companionBalance() || { levelStatGain: 0.10 }).levelStatGain;
+    const levelMult = 1 + gain * Math.max(0, (c.level || 1) - 1);
+    if (c.baseHp === undefined) c.baseHp = (c.maxHp || c.hp || 40) / levelMult;
+    if (c.baseAtk === undefined) c.baseAtk = (c.atk || 8) / levelMult;
+    if (c.baseDef === undefined) c.baseDef = (c.def || 4) / levelMult;
+    if (c.loyalty === undefined) {
+        const start = companionBalance() ? companionBalance().loyalty.start : 60;
+        c.loyalty = Math.max(0, Math.min(100, Math.round(start - (c.leaveChance || 0) / 2)));
+    }
+    delete c.leaveChance;
+    if (!c.gear) c.gear = { weapon: null, armor: null, spell: null };
+    if (c.downed === undefined) c.downed = (c.hp || 0) <= 0;
+    if (!c.maxHp) Object.assign(c, computeCompanionLevelStats(c));
+    return c;
 }
 
 

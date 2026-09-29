@@ -6,35 +6,29 @@ const { assert, resetTransientState } = require('./_helpers.js');
 // equipSpell()/attackMagic() dans app.js).
 // ===================================================================
 
-// generateSpellScroll() : un sort plus rare coûte plus de mana ET frappe plus fort, comme une arme.
+// generateSpellScroll() : un sort plus rare coûte plus de mana ET frappe plus fort, comme une arme ;
+// le niveau d'objet ne fait grimper que les dégâts (chantier "refonte des objets").
 {
     const originalRandom = Math.random;
-    // [index du sort (0 -> "Toucher Électrique", melee), jet de rareté (0 -> Commun), jitter du
-    // multiplicateur de stats (0.5 -> exactement 1.0, sans le ±10% aléatoire)]
-    let commonSeq = [0, 0, 0.5];
-    let commonIdx = 0;
-    Math.random = () => commonSeq[(commonIdx++) % commonSeq.length];
-    let scroll = generateSpellScroll(0);
+    Math.random = () => 0; // Premier sort accessible à l'étage 1 : "Toucher Électrique" (melee)
+    let scroll = generateSpellScroll({ floor: 1, rarityKey: 'commun', jitter: false });
     Math.random = originalRandom;
+    const base = spellCatalog.find(s => s.name === "Toucher Électrique");
     assert(scroll.category === 'scrolls', "generateSpellScroll() : catégorie 'scrolls' (pour le tri addLoot())");
     assert(scroll.spellCategory === 'melee', "generateSpellScroll() : conserve la catégorie melee/ranged du sort de base");
     assert(scroll.spellName === "Toucher Électrique", "generateSpellScroll() : conserve le nom du sort de base");
     assert(scroll.name === "Parchemin : Toucher Électrique", "generateSpellScroll() : nom d'affichage préfixé");
-    assert(scroll.rarity === "Commun", "generateSpellScroll() : rareté Commun avec un jet à 0");
-    assert(scroll.baseDmg === 10 && scroll.manaCost === 13, "generateSpellScroll() : stats de base inchangées au palier Commun (statMult ~1.0, valeurs Chantier C)");
-    // Chantier "QoL/équilibrage" (Chantier D) : baseValue posé sur le baseDmg NON scalé du sort de
-    // base (10 pour Toucher Électrique, valeur Chantier C), jamais affecté par la rareté — même
-    // convention que baseValue sur les objets classiques (items.js).
-    assert(scroll.baseValue === Math.round(10 * 1.6), "generateSpellScroll() : baseValue dérivé du baseDmg non scalé (Chantier D)");
+    assert(scroll.rarity === "Commun" && scroll.itemLevel === 1, "generateSpellScroll() : rareté et niveau d'objet imposés");
+    assert(scroll.baseDmg === base.baseDmg && scroll.manaCost === base.manaCost, "generateSpellScroll() : stats de base inchangées au palier Commun, niveau 1");
+    assert(scroll.value === base.baseValue, "generateSpellScroll() : valeur = baseValue du sort au palier Commun, niveau 1");
 
-    const seq = [0, 0.999, 0.5];
-    let idx = 0;
-    Math.random = () => seq[(idx++) % seq.length];
-    scroll = generateSpellScroll(0);
+    Math.random = () => 0;
+    const legend = generateSpellScroll({ floor: 1, rarityKey: 'legendaire', jitter: false });
+    const deep = generateSpellScroll({ floor: 1, itemLevel: 10, rarityKey: 'commun', jitter: false });
     Math.random = originalRandom;
-    assert(scroll.rarity === "Légendaire", "generateSpellScroll() : rareté Légendaire avec un jet au plus haut");
-    assert(scroll.baseDmg > 10 && scroll.manaCost > 13, "generateSpellScroll() : un sort plus rare inflige plus ET coûte plus de mana");
-    assert(scroll.baseValue === Math.round(10 * 1.6), "generateSpellScroll() : baseValue NE grimpe PAS avec la rareté (même convention que les objets classiques)");
+    assert(legend.baseDmg > scroll.baseDmg && legend.manaCost > scroll.manaCost, "generateSpellScroll() : un sort plus rare inflige plus ET coûte plus de mana");
+    assert(legend.value >= scroll.value * 10, "generateSpellScroll() : un parchemin Légendaire vaut bien plus qu'un Commun (Backlog : prix des parchemins)");
+    assert(deep.baseDmg > scroll.baseDmg && deep.manaCost === scroll.manaCost, "generateSpellScroll() : le niveau d'objet fait grimper les dégâts, jamais le coût en mana");
 }
 
 // equipSpell() : équipe depuis le grimoire, renvoie l'ancien sort équipé dedans, initialise le mana
@@ -68,7 +62,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     const seq = [0.9, 0, 0, 0.5];
     let idx = 0;
     Math.random = () => seq[(idx++) % seq.length];
-    addLoot(0);
+    addLoot();
     Math.random = originalRandom;
     assert(gameState.spellbook.length === 1, "addLoot() : un parchemin rejoint le grimoire (spellbook)");
     assert(gameState.inventory.length === 0, "addLoot() : un parchemin ne rejoint jamais l'inventaire classique");
@@ -187,4 +181,52 @@ const { assert, resetTransientState } = require('./_helpers.js');
     gameState.hp = gameState.maxHp - 100;
     applyTimeElapsedRegen(0);
     assert(gameState.hp === gameState.maxHp - 100, "applyTimeElapsedRegen(0) : aucun effet sans heure écoulée");
+}
+
+// ===================================================================
+// Grimoire regroupé : un emplacement par sort, raretés cumulées, exemplaires équipables et vendables
+// séparément (groupSpellbook(), updateSpellbookUI(), boutique).
+// ===================================================================
+{
+    resetTransientState();
+    const mk = (spellName, rarity, baseDmg, extra = {}) => ({ name: `Parchemin : ${spellName}`, spellName, rarity, baseDmg, manaCost: 10, baseValue: 20, category: 'scrolls', spellCategory: 'melee', icon: '🔥', ...extra });
+    const fireC = mk('Boule de Feu', 'Commun', 10);
+    const fireL = mk('Boule de Feu', 'Légendaire', 30);
+    const fireR = mk('Boule de Feu', 'Rare', 14);
+    const ice = mk('Pic de Glace', 'Épique', 20, { icon: '🧊' });
+    const equippedFire = mk('Boule de Feu', 'Épique', 22);
+
+    const groups = groupSpellbook([fireC, ice, fireL, fireR]);
+    assert(groups.length === 2 && groups[0].spellName === 'Boule de Feu' && groups[1].spellName === 'Pic de Glace', "groupSpellbook : un groupe par sort, dans l'ordre de première apparition");
+    assert(groups[0].copies.map(c => c.spell.rarity).join(',') === 'Légendaire,Rare,Commun', "groupSpellbook : exemplaires de la meilleure rareté à la moins bonne");
+    assert(groups[0].copies.map(c => c.index).join(',') === '2,3,0', "groupSpellbook : chaque exemplaire garde son index dans le grimoire");
+    const twins = groupSpellbook([mk('Boule de Feu', 'Rare', 12), mk('Boule de Feu', 'Rare', 15)]);
+    assert(twins[0].copies.length === 2 && twins[0].copies[0].spell.baseDmg === 15, "groupSpellbook : deux exemplaires de même rareté restent deux lignes, le plus fort d'abord");
+
+    const withEquipped = groupSpellbook([fireC, ice], equippedFire);
+    assert(withEquipped[0].copies[0].spell === equippedFire && withEquipped[0].copies[0].equipped && withEquipped[0].copies[0].index === -1, "groupSpellbook : le sort équipé rejoint son groupe, marqué équipé (index -1)");
+    assert(withEquipped[0].copies.filter(c => c.equipped).length === 1 && withEquipped[1].copies.every(c => !c.equipped), "groupSpellbook : seul l'exemplaire équipé est marqué équipé");
+    const onlyEquipped = groupSpellbook([], equippedFire);
+    assert(onlyEquipped.length === 1 && onlyEquipped[0].copies.length === 1, "groupSpellbook : le sort équipé s'affiche même seul");
+    assert(groupSpellbook([]).length === 0, "groupSpellbook : grimoire vide -> aucun groupe");
+
+    // Affichage : une carte par sort, la copie équipée signalée
+    gameState.spellbook = [fireC, ice, fireL];
+    gameState.equipment.spell = equippedFire;
+    updateSpellbookUI();
+    const cards = ui.spellbookCards.children;
+    assert(cards.length === 2, "Grimoire : une carte par sort (3 exemplaires de Boule de Feu + 1 Pic de Glace -> 2 cartes)");
+    assert(cards[0].innerHTML.includes('Équipé') && cards[0].innerHTML.includes('3 exemplaires') && !cards[1].innerHTML.includes('Équipé'), "Grimoire : la carte du sort équipé le signale et compte ses exemplaires");
+
+    // Équiper un exemplaire précis depuis son index
+    equipSpell(groupSpellbook(gameState.spellbook)[0].copies[0].index);
+    assert(gameState.equipment.spell === fireL && gameState.spellbook.includes(equippedFire) && !gameState.spellbook.includes(fireL), "Équiper l'exemplaire Légendaire : l'ancien équipé retourne au grimoire");
+
+    // Vente séparée d'un exemplaire
+    const target = groupSpellbook(gameState.spellbook)[0].copies.find(c => c.spell === fireC);
+    const goldBefore = gameState.gold;
+    sellSpell(target.index);
+    assert(!gameState.spellbook.includes(fireC) && gameState.spellbook.includes(equippedFire) && gameState.gold > goldBefore, "Vente d'un exemplaire : seul celui-ci quitte le grimoire, les autres raretés restent");
+    gameState.spellbook = [];
+    gameState.equipment.spell = null;
 }

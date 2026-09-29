@@ -15,6 +15,7 @@ require('./regression/combat-scaling.js');
 require('./regression/combat-boss.js');
 require('./regression/combat-enrage.js');
 require('./regression/items.js');
+require('./regression/loot.js');
 require('./regression/misc.js');
 require('./regression/magic.js');
 require('./regression/magic-balance.js');
@@ -28,6 +29,7 @@ require('./regression/urban-map.js');
 require('./regression/urban-shops.js');
 require('./regression/urban-lairs.js');
 require('./regression/safehouses.js');
+require('./regression/companions.js');
 
 console.log(`${counts.passed} test(s) OK, ${counts.failures} échec(s).`);
 process.exit(counts.failures === 0 ? 0 : 1);

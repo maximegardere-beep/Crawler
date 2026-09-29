@@ -37,23 +37,23 @@ const { assert, resetTransientState } = require('./_helpers.js');
 }
 
 // generateShopStock() : 3 objets, tous de la catégorie forcée, chacun avec un prix > 0 dérivé de sa
-// baseValue (voir SHOP_MARKUP).
+// valeur (getItemValue(), voir SHOP_MARKUP).
 {
     const stock = generateShopStock('armors');
     assert(stock.length === 3, "generateShopStock() : 3 objets générés");
     stock.forEach(item => {
         assert(item.category === 'armors', "generateShopStock() : catégorie forcée respectée");
-        assert(item.price === Math.max(1, Math.round((item.baseValue || 1) * SHOP_MARKUP)),
-            "generateShopStock() : prix = baseValue × SHOP_MARKUP");
+        assert(item.price === Math.max(1, Math.round(getItemValue(item) * SHOP_MARKUP)),
+            "generateShopStock() : prix = valeur × SHOP_MARKUP");
     });
 
     const scrollStock = generateShopStock('scrolls');
     scrollStock.forEach(item => {
         assert(item.category === 'scrolls', "generateShopStock() : catégorie 'scrolls' (parchemins) respectée aussi");
-        // Chantier "QoL/équilibrage" (Chantier D) : generateSpellScroll() pose désormais baseValue,
-        // donc un parchemin en boutique a un vrai prix (pas le repli à 1 PO d'avant ce chantier).
-        assert(item.baseValue > 0, "generateShopStock() : un parchemin a un baseValue > 0 (Chantier D)");
-        assert(item.price > Math.round(SHOP_MARKUP), "generateShopStock() : le prix d'un parchemin reflète son baseValue, pas le repli à 1");
+        // Chantier "QoL/équilibrage" (Chantier D) : un parchemin a une vraie valeur, donc un vrai prix
+        // en boutique (pas le repli à 1 PO d'avant ce chantier).
+        assert(getItemValue(item) > 0, "generateShopStock() : un parchemin a une valeur > 0 (Chantier D)");
+        assert(item.price > Math.round(SHOP_MARKUP), "generateShopStock() : le prix d'un parchemin reflète sa valeur, pas le repli à 1");
     });
 }
 

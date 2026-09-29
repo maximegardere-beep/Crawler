@@ -65,11 +65,14 @@ function resetTransientState() {
     gameState.equipment = { weapon: null, armor: null, ranged: null, spell: null };
     gameState.mana = gameState.maxMana;
     gameState.spellbook = [];
+    gameState.signaturesAwarded = [];
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null };
     gameState.companion = null;
     gameState.bossChoicePending = false;
     gameState.safehouseChoicePending = false;
     gameState.pendingSafehouseRoomId = null;
+    gameState.stairsChoicePending = false;
+    gameState.pendingStairsChoice = null;
     if (ui.safehouseChoiceZone) ui.safehouseChoiceZone.classList.add('hidden');
     gameState.stealthChoicePending = false;
     gameState.pendingStealthEncounter = null;

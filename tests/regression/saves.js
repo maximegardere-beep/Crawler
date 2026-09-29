@@ -43,6 +43,10 @@ const { assert, resetTransientState } = require('./_helpers.js');
     gameState.currentEnemy = { name: "Ne devrait jamais revenir", hp: 50, maxHp: 50, atk: 5, def: 2, status: {} };
     gameState.combatDistance = 5;
     gameState.bossChoicePending = true;
+    gameState.safehouseChoicePending = true;
+    gameState.pendingSafehouseRoomId = 'x';
+    gameState.stairsChoicePending = true;
+    gameState.pendingStairsChoice = { kind: 'room', roomId: 'x' };
     saveGame();
 
     resetTransientState(); // Simule un rechargement de page : repart d'un état neuf
@@ -54,6 +58,9 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(gameState.inCombat === false && gameState.currentEnemy === null, "restoreSaveForName() : ne restaure jamais en plein combat");
     assert(gameState.combatDistance === 0, "restoreSaveForName() : réinitialise l'écart de combat");
     assert(gameState.bossChoicePending === false, "restoreSaveForName() : ne restaure jamais sur un choix de boss en attente");
+    assert(gameState.safehouseChoicePending === false && gameState.pendingSafehouseRoomId === null, "restoreSaveForName() : ne restaure jamais sur un choix de salle sécurisée en attente (sinon jeu bloqué, zone masquée)");
+    assert(gameState.stairsChoicePending === false && gameState.pendingStairsChoice === null, "restoreSaveForName() : ne restaure jamais sur un choix d'escalier en attente");
+    assert(isActionBlocked() === false, "restoreSaveForName() : aucune action bloquée après restauration");
     assert(gameState.saveEnabled === true, "restoreSaveForName() : réactive l'autosauvegarde");
 }
 
