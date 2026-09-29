@@ -472,6 +472,10 @@
             <!-- Badge(s) permanent(s) des anomalies actives sur l'étage (voir updateAnomalyStatusUI() dans
                  app.js) : icône+nom toujours visibles, description complète via l'infobulle (title). -->
             <div id="anomaly-status-bar" class="hidden flex flex-wrap gap-1.5 pl-6 pt-1"></div>
+            <!-- Succès du crawler (chantier 2, openAchievementsScreen() dans app.js) -->
+            <div class="flex justify-end pt-1">
+                <button id="btn-achievements" type="button" class="min-h-[32px] px-2 py-1 rounded border border-amber-800/60 bg-amber-950/20 hover:bg-amber-900/30 text-[10px] font-bold uppercase tracking-widest text-amber-300">🏆 Succès <span id="achievements-count">0/0</span></button>
+            </div>
         </header>
 
         <!-- 2. Temps Restant (Barre de progression) -->
@@ -1075,6 +1079,19 @@
     <!-- Inspection d'un objet (openItemInspect() dans app.js) : stats, niveau d'objet, chaque
          qualificatif avec son effet exact, valeur, comparaison avec l'objet porté au même emplacement,
          et les actions du contexte (équiper, jeter, acheter, vendre). Toucher le fond referme. -->
+    <!-- Annonce non bloquante d'un succès débloqué (showAchievementToast() dans app.js) -->
+    <div id="achievement-toast" class="hidden fixed top-3 left-1/2 -translate-x-1/2 z-50 w-max max-w-[90vw] px-4 py-2 rounded-lg border-2 border-amber-500 bg-gray-950/95 text-center text-xs font-bold text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.4)] pointer-events-none" role="status" aria-live="polite"></div>
+
+    <!-- Écran des succès du crawler (openAchievementsScreen() dans app.js) -->
+    <div id="achievements-overlay" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+        <div class="bg-gray-900 border-2 border-amber-700 rounded-xl p-4 max-w-sm w-full max-h-[85vh] flex flex-col shadow-2xl">
+            <p class="font-black text-sm uppercase tracking-widest text-amber-300 mb-1">🏆 Succès <span id="achievements-title-count" class="text-gray-400">0/0</span></p>
+            <p class="text-[10px] text-gray-500 mb-3">Chaque succès rapporte une boîte de vos sponsors (🥉 Bronze, 🥈 Argent, 🥇 Or).</p>
+            <ul id="achievements-list" class="flex flex-col gap-1.5 text-[11px] overflow-y-auto"></ul>
+            <button id="btn-close-achievements" class="mt-3 w-full min-h-[44px] py-2 border-2 rounded-lg text-[11px] font-bold uppercase tracking-widest bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700">Fermer</button>
+        </div>
+    </div>
+
     <div id="item-inspect-overlay" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
         <div id="item-inspect-panel" class="bg-gray-900 border-2 border-gray-700 rounded-xl p-4 max-w-sm w-full max-h-[85vh] overflow-y-auto shadow-2xl">
             <div id="item-inspect-body" class="flex flex-col gap-3 text-[11px] text-gray-300"></div>
@@ -1098,7 +1115,8 @@
                 <div class="flex justify-between"><span>Niveau final</span><span id="game-over-level" class="text-gray-100 font-bold">1</span></div>
                 <div class="flex justify-between"><span>Quartier</span><span id="game-over-district" class="text-gray-100 font-bold">-</span></div>
             </div>
-            <p id="game-over-epitaph" class="w-full text-sm italic text-gray-300 mb-6 text-left bg-gray-950/70 rounded p-3 border border-gray-800"></p>
+            <p id="game-over-epitaph" class="w-full text-sm italic text-gray-300 mb-3 text-left bg-gray-950/70 rounded p-3 border border-gray-800"></p>
+            <p id="game-over-achievements" class="w-full text-[11px] text-amber-200/90 mb-6 text-left"></p>
             <button id="btn-restart" class="w-full py-3 bg-red-900/40 border-2 border-red-600 rounded-lg text-red-300 font-bold uppercase tracking-widest hover:bg-red-800/50 active:scale-95 transition-all">
                 Nouvelle Partie
             </button>
@@ -1115,6 +1133,7 @@
                 <div class="flex justify-between"><span>Étage atteint</span><span id="win-floor" class="text-gray-100 font-bold">18</span></div>
                 <div class="flex justify-between"><span>Niveau final</span><span id="win-level" class="text-gray-100 font-bold">1</span></div>
             </div>
+            <p id="win-achievements" class="text-[11px] text-amber-200/90 mb-6 text-left"></p>
             <button id="btn-win-restart" class="w-full py-3 bg-emerald-900/40 border-2 border-emerald-600 rounded-lg text-emerald-300 font-bold uppercase tracking-widest hover:bg-emerald-800/50 active:scale-95 transition-all">
                 Nouvelle Partie
             </button>
@@ -1156,30 +1175,31 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=31"></script>
-    <script src="items.js?v=31"></script>
-    <script src="spells.js?v=31"></script>
-    <script src="districts.js?v=31"></script>
-    <script src="safehouses.js?v=31"></script>
-    <script src="generator.js?v=31"></script>
-    <script src="anomalies.js?v=31"></script>
-    <script src="sprites/crawler.js?v=31"></script>
-    <script src="sprites/npcs.js?v=31"></script>
-    <script src="sprites/mobs.js?v=31"></script>
-    <script src="sprites/mob-details-a.js?v=31"></script>
-    <script src="sprites/mob-details-b.js?v=31"></script>
-    <script src="sprites/mob-auras.js?v=31"></script>
-    <script src="sprites/bosses-a.js?v=31"></script>
-    <script src="sprites/bosses-b.js?v=31"></script>
-    <script src="sprites/items-generic.js?v=31"></script>
-    <script src="sprites/items-melee.js?v=31"></script>
-    <script src="sprites/items-ranged.js?v=31"></script>
-    <script src="sprites/items-armor.js?v=31"></script>
-    <script src="sprites/items-signature.js?v=31"></script>
-    <script src="sprites/fx.js?v=31"></script>
-    <script src="backdrops.js?v=31"></script>
-    <script src="scene.js?v=31"></script>
-    <script src="fx.js?v=31"></script>
-    <script src="app.js?v=31"></script>
+    <script src="bestiary.js?v=32"></script>
+    <script src="items.js?v=32"></script>
+    <script src="spells.js?v=32"></script>
+    <script src="districts.js?v=32"></script>
+    <script src="safehouses.js?v=32"></script>
+    <script src="generator.js?v=32"></script>
+    <script src="anomalies.js?v=32"></script>
+    <script src="achievements.js?v=32"></script>
+    <script src="sprites/crawler.js?v=32"></script>
+    <script src="sprites/npcs.js?v=32"></script>
+    <script src="sprites/mobs.js?v=32"></script>
+    <script src="sprites/mob-details-a.js?v=32"></script>
+    <script src="sprites/mob-details-b.js?v=32"></script>
+    <script src="sprites/mob-auras.js?v=32"></script>
+    <script src="sprites/bosses-a.js?v=32"></script>
+    <script src="sprites/bosses-b.js?v=32"></script>
+    <script src="sprites/items-generic.js?v=32"></script>
+    <script src="sprites/items-melee.js?v=32"></script>
+    <script src="sprites/items-ranged.js?v=32"></script>
+    <script src="sprites/items-armor.js?v=32"></script>
+    <script src="sprites/items-signature.js?v=32"></script>
+    <script src="sprites/fx.js?v=32"></script>
+    <script src="backdrops.js?v=32"></script>
+    <script src="scene.js?v=32"></script>
+    <script src="fx.js?v=32"></script>
+    <script src="app.js?v=32"></script>
 </body>
 </html>

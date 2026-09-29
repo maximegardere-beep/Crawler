@@ -103,6 +103,8 @@ function resetTransientState() {
     gameState.lastPlayerActionWasBackfire = false;
     gameState.engageDefHalved = false;
     gameState.necrologie = [];
+    gameState.runStats = createEmptyRunStats(); // Chronique de run (chantier 2)
+    gameState.achievements = {};
     if (ui.gameOverOverlay) ui.gameOverOverlay.classList.add('hidden');
 }
 

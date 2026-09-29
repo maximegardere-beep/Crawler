@@ -24,8 +24,8 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | # | Chantier | Ampleur | Statut | Dépend de |
 |---|----------|---------|--------|-----------|
 | 1 | Rework des compagnons | M | **Codé** — à playtester | — |
-| 2 | Chronique de run + Succès sarcastiques | M | **Suggéré** | — |
-| 3 | Chasseurs de primes gobelins (anti-snowball) | M | Idée | 2 (compteurs de run) |
+| 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
+| 3 | Chasseurs de primes gobelins (anti-snowball) | M | Idée (socle prêt) | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | Idée | 2 (piques), 1 et 3 (conséquences) |
 | 5 | Rework de la carte (3 lots) | XL | Idée | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
@@ -150,7 +150,7 @@ qualificatifs des objets donnés non appliqués au compagnon (V1).
 
 ---
 
-## 2. Chronique de run + Succès sarcastiques — M — Suggéré
+## 2. Chronique de run + Succès sarcastiques — M — Codé (à playtester)
 
 **Demande** : système de succès sarcastiques.
 
@@ -210,8 +210,58 @@ succès du run sur l'écran Game Over / Victoire.
    difficulté) ouverte sur-le-champ — PO, potion ou objet (rareté selon la boîte, via `addLoot()`).
    Très fidèle au livre, mais c'est de l'équilibrage (convention 5) : chiffres à valider.
 
-### Décisions
-- (en attente de validation)
+### Décisions (validées par l'utilisateur)
+- **Récompense : boîtes de butin façon DCC** (Bronze / Argent / Or), chiffres validés ci-dessous.
+- **Succès PAR CRAWLER** (dans sa sauvegarde, perdus avec elle) — pas de collection globale ni de
+  compteurs « à vie ». Les succès de mort restent, débloqués sur l'écran Game Over (boîte livrée « à
+  titre posthume », donc sans effet).
+- **35 succès** pour la V1 (catalogue ci-dessous, validé tel quel).
+- **Ajout demandé à la validation** : tout butin trouvé réserve pleine (exploration, combat, boss, objet
+  signature, boîte de succès) est **revendu d'office à 50 % du prix de revente marchand**, au lieu d'être
+  perdu.
+
+### Chiffres des boîtes (validés)
+| Boîte | Contenu |
+|---|---|
+| 🥉 Bronze | 60 % : 10-25 PO × (1 + 0,15 × étage) · 40 % : une potion |
+| 🥈 Argent | 50 % : un objet « trésor » (+1 palier de rareté) · 30 % : le double de PO du Bronze · 20 % : 2 potions |
+| 🥇 Or | un objet garanti Rare minimum (+1 palier, comme un boss) **et** le triple de PO du Bronze |
+
+### Catalogue (35 — B = Bronze, A = Argent, O = Or, 🔒 = secret)
+- **Combat** : 🩸 Premier sang (le vôtre) (B) · 🗡️ Première victime (B) · 💥 Coup de maître — tuer d'un
+  seul coup (B) · 🪶 À un poil — gagner avec ≤ 5 % de PV (A) · 🧤 Intouchable — 10 victoires sans une
+  égratignure (A) · 🥊 Pacifiste contrarié — 10 victoires à mains nues (A) · 🔪 Dans le dos — 10
+  victoires ouvertes par une attaque furtive (A) · 🧙 Magicien du dimanche — 25 victoires achevées au sort
+  (A) · 💀 Élitiste — 5 élites (A) · 👑 Couronné — 1er boss (A) · 👑 Régicide en série — 10 boss (O).
+- **Fuite & survie** : 🏃 Stratégie de repli — 10 fuites (B) · 🦶 Jambes de coton — 3 pièges sur un même
+  étage (B) · 🛌 Syndicaliste — 10 repos (B) · ⏳ Retardataire chronique — descendre avec moins de 5 H (A).
+- **Économie & objets** : 🧦 Style Camelote — arme ET armure Camelote portées (B) · 🗃️ Accumulateur —
+  réserve pleine (B) · 🛒 Client fidèle — 5 achats (A) · 💰 Radin — 1 000 PO en poche (A) · ✨
+  Collectionneur — 3 objets signature (O).
+- **Social** : 🤝 Meilleurs amis — loyauté 100 (A) · 🎁 Cadeau empoisonné (B 🔒) · 📱 Rupture par SMS
+  (B 🔒) · 👻 Ghosté (B 🔒).
+- **Magie** : 🎆 Abracadabroum — 5 sorts ratés (B) · 📚 Rat de bibliothèque — 5 sorts différents (A).
+- **Progression** : 🪜 Touriste — étage 3 (B) · 🏙️ Citadin — étage 6 (A) · 🧗 Spéléologue confirmé —
+  étage 9 (A) · 🕳️ Abonné aux abysses — étage 12 (O) · 🚪 Sortie de secours — victoire finale (O).
+- **Posthumes** (🔒) : ⚰️ Premier cadavre · 🐀 Le Rat de trop · 🔥 Mort par sa propre main · ⌛ Le temps,
+  c'est de la mort.
+
+### Planifié (lots)
+0. **Revente d'office** réserve pleine (50 % du prix de revente), dans `storeLootItem()` — seul point de
+   passage de tout butin.
+1. **Chronique** : `gameState.runStats` (sauvegardé, migré à zéro) + un seul point d'entrée
+   `recordRunEvent(type, data)` appelé depuis les hooks existants ; indice de domination pur
+   (`computeDominance()`) pour le chantier 3.
+2. **Catalogue** `achievements.js` (nouveau fichier, `index.html` ET `GAME_FILES`) ; `gameState.achievements`.
+3. **Boîtes** : `config.achievementBoxes`, ouverture immédiate au déblocage.
+4. **Affichage** : annonce non bloquante, bouton 🏆 X/N → écran Succès, succès du run sur Game Over / Victoire.
+5. **Tests** (`tests/regression/achievements.js`, simulation longue) + `NOTES_SUCCES.md`.
+
+### Codé
+Les 6 lots sont livrés (détail : `NOTES_SUCCES.md`). En plus de la demande : les objets rendus par un
+compagnon congédié passent aussi par la revente d'office (ils étaient perdus réserve pleine).
+L'indice de domination est calculé et testé, mais pas encore utilisé : c'est le point d'entrée du
+chantier 3.
 
 ## 3. Chasseurs de primes gobelins — M — Idée
 
