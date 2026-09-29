@@ -24,7 +24,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | # | Chantier | Ampleur | Statut | Dépend de |
 |---|----------|---------|--------|-----------|
 | 1 | Rework des compagnons | M | **Codé** — à playtester | — |
-| 2 | Chronique de run + Succès sarcastiques | M | Idée | — |
+| 2 | Chronique de run + Succès sarcastiques | M | **Suggéré** | — |
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | Idée | 2 (compteurs de run) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | Idée | 2 (piques), 1 et 3 (conséquences) |
 | 5 | Rework de la carte (3 lots) | XL | Idée | — |
@@ -150,20 +150,68 @@ qualificatifs des objets donnés non appliqués au compagnon (V1).
 
 ---
 
-## 2. Chronique de run + Succès sarcastiques — M — Idée
+## 2. Chronique de run + Succès sarcastiques — M — Suggéré
 
 **Demande** : système de succès sarcastiques.
-**Idée de structure** :
-- **Chronique de run** (socle) : compteurs et faits marquants du run dans `gameState` (sauvegardés),
-  alimentés par les hooks uniques déjà existants (`winCombat()`, `applyPlayerDamage()`, `gainXp()`,
-  `addLoot()`, `attemptFlee()`, `gameOver()`…) — comme `floorStats`, mais sur tout le run. Inclut un
-  indicateur de « facilité » des victoires (PV perdus / ATQ du mob, niveau du joueur vs étage), dont le
-  chantier 3 a besoin.
-- **Succès** : catalogue pur (fichier dédié type `achievements.js`), conditions lues sur la chronique,
-  titre + texte sarcastique à la DCC, annonce discrète au déblocage. Persistance **entre les parties**
-  (clé `localStorage` à part, hors sauvegarde du crawler) + écran de consultation.
-- Questions ouvertes : récompenses (purement cosmétiques, ou petits bonus « sponsors » à la DCC ?),
-  nombre de succès pour une première version (~20-30 ?).
+
+### Exploré (état actuel)
+- **Compteurs existants, tous partiels** : `floorStats` (mobs tués, dégâts subis, objets, XP — remis à
+  zéro à chaque étage), `fleesThisRun` (fuites du run, seul compteur « run »), `signaturesAwarded`,
+  `necrologie` (épitaphes, dans la sauvegarde du crawler). Rien sur les boss/élites tués, les coups
+  critiques, les morts évitées de justesse, l'or gagné/dépensé, les pièges, les sorts ratés…
+- **Hooks uniques déjà en place** (le travail de fond est fait) : `winCombat()`, `applyPlayerDamage()`,
+  `applyPlayerHeal()`, `gainXp()`, `storeLootItem()`, `attemptFlee()`, `gameOver(cause)`, `winGame()`,
+  `advanceToNextFloor()`, `restAtSafehouse()`, `buyShopItem()`/`sellItem()`, `attackMagic()` (flop),
+  les fonctions compagnon. Brancher un compteur = une ligne par hook.
+- **Persistance** : une entrée `localStorage` par crawler (`SAVE_KEY_PREFIX`), et `resetGame()` recharge
+  la page. **Rien ne survit à la mort d'un crawler** hors de sa sauvegarde : des succès « entre les
+  parties » demandent une clé à part (comme `SAVE_BACKUP_KEY`), jamais effacée par le nettoyage des
+  sauvegardes.
+- **Affichage** : bannière de phase boss (`#phase-transition-banner`) = modèle d'annonce non bloquante ;
+  panneau d'inspection = modèle de fiche ; écran de départ = point d'entrée hors partie.
+
+### Suggéré (à valider)
+**A. Chronique de run (socle, sert aussi aux chantiers 3 et 4)** — `gameState.runStats`, sauvegardé
+avec le crawler, jamais remis à zéro pendant le run : mobs/élites/boss tués (et par type d'attaque :
+arme, tir, mains nues, sort, attaque furtive), dégâts infligés/subis, plus gros coup, victoires « à un
+fil » (< 10 % PV), fuites, pièges, sorts ratés, PO gagnées/dépensées, objets vendus, Camelote portée,
+compagnons recrutés/à terre/dons, siestes/sommeils, étages atteints. Plus un **indice de domination**
+(fonction pure) : moyenne glissante des dernières victoires, PV perdus rapportés aux PV max et écart
+niveau/étage — c'est lui que les chasseurs de primes liront.
+
+**B. Succès** — catalogue pur `achievements.js` (`{ id, icon, title, text, secret?, check(stats, event) }`),
+évalué par `recordRunEvent(event)` aux hooks ci-dessus. Première fournée d'une trentaine, en 4 familles :
+- *Combat* : « Premier sang (le vôtre) », « Le Rat de trop » (mort face à un mob très inférieur),
+  « Pacifiste contrarié » (10 victoires à mains nues), « Kiteur professionnel » (gagner sans jamais
+  être touché), « À un poil de cul » (gagner à 1 PV), « Couronné » (1er boss), « Régicide en série » (10 boss).
+- *Fuite & survie* : « Stratégie de repli » (10 fuites), « Le temps, c'est de la mort » (mort par
+  épuisement du temps), « Jambes de coton » (3 pièges sur un même étage).
+- *Économie & objets* : « Soldes monstres » (tout acheter chez un marchand), « Style Camelote » (finir un
+  étage tout équipé de Camelote), « Collectionneur » (5 objets signature), « Radin » (1 000 PO sans rien
+  dépenser).
+- *Social* : « Meilleurs amis » (loyauté 100), « Ghosté » (compagnon parti), « Cadeau empoisonné »
+  (donner un objet Camelote à un compagnon), « Congédié par SMS ».
+- *Magie & chaos* : « Abracadabroum » (5 sorts ratés), « Mort par sa propre main » (mort par backfire).
+- *Progression* : étages 3/6/9/12/15, « Sortie » (victoire finale), « Premier cadavre ».
+Des secrets (« ??? » tant qu'ils ne sont pas débloqués) pour garder de la surprise.
+
+**C. Persistance entre les parties** : clé `localStorage` dédiée — succès débloqués (date, nom du
+crawler, étage) + quelques compteurs à vie (parties, morts, boss) pour les succès « méta » (« Habitué
+des pompes funèbres » : 10 morts). Jamais touchée par le nettoyage des sauvegardes.
+
+**D. Affichage** : annonce non bloquante « 🏆 Succès débloqué » (quelques secondes, dans le style de la
+bannière de phase, jamais pendant un beat de combat important), écran « Succès » (compteur X/N,
+débloqués + verrouillés, secrets masqués) accessible depuis l'écran de départ ET en jeu, et la liste des
+succès du run sur l'écran Game Over / Victoire.
+
+**E. Récompense — à trancher** :
+1. *Cosmétique pur* (V1 la plus simple, aucun impact d'équilibrage).
+2. *Boîtes de butin façon DCC* : chaque succès donne une boîte (Bronze / Argent / Or selon sa
+   difficulté) ouverte sur-le-champ — PO, potion ou objet (rareté selon la boîte, via `addLoot()`).
+   Très fidèle au livre, mais c'est de l'équilibrage (convention 5) : chiffres à valider.
+
+### Décisions
+- (en attente de validation)
 
 ## 3. Chasseurs de primes gobelins — M — Idée
 
