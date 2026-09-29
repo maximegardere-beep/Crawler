@@ -7,7 +7,7 @@ Tailwind CDN, **aucun build step**.
 - `index.html` — UI (scène d'exploration, combat, inventaire, grimoire, "Lieux connus"/"Carte Urbaine", Game Over/Victoire)
 - `app.js` — moteur : état, exploration, combat, niveau/XP, compétences, équipement, magie/mana, compagnons, carte d'étage
 - `bestiary.js` — monstres de base + boss de quartier (`districtBosses`)
-- `items.js` — objets, raretés, enchantements (`itemModifiers.effect`)
+- `items.js` — objets de base, raretés (`itemRarities`), réglages du loot (`itemBalance`), qualificatifs (`itemQualifiers`)
 - `spells.js` — grimoire de sorts (`spellCatalog`), catégories corps à corps/à distance
 - `districts.js` — quartiers (référencent les monstres par nom)
 - `safehouses.js` — types de salles sécurisées (narratif seul pour l'instant)
@@ -86,13 +86,40 @@ Tailwind CDN, **aucun build step**.
 - **Compagnons** : 4 spécialités. `leaveChance` (0-100) grimpe avec l'XP du compagnon ; à chaque
   montée de niveau, un jet décide s'il abandonne (départ **pacifique**, raison aléatoire parmi
   `COMPANION_ABANDON_REASONS`) — ce n'est PAS un seuil dur, juste une probabilité croissante.
-- **Objets** : 4 raretés (commun/rare/épique/légendaire) → slots d'enchantement + multiplicateur de
-  stats. `IMPLEMENTED_WEAPON_MECHANICS` / `IMPLEMENTED_ARMOR_MECHANICS` listent les enchantements
-  qui ont un vrai effet en combat ; le reste (`pleasure_or_pain`, `aoe`, `darkness`) est cosmétique
-  des deux côtés. Badges visibles dans l'inventaire (`buildMechanicBadgesHtml()`), colorés si
-  fonctionnels, grisés sinon. `jokeItem: true` (`items.js`) marque un objet volontairement dérisoire
-  (blague DCC), exclu du tirage normal du loot (`generateItem()`) mais toujours accessible via le
-  cadeau de bienvenue et le kit de test. Réserve d'équipement (armes/armures/armes à distance,
+- **Objets** (chantier "refonte des objets", voir `NOTES_ITEMS.md` pour les chiffres et la courbe
+  visée) : TOUT objet (arme, distance, armure, consommable, parchemin, signature de boss, cadeau, kit de
+  test) passe par les constructeurs uniques de `generator.js` (`buildItem()`/`buildSpellScroll()`/
+  `buildSignatureItem()`). Deux axes de puissance : **niveau d'objet** (`item.itemLevel` = étage
+  d'obtention, +1 pour un boss de repaire ; stats × `1 + itemBalance.levelScaling.equipment × (niveau−1)`,
+  soins à `levelScaling.heal`, jamais le mana ni le coût en mana) et **rareté** (`itemRarities`, 5
+  paliers : Camelote ×0,7 / Commun ×1 / Rare ×1,25 / Épique ×1,5 / Légendaire ×1,8 — slots de
+  qualificatifs, rang maximal, `valueMult`). Les meilleurs objets de base ont une profondeur minimale
+  (`minFloor`, `pickBaseItem()`). Rareté tirée selon l'ÉTAGE (`rollLootRarity({ source, floor })`,
+  tables `itemBalance.lootTables` — aucun Légendaire aux étages 1-2 hors boss), plus selon la puissance
+  du monstre : `source` 'elite' (chance de +1 palier), 'boss' (+1 palier, plancher Rare), 'treasure'
+  (+1 palier) ; `luckChance` (qualificatif Chanceux porté). Valeur marchande
+  `computeItemValue()` → `item.value` (rareté × niveau d'objet × qualificatifs), lue via `getItemValue()`
+  (repli `baseValue` pour un objet construit à la main) par la revente et le marchand.
+  **Qualificatifs** (`itemQualifiers`, clé = mécanique, aussi copiée dans `item.mechanics` pour le rendu) :
+  `item.qualifiers = [{ key, rank }]`, rang I-III = `rarity.maxRank` (Rare I, Épique II, Légendaire III ;
+  signature au rang III). Chaque qualificatif définit ses valeurs PAR CIBLE (`weapon` = mêlée et
+  distance, `armor`, `spell`) et sa phrase d'inspection `text(v)` à côté des chiffres qu'elle décrit —
+  `getQualifierValues()`/`describeQualifier()` (generator.js) sont la SEULE source des chiffres, lue à la
+  fois par le moteur et par l'affichage. Trois types : `proc` (chance par coup porté/encaissé,
+  `triggerItemQualifiers()`/`resolveQualifierEffect()`), `passive` (Aiguisé, Précis, Perforant — lus
+  par `performPlayerAttack()` via `options.gear` ; Silencieux, Véloce, Chanceux — `sumEquippedQualifier()` ;
+  Robuste — `recomputeMaxHp()` ; Ténébreux — `rollPlayerDodge()` ; Tenace — `applyMobEffectOnPlayer()` ;
+  Économe/Canalisé — `attackMagic()`/`getSpellManaCost()`) et `malus` (défauts de Camelote, un seul :
+  Rouillé/Fêlé déjà comptés dans les stats, Bancal, Grinçant, Bredouillant). Électrique/Explosif ajoutent
+  leurs dégâts AU coup (avant le test de victoire) ; Épineux n'achève jamais ; Gelé/Terrifiant et
+  l'armure agissent aussi contre un boss (`consumeEnemyAttackDebuffs()`, `enemy._debuffAtkMult`,
+  `applyArmorMechanic()` dans `executeBossStrike()`). Tout nouveau qualificatif doit avoir sa couleur
+  dans `ENCHANT_COLORS` (exigé par `tests/regression/items.js`). Badges (`buildQualifierBadgesHtml()`,
+  effet exact en infobulle) et **panneau d'inspection** (`openItemInspect(item, { actions, compareTo,
+  priceLine })`, HTML pur `buildItemInspectHtml()`, `#item-inspect-overlay`) : ouvert depuis les cartes
+  d'inventaire, l'équipement porté, le grimoire et la boutique (achat/vente uniquement par ce panneau).
+  `jokeItem: true` (`items.js`) marque un objet volontairement dérisoire (blague DCC), qui ne tombe
+  qu'au palier Camelote. Réserve d'équipement (armes/armures/armes à distance,
   consommables et parchemins jamais comptés, voir `addLoot()`) : `config.inventory.maxEquipment` (8,
   chantier "QoL/équilibrage", Chantier B — voir `NOTES_QOL_EQUILIBRAGE.md`) — `gameState.maxInventory`
   en est un simple alias, posé juste après la déclaration de `config` (`gameState` est déclaré avant
@@ -134,10 +161,11 @@ Tailwind CDN, **aucun build step**.
   "par ATTAQUE" = par tour) se multipliait par le nombre de coups sur un multi-coups sans correctif —
   `executeBossStrike(enemy, atk, label, pressureFloorOverride)` accepte désormais un plancher réparti
   explicitement entre les frappes d'un même tour, pour que la SOMME reste le plancher standard d'un
-  tour de boss. Récompenses de boss (déjà en place avant le reste du chantier 2) :
-  `config.bossRewards.minRarityKey` plombe la rareté du loot aléatoire garanti, et
-  `awardBossSignatureItem()` attache en plus un objet signature légendaire unique par boss
-  (`bestiary.js`, `districtBosses.*.signatureItem`, cloné frais à chaque victoire).
+  tour de boss. Récompenses de boss (revues par le chantier "refonte des objets") : un objet garanti
+  (`itemBalance.boss` : +1 palier, plancher Rare, second objet à 25 %) et l'objet signature légendaire
+  du boss (`bestiary.js`, `districtBosses.*.signatureItem`, stats de base mises à l'échelle par
+  `buildSignatureItem()`), garanti à la PREMIÈRE victoire sur ce boss dans la partie
+  (`gameState.signaturesAwarded`) puis à 20 % (`awardBossSignatureItem()`).
 - **Enrage distance et engagement** (chantier "rework combat", Chantier 3 — voir `NOTES_COMBAT.md`
   pour le détail des valeurs) : anti-kite générique, tous mobs confondus (boss inclus).
   `enemy.kitingRounds` (base 1 pour un boss, 0 sinon — `mobKitingBaseline()`) s'incrémente à chaque
@@ -351,8 +379,9 @@ Tailwind CDN, **aucun build step**.
   corps à corps ou à distance (`spellCategory`) — qui font se comporter le bouton Magie exactement
   comme Arme/Tir : grisé au mauvais écart (`attackMagic()`/`updateUI()`). Un parchemin (catégorie
   `'scrolls'`) est généré par `generateSpellScroll()` au même titre que le reste du loot
-  (`generateItem()`/`addLoot()`), avec une rareté qui fait grimper puissance ET coût en mana
-  ensemble (pas de slots d'enchantement, contrairement aux armes/armures). Trouvé, il rejoint
+  (`generateItem()`/`addLoot()`), même système de rareté, niveau d'objet et qualificatifs qu'une arme
+  (qualificatifs de cible `spell`, appliqués après un sort réussi) ; la rareté fait grimper le coût en
+  mana moitié moins vite que les dégâts (`itemBalance.spellManaRarityWeight`). Trouvé, il rejoint
   `gameState.spellbook` (inventaire magique séparé, jamais limité) plutôt que `gameState.inventory` ;
   `equipSpell()` l'équipe et renvoie l'éventuel sort précédent dans le grimoire, sans jamais le
   perdre. **Grimoire regroupé** : `groupSpellbook(spellbook, equipped)` (pure) regroupe les exemplaires
@@ -383,8 +412,9 @@ Tailwind CDN, **aucun build step**.
   `#gift-reveal-overlay` (`revealWelcomeGift()`) recouvrent l'UI de jeu au chargement — celle-ci est
   déjà entièrement initialisée en arrière-plan (aucun état de jeu propre à ces deux écrans). Le
   cadeau de bienvenue est tiré au sort pondéré (`WELCOME_GIFT_WEIGHTS`/`rollWelcomeGiftType()` :
-  Arme > Rien > Tir > Magie) puis équipé directement (`generateWelcomeGiftItem()` dans
-  `generator.js`, toujours au palier Commun), avec une blague sarcastique par type
+  Arme > Tir > Armure > Magie > Rien, « Rien » à 5 %) puis équipé directement
+  (`generateWelcomeGiftItem()` dans `generator.js`, toujours au palier Camelote, défaut possible), avec
+  une blague sarcastique par type
   (`flavorText.welcomeGift`). `resetGame()` recharge la page : l'écran de départ réapparaît
   naturellement à chaque nouvelle partie.
 - **Sauvegarde** : une entrée `localStorage` par nom de crawler (`SAVE_KEY_PREFIX`,
@@ -466,7 +496,7 @@ Tailwind CDN, **aucun build step**.
   attendu par `renderGraphMiniMap()` — voir la section **Mini carte graphique** ci-dessous.
 - **Système d'argent (PO)** : `gameState.gold`, seule monnaie du jeu. Deux sources : quelques PO
   trouvées en explorant (`config.chances.goldFind`, D100 au même titre que le reste du loot) et
-  `sellItem(index)` (`SELL_VALUE_RATIO = 0.4` × `item.baseValue`, objet retiré de l'inventaire).
+  `sellItem(index)` (`SELL_VALUE_RATIO = 0.4` × `getItemValue(item)`, objet retiré de l'inventaire).
   Dépensée exclusivement dans les villes spécialisées (marchand/professeur, voir ci-dessous) — pas
   d'autre sink pour l'instant.
 - **Villes spécialisées (marchand/professeur)** : à la génération d'un étage urbain, **une ville
@@ -482,15 +512,12 @@ Tailwind CDN, **aucun build step**.
   n'a que 4 valeurs possibles). `triggerShopEncounter(city)` (dispatché depuis `arriveAtCity()`, avant
   la résolution générique "ville sûre") ouvre `#shop-zone` et pose `gameState.shopChoicePending`
   (inclus dans `isActionBlocked()`, comme un choix de boss). `generateShopStock(specialty)` tire 3
-  objets une seule fois par partie (`city.stock`, jamais régénéré), prix = `item.baseValue ×
+  objets une seule fois par partie (`city.stock`, jamais régénéré), prix = `getItemValue(item) ×
   SHOP_MARKUP` (2.5) ; `buyShopItem()`/`sellItem()` sont les deux faces du même
   `SELL_VALUE_RATIO`/`SHOP_MARKUP`, volontairement asymétriques (acheter coûte plus cher que vendre ne
   rapporte). `sellSpell()` est le pendant de `sellItem()` pour `gameState.spellbook` (Chantier D,
-  section boutique dédiée `#shop-sell-spells-list`) — les parchemins (`generateSpellScroll()`) posent
-  désormais `baseValue` (dérivé du `baseDmg` NON scalé du sort de base, jamais affecté par la rareté —
-  même convention que `baseValue` sur les objets classiques dans `items.js`), corrigeant au passage un
-  bug préexistant où un marchand de parchemins vendait systématiquement à 2-3 PO (repli `baseValue ||
-  1` dans `generateShopStock()`, faute de `baseValue` réel). `trainSkill()` paie
+  section boutique dédiée `#shop-sell-spells-list`) — un parchemin a une valeur calculée comme tout
+  objet (`baseValue` du sort dans `spells.js` × rareté × niveau d'objet, chantier "refonte des objets"). `trainSkill()` paie
   `TRAINER_COST_PER_LEVEL` (20) × le niveau ACTUEL de la compétence pour l'amener exactement au niveau
   suivant (`gainSkillXp(specialty, xpToNext - xp)`) — "payer pour s'entraîner" plutôt que le grind
   combat habituel, jamais un raccourci gratuit.
@@ -762,11 +789,14 @@ Tailwind CDN, **aucun build step**.
   charge les fichiers sources dans l'ordre (`GAME_FILES`).
 - `npm test` (= `node tests/regression.test.js`), `npm run test:long` (= `node tests/long_playthrough.js`),
   `npm run test:all` (les deux à la suite, s'arrête au premier échec) — voir `package.json`.
+- `npm run sim:items` (`tests/tools/item-curve.js`, outil de calibrage, jamais lancé par la CI) :
+  répartition des raretés par étage et source, courbe de puissance selon l'équipement, valeur marchande
+  — à relancer avant toute retouche de `itemBalance`/`itemRarities`.
 - **Rapide** (`npm test`, quelques secondes) : à lancer avant CHAQUE push. `tests/regression.test.js`
   est un AGRÉGATEUR (depuis la Tâche 2 du chantier "fiabilisation" — l'ancien fichier monolithique
   faisait ~172 Ko) : il ne fait que `require()` chaque module de `tests/regression/*.js`, regroupés
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
-  `combat-enrage.js`, `items.js`, `misc.js`, `magic.js`, `saves.js`,
+  `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
   `urban-map.js`, `urban-shops.js`, `urban-lairs.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
@@ -829,9 +859,9 @@ Tailwind CDN, **aucun build step**.
   final, 2-3 combats forcés par repaire) — "on verra à l'usage", à ajuster une fois du retour réel
   disponible plutôt qu'en tâtonnant sans données.
 
-- **Rework du loot et de l'économie** (demandé par l'utilisateur, pas encore planifié) : les objets
-  deviennent quasiment tous légendaires trop vite ; à revoir en même temps, le prix de revente d'un
-  parchemin, qui ne dépend pas de sa rareté (`generateSpellScroll()`, `baseValue` tiré du sort de base).
+- **Refonte des objets** (faite, voir `NOTES_ITEMS.md`) : chiffres calibrés par simulation seulement
+  (`npm run sim:items`), à confirmer par playtest — en particulier l'économie (un Légendaire vaut ~20×
+  un Commun : un seul objet signature revendu finance beaucoup de boutique).
 
 ## Gros chantiers à venir (non commencés — demander lequel prioriser avant de s'y lancer)
 - Sons
