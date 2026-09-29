@@ -84,9 +84,26 @@ Tailwind CDN, **aucun build step**.
   Furtive (bonus x2 garanti). Un échec d'esquive laisse le mob "alerted" (`enemy.alerted`) pour tout le
   combat qui suit : `attemptFlee()` y est bloqué, pour que la boucle "esquive ratée sans conséquence"
   ne reste pas totalement gratuite.
-- **Compagnons** : 4 spécialités. `leaveChance` (0-100) grimpe avec l'XP du compagnon ; à chaque
-  montée de niveau, un jet décide s'il abandonne (départ **pacifique**, raison aléatoire parmi
-  `COMPANION_ABANDON_REASONS`) — ce n'est PAS un seuil dur, juste une probabilité croissante.
+- **Compagnons** (chantier « rework des compagnons », voir `NOTES_COMPAGNONS.md`, chiffres dans
+  `config.companions`) : 4 spécialités. Stats de base indexées sur l'étage à l'embauche
+  (`generateCompanionCandidate(floor)`, même `getFloorScaling()` que les mobs), +10 % par niveau
+  (`computeCompanionLevelStats()`, pure — generator.js, section 3, avec `getCompanionAtk()`/
+  `getCompanionDef()` = stats + arme/armure données, `companionGiftLoyalty()`,
+  `companionDepartureChance()`, `normalizeCompanion()` pour migrer une sauvegarde d'avant le rework).
+  **Loyauté** 0-100 (départ 60) au lieu de `leaveChance` : victoire +2, repos partagé +5/+10, fuite −5,
+  à terre −10, dons ; **départ uniquement au changement d'étage** (`attemptCompanionDeparture()` dans
+  `advanceToNextFloor()`) sous 40 de loyauté, départ pacifique (il garde ses cadeaux). À 0 PV :
+  **à terre** (`companion.downed`, `checkCompanionDowned()`), reste dans le groupe mais n'agit plus
+  jusqu'à un repos ou une potion — tout effet passe par `activeCompanion()`/`hasActiveCompanion(type)`.
+  PV régénérés comme le joueur et rendus au repos. Coups encaissés : `companionInterceptHit()` (seul point,
+  mobs et boss). Aide : `companionCombatSupport()` (après chaque attaque du joueur : sort donné, Frappe
+  d'appoint, coup d'opportunité), `companionMedicAfterRiposte()`, `onCompanionVictory()` ; hors combat :
+  pièges (Éclaireur), PO (Frappe), embuscades (`computeAmbushBaseChance()`, Garde). **Dons** :
+  `giveItemToCompanion()`/`giveSpellToCompanion()`/`giveConsumableToCompanion()` (action « Donner à »
+  des panneaux d'inspection via `companionGiveAction()`), emplacements `companion.gear` arme (mêlée ou
+  distance)/armure/sort, l'ancien objet revient au joueur, loyauté une seule fois par objet
+  (`item.companionGifted`). Fiche : `#companion-status-bar` → `openCompanionSheet()` (potion, Congédier
+  avec confirmation → `dismissCompanion()`, qui rend les cadeaux).
 - **Objets** (chantier "refonte des objets", voir `NOTES_ITEMS.md` pour les chiffres et la courbe
   visée) : TOUT objet (arme, distance, armure, consommable, parchemin, signature de boss, cadeau, kit de
   test) passe par les constructeurs uniques de `generator.js` (`buildItem()`/`buildSpellScroll()`/
@@ -799,7 +816,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests

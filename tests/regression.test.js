@@ -29,6 +29,7 @@ require('./regression/urban-map.js');
 require('./regression/urban-shops.js');
 require('./regression/urban-lairs.js');
 require('./regression/safehouses.js');
+require('./regression/companions.js');
 
 console.log(`${counts.passed} test(s) OK, ${counts.failures} échec(s).`);
 process.exit(counts.failures === 0 ? 0 : 1);

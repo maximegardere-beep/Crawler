@@ -383,6 +383,34 @@ const config = {
         sleep: { cost: 8, healPct: 1.0 }
     },
 
+    // Compagnons (chantier "rework des compagnons", voir NOTES_COMPAGNONS.md et CHANTIERS.md) : valeurs
+    // validées par l'utilisateur, à ajuster par playtest. Lues par les fonctions pures de generator.js
+    // (section 3) et par la logique de jeu d'app.js (section COMPAGNONS).
+    companions: {
+        xpPerWin: 15,
+        levelStatGain: 0.10, // +10 % des stats de base par niveau du compagnon
+        loyalty: {
+            start: 60, max: 100,
+            victory: 2, nap: 5, sleep: 10, flee: -5, downed: -10,
+            consumableGift: 3,
+            giftByRarity: { camelote: 2, commun: 5, rare: 8, epique: 12, legendaire: 18 },
+            // Jet de départ au changement d'étage, seulement sous `departureThreshold` :
+            // chance = (departureThreshold − loyauté) × departurePerPoint %.
+            departureThreshold: 40, departurePerPoint: 2
+        },
+        support: {
+            strikeRatio: 0.35,         // Frappe d'appoint : coup à chaque attaque du joueur (% de l'ATQ du compagnon)
+            opportunisticChance: 25,   // Autres spécialités : chance d'un coup d'opportunité au même ratio
+            spellCastChance: 30,       // Sort donné : chance de le lancer à la place du coup
+            spellRatio: 0.6            // ... pour 60 % de (ATQ + dégâts du sort)
+        },
+        guard: { interceptChance: 40, absorbMin: 0.3, absorbMax: 0.6, defShare: 0.5, ambushMult: 0.75 },
+        strayHitChance: 10, // Autres spécialités : "pris dans la mêlée", même absorption que la Garde
+        medic: { healChance: 25, healPct: 0.06, postVictoryHealPct: 0.04, manaMin: 6, manaMax: 11 },
+        scout: { stealthBonus: 10, fleeBonus: 15, trapAvoidChance: 50 },
+        striker: { goldBonusPct: 10 }
+    },
+
     // Réserve d'équipement (armes/armures/armes à distance — consommables et parchemins jamais
     // comptés, voir addLoot()) : valeur de départ à playtester, centralisée ici plutôt qu'en dur sur
     // gameState.maxInventory (voir son initialisation ci-dessous).
@@ -640,7 +668,10 @@ const ui = {
     companionStatusBar: document.getElementById('companion-status-bar'),
     companionNameDisplay: document.getElementById('companion-name-display'),
     companionSpecialtyDisplay: document.getElementById('companion-specialty-display'),
-    companionLeaveBar: document.getElementById('companion-leave-bar'),
+    companionLoyaltyBar: document.getElementById('companion-loyalty-bar'),
+    companionHpDisplay: document.getElementById('companion-hp-display'),
+    companionInfoFriendly: document.getElementById('companion-info-friendly'),
+    companionInfoHostile: document.getElementById('companion-info-hostile'),
     companionCombatIndicator: document.getElementById('companion-combat-indicator'),
     companionCombatName: document.getElementById('companion-combat-name'),
     companionCombatHpRing: document.getElementById('companion-combat-hp-ring'),
@@ -794,6 +825,8 @@ function restoreSaveForName(name) {
 
     Object.assign(gameState, saved);
     if (needsBaseMaxHpMigration) gameState.baseMaxHp = saved.maxHp || gameState.maxHp;
+    // Compagnon d'une sauvegarde antérieure au rework (leaveChance, pas de loyauté ni d'équipement).
+    if (gameState.companion) gameState.companion = normalizeCompanion(gameState.companion);
 
     // Nettoyage de l'état transitoire/bloquant
     gameState.inCombat = false;
@@ -1594,6 +1627,7 @@ function updateInventoryUI() {
             card.classList.add('cursor-pointer');
             card.addEventListener('click', () => openItemInspect(item, { actions: [
                 { label: 'Équiper', onClick: () => equipItem(i) },
+                ...companionGiveAction(() => giveItemToCompanion(i)),
                 { label: 'Jeter', tone: 'danger', onClick: () => discardItem(i) }
             ] }));
             ui.inventoryEquipmentCards.appendChild(card);
@@ -1724,7 +1758,8 @@ function updateSpellbookUI() {
             // Toucher la ligne d'un exemplaire : inspection (le bouton Équiper reste un raccourci).
             const row = card.querySelector(`[data-inspect="${i}"]`);
             if (row) row.addEventListener('click', () => openItemInspect(copy.spell, copy.equipped ? { compareTo: null } : { actions: [
-                { label: 'Équiper', onClick: () => equipSpell(copy.index) }
+                { label: 'Équiper', onClick: () => equipSpell(copy.index) },
+                ...companionGiveAction(() => giveSpellToCompanion(copy.index))
             ] }));
             if (copy.equipped) return;
             const btn = card.querySelector(`[data-copy="${i}"]`);
@@ -1877,6 +1912,13 @@ function openItemInspect(item, options = {}) {
     if (!item || !ui.itemInspectOverlay) return;
     ui.itemInspectBody.innerHTML = buildItemInspectHtml(item, options);
     if (ui.itemInspectPanel) ui.itemInspectPanel.style.borderColor = item.rarityColor || '#374151';
+    renderInspectActions(options.actions || []);
+    ui.itemInspectOverlay.classList.remove('hidden');
+}
+
+// Boutons du panneau d'inspection (objet ou fiche compagnon) : chaque action referme le panneau avant
+// de s'exécuter ; un bouton « Fermer » est toujours ajouté.
+function renderInspectActions(actions) {
     ui.itemInspectActions.innerHTML = '';
     const tones = {
         primary: 'bg-amber-900/40 border-amber-600 text-amber-200 hover:bg-amber-800/50',
@@ -1884,7 +1926,7 @@ function openItemInspect(item, options = {}) {
         danger: 'bg-red-950/40 border-red-800 text-red-300 hover:bg-red-900/50',
         neutral: 'bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700'
     };
-    [...(options.actions || []), { label: 'Fermer', tone: 'neutral' }].forEach(action => {
+    [...actions, { label: 'Fermer', tone: 'neutral' }].forEach(action => {
         const btn = document.createElement('button');
         btn.className = `w-full min-h-[44px] py-2 border-2 rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${tones[action.tone || 'primary']}`;
         btn.innerText = action.label;
@@ -1895,7 +1937,6 @@ function openItemInspect(item, options = {}) {
         });
         ui.itemInspectActions.appendChild(btn);
     });
-    ui.itemInspectOverlay.classList.remove('hidden');
 }
 
 function closeItemInspect() {
@@ -2053,6 +2094,13 @@ function applyTimeElapsedRegen(hours) {
         const tier = HP_REGEN_TIERS.find(t => hpRatio < t.belowRatio);
         applyPlayerHeal(tier.perHour * hours);
     }
+    // Le compagnon récupère au même rythme (jamais s'il est à terre : il faut un repos ou une potion)
+    const companion = gameState.companion;
+    if (companion && !companion.downed && companion.hp < companion.maxHp && !gameState.anomalyEffects.regenOutsideSafehouseZero) {
+        const ratio = companion.hp / companion.maxHp;
+        const tier = HP_REGEN_TIERS.find(t => ratio < t.belowRatio);
+        companion.hp = Math.min(companion.maxHp, companion.hp + tier.perHour * hours);
+    }
     if (gameState.equipment.spell && gameState.mana < gameState.maxMana) {
         const manaMult = gameState.anomalyEffects.manaRegenMult || 1; // SECHERESSE (anomalies.js)
         gameState.mana = Math.min(gameState.maxMana, gameState.mana + MANA_REGEN_PER_HOUR * hours * manaMult);
@@ -2097,6 +2145,12 @@ function resolveCardEvent() {
     cumulative += config.chances.trap;
     if (d100 < cumulative) {
         const trap = pick(flavorText.trap);
+        // Compagnon Éclaireur : repère le piège à temps une fois sur deux (config.companions.scout)
+        if (hasActiveCompanion('scout') && Math.random() * 100 < config.companions.scout.trapAvoidChance) {
+            setSceneHeader('⚠️', 'Piège Évité', 'Danger', 'trap');
+            logEvent(`${gameState.companion.name} repère le piège à temps : vous l'enjambez sans une égratignure.`, "success");
+            return;
+        }
         const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
         applyPlayerDamage(dmg);
         setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
@@ -2136,7 +2190,8 @@ function resolveCardEvent() {
     cumulative += config.chances.goldFind;
     if (d100 < cumulative) {
         const baseGold = Math.floor(Math.random() * 16) + 5; // 5 à 20 PO
-        const gold = Math.round(baseGold * (1 + gameState.currentFloor * 0.15) * (gameState.anomalyEffects.goldGainMult || 1)); // Proportionnel à l'étage, ECONOMIE_AUSTERE (anomalies.js)
+        const strikerMult = hasActiveCompanion('strike') ? 1 + config.companions.striker.goldBonusPct / 100 : 1; // Frappe d'appoint : il a l'œil pour les pièces
+        const gold = Math.round(baseGold * (1 + gameState.currentFloor * 0.15) * (gameState.anomalyEffects.goldGainMult || 1) * strikerMult); // Proportionnel à l'étage, ECONOMIE_AUSTERE (anomalies.js)
         gameState.gold += gold;
         setSceneHeader('💰', 'Pièces d\'Or', 'Butin', 'gold');
         logEvent(`${pick(flavorText.goldFind)} (+${gold} PO)`, "success");
@@ -2163,9 +2218,12 @@ function resolveCardEvent() {
             return;
         }
 
-        const candidate = generateCompanionCandidate();
+        const candidate = generateCompanionCandidate(gameState.currentFloor);
         gameState.pendingCompanionCandidate = candidate;
         gameState.companionChoicePending = true;
+        const summary = buildCompanionCandidateSummary(candidate);
+        if (ui.companionInfoFriendly) ui.companionInfoFriendly.innerHTML = summary;
+        if (ui.companionInfoHostile) ui.companionInfoHostile.innerHTML = summary;
 
         if (candidate.disposition === 'friendly') {
             setSceneHeader('🧍', candidate.name, 'Crawler Rencontré', 'crawlerFriendly');
@@ -2195,7 +2253,7 @@ function resolveCardEvent() {
 // jusqu'ici purement cosmétique — première vraie utilité).
 function getStealthChance() {
     let chance = 15 + (gameState.skills.stealth.level - 1) * 6;
-    if (gameState.companion && gameState.companion.specialty.type === 'scout') chance += 10;
+    if (hasActiveCompanion('scout')) chance += config.companions.scout.stealthBonus;
     // Silencieux (bonus) et Grinçant (défaut de Camelote, bonus négatif) sur tout l'équipement porté.
     chance += sumEquippedQualifier('stealth', 'bonus') + sumEquippedQualifier('squeaky', 'bonus');
     // NOCTURNE (anomalies.js) : détection des mobs accrue (pénalité sur la chance de base) mais
@@ -2351,7 +2409,7 @@ function travelToKnownLocation(id, virtualLocation = null) {
 
     const timeCost = Math.max(1, Math.round(distance / 2));
     // Formule de départ, à ajuster par playtest : 9% de risque par unité de distance, plafonné à 80%
-    const ambushBaseChance = Math.min(80, distance * 9);
+    const ambushBaseChance = computeAmbushBaseChance(distance); // Compagnon Garde : moins d'embuscades
     let ambushCount = 0;
     if (Math.random() * 100 < ambushBaseChance) {
         ambushCount = 1;
@@ -2414,22 +2472,47 @@ function arriveAtDestination() {
 // COMPAGNONS (CRAWLERS RENCONTRÉS)
 // ==========================================
 
+// Chantier "rework des compagnons" (voir NOTES_COMPAGNONS.md) : stats indexées sur l'étage et qui
+// montent avec ses niveaux, loyauté plutôt que départ programmé, PV rendus au repos (« à terre » au lieu
+// d'être perdu), effets qui suivent la courbe, et dons d'objets / de sorts / de potions. Chiffres dans
+// config.companions ; fonctions pures (stats, loyauté d'un don, chance de départ) dans generator.js.
+
+// Compagnon qui AGIT : présent et debout. Un compagnon à terre reste dans le groupe mais n'apporte
+// plus rien (ni combat, ni bonus hors combat) jusqu'au prochain repos ou soin.
+function activeCompanion() {
+    const c = gameState.companion;
+    return c && !c.downed && c.hp > 0 ? c : null;
+}
+
+function hasActiveCompanion(type) {
+    const c = activeCompanion();
+    return !!c && c.specialty.type === type;
+}
+
 // Cache les deux zones de choix de compagnon (ami / hostile)
 function hideCompanionChoiceZones() {
     ui.companionChoiceFriendly.classList.add('hidden');
     ui.companionChoiceHostile.classList.add('hidden');
 }
 
-// Convertit un candidat compagnon en objet compatible avec le moteur de combat existant
-// (utilisé quand la rencontre tourne à l'affrontement, qu'il s'agisse du premier contact
-// ou d'une trahison d'un compagnon déjà recruté).
+// Résumé d'un candidat, affiché AVANT la décision (spécialité, effet, stats) — pure.
+function buildCompanionCandidateSummary(candidate) {
+    if (!candidate) return '';
+    return `<p class="font-bold text-gray-200">${candidate.name} · <span class="text-emerald-300">${candidate.specialty.label}</span></p>`
+        + `<p class="text-gray-400">${candidate.specialty.desc}</p>`
+        + `<p class="text-gray-500">❤️ ${candidate.maxHp} PV · ⚔️ ${candidate.atk} ATQ · 🛡️ ${candidate.def} DEF</p>`;
+}
+
+// Convertit un candidat compagnon en objet compatible avec le moteur de combat existant (rencontre qui
+// tourne à l'affrontement). Ses stats sont déjà à l'échelle de l'étage (generateCompanionCandidate()) ;
+// l'XP suit le même scaling que celle d'un mob.
 function companionCandidateToMob(candidate) {
     return {
         name: candidate.name,
-        hp: candidate.hp,
+        hp: candidate.maxHp || candidate.hp,
         atk: candidate.atk,
         def: candidate.def,
-        xpReward: 20,
+        xpReward: Math.round(20 * getFloorScaling(gameState.currentFloor || 1).xpMult),
         effect: null
     };
 }
@@ -2446,7 +2529,7 @@ function recruitCompanion() {
     const successChance = candidate.disposition === 'friendly' ? 70 : 30;
     if (Math.random() * 100 < successChance) {
         gameState.companion = candidate;
-        logEvent(`${candidate.name} accepte de vous accompagner ! (Spécialité : ${candidate.specialty.label})`, "success");
+        logEvent(`${candidate.name} accepte de vous accompagner ! (${candidate.specialty.label} : ${candidate.specialty.desc})`, "success");
         triggerHaptic('medium');
         updateCompanionUI();
         updateUI();
@@ -2501,9 +2584,23 @@ function attackCompanionEncounter() {
     initiateCombat(companionCandidateToMob(candidate));
 }
 
-// Un compagnon déjà recruté qui devient trop instable (voir gainCompanionXp) se retourne contre
-// le joueur : on relance exactement le même choix que pour une première rencontre hostile.
-// Raisons piochées au hasard quand le compagnon abandonne l'équipe (voir attemptCompanionAbandon()) :
+// --- Loyauté ---
+
+// Fait varier la loyauté (bornée 0..max) et prévient UNE fois quand elle passe sous le seuil de départ.
+// Renvoie la variation réellement appliquée.
+function changeCompanionLoyalty(delta) {
+    const c = gameState.companion;
+    if (!c || !delta) return 0;
+    const bal = config.companions.loyalty;
+    const before = c.loyalty;
+    c.loyalty = Math.max(0, Math.min(bal.max, before + delta));
+    if (before >= bal.departureThreshold && c.loyalty < bal.departureThreshold) {
+        logEvent(`${c.name} semble de moins en moins investi(e) dans l'aventure... (loyauté ${c.loyalty}/100 : risque de départ au prochain étage)`, "danger");
+    }
+    return c.loyalty - before;
+}
+
+// Raisons piochées au hasard quand le compagnon quitte le groupe (voir attemptCompanionDeparture()) :
 // registre volontairement absurde/thématique, cohérent avec le reste du bestiaire et des objets.
 const COMPANION_ABANDON_REASONS = [
     "en a assez de porter votre équipement de rechange",
@@ -2518,55 +2615,291 @@ const COMPANION_ABANDON_REASONS = [
     "s'est simplement perdu(e) en cherchant les toilettes, et n'est jamais revenu(e)"
 ];
 
-// Tente de faire abandonner le compagnon actif : un jet contre companion.leaveChance décide s'il
-// part maintenant. Contrairement à l'ancien système (seuil dur à 100% -> combat forcé), c'est une
-// probabilité pure, vérifiée à chaque montée de niveau du compagnon (voir gainCompanionXp()) : le
-// départ peut donc survenir bien avant que leaveChance n'atteigne 100%, ou au contraire tarder,
-// selon la chance. Un départ est toujours PACIFIQUE (aucun combat) : contrairement à une rencontre
-// hostile initiale (voir ui.companionChoiceHostile, un cas totalement séparé), le compagnon s'en
-// va simplement, avec une raison piochée au hasard. Retourne true s'il est effectivement parti.
-function attemptCompanionAbandon() {
-    const companion = gameState.companion;
-    if (!companion) return false;
-    if (Math.random() * 100 >= companion.leaveChance) return false;
+// Jet de départ, au changement d'étage uniquement (voir advanceToNextFloor()) : moment narratif et
+// prévisible, jamais au milieu d'un combat. Aucun risque tant que la loyauté reste au-dessus du seuil
+// (companionDepartureChance()). Départ toujours PACIFIQUE ; il garde ce qu'on lui a donné (contrairement
+// à un renvoi, voir dismissCompanion()). Renvoie true s'il est effectivement parti.
+function attemptCompanionDeparture() {
+    const c = gameState.companion;
+    if (!c) return false;
+    const chance = companionDepartureChance(c.loyalty);
+    if (chance <= 0 || Math.random() * 100 >= chance) return false;
 
     const reason = COMPANION_ABANDON_REASONS[Math.floor(Math.random() * COMPANION_ABANDON_REASONS.length)];
-    logEvent(`${companion.name} quitte l'équipe : ${reason}.`, "danger");
+    const hasGear = Object.values(c.gear || {}).some(Boolean);
+    logEvent(`${c.name} ne vous suit pas dans l'escalier : ${reason}${hasGear ? " (et garde ce que vous lui aviez donné)" : ""}.`, "danger");
     gameState.companion = null;
     updateCompanionUI();
     return true;
 }
 
-// Gain d'XP du compagnon (accordé après chaque victoire du joueur tant qu'il est actif).
-// Sa progression fait grimper la probabilité qu'il abandonne l'équipe (voir attemptCompanionAbandon(),
-// vérifiée à chaque montée de niveau).
+// --- Progression ---
+
+// Gain d'XP du compagnon (après chaque victoire du joueur tant qu'il est dans le groupe, même à terre).
+// Chaque niveau lui donne des stats (+levelStatGain des stats de base) — progresser le rend meilleur,
+// plus jamais seulement plus instable.
 function gainCompanionXp(amount) {
-    const companion = gameState.companion;
-    if (!companion || !amount) return;
+    const c = gameState.companion;
+    if (!c || !amount) return;
 
-    companion.xp += amount;
-    while (companion.xp >= companion.xpToNext) {
-        companion.xp -= companion.xpToNext;
-        companion.level += 1;
-        companion.xpToNext = Math.round(companion.xpToNext * 1.3);
-
-        const increment = 15 + Math.floor(Math.random() * 11); // +15 à +25 par niveau
-        companion.leaveChance = Math.min(100, companion.leaveChance + increment);
-
-        logEvent(`${companion.name} gagne en expérience (niveau ${companion.level}).`, "info");
-        if (companion.leaveChance >= 70) {
-            logEvent(`${companion.name} semble de moins en moins investi(e) dans l'aventure... (${companion.leaveChance}% de risque de départ)`, "danger");
-        }
-
-        // Jet d'abandon immédiatement après la montée de niveau : s'il part, inutile de continuer
-        // à faire monter les niveaux suivants dans cette même boucle (companion.xp restant est
-        // simplement perdu avec lui, comme le reste de son état).
-        if (attemptCompanionAbandon()) return;
+    c.xp += amount;
+    while (c.xp >= c.xpToNext) {
+        c.xp -= c.xpToNext;
+        c.level += 1;
+        c.xpToNext = Math.round(c.xpToNext * 1.3);
+        const oldMaxHp = c.maxHp;
+        Object.assign(c, computeCompanionLevelStats(c));
+        if (!c.downed) c.hp = Math.min(c.maxHp, c.hp + (c.maxHp - oldMaxHp)); // Les PV gagnés sont aussi rendus
+        logEvent(`${c.name} passe niveau ${c.level} (${c.maxHp} PV, ${c.atk} ATQ, ${c.def} DEF).`, "info");
     }
     updateCompanionUI();
 }
 
-// Reconstruit l'affichage compact du compagnon (hors combat) : nom, spécialité, barre de risque de départ
+// Victoire commune : XP, loyauté et soin post-combat du compagnon Premiers secours.
+function onCompanionVictory() {
+    const c = gameState.companion;
+    if (!c) return;
+    gainCompanionXp(config.companions.xpPerWin);
+    if (!gameState.companion) return;
+    if (!c.downed) changeCompanionLoyalty(config.companions.loyalty.victory);
+    if (hasActiveCompanion('medic') && gameState.hp < gameState.maxHp) {
+        const healed = applyPlayerHeal(Math.max(1, Math.round(gameState.maxHp * config.companions.medic.postVictoryHealPct)));
+        if (healed > 0) logEvent(`${c.name} panse vos plaies après le combat (+${healed} PV).`, "success");
+    }
+}
+
+// --- PV, à terre ---
+
+// Soigne le compagnon (et le relève s'il était à terre). Renvoie les PV réellement rendus.
+function healCompanion(amount) {
+    const c = gameState.companion;
+    if (!c || !(amount > 0)) return 0;
+    const before = c.hp;
+    c.hp = Math.min(c.maxHp, c.hp + Math.round(amount));
+    if (c.downed && c.hp > 0) {
+        c.downed = false;
+        logEvent(`${c.name} se relève, prêt(e) à reprendre du service.`, "success");
+    }
+    return c.hp - before;
+}
+
+// À appeler après tout coup encaissé par le compagnon : à 0 PV, il tombe « à terre » — il reste dans le
+// groupe (plus de perte définitive) mais n'aide plus jusqu'au prochain repos ou soin, et perd en loyauté.
+function checkCompanionDowned() {
+    const c = gameState.companion;
+    if (!c || c.downed || c.hp > 0) return false;
+    c.hp = 0;
+    c.downed = true;
+    logEvent(`${c.name} s'effondre, à terre : plus d'aide avant un repos ou une potion.`, "danger");
+    changeCompanionLoyalty(config.companions.loyalty.downed);
+    return true;
+}
+
+// Interception d'un coup destiné au joueur (seul point de passage, mobs ET boss) : la Garde s'interpose
+// souvent (guard.interceptChance), les autres spécialités sont parfois « prises dans la mêlée »
+// (strayHitChance). Le compagnon absorbe une part du coup ; son armure réduit ce qu'il perd lui-même.
+// Renvoie { playerDamage, note } — l'appelant log les dégâts puis appelle checkCompanionDowned().
+function companionInterceptHit(damage) {
+    const c = activeCompanion();
+    if (!c || !(damage > 0)) return { playerDamage: damage, note: "" };
+    const bal = config.companions;
+    const isGuard = c.specialty.type === 'guard';
+    const chance = isGuard ? bal.guard.interceptChance : bal.strayHitChance;
+    if (Math.random() * 100 >= chance) return { playerDamage: damage, note: "" };
+
+    const absorbPct = bal.guard.absorbMin + Math.random() * (bal.guard.absorbMax - bal.guard.absorbMin);
+    const absorbed = Math.min(damage, Math.round(damage * absorbPct));
+    if (absorbed <= 0) return { playerDamage: damage, note: "" };
+    const taken = Math.max(1, absorbed - Math.round(getCompanionDef(c) * 0.5));
+    c.hp = Math.max(0, c.hp - taken);
+    const verb = isGuard ? "encaisse" : "pris(e) dans la mêlée, encaisse";
+    const armorNote = taken < absorbed ? `, −${taken} PV pour lui` : "";
+    return { playerDamage: damage - absorbed, note: ` (${c.name} ${verb} ${absorbed} dégâts à votre place${armorNote})` };
+}
+
+// --- Aide en combat ---
+
+// Appui du compagnon après chaque attaque du joueur (voir performPlayerAttack()) : un sort donné a une
+// chance d'être lancé ; sinon la Frappe d'appoint frappe à chaque fois, les autres spécialités sur un
+// coup d'opportunité. Dégâts en part de l'ATQ EFFECTIVE (arme donnée comprise), sans jet de défense.
+function companionCombatSupport(enemy) {
+    const c = activeCompanion();
+    if (!c || !enemy || enemy.hp <= 0) return;
+    const s = config.companions.support;
+    const spell = c.gear && c.gear.spell;
+    if (spell && Math.random() * 100 < s.spellCastChance) {
+        const dmg = Math.max(1, Math.round((getCompanionAtk(c) + (spell.baseDmg || 0)) * s.spellRatio * (gameState.anomalyEffects.spellMult || 1)));
+        enemy.hp -= dmg;
+        logEvent(`${c.name} lance [${spell.spellName || spell.name}] ! (+${dmg} dégâts)`, "info");
+        return;
+    }
+    const isStriker = c.specialty.type === 'strike';
+    if (!isStriker && Math.random() * 100 >= s.opportunisticChance) return;
+    const dmg = Math.max(1, Math.round(getCompanionAtk(c) * s.strikeRatio));
+    enemy.hp -= dmg;
+    logEvent(`${c.name} ${isStriker ? "porte un coup supplémentaire" : "profite d'une ouverture"} ! (+${dmg} dégâts)`, "info");
+}
+
+// Compagnon Premiers secours : chance de soigner le joueur après une riposte ennemie (part de ses PV max,
+// pour suivre la courbe), et de lui rendre un peu de mana si un sort est équipé.
+function companionMedicAfterRiposte() {
+    const c = activeCompanion();
+    const m = config.companions.medic;
+    if (!c || c.specialty.type !== 'medic' || Math.random() * 100 >= m.healChance) return;
+    const actualHeal = applyPlayerHeal(Math.max(5, Math.round(gameState.maxHp * m.healPct)));
+    logEvent(`${c.name} vous soigne rapidement ! (+${actualHeal} PV)`, "success");
+    if (gameState.equipment.spell && gameState.mana < gameState.maxMana) {
+        const manaGain = m.manaMin + Math.floor(Math.random() * (m.manaMax - m.manaMin + 1));
+        gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaGain);
+        logEvent(`${c.name} restaure aussi un peu de votre mana ! (+${manaGain} Mana)`, "success");
+    }
+}
+
+// Risque d'embuscade d'un trajet (lieu connu, ville, zone inexplorée) : 9 % par unité de distance,
+// plafonné à 80 % — réduit par un compagnon Garde (il ouvre la marche).
+function computeAmbushBaseChance(distance) {
+    const base = Math.min(80, distance * 9);
+    return hasActiveCompanion('guard') ? base * config.companions.guard.ambushMult : base;
+}
+
+// --- Dons (objets, sorts, potions) ---
+
+function companionReserveHasRoom() {
+    return gameState.inventory.filter(i => i.category !== 'consumables').length < gameState.maxInventory;
+}
+
+// Pose un objet sur l'emplacement du compagnon, avec la loyauté du don. Renvoie l'objet qu'il portait
+// à cet emplacement (à rendre au joueur) et la loyauté gagnée.
+function equipCompanionGift(item, slot) {
+    const c = gameState.companion;
+    const loyaltyGain = companionGiftLoyalty(item);
+    item.companionGifted = true;
+    const previous = c.gear[slot] || null;
+    c.gear[slot] = item;
+    const gained = changeCompanionLoyalty(loyaltyGain);
+    return { previous, gained };
+}
+
+const COMPANION_SLOT_LABELS = { weapon: 'arme', armor: 'armure', spell: 'sort' };
+
+function describeCompanionGiftEffect(c, slot, before) {
+    if (slot === 'weapon') return `ATQ ${before} → ${getCompanionAtk(c)}`;
+    if (slot === 'armor') return `DEF ${before} → ${getCompanionDef(c)}`;
+    return `${config.companions.support.spellCastChance} % de chance de le lancer à chacune de vos attaques`;
+}
+
+// Donne un objet de la réserve (arme, arme à distance, armure — ou potion, voir
+// giveConsumableToCompanion()). L'objet qu'il portait au même emplacement revient dans la réserve (le
+// nombre d'objets de la réserve ne change donc jamais).
+function giveItemToCompanion(index) {
+    const c = gameState.companion;
+    const item = gameState.inventory[index];
+    if (!c || !item) return false;
+    if (item.category === 'consumables') return giveConsumableToCompanion(index);
+    const slot = companionGiftSlot(item);
+    if (!slot || slot === 'spell') return false;
+
+    const before = slot === 'weapon' ? getCompanionAtk(c) : getCompanionDef(c);
+    gameState.inventory.splice(index, 1);
+    const { previous, gained } = equipCompanionGift(item, slot);
+    if (previous) gameState.inventory.push(previous);
+    logEvent(`Vous donnez [${formatItemDisplayName(item)}] à ${c.name} (${describeCompanionGiftEffect(c, slot, before)}${gained > 0 ? `, +${gained} loyauté` : ""})${previous ? ` — il vous rend [${formatItemDisplayName(previous)}]` : ""}.`, "success");
+    updateCompanionUI();
+    updateUI();
+    updateInventoryUI();
+    return true;
+}
+
+// Donne un parchemin du grimoire : il l'apprend (un seul sort à la fois), l'ancien revient au grimoire.
+function giveSpellToCompanion(index) {
+    const c = gameState.companion;
+    const spell = gameState.spellbook[index];
+    if (!c || !spell) return false;
+    gameState.spellbook.splice(index, 1);
+    const { previous, gained } = equipCompanionGift(spell, 'spell');
+    if (previous) gameState.spellbook.push(previous);
+    logEvent(`Vous confiez [${formatItemDisplayName(spell)}] à ${c.name} (${describeCompanionGiftEffect(c, 'spell')}${gained > 0 ? `, +${gained} loyauté` : ""})${previous ? ` — il vous rend [${formatItemDisplayName(previous)}]` : ""}.`, "success");
+    updateCompanionUI();
+    updateUI();
+    updateSpellbookUI();
+    return true;
+}
+
+// Donne une potion : elle soigne le compagnon sur-le-champ (et le relève s'il est à terre). Refusé si la
+// potion ne rend pas de PV ou s'il est déjà en pleine forme — pas de potion gâchée.
+function giveConsumableToCompanion(index) {
+    const c = gameState.companion;
+    const item = gameState.inventory[index];
+    if (!c || !item || item.category !== 'consumables') return false;
+    if (!(item.heal > 0)) {
+        logEvent(`${c.name} n'a que faire de [${item.name}] : aucun PV à en tirer.`, "info");
+        return false;
+    }
+    if (!c.downed && c.hp >= c.maxHp) {
+        logEvent(`${c.name} est déjà en pleine forme — gardez [${item.name}] pour plus tard.`, "info");
+        return false;
+    }
+    gameState.inventory.splice(index, 1);
+    const healed = healCompanion(item.heal);
+    const gained = changeCompanionLoyalty(companionGiftLoyalty(item));
+    logEvent(`${c.name} boit [${item.name}] (+${healed} PV${gained > 0 ? `, +${gained} loyauté` : ""}).`, "success");
+    updateCompanionUI();
+    updateUI();
+    updateInventoryUI();
+    return true;
+}
+
+// Potion la plus adaptée pour soigner le compagnon : la plus petite qui couvre ses PV manquants, sinon
+// la plus forte. Renvoie son index dans l'inventaire, ou -1.
+function findCompanionPotionIndex() {
+    const c = gameState.companion;
+    if (!c) return -1;
+    const missing = c.maxHp - c.hp;
+    let best = -1;
+    gameState.inventory.forEach((item, i) => {
+        if (item.category !== 'consumables' || !(item.heal > 0)) return;
+        if (best === -1) { best = i; return; }
+        const cur = gameState.inventory[best];
+        const covers = item.heal >= missing, curCovers = cur.heal >= missing;
+        if (covers && (!curCovers || item.heal < cur.heal)) best = i;
+        else if (!covers && !curCovers && item.heal > cur.heal) best = i;
+    });
+    return best;
+}
+
+// Renvoi volontaire du compagnon (fiche compagnon) : il part en vous rendant ce que vous lui aviez donné
+// (arme/armure dans la réserve s'il reste de la place, sinon laissées sur place ; sort au grimoire).
+function dismissCompanion() {
+    const c = gameState.companion;
+    if (!c || isActionBlocked()) return false;
+    const returned = [], lost = [];
+    ['weapon', 'armor', 'spell'].forEach(slot => {
+        const item = c.gear && c.gear[slot];
+        if (!item) return;
+        if (slot === 'spell') { gameState.spellbook.push(item); returned.push(item); }
+        else if (companionReserveHasRoom()) { gameState.inventory.push(item); returned.push(item); }
+        else lost.push(item);
+    });
+    let note = returned.length ? ` Il vous rend ${returned.map(i => `[${formatItemDisplayName(i)}]`).join(', ')}.` : "";
+    if (lost.length) note += ` Réserve pleine : ${lost.map(i => `[${i.name}]`).join(', ')} reste(nt) sur place.`;
+    logEvent(`Vous congédiez ${c.name}, qui s'éloigne en haussant les épaules.${note}`, "info");
+    gameState.companion = null;
+    updateCompanionUI();
+    updateUI();
+    updateInventoryUI();
+    updateSpellbookUI();
+    return true;
+}
+
+// Action « Donner à <nom> » ajoutée aux panneaux d'inspection de la réserve et du grimoire.
+function companionGiveAction(onClick) {
+    const c = gameState.companion;
+    return c ? [{ label: `Donner à ${c.name}`, tone: 'good', onClick }] : [];
+}
+
+// --- Affichage ---
+
+// Reconstruit l'affichage compact du compagnon (hors combat) : nom, spécialité, PV, barre de loyauté.
 function updateCompanionUI() {
     const companion = gameState.companion;
     if (!companion) {
@@ -2576,10 +2909,65 @@ function updateCompanionUI() {
     ui.companionStatusBar.classList.remove('hidden');
     ui.companionNameDisplay.innerText = companion.name;
     ui.companionSpecialtyDisplay.innerText = `(${companion.specialty.label})`;
+    if (ui.companionHpDisplay) {
+        ui.companionHpDisplay.innerText = companion.downed ? "À terre" : `❤️ ${companion.hp}/${companion.maxHp}`;
+        ui.companionHpDisplay.style.color = companion.downed ? '#f87171' : '';
+    }
+    ui.companionLoyaltyBar.style.width = `${companion.loyalty}%`;
+    ui.companionLoyaltyBar.style.background = hpColor(companion.loyalty / 100); // Vert = loyal, rouge = prêt à partir
+    ui.companionStatusBar.title = `Loyauté ${companion.loyalty}/100 — toucher pour voir sa fiche`;
+}
 
-    const leavePct = companion.leaveChance / 100;
-    ui.companionLeaveBar.style.width = `${companion.leaveChance}%`;
-    ui.companionLeaveBar.style.background = hpColor(1 - leavePct); // Vert = fidèle, rouge = risque de départ élevé
+// Fiche du compagnon (HTML pur) : stats effectives, loyauté, équipement donné, mode d'emploi des dons.
+function buildCompanionSheetHtml(c) {
+    if (!c) return '';
+    const threshold = config.companions.loyalty.departureThreshold;
+    const loyaltyNote = c.loyalty < threshold
+        ? `<span class="text-red-400">risque de départ au prochain étage (${companionDepartureChance(c.loyalty)} %)</span>`
+        : `<span class="text-emerald-400">aucun risque de départ</span>`;
+    const gearRow = (slot, icon) => {
+        const item = c.gear && c.gear[slot];
+        return `<li class="flex justify-between gap-2"><span class="shrink-0">${icon} ${COMPANION_SLOT_LABELS[slot]}</span><span class="text-gray-200 text-right">${item ? formatItemDisplayName(item) : '<span class="text-gray-600 italic">rien</span>'}</span></li>`;
+    };
+    return `<div>
+            <p class="font-bold text-sm text-gray-100">🐾 ${c.name} <span class="text-[10px] text-gray-500">niveau ${c.level}</span></p>
+            <p class="text-emerald-300 font-bold">${c.specialty.label}</p>
+            <p class="text-gray-400">${c.specialty.desc}</p>
+        </div>
+        <ul class="flex flex-col gap-0.5 bg-gray-950/60 border border-gray-800 rounded px-2 py-1.5">
+            <li class="flex justify-between"><span>❤️ PV</span><span class="font-bold ${c.downed ? 'text-red-400' : 'text-gray-100'}">${c.downed ? 'À terre' : `${c.hp}/${c.maxHp}`}</span></li>
+            <li class="flex justify-between"><span>⚔️ ATQ</span><span class="font-bold text-gray-100">${getCompanionAtk(c)}</span></li>
+            <li class="flex justify-between"><span>🛡️ DEF</span><span class="font-bold text-gray-100">${getCompanionDef(c)}</span></li>
+            <li class="flex justify-between"><span>🤝 Loyauté</span><span class="font-bold text-gray-100">${c.loyalty}/100</span></li>
+        </ul>
+        <p class="text-[10px]">${loyaltyNote}</p>
+        <ul class="flex flex-col gap-0.5">${gearRow('weapon', '⚔️')}${gearRow('armor', '🛡️')}${gearRow('spell', '✨')}</ul>
+        <p class="text-[10px] text-gray-500">Touchez un objet de votre réserve ou un sort de votre grimoire pour le lui donner : il gagne en force et en loyauté. Une potion le soigne, et le relève s'il est à terre.</p>`;
+}
+
+function openCompanionSheet() {
+    const c = gameState.companion;
+    if (!c || !ui.itemInspectOverlay) return;
+    ui.itemInspectBody.innerHTML = buildCompanionSheetHtml(c);
+    if (ui.itemInspectPanel) ui.itemInspectPanel.style.borderColor = '#047857';
+    const actions = [];
+    const potionIndex = findCompanionPotionIndex();
+    if (potionIndex >= 0 && (c.downed || c.hp < c.maxHp)) {
+        const potion = gameState.inventory[potionIndex];
+        actions.push({ label: `Donner [${potion.name}] (+${potion.heal} PV)`, tone: 'good', onClick: () => giveConsumableToCompanion(potionIndex) });
+    }
+    actions.push({ label: 'Congédier', tone: 'danger', disabled: isActionBlocked(), onClick: openDismissCompanionConfirm });
+    renderInspectActions(actions);
+    ui.itemInspectOverlay.classList.remove('hidden');
+}
+
+// Confirmation du renvoi : jamais d'un seul toucher.
+function openDismissCompanionConfirm() {
+    const c = gameState.companion;
+    if (!c || !ui.itemInspectOverlay) return;
+    ui.itemInspectBody.innerHTML = `<p class="font-bold text-sm text-gray-100">Congédier ${c.name} ?</p><p class="text-gray-400">Il vous rendra ce que vous lui avez donné, puis partira pour de bon.</p>`;
+    renderInspectActions([{ label: `Oui, congédier ${c.name}`, tone: 'danger', onClick: dismissCompanion }]);
+    ui.itemInspectOverlay.classList.remove('hidden');
 }
 
 // Fait effectivement passer à l'étage suivant (génération incluse) — dispatché depuis l'écran
@@ -2624,6 +3012,7 @@ function advanceToNextFloor() {
 
     showFloorArrivalScene();
     logEvent(`--- DÉBUT DE L'ÉTAGE ${gameState.currentFloor} ---`, "info");
+    attemptCompanionDeparture(); // Seul moment où un compagnon peu loyal peut partir (voir config.companions.loyalty)
     if (gameState.activeAnomalies.length > 0) {
         logEvent(`⚠️ Anomalie(s) active(s) : ${gameState.activeAnomalies.map(a => `${a.icon} ${a.name}`).join(', ')}.`, "danger");
     }
@@ -4165,7 +4554,7 @@ function travelToCity(cityId) {
     }
 
     const timeCost = Math.max(1, Math.round(distance / 2));
-    const ambushBaseChance = Math.min(80, distance * 9);
+    const ambushBaseChance = computeAmbushBaseChance(distance); // Compagnon Garde : moins d'embuscades
     let ambushCount = 0;
     if (Math.random() * 100 < ambushBaseChance) {
         ambushCount = 1;
@@ -4784,6 +5173,16 @@ function restAtSafehouse(kind = 'nap') {
     const intro = kind === 'sleep' ? "Vous dormez à poings fermés" : "Vous piquez un petit somme";
     logEvent(`${intro} (${costNote}, +${healed} PV${manaNote}).`, "success");
 
+    // Le compagnon se repose aussi : même part de ses PV perdus (et il se relève s'il était à terre),
+    // et un repos partagé renforce sa loyauté.
+    const companion = gameState.companion;
+    if (companion) {
+        const companionHealed = healCompanion(Math.round(config.safehouse[kind].healPct * (companion.maxHp - companion.hp)));
+        const gained = changeCompanionLoyalty(config.companions.loyalty[kind]);
+        logEvent(`${companion.name} en profite aussi (+${companionHealed} PV${gained > 0 ? `, +${gained} loyauté` : ""}).`, "success");
+        updateCompanionUI();
+    }
+
     gameState.safehouseChoicePending = false;
     gameState.pendingSafehouseRoomId = null;
     ui.safehouseChoiceZone.classList.add('hidden');
@@ -5397,8 +5796,8 @@ function rollDamage(attackerAtk, defenderDef, options = {}) {
 // qu'il est corrodé (effet "corrode") — les deux se cumulent si les deux sont actifs à la fois.
 function getEffectiveDef() {
     const armorBonus = gameState.equipment.armor ? (gameState.equipment.armor.baseArmor || 0) : 0;
-    const companionBonus = (gameState.companion && gameState.companion.specialty.type === 'guard')
-        ? Math.round(gameState.companion.def * 0.5)
+    const companionBonus = hasActiveCompanion('guard')
+        ? Math.round(getCompanionDef(gameState.companion) * config.companions.guard.defShare)
         : 0;
     let effectiveDef = gameState.def + armorBonus + companionBonus;
     if (gameState.status.blinded && gameState.status.blinded.rounds > 0) {
@@ -5618,12 +6017,8 @@ function performPlayerAttack(attackerAtk, options, label) {
     // pure redite de ce que les badges du Chantier 2 montrent déjà sans rapport avec CE coup précis).
     logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
 
-    // Compagnon "Frappe d'appoint" : porte un coup supplémentaire à chaque attaque du joueur
-    if (gameState.companion && gameState.companion.specialty.type === 'strike' && enemy.hp > 0) {
-        const bonusDamage = Math.max(1, Math.round(gameState.companion.atk * 0.4));
-        enemy.hp -= bonusDamage;
-        logEvent(`${gameState.companion.name} porte un coup supplémentaire ! (+${bonusDamage} dégâts)`, "info");
-    }
+    // Appui du compagnon : sort donné, Frappe d'appoint ou coup d'opportunité (voir companionCombatSupport())
+    companionCombatSupport(enemy);
 
     if (enemy.hp <= 0) {
         setTimeout(() => {
@@ -6021,18 +6416,10 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
         pressureFloor,
         minMitigation: config.mobDamageScaling.minMitigation
     });
-    let playerDamage = dmg;
-    let companionAbsorbNote = "";
-    if (gameState.companion && gameState.companion.specialty.type === 'guard' && gameState.companion.hp > 0) {
-        const interceptChance = 40;
-        if (Math.random() * 100 < interceptChance) {
-            const absorbPct = 0.3 + Math.random() * 0.3;
-            const absorbed = Math.min(gameState.companion.hp, Math.round(dmg * absorbPct));
-            playerDamage = dmg - absorbed;
-            gameState.companion.hp -= absorbed;
-            companionAbsorbNote = ` (${gameState.companion.name} encaisse ${absorbed} dégâts à votre place)`;
-        }
-    }
+    // Interception par le compagnon (Garde souvent, les autres parfois) — voir companionInterceptHit()
+    const intercept = companionInterceptHit(dmg);
+    const playerDamage = intercept.playerDamage;
+    const companionAbsorbNote = intercept.note;
     const hpBefore = gameState.hp;
     applyPlayerDamage(playerDamage);
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
@@ -6043,10 +6430,7 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
         if (heavy) triggerHeavyImpact(); // Chantier 4 : même flag, mêmes 3 occasions — voir triggerHeavyImpact()
     });
     if (!silent) logEvent(`${label} inflige ${playerDamage} dégâts${companionAbsorbNote}.`, "danger");
-    if (gameState.companion && gameState.companion.hp <= 0) {
-        logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
-        gameState.companion = null;
-    }
+    checkCompanionDowned(); // À 0 PV : à terre jusqu'au prochain repos ou soin (plus de perte définitive)
     applyArmorMechanic(enemy, playerDamage); // Qualificatifs d'armure : aussi contre un boss (rien si le joueur est tombé)
     return playerDamage;
 }
@@ -6358,21 +6742,12 @@ function resolveNonBossCounterAttack(enemy) {
         minMitigation: config.mobDamageScaling.minMitigation
     });
 
-    // Compagnon "Garde rapprochée" : jet de dé pour déterminer s'il s'interpose et encaisse une
-    // partie du coup à la place du joueur (en plus de son bonus passif de DEF, voir getEffectiveDef).
-    // S'il tombe à 0 PV ce faisant, il est mis hors combat et quitte le groupe.
-    let playerDamage = enemyDamage;
-    let companionAbsorbNote = "";
-    if (gameState.companion && gameState.companion.specialty.type === 'guard' && gameState.companion.hp > 0) {
-        const interceptChance = 40; // 40% de chance de s'interposer sur ce coup
-        if (Math.random() * 100 < interceptChance) {
-            const absorbPct = 0.3 + Math.random() * 0.3; // 30% à 60% des dégâts du coup
-            const absorbed = Math.min(gameState.companion.hp, Math.round(enemyDamage * absorbPct));
-            playerDamage = enemyDamage - absorbed;
-            gameState.companion.hp -= absorbed;
-            companionAbsorbNote = ` (${gameState.companion.name} encaisse ${absorbed} dégâts à votre place)`;
-        }
-    }
+    // Compagnon : la Garde s'interpose souvent, les autres sont parfois pris dans la mêlée (en plus du
+    // bonus passif de DEF de la Garde, voir getEffectiveDef()) — voir companionInterceptHit().
+    const guardWasActive = hasActiveCompanion('guard');
+    const intercept = companionInterceptHit(enemyDamage);
+    const playerDamage = intercept.playerDamage;
+    const companionAbsorbNote = intercept.note;
 
     const hpBefore = gameState.hp;
     applyPlayerDamage(playerDamage);
@@ -6380,18 +6755,15 @@ function resolveNonBossCounterAttack(enemy) {
     playMobAttackFx(enemy, { heldPlayerHp: hpBefore }, () => {
         showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
     });
-    const guardNote = (gameState.companion && gameState.companion.specialty.type === 'guard')
+    const guardNote = guardWasActive
         ? ` (réduits grâce à la garde de ${gameState.companion.name})`
         : "";
     // Note d'état déplacée après les dégâts plutôt qu'entre le nom et "vous inflige" (chantier
     // "lisibilité combat", Chantier 8) : lecture plus naturelle, aucune info retirée.
     logEvent(`[${enemy.name}] vous inflige ${playerDamage} dégâts${enemySlowedNote}${wasBlinded ? " (vous étiez ébloui)" : ""}${wasCorroded ? " (armure corrodée)" : ""}${guardNote}${companionAbsorbNote}.`, "danger");
 
-    // Le compagnon tombe s'il vient d'encaisser le coup de trop : il quitte le groupe.
-    if (gameState.companion && gameState.companion.hp <= 0) {
-        logEvent(`${gameState.companion.name} s'effondre, à bout de forces, et ne peut plus vous accompagner...`, "danger");
-        gameState.companion = null;
-    }
+    // Le compagnon tombe s'il vient d'encaisser le coup de trop : à terre jusqu'au prochain repos ou soin.
+    checkCompanionDowned();
 
     // L'éblouissement et la corrosion se dissipent d'un round à chaque riposte encaissée
     if (wasBlinded) {
@@ -6415,18 +6787,8 @@ function resolveNonBossCounterAttack(enemy) {
         return;
     }
 
-    // Compagnon "Premiers secours" : chance de soigner le joueur après la riposte ennemie, et de lui
-    // restaurer un peu de mana au passage si un sort est équipé.
-    if (gameState.companion && gameState.companion.specialty.type === 'medic' && Math.random() * 100 < 25) {
-        const heal = 8 + Math.floor(Math.random() * 8); // 8 à 15 PV
-        const actualHeal = applyPlayerHeal(heal);
-        logEvent(`${gameState.companion.name} vous soigne rapidement ! (+${actualHeal} PV)`, "success");
-        if (gameState.equipment.spell && gameState.mana < gameState.maxMana) {
-            const manaGain = 6 + Math.floor(Math.random() * 6); // 6 à 11 Mana
-            gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaGain);
-            logEvent(`${gameState.companion.name} restaure aussi un peu de votre mana ! (+${manaGain} Mana)`, "success");
-        }
-    }
+    // Compagnon "Premiers secours" : chance de soigner le joueur après la riposte ennemie (et un peu de mana)
+    companionMedicAfterRiposte();
 
     applyMobEffectOnPlayer(enemy);
     applyArmorMechanic(enemy, playerDamage);
@@ -6733,12 +7095,13 @@ function attemptFlee() {
         return;
     }
     let fleeChance = 60; // 60% de réussite de base (pourra dépendre de compétences/stats plus tard)
-    if (gameState.companion && gameState.companion.specialty.type === 'scout') {
-        fleeChance += 15; // Compagnon "Éclaireur" : facilite la fuite
+    const scoutHelps = hasActiveCompanion('scout');
+    if (scoutHelps) {
+        fleeChance += config.companions.scout.fleeBonus; // Compagnon "Éclaireur" : facilite la fuite
     }
 
     if (Math.random() * 100 < fleeChance) {
-        const scoutNote = (gameState.companion && gameState.companion.specialty.type === 'scout')
+        const scoutNote = scoutHelps
             ? ` (${gameState.companion.name} vous a montré une ouverture)`
             : "";
         gameState.currentEnemy = null;
@@ -6750,6 +7113,7 @@ function attemptFlee() {
         gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
         setSceneHeader('🏃', 'Fuite Réussie', 'Exploration', 'fled');
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
+        changeCompanionLoyalty(config.companions.loyalty.flee); // Fuir n'inspire pas confiance à votre compagnon
         if (gameState.pendingTravel) {
             logEvent("Vous rebroussez chemin, le trajet est annulé pour l'instant.", "info");
             gameState.pendingTravel = null;
@@ -6792,10 +7156,8 @@ function winCombat() {
     const xpGained = (defeatedEnemy && defeatedEnemy.xpReward) || 10;
     gainXp(xpGained);
 
-    // Le compagnon actif progresse aussi (fait grimper son risque de départ — voir gainCompanionXp)
-    if (gameState.companion) {
-        gainCompanionXp(15);
-    }
+    // Le compagnon progresse aussi, gagne en loyauté, et le Premiers secours panse vos plaies
+    onCompanionVictory();
 
     // Butin (chantier "refonte des objets", voir itemBalance dans items.js) : la rareté dépend de
     // l'étage, plus de la puissance du monstre. Un boss garantit un objet (un palier au-dessus, au
@@ -6985,7 +7347,7 @@ function autoTravelToNearestFrontier() {
     const location = { id: 'frontier', type: 'frontier', roomId: frontierRoomId, label: 'Zone inexplorée la plus proche' };
     const distance = computeDistance(gameState.floorMap.currentRoomId, frontierRoomId);
     const timeCost = Math.max(1, Math.round(distance / 2));
-    const ambushBaseChance = Math.min(80, distance * 9);
+    const ambushBaseChance = computeAmbushBaseChance(distance); // Compagnon Garde : moins d'embuscades
     let ambushCount = 0;
     if (Math.random() * 100 < ambushBaseChance) {
         ambushCount = 1;
@@ -7331,6 +7693,7 @@ ui.btnDeclineCompanion.addEventListener('click', declineCompanion);
 ui.btnFleeCompanion.addEventListener('click', fleeCompanionEncounter);
 ui.btnRecruitHostile.addEventListener('click', recruitCompanion);
 ui.btnAttackCompanion.addEventListener('click', attackCompanionEncounter);
+ui.companionStatusBar.addEventListener('click', openCompanionSheet);
 
 // Clics sur l'écran marchand/professeur (ville spécialisée)
 ui.btnTrainSkill.addEventListener('click', trainSkill);

@@ -23,7 +23,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 
 | # | Chantier | Ampleur | Statut | Dépend de |
 |---|----------|---------|--------|-----------|
-| 1 | Rework des compagnons | M | **Suggéré** | — |
+| 1 | Rework des compagnons | M | **Codé** — à playtester | — |
 | 2 | Chronique de run + Succès sarcastiques | M | Idée | — |
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | Idée | 2 (compteurs de run) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | Idée | 2 (piques), 1 et 3 (conséquences) |
@@ -48,7 +48,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 
 ---
 
-## 1. Rework des compagnons — M — Suggéré
+## 1. Rework des compagnons — M — Codé (à playtester)
 
 **Demande** : mal intégrés, quasiment inutiles, fuient trop vite.
 
@@ -113,7 +113,40 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 commandées par le joueur, compagnon qui trahit. À rediscuter avec les chantiers 3/4.
 
 ### Décisions
-- (en attente de validation)
+- **Validé par l'utilisateur** (blocs A à E), avec une exigence : bien intégrer la possibilité de
+  **donner des objets ET des sorts** au compagnon.
+- Arbitrages pris pour les points laissés ouverts (à ajuster par playtest) :
+  - Garde hors combat : −25 % de risque d'embuscade sur les trajets. Frappe d'appoint hors combat :
+    +10 % de PO trouvées.
+  - Aucune perte de loyauté liée à la revente d'objets (trop punitif sans que le joueur le voie venir).
+  - Les compagnons non-Garde peuvent aussi prendre un coup (10 %, « pris dans la mêlée ») : sans ça,
+    l'armure donnée et le soin d'un compagnon n'auraient aucun intérêt hors Garde.
+
+### Planifié (lots)
+1. **Modèle + progression + loyauté** : `config.companions` (tous les chiffres), candidat indexé sur
+   l'étage, +10 %/niveau, loyauté 0-100 (départ 60) remplaçant `leaveChance`, jet de départ au
+   changement d'étage, migration des anciennes sauvegardes, crawler hostile à l'échelle.
+2. **Survie + effets** : PV régénérés comme le joueur, rendus au repos (Sieste/Sommeil), « à terre » à
+   0 PV jusqu'au prochain repos ou soin ; une seule fonction d'interception (boss + mobs) ; appui de
+   combat (Frappe d'appoint à chaque attaque, coup d'opportunité 25 % pour les autres) ; utilités hors
+   combat (pièges, PO, embuscades, soin post-victoire).
+3. **Dons** (demande explicite) : depuis le panneau d'inspection d'un objet de la réserve ou d'un
+   exemplaire du grimoire, « Donner à <nom> ».
+   - Arme (mêlée ou distance) → son arme : +ATQ (dégâts de l'arme). Armure → +DEF (moins de dégâts
+     encaissés, meilleure garde). Parchemin → son sort : 30 % de chance à chaque attaque du joueur de le
+     lancer (60 % de son ATQ + dégâts du sort, sans mana ni échec).
+   - Potion → soigne le compagnon (et le relève s'il est à terre).
+   - L'objet qu'il portait à cet emplacement vous revient (réserve ou grimoire).
+   - Loyauté selon la rareté (Camelote +2, Commun +5, Rare +8, Épique +12, Légendaire +18 ; potion
+     +3), **une seule fois par objet** (redonner un objet qu'il vous a rendu ne rapporte rien).
+   - S'il part de lui-même, il garde ce qu'on lui a donné ; si vous le congédiez, il vous le rend.
+4. **UI + tests + doc** : aperçu au recrutement (spécialité, effet, stats), barre loyauté + PV,
+   fiche compagnon (équipement, potion, Congédier), tests de régression, `NOTES_COMPAGNONS.md`.
+
+### Codé
+Les 4 lots sont livrés (détail et points à surveiller : `NOTES_COMPAGNONS.md`). Restent hors périmètre
+(bloc F) : fréquence des rencontres, plusieurs compagnons, ordres donnés au compagnon, trahison ;
+qualificatifs des objets donnés non appliqués au compagnon (V1).
 
 ---
 

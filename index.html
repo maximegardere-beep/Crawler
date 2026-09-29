@@ -803,6 +803,7 @@
         <!-- Rencontre de compagnon ami : recruter ou laisser partir (sans risque) -->
         <div id="companion-choice-friendly" class="hidden p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-lg relative">
             <span class="absolute text-[10px] text-emerald-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Crawler Rencontré</span>
+            <div id="companion-info-friendly" class="mb-3 flex flex-col gap-0.5 text-[11px]"></div>
             <div class="grid grid-cols-2 gap-2">
                 <button id="btn-recruit-friendly" class="px-3 py-3 bg-gray-900 border border-emerald-700/80 hover:border-emerald-400 hover:bg-emerald-900/30 rounded text-xs text-emerald-300 uppercase tracking-wider transition-all">
                     🤝 Recruter
@@ -816,6 +817,7 @@
         <!-- Rencontre de compagnon hostile (ou trahison d'un compagnon déjà recruté) : fuir, tenter de le recruter, ou attaquer -->
         <div id="companion-choice-hostile" class="hidden p-4 bg-red-950/20 border border-red-900/30 rounded-lg relative">
             <span class="absolute text-[10px] text-red-900/50 -top-2 left-1/2 -translate-x-1/2 bg-gray-900 px-2 uppercase tracking-widest">Crawler Hostile</span>
+            <div id="companion-info-hostile" class="mb-3 flex flex-col gap-0.5 text-[11px]"></div>
             <div class="grid grid-cols-3 gap-2">
                 <button id="btn-flee-companion" class="px-2 py-3 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-[11px] text-gray-400 uppercase tracking-wider transition-all">
                     🏃 Fuir
@@ -866,14 +868,17 @@
             </button>
         </div>
 
-        <!-- Compagnon actif (hors combat) : nom, spécialité, barre de risque de départ (vert = fidèle,
-             rouge = sur le point d'abandonner l'équipe — voir attemptCompanionAbandon() dans app.js) -->
-        <div id="companion-status-bar" class="hidden flex items-center justify-between text-[10px] text-gray-500 bg-gray-950/50 border border-gray-800 rounded px-3 py-2">
-            <span>🐾 <span id="companion-name-display" class="text-emerald-400 font-bold">-</span> <span id="companion-specialty-display" class="text-gray-600">(-)</span></span>
-            <div class="w-16 bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden shrink-0">
-                <div id="companion-leave-bar" class="h-full rounded-full transition-all duration-500" style="width:0%; background:#22c55e;"></div>
-            </div>
-        </div>
+        <!-- Compagnon actif (hors combat) : nom, spécialité, PV, barre de loyauté (vert = loyal, rouge =
+             risque de départ au prochain étage) — toucher ouvre sa fiche (openCompanionSheet() dans app.js) -->
+        <button id="companion-status-bar" type="button" class="hidden w-full min-h-[44px] flex items-center justify-between gap-2 text-[10px] text-gray-500 bg-gray-950/50 border border-gray-800 hover:border-emerald-800 rounded px-3 py-2 text-left">
+            <span class="min-w-0 truncate">🐾 <span id="companion-name-display" class="text-emerald-400 font-bold">-</span> <span id="companion-specialty-display" class="text-gray-600">(-)</span> <span id="companion-hp-display" class="text-gray-400"></span></span>
+            <span class="flex items-center gap-1 shrink-0">
+                <span class="text-[9px] uppercase tracking-wider text-gray-600">🤝</span>
+                <span class="w-16 bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden">
+                    <span id="companion-loyalty-bar" class="block h-full rounded-full transition-all duration-500" style="width:60%; background:#22c55e;"></span>
+                </span>
+            </span>
+        </button>
 
         <!-- Vitals compacts (PV + ATK/DEF) : masqués en combat, où PV apparaît déjà à droite de la carte -->
         <div id="player-vitals-compact" class="flex items-center justify-center gap-4 py-1">
@@ -1151,30 +1156,30 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=30"></script>
-    <script src="items.js?v=30"></script>
-    <script src="spells.js?v=30"></script>
-    <script src="districts.js?v=30"></script>
-    <script src="safehouses.js?v=30"></script>
-    <script src="generator.js?v=30"></script>
-    <script src="anomalies.js?v=30"></script>
-    <script src="sprites/crawler.js?v=30"></script>
-    <script src="sprites/npcs.js?v=30"></script>
-    <script src="sprites/mobs.js?v=30"></script>
-    <script src="sprites/mob-details-a.js?v=30"></script>
-    <script src="sprites/mob-details-b.js?v=30"></script>
-    <script src="sprites/mob-auras.js?v=30"></script>
-    <script src="sprites/bosses-a.js?v=30"></script>
-    <script src="sprites/bosses-b.js?v=30"></script>
-    <script src="sprites/items-generic.js?v=30"></script>
-    <script src="sprites/items-melee.js?v=30"></script>
-    <script src="sprites/items-ranged.js?v=30"></script>
-    <script src="sprites/items-armor.js?v=30"></script>
-    <script src="sprites/items-signature.js?v=30"></script>
-    <script src="sprites/fx.js?v=30"></script>
-    <script src="backdrops.js?v=30"></script>
-    <script src="scene.js?v=30"></script>
-    <script src="fx.js?v=30"></script>
-    <script src="app.js?v=30"></script>
+    <script src="bestiary.js?v=31"></script>
+    <script src="items.js?v=31"></script>
+    <script src="spells.js?v=31"></script>
+    <script src="districts.js?v=31"></script>
+    <script src="safehouses.js?v=31"></script>
+    <script src="generator.js?v=31"></script>
+    <script src="anomalies.js?v=31"></script>
+    <script src="sprites/crawler.js?v=31"></script>
+    <script src="sprites/npcs.js?v=31"></script>
+    <script src="sprites/mobs.js?v=31"></script>
+    <script src="sprites/mob-details-a.js?v=31"></script>
+    <script src="sprites/mob-details-b.js?v=31"></script>
+    <script src="sprites/mob-auras.js?v=31"></script>
+    <script src="sprites/bosses-a.js?v=31"></script>
+    <script src="sprites/bosses-b.js?v=31"></script>
+    <script src="sprites/items-generic.js?v=31"></script>
+    <script src="sprites/items-melee.js?v=31"></script>
+    <script src="sprites/items-ranged.js?v=31"></script>
+    <script src="sprites/items-armor.js?v=31"></script>
+    <script src="sprites/items-signature.js?v=31"></script>
+    <script src="sprites/fx.js?v=31"></script>
+    <script src="backdrops.js?v=31"></script>
+    <script src="scene.js?v=31"></script>
+    <script src="fx.js?v=31"></script>
+    <script src="app.js?v=31"></script>
 </body>
 </html>

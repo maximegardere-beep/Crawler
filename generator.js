@@ -616,40 +616,137 @@ const companionNamePool = [
     "Doc Ferraille", "Kenji le Silencieux"
 ];
 
-// Spécialité procédurale : détermine comment le compagnon aide en combat une fois recruté
+// Spécialité procédurale : détermine comment le compagnon aide une fois recruté. `desc` est affiché au
+// recrutement et sur sa fiche : il résume l'effet en combat ET hors combat (chiffres dans config.companions).
 const companionSpecialties = [
-    { type: 'strike', label: "Frappe d'appoint", desc: "Porte un coup supplémentaire à chaque attaque du joueur." },
-    { type: 'guard', label: "Garde rapprochée", desc: "Réduit les dégâts subis par le joueur." },
-    { type: 'medic', label: "Premiers secours", desc: "Chance de soigner le joueur en cours de combat." },
-    { type: 'scout', label: "Éclaireur", desc: "Améliore les chances de fuite du joueur." }
+    { type: 'strike', label: "Frappe d'appoint", desc: "Frappe à chacune de vos attaques. Hors combat : +10 % de PO trouvées." },
+    { type: 'guard', label: "Garde rapprochée", desc: "Ajoute la moitié de sa DEF à la vôtre et encaisse souvent des coups à votre place. Hors combat : moins d'embuscades en trajet." },
+    { type: 'medic', label: "Premiers secours", desc: "Vous soigne parfois en combat et après chaque victoire. Rend aussi un peu de mana." },
+    { type: 'scout', label: "Éclaireur", desc: "Meilleure furtivité et fuite. Hors combat : évite un piège sur deux." }
 ];
 
+// Réglages compagnons (config.companions dans app.js), avec repli si config n'existe pas encore.
+function companionBalance() {
+    return (typeof config !== 'undefined' && config.companions) ? config.companions : null;
+}
+
 /**
- * Génère un candidat compagnon rencontré au hasard : nom, stats de base, spécialité procédurale,
- * et disposition (ami/hostile) tirée 50/50, sans pondération par quartier.
+ * Stats d'un compagnon à son niveau (pure) : base (fixée à l'embauche, déjà indexée sur l'étage) ×
+ * (1 + levelStatGain × (niveau − 1)). Ne touche PAS aux PV courants.
+ */
+function computeCompanionLevelStats(companion) {
+    const gain = (companionBalance() || { levelStatGain: 0.10 }).levelStatGain;
+    const mult = 1 + gain * Math.max(0, (companion.level || 1) - 1);
+    return {
+        maxHp: Math.max(1, Math.round(companion.baseHp * mult)),
+        atk: Math.max(1, Math.round(companion.baseAtk * mult)),
+        def: Math.max(0, Math.round(companion.baseDef * mult))
+    };
+}
+
+// ATQ / DEF effectives d'un compagnon : ses stats + l'arme / l'armure qu'on lui a données.
+function getCompanionAtk(companion) {
+    if (!companion) return 0;
+    const weapon = companion.gear && companion.gear.weapon;
+    return (companion.atk || 0) + (weapon ? (weapon.baseDmg || 0) : 0);
+}
+
+function getCompanionDef(companion) {
+    if (!companion) return 0;
+    const armor = companion.gear && companion.gear.armor;
+    return (companion.def || 0) + (armor ? (armor.baseArmor || 0) : 0);
+}
+
+// Emplacement du compagnon qui reçoit un objet donné : arme (mêlée OU distance, il n'en porte qu'une),
+// armure ou sort ; null pour un consommable (utilisé sur-le-champ) ou tout autre objet.
+function companionGiftSlot(item) {
+    if (!item) return null;
+    if (item.category === 'weapons' || item.category === 'ranged') return 'weapon';
+    if (item.category === 'armors') return 'armor';
+    if (item.category === 'scrolls') return 'spell';
+    return null;
+}
+
+// Loyauté rapportée par un don (pure). Un objet déjà donné une fois (`companionGifted`, posé au premier
+// don) ne rapporte plus rien : sans ça, donner / récupérer / redonner le même objet ferait monter la
+// loyauté à l'infini.
+function companionGiftLoyalty(item) {
+    const bal = companionBalance();
+    if (!item || !bal) return 0;
+    if (item.category === 'consumables') return bal.loyalty.consumableGift;
+    if (item.companionGifted) return 0;
+    return bal.loyalty.giftByRarity[item.rarityKey] ?? bal.loyalty.giftByRarity.commun;
+}
+
+// Chance (%) qu'un compagnon quitte le groupe au changement d'étage (pure) : nulle au-dessus du seuil.
+function companionDepartureChance(loyalty) {
+    const bal = companionBalance();
+    const threshold = bal ? bal.loyalty.departureThreshold : 40;
+    const perPoint = bal ? bal.loyalty.departurePerPoint : 2;
+    if (loyalty >= threshold) return 0;
+    return Math.min(100, (threshold - loyalty) * perPoint);
+}
+
+/**
+ * Génère un candidat compagnon rencontré au hasard : nom, stats de base INDEXÉES SUR L'ÉTAGE (même
+ * getFloorScaling() que les mobs, pour qu'il reste utile en profondeur), spécialité procédurale, et
+ * disposition (ami/hostile) tirée 50/50, sans pondération par quartier.
+ * @param {number} [floor] étage de la rencontre (défaut : étage courant)
  * @returns {object}
  */
-function generateCompanionCandidate() {
+function generateCompanionCandidate(floor) {
+    const f = floor ?? ((typeof gameState !== 'undefined' && gameState.currentFloor) || 1);
+    const scaling = getFloorScaling(f);
     const name = companionNamePool[Math.floor(Math.random() * companionNamePool.length)];
     const specialty = JSON.parse(JSON.stringify(
         companionSpecialties[Math.floor(Math.random() * companionSpecialties.length)]
     ));
-    const hp = 40 + Math.floor(Math.random() * 20);
+    const bal = companionBalance();
 
-    return {
+    const companion = {
         name,
-        hp, maxHp: hp,
-        atk: 8 + Math.floor(Math.random() * 6),
-        def: 4 + Math.floor(Math.random() * 4),
+        baseHp: Math.round((40 + Math.floor(Math.random() * 20)) * scaling.hpMult),
+        baseAtk: Math.round((8 + Math.floor(Math.random() * 6)) * scaling.atkMult),
+        baseDef: Math.round((4 + Math.floor(Math.random() * 4)) * scaling.defMult),
         specialty,
         disposition: Math.random() < 0.5 ? 'hostile' : 'friendly', // 50/50, pas de pondération par quartier
+        hiredFloor: f,
         xp: 0,
         level: 1,
         xpToNext: 30,
-        // Probabilité (0-100) qu'il abandonne l'équipe : grimpe avec son expérience, vérifiée à
-        // chaque montée de niveau (voir gainCompanionXp()/attemptCompanionAbandon() dans app.js).
-        leaveChance: 0
+        // Loyauté (0-100) : monte avec ce que vit le groupe (victoires, repos, dons), baisse quand vous
+        // fuyez ou qu'il tombe. Seul un compagnon peu loyal risque de partir, au changement d'étage.
+        loyalty: bal ? bal.loyalty.start : 60,
+        downed: false, // À terre (0 PV) : inactif jusqu'au prochain repos ou soin
+        gear: { weapon: null, armor: null, spell: null }
     };
+    Object.assign(companion, computeCompanionLevelStats(companion));
+    companion.hp = companion.maxHp;
+    return companion;
+}
+
+/**
+ * Migration douce d'un compagnon venant d'une sauvegarde antérieure au rework (pure, renvoie une copie) :
+ * `leaveChance` → loyauté, stats courantes → stats de base (les niveaux d'avant ne donnaient rien, donc
+ * on garde exactement les stats actuelles), équipement vide.
+ */
+function normalizeCompanion(companion) {
+    if (!companion) return null;
+    const c = { ...companion };
+    const gain = (companionBalance() || { levelStatGain: 0.10 }).levelStatGain;
+    const levelMult = 1 + gain * Math.max(0, (c.level || 1) - 1);
+    if (c.baseHp === undefined) c.baseHp = (c.maxHp || c.hp || 40) / levelMult;
+    if (c.baseAtk === undefined) c.baseAtk = (c.atk || 8) / levelMult;
+    if (c.baseDef === undefined) c.baseDef = (c.def || 4) / levelMult;
+    if (c.loyalty === undefined) {
+        const start = companionBalance() ? companionBalance().loyalty.start : 60;
+        c.loyalty = Math.max(0, Math.min(100, Math.round(start - (c.leaveChance || 0) / 2)));
+    }
+    delete c.leaveChance;
+    if (!c.gear) c.gear = { weapon: null, armor: null, spell: null };
+    if (c.downed === undefined) c.downed = (c.hp || 0) <= 0;
+    if (!c.maxHp) Object.assign(c, computeCompanionLevelStats(c));
+    return c;
 }
 
 

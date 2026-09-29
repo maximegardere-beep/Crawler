@@ -546,6 +546,8 @@ function renderSceneCompanion() {
     sceneUi.companion.classList.toggle('hidden', !companion);
     if (!companion) return;
     const specialty = companion.specialty && companion.specialty.type;
+    // À terre (rework des compagnons) : il reste dans la scène, mais estompé — il n'agit plus.
+    sceneUi.companion.style.opacity = companion.downed ? '0.35' : '';
     if (lastCompanionKey !== specialty) {
         sceneUi.companion.innerHTML = wrapSceneBody(SCENE_COMPANION_SVG);
         applySceneTint(sceneUi.companion, COMPANION_SPECIALTY_TINTS[specialty] || MOB_DEFAULT_TINT);

@@ -1,34 +1,7 @@
-// misc.js — tests régression : Divers : compagnon (abandon probabiliste), salles sécurisées (comptage), écran de départ + cadeau de bienvenue, kit de test.
+// misc.js — tests régression : Divers : salles sécurisées (comptage), écran de départ + cadeau de bienvenue, kit de test.
 // Extrait de l'ancien regression.test.js monolithique (Tâche 2, voir CLAUDE.md) : contenu inchangé, section(s) originale(s) L596-1008 du fichier d'origine, dans leur ordre relatif d'origine.
 const { assert, resetTransientState } = require('./_helpers.js');
-// ===================================================================
-// Compagnon : abandon probabiliste
-// ===================================================================
-{
-    const candidate = generateCompanionCandidate();
-    assert(typeof candidate.leaveChance === 'number' && candidate.leaveChance === 0, "generateCompanionCandidate() initialise leaveChance à 0");
-    assert(candidate.aggressiveness === undefined, "Le champ 'aggressiveness' n'existe plus");
-}
-{
-    resetTransientState();
-    gameState.companion = { name: "Doc Ferraille", xp: 0, level: 1, xpToNext: 1, leaveChance: 50, specialty: { type: 'strike', label: 'Frappe' }, hp: 40, maxHp: 40 };
-    const originalRandom = Math.random;
-    Math.random = () => 0.01;
-    gainCompanionXp(10);
-    Math.random = originalRandom;
-    assert(gameState.companion === null, "Le compagnon abandonne quand le jet contre leaveChance réussit");
-}
-{
-    resetTransientState();
-    gameState.companion = { name: "Nadia Sans-Peur", xp: 25, level: 1, xpToNext: 30, leaveChance: 0, specialty: { type: 'guard', label: 'Garde' }, hp: 40, maxHp: 40 };
-    const originalRandom = Math.random;
-    Math.random = () => 0.99;
-    gainCompanionXp(10);
-    Math.random = originalRandom;
-    assert(gameState.companion !== null, "Le compagnon reste si le jet d'abandon échoue");
-    assert(gameState.companion.leaveChance > 0, "leaveChance augmente après une montée de niveau");
-}
-assert(typeof triggerCompanionHostileTurn === 'undefined', "L'ancien mécanisme triggerCompanionHostileTurn() a bien été retiré");
+// Compagnons : voir tests/regression/companions.js (chantier "rework des compagnons").
 
 // ===================================================================
 // Salles sécurisées : 1 à 2 par quartier (jamais 0, jamais plus de 2) — voir generateQuadrant().
