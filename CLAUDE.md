@@ -33,6 +33,7 @@ Tailwind CDN, **aucun build step**.
 - `scene.js` — rendu des scènes en vue latérale et de leur décor (`distanceToX()`, `composeBackdrop()`, point d'entrée unique `renderScene(mode)`)
 - `fx.js` — effets d'attaque de la scène de combat (moteur en 3 temps, chargé après `scene.js`, avant `app.js`)
 - `tests/` — voir plus bas
+- `CHANTIERS.md` — registre des chantiers planifiés (voir « Gros chantiers à venir »)
 
 ## Architecture (résumé)
 - Étage = zone circulaire à **4 quartiers fixes** générés à l'entrée (`generateFloorMap()`), graphe
@@ -863,10 +864,9 @@ Tailwind CDN, **aucun build step**.
   (`npm run sim:items`), à confirmer par playtest — en particulier l'économie (un Légendaire vaut ~20×
   un Commun : un seul objet signature revendu finance beaucoup de boutique).
 
-## Gros chantiers à venir (non commencés — demander lequel prioriser avant de s'y lancer)
-- Sons
-- Succès (achievements)
-- Salles spéciales à choix narratif basé sur les compétences, sans fuite possible
+## Gros chantiers à venir
+Voir **`CHANTIERS.md`** (registre des chantiers : ordre recommandé, ampleur, statut, dépendances,
+décisions). Méthode : Exploré → Suggéré → Planifié → Codé. Tenir ce registre à jour à chaque étape.
 
 ## Notes
 - GitHub Pages sert tout le dépôt tel quel : `/tests` n'affecte pas le jeu, pas besoin de l'exclure.
