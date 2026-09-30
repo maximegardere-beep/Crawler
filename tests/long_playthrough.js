@@ -46,6 +46,8 @@ try {
             bossesEncountered++;
             if (gameState.currentEnemy && isEliteMob(gameState.currentEnemy)) eliteMobsSeen++;
             fightBossNow();
+        } else if (gameState.pendingMinigame) {
+            skipMinigame(); // Mini-jeu (chantier 6) : jamais ouvert sous Node, mais l'auto-résolveur doit le connaître
         } else if (gameState.showChoicePending) {
             // Émission DeathWatch (chantier 4) : fait tourner les 5 réponses pour exercer boîtes et sanctions.
             showsSeen++;
@@ -260,6 +262,8 @@ try {
         } else if (gameState.pactChoicePending) {
             pactChoicesSeen++;
             choosePactBlessing('hp'); // Priorité à la survie sur l'étage final
+        } else if (gameState.pendingMinigame) {
+            skipMinigame(); // Mini-jeu (chantier 6) : jamais ouvert sous Node, mais l'auto-résolveur doit le connaître
         } else if (gameState.showChoicePending) {
             showsSeen++;
             answerShow('polite'); // Émission DeathWatch : pas de risque inutile avant la Sortie

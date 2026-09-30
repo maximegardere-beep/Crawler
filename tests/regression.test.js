@@ -35,6 +35,7 @@ require('./regression/bounty.js');
 require('./regression/deathwatch.js');
 require('./regression/floor-map.js');
 require('./regression/inventory-ui.js');
+require('./regression/minigames.js');
 
 console.log(`${counts.passed} test(s) OK, ${counts.failures} échec(s).`);
 process.exit(counts.failures === 0 ? 0 : 1);

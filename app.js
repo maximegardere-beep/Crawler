@@ -150,6 +150,8 @@ const gameState = {
     showChoicePending: false,
     pendingShow: null,
     pendingShowAfterPact: null,
+    // Mini-jeu ouvert (chantier 6, minigames-ui.js) : { kind, boss } — bloque les actions le temps de l'épreuve.
+    pendingMinigame: null,
     // Journal des N dernières épitaphes (voir generateEpitaph()/recordEpitaph()), plus récente en
     // premier, plafonné à NECROLOGIE_MAX_ENTRIES. Persistant en save (aucun système de lecture dédié
     // pour l'instant, préparé pour un futur "journal" consultable). Absent d'une sauvegarde antérieure :
@@ -708,6 +710,15 @@ const ui = {
     achievementToast: document.getElementById('achievement-toast'),
     bountyStatus: document.getElementById('bounty-status'),
     showZone: document.getElementById('show-zone'),
+    minigameStrip: document.getElementById('minigame-strip'),
+    minigameTitle: document.getElementById('minigame-title'),
+    minigameHint: document.getElementById('minigame-hint'),
+    minigameTimerBar: document.getElementById('minigame-timer-bar'),
+    minigameBody: document.getElementById('minigame-body'),
+    minigameSkip: document.getElementById('minigame-skip'),
+    minigameBanner: document.getElementById('minigame-banner'),
+    minigameModeSelect: document.getElementById('minigame-mode-select'),
+    btnDevMinigame: document.getElementById('btn-dev-minigame'),
     showHost: document.getElementById('show-host'),
     showTaunt: document.getElementById('show-taunt'),
     showPopularity: document.getElementById('show-popularity'),
@@ -991,6 +1002,7 @@ function restoreSaveForName(name) {
     gameState.showChoicePending = false;
     gameState.pendingShow = null;
     gameState.pendingShowAfterPact = null;
+    abortMinigame(); // Mini-jeu (chantier 6) ouvert à la sauvegarde : jamais restauré
 
     // Nettoyage de l'état transitoire/bloquant
     gameState.inCombat = false;
@@ -2609,7 +2621,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending || !!gameState.pendingMinigame;
 }
 
 // ---------- Voyage sur carte (chantier 5, M1 + P1 — remplace les anciens « Lieux connus ») ----------
@@ -6333,6 +6345,7 @@ let combatSkipRequested = false;
 // (enemyCounterAttack()/triggerMobEnrage()), pour qu'un clic qui a démarré ce tour-ci (bulle jusqu'à
 // #combat-zone) ne "pré-skippe" jamais le tour SUIVANT.
 function requestCombatSkip() {
+    if (gameState.pendingMinigame) return; // Espace/Entrée appartiennent alors à l'épreuve ouverte (minigames-ui.js)
     if (gameState.inCombat) combatSkipRequested = true;
 }
 
@@ -6343,6 +6356,10 @@ function runCombatBeats(steps, onDone) {
             return;
         }
         const step = steps[index];
+        // Étape interactive (chantier 6, mini-jeux) : `run(done)` ouvre une épreuve et rappelle `done` à sa fin
+        // (tout de suite en jet automatique) ; le tour reprend alors, sans délai ni skip de combat (le joueur
+        // a la main, le skip de l'épreuve est le sien : Passer / Échap).
+        if (step.interactive) { step.run(() => playStep(index + 1)); return; }
         const skip = combatSkipRequested && step.skippable !== false;
         setTimeout(() => {
             step.run();
@@ -7758,6 +7775,8 @@ if (ui.btnFloorMapRecenter) ui.btnFloorMapRecenter.addEventListener('click', rec
 // Clic sur le kit de test (bouton discret)
 ui.btnDevTestKit.addEventListener('click', giveTestKit);
 ui.btnDevJumpUrban.addEventListener('click', devJumpToUrbanFloor);
+if (ui.btnDevMinigame) ui.btnDevMinigame.addEventListener('click', devTestMinigame);
+initMinigameUi(); // Mini-jeux (chantier 6) : réglage, clavier, pause d'onglet
 
 // Lancement du jeu
 generateFloorMap();

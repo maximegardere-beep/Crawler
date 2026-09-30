@@ -106,6 +106,8 @@ function resetTransientState() {
     gameState.pendingShow = null;
     gameState.pendingShowAfterPact = null;
     if (ui.showZone) ui.showZone.classList.add('hidden');
+    gameState.pendingMinigame = null; // Mini-jeu ouvert (chantier 6)
+    abortMinigame();
     if (ui.gameOverOverlay) ui.gameOverOverlay.classList.add('hidden');
 }
 

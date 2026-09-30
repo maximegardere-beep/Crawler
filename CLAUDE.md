@@ -24,6 +24,10 @@ Tailwind CDN, **aucun build step**.
   `METRO_LAYOUT`, `generateMetropolis()`, `measureMetropolis()` ; chargé après `deathwatch.js`
 - `floormap.js` — rendu PUR de la carte stylisée des étages classiques et urbains (`buildFloorMapSvg()`,
   `buildUrbanMapSvg()`, `floorMapHitTest()`, zooms `FLOOR_MAP_ZOOMS`), chargé après `floorgen.js`
+- `minigames.js` — mini-jeux (chantier 6, voir `NOTES_MINIJEUX.md`) : catalogue PUR des épreuves (`MINIGAME_KINDS`),
+  jet automatique, résolution du « timing », spécification des animations d'issue ; chargé après `floormap.js`
+- `minigames-ui.js` — hôte DOM des mini-jeux (`startMinigame()`, bande du bas, minuterie, rendus `MINIGAME_RENDERERS`,
+  réglage Jouer / Réduit / Jet automatique) ; chargé après `fx.js`, avant `app.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
   que le fichier concerné) : `crawler.js` (crawler + cadavre vu de dessus), `npcs.js` (compagnon, marchand,
   professeur), `mobs.js` (10 silhouettes d'archétype avec palette naturelle, couronne de boss),
@@ -46,7 +50,7 @@ Tailwind CDN, **aucun build step**.
 - `tests/` — voir plus bas
 - `CHANTIERS.md` — registre des chantiers (statut, décisions, point d'étape, voir « Chantiers »)
 - `NOTES_*.md` — notes détaillées d'un chantier (diagnostic, chiffres, tests, « À surveiller en playtest ») :
-  `COMPAGNONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, et pour les
+  `COMPAGNONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
   chantiers antérieurs au registre `COMBAT`, `LISIBILITE_COMBAT`, `QOL_EQUILIBRAGE`
 
 ## Architecture (résumé)
@@ -367,6 +371,17 @@ Tailwind CDN, **aucun build step**.
   Pique en retour / Provocation / Insulte en direct (jet d20 + popularité `getShowPopularity()` contre
   8/12/16 : boîte Bronze/Argent/Or via `openAchievementBox()`, sinon −2 H jamais mortelles / combat élite /
   +20 prime et chasseur de primes), ou Refuser.
+- **Mini-jeux** (chantier 6, lot 0 codé — voir `NOTES_MINIJEUX.md` ; le reste du chantier est planifié dans
+  `CHANTIERS.md`) : toute épreuve passe par UN point d'entrée, `startMinigame(spec, onResult)` (minigames-ui.js), par
+  callback (jamais de Promise, comme `runCombatBeats()`). Trois issues communes `perfect`/`success`/`fail`. Sans
+  interface interactive (réglage « Jet automatique », `prefers-reduced-motion` par défaut, tests Node sans
+  `requestAnimationFrame`), l'épreuve est résolue par `minigameAutoOutcome()` et `onResult` est appelé avant le retour ;
+  sinon `gameState.pendingMinigame` (dans `isActionBlocked()`) et la bande `#minigame-strip` en bas de l'écran (jamais
+  un overlay plein écran), minuterie plafonnée (temps écoulé = Raté), Échap = Passer, Espace/Entrée = geste principal.
+  L'issue se joue par `playMinigameOutcomeFx()` (fx.js, acteur `mini`, spécification pure `minigameOutcomeFxSpec()` :
+  gel d'impact et secousse d'écran réservés au Parfait) puis enchaîne sans fenêtre de résultat. `runCombatBeats()`
+  accepte une étape `{ interactive: true, run(done) }`. **Ajouter une épreuve** : entrée de `MINIGAME_KINDS`, rendu dans
+  `MINIGAME_RENDERERS`, entrée de `MINIGAME_KIND_FX` (exigés par `tests/regression/minigames.js`).
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
@@ -850,7 +865,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests
