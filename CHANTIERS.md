@@ -31,6 +31,9 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
 | 8 | Sons | M | Idée (ancien backlog) | hébergement des fichiers non tranché |
+| 9 | Interface inventaire allégée (stats sous le nom, icônes Équipement / Sac / Grimoire) | M | **Suggéré** | — |
+| 10 | Expansion de la banque d'objets (objets rares et puissants + rééquilibrage) | L | **Suggéré** (chiffres à valider) | 9 conseillé avant |
+| 11 | Nouveaux sorts (avec effets, pas seulement des dégâts) | M | **Suggéré** (chiffres à valider) | 9 conseillé avant |
 
 **Pourquoi cet ordre** :
 - **1 d'abord** : c'est le seul système DÉJÀ en jeu qui est cassé (voir diagnostic plus bas). Ajouter du
@@ -43,6 +46,9 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 - **3 avant 4** : les chasseurs de primes sont une conséquence toute trouvée pour les réponses
   provocatrices de l'émission (« envoyé contre des mobs ou crawlers plus ou moins difficiles »).
 - **5 isolé** : gros, sans dépendance, découpable ; peut s'intercaler quand on veut une pause de gameplay.
+- **9 → 10 → 11** (demandés ensemble) : l'interface d'abord (aucun chiffre à valider, gain immédiat, et les
+  nouveaux objets et sorts s'afficheront directement dans la nouvelle présentation) ; puis les objets, puis
+  les sorts (qui réutilisent les états déjà en jeu : saignement, étourdi, aveuglé…).
 - **6/7** : à réévaluer une fois le résumé de Vibe reçu — les mini-jeux et les salles narratives
   touchent le même endroit (l'exploration) et pourraient fusionner en un seul chantier.
 
@@ -696,6 +702,130 @@ Voir `NOTES_CARTE.md` (détail, chiffres, points à surveiller) :
 4. Carte stylisée : `floormap.js` + panneau `#floor-map-overlay` (zoom, glissement, brouillard, bulle).
 5. P1 : salle aperçue touchable, trajet + pas dans l'inconnu en un geste.
 6. Tests `tests/regression/floor-map.js`, simulation longue (voyages sur carte), documentation.
+
+## 9. Interface inventaire allégée — M — Suggéré
+
+**Demande** : passer les PV et les barres de stats sous le nom du crawler ; une icône pour les objets
+équipés, une autre pour l'inventaire — alléger l'interface sans perdre d'information.
+
+### Exploré (index.html, écran de 390 px)
+- En-tête : nom + niveau (repliable : XP + 4 compétences), étage/quartier, anomalies, prime, succès.
+- Les PV (anneau), ATQ/DEF, PO et les icônes d'état sont **loin en dessous**, après la scène, la carte et le
+  journal ; la barre de mana juste après.
+- Section Inventaire toujours dépliée : compteur, 3 lignes d'équipement porté (noms longs + qualificatifs
+  sur 2 lignes chacun), badges des qualificatifs (2 lignes), barre de consommables, puis un déroulant « Voir
+  l'inventaire complet » ; section Grimoire en dessous (sort équipé + déroulant). Environ 500 px de hauteur
+  à eux deux, en permanence.
+
+### Suggéré
+- **En-tête « fiche du crawler »** : ligne 1 nom + niveau (touche = XP et compétences, comme aujourd'hui) ;
+  ligne 2 **barre de PV** horizontale (valeur) et **barre de mana** à côté si un sort est équipé ; ligne 3
+  puces compactes ⚔️ ATQ · 🛡️ DEF · 💰 PO · états ; fine barre d'XP. L'ancien bloc de vitals disparaît.
+- **Barre d'icônes** sous l'en-tête (ou en bas de l'écran, voir question) : **🛡️ Équipement** · **🎒 Sac
+  (n/8)** · **📖 Grimoire** (+ 🏆 Succès, qui y trouve sa place). Chaque icône ouvre un **panneau**
+  (feuille qui monte du bas, même famille que le panneau d'inspection) :
+  - Équipement : 4 emplacements (arme, distance, armure, sort) avec icône, nom, rareté et badges ;
+    toucher = inspecter (les actions existantes restent : déséquiper, donner au compagnon…).
+  - Sac : les cartes d'équipement en réserve + les consommables.
+  - Grimoire : les cartes de sorts (regroupées comme aujourd'hui).
+- **Barre de consommables** : reste visible en permanence (utile en combat).
+- Aucune information perdue : tout ce qui est affiché aujourd'hui l'est dans un panneau ; les sections
+  Inventaire et Grimoire actuelles disparaissent de la page.
+
+### Questions
+1. Barre d'icônes : sous l'en-tête (défile avec la page) ou fixée en bas de l'écran (toujours accessible) ?
+2. En combat : garder la barre d'icônes accessible (changer d'arme) ou la masquer ?
+3. Pastille d'alerte sur 🎒 quand un nouvel objet arrive (et sur 📖 pour un nouveau sort) ?
+
+## 10. Expansion de la banque d'objets — L — Suggéré (chiffres à valider)
+
+**Demande** : des objets puissants mais rares (armure de plates, épée longue…), un rééquilibrage pour les
+intégrer : fréquent de trouver un objet médiocre (antivol de voiture), rare de trouver du vrai matériel.
+
+### Exploré (items.js, generator.js)
+- 11 armes de mêlée (2 blagues), 8 à distance (1 blague), 12 armures (2 blagues), 15 consommables.
+- `pickBaseItem()` tire l'objet de base **uniformément** parmi ceux autorisés à l'étage (`minFloor`) : un
+  Antivol de Voiture (7 dégâts, dès l'étage 3) tombe aussi souvent qu'un Pied-de-biche ; la seule
+  hiérarchie est la profondeur minimale. Plafonds actuels : 9 (Bâton de Dynamite), 11 (Fusil de Chasse),
+  7 d'armure (Manteau en Skaï).
+- La puissance passe surtout par la rareté (×0,7 à ×1,8 + qualificatifs) et le niveau d'objet (+20 % par
+  étage) : une rareté qualifie un EXEMPLAIRE, rien ne distingue aujourd'hui un objet « de fortune » d'un
+  « vrai » objet.
+- Coût caché : chaque arme/armure doit avoir son dessin (`ITEM_SPRITES`) et son effet d'attaque (style de
+  coup ou projectile) — exigé par les tests. Je les dessine dans le style existant.
+
+### Suggéré
+- **Fréquence par objet de base** (`dropWeight`) en plus de `minFloor` : 4 familles —
+  **Bricolage** (poids 10, faibles, dès l'étage 1), **Standard** (6), **Militaire** (3, dès 4-6),
+  **Arsenal** (1, dès 7-10). La rareté reste indépendante : un Antivol Légendaire existe, mais une Épée
+  Longue Commune le vaut à peu près — sans ses qualificatifs.
+- **Traits fixes** (option) : les gros objets portent un compromis permanent, réutilisant les
+  qualificatifs existants — ex. Armure de Plates toujours « Grinçante » (Furtivité en baisse), Tronçonneuse
+  bruyante, Arbalète Lourde « lente » (…). Du vrai choix, pas seulement « plus gros chiffre ».
+- **Nouveaux objets** (proposition, dégâts / armure de base avant rareté et niveau) :
+
+| Objet | Type | Base | Dès l'étage | Famille (poids) |
+|---|---|---|---|---|
+| Masse d'Armes | mêlée | 10 | 4 | Militaire (3) |
+| Épée Longue | mêlée | 12 | 5 | Militaire (3) |
+| Katana de Collection | mêlée | 12 | 6 | Militaire (3) |
+| Tronçonneuse | mêlée | 14 | 7 | Arsenal (1) |
+| Marteau de Guerre | mêlée | 15 | 9 | Arsenal (1) |
+| Arc Long de Compétition | distance | 12 | 5 | Militaire (3) |
+| Lance-Harpon | distance | 13 | 7 | Arsenal (1) |
+| Arbalète Lourde | distance | 14 | 8 | Arsenal (1) |
+| Fusil à Pompe | distance | 15 | 10 | Arsenal (1) |
+| Armure Anti-Émeute | armure | 9 | 5 | Militaire (3) |
+| Cotte de Mailles | armure | 10 | 6 | Militaire (3) |
+| Tenue de Démineur | armure | 12 | 8 | Arsenal (1) |
+| Armure de Plates | armure | 13 | 9 | Arsenal (1) |
+
+- **Rééquilibrage des objets actuels** (proposition) : Antivol de Voiture 7 → 4 dès l'étage 1 (Bricolage),
+  Bâton de Dynamite / Lance à Feu / Fusil de Chasse / Manteau en Skaï passent en Militaire (poids 3) ; le
+  reste en Bricolage ou Standard. Calibrage par `npm run sim:items` (courbe de puissance par étage) avant
+  validation finale.
+- **Marchands** : chance qu'un des 3 objets d'une boutique soit Militaire/Arsenal (prix en conséquence).
+
+### Questions
+1. Les familles et les poids (10 / 6 / 3 / 1) : ok ?
+2. Traits fixes sur les gros objets : oui / non ?
+3. La liste ci-dessus : à garder, retirer, renommer ? D'autres idées d'objets ?
+4. Objets blagues : on en ajoute quelques-uns au passage (ils ne tombent qu'en Camelote) ?
+
+## 11. Nouveaux sorts — M — Suggéré (chiffres à valider)
+
+**Demande** : de nouveaux sorts.
+
+### Exploré (spells.js, attackMagic())
+- 8 sorts, tous des **dégâts purs** (4 mêlée, 4 distance) : ils ne diffèrent que par dégâts, coût en mana et
+  portée. Les effets n'existent que via les qualificatifs d'un parchemin rare.
+- Les états d'ennemi existent déjà et sont gérés partout (badges, boss inclus) : saignement, étourdi,
+  ralenti, aveuglé, corrodé, apeuré. Chaque sort a besoin d'un effet visuel (`FX_SPELLS`) et d'une lueur
+  (tests).
+
+### Suggéré
+- **Un effet intrinsèque par nouveau sort** (champ `spellEffect`), en réutilisant les états existants ;
+  dégâts de base un peu plus bas pour compenser.
+- **Sorts utilitaires** (nouvelle catégorie « partout », utilisables à toute distance, sans dégâts).
+- Proposition (dégâts / mana de base, effet) :
+
+| Sort | Portée | Dégâts | Mana | Effet |
+|---|---|---|---|---|
+| Étreinte Vampirique | mêlée | 5 | 16 | rend 30 % des dégâts en PV |
+| Gifle Sonique | mêlée | 4 | 14 | 30 % d'étourdir 1 tour |
+| Main de Rouille | mêlée | 4 | 13 | corrode (DEF −) |
+| Nuée de Guêpes | distance | 4 | 15 | saignement |
+| Flash Aveuglant | distance | 3 | 14 | aveugle (ATQ −) |
+| Chaîne d'Éclairs | distance | 7 | 24 | 2e éclair à 50 % |
+| Cri de Terreur | distance | 2 | 12 | apeure (ATQ −, fuite facilitée) |
+| Soin Express | partout | — | 20 | soigne 20 % des PV max |
+| Bouclier de Mana | partout | — | 18 | dégâts reçus −40 % pendant 2 tours |
+| Pas de l'Ombre | partout | — | 15 | +2 d'écart sans jet opposé |
+
+### Questions
+1. Effets intrinsèques + sorts utilitaires : ok, ou seulement de nouveaux sorts de dégâts ?
+2. La liste : à garder, retirer, renommer ? D'autres idées ?
+3. Les sorts utilitaires consomment-ils le tour (le mob riposte) ? Je propose oui.
 
 ## 6. Mini-jeux d'exploration — ? — En attente
 
