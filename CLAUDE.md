@@ -996,6 +996,9 @@ Tailwind CDN, **aucun build step**.
 ## Gros chantiers à venir
 Voir **`CHANTIERS.md`** (registre des chantiers : ordre recommandé, ampleur, statut, dépendances,
 décisions). Méthode : Exploré → Suggéré → Planifié → Codé. Tenir ce registre à jour à chaque étape.
+**Questions à l'utilisateur** (des phases Exploré à Planifié, jusqu'au début du code) : passer par l'outil
+de questions à choix multiples en regroupant jusqu'à **4 questions par round** (le maximum de l'outil),
+plutôt qu'une seule à la fois ou une liste en texte libre ; enchaîner plusieurs rounds s'il en faut plus.
 
 ## Notes
 - GitHub Pages sert tout le dépôt tel quel : `/tests` n'affecte pas le jeu, pas besoin de l'exclure.

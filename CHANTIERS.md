@@ -16,6 +16,9 @@ décisions prises.
 4. **Codé** : implémentation + tests (`npm test`, `npm run test:long` si la boucle de jeu est touchée),
    notes dans `NOTES_<CHANTIER>.md`, résumé d'architecture dans `CLAUDE.md`.
 
+Questions : des phases Exploré à Planifié, les questions à l'utilisateur passent par l'outil de questions
+à choix multiples, **jusqu'à 4 par round** (le maximum de l'outil), en plusieurs rounds si nécessaire.
+
 Ampleur : **S** (quelques heures, un seul système) · **M** (un système + UI + tests) · **L** (plusieurs
 systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables séparément).
 
