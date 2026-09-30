@@ -27,7 +27,7 @@ function findSafeRoom() {
     assert(room.visited === true, "enterRoom() marque la salle visitée comme les autres");
     assert(ui.safehouseChoiceZone.classList.contains('hidden') === false, "enterRoom() affiche #safehouse-choice-zone");
     assert(isActionBlocked() === true, "isActionBlocked() est vrai tant que le choix de salle sécurisée est en attente");
-    assert(gameState.knownLocations.some(l => l.id === `safe-${room.id}`), "enterRoom() enregistre la salle comme lieu connu dès l'entrée");
+    assert(listFloorLandmarks().some(m => m.roomId === room.id && m.kind === 'safe'), "enterRoom() : la salle est marquée sur la carte dès l'entrée");
 }
 
 // Sieste / Sommeil réparateur : coût en temps de config.safehouse[kind].cost, soin = healPct des PV
@@ -103,7 +103,7 @@ function enterSafeRoomWith({ hp, mana = 0, spell = false, timeLeft = null }) {
     assert(gameState.timeLeft === timeBefore, "leaveSafehouse() ne coûte aucun temps");
     assert(gameState.safehouseChoicePending === false, "leaveSafehouse() referme le choix");
     assert(ui.safehouseChoiceZone.classList.contains('hidden') === true, "leaveSafehouse() masque #safehouse-choice-zone");
-    assert(gameState.knownLocations.some(l => l.id === `safe-${room.id}`), "leaveSafehouse() : la salle reste un lieu connu (repartir n'annule pas l'enregistrement)");
+    assert(listFloorLandmarks().some(m => m.roomId === room.id && m.kind === 'safe'), "leaveSafehouse() : la salle reste marquée sur la carte (repartir n'annule rien)");
 }
 
 // Garde-fou : chaque bouton de repos est désactivé (et restAtSafehouse() reste un no-op) si SON coût

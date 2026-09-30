@@ -189,7 +189,6 @@ const { assert, resetTransientState } = require('./_helpers.js');
     generateUrbanFloorMap();
     updateUI();
     assert(ui.urbanTravelOverlay.classList.contains('hidden') === false, "updateUI() : overlay Carte Urbaine visible sur un étage urbain hors situation");
-    assert(ui.knownLocationsSection.classList.contains('hidden') === true, "updateUI() : panneau Lieux connus masqué sur un étage urbain");
     assert(ui.advanceHint.classList.contains('hidden') === true, "updateUI() : invite d'exploration masquée sur un étage urbain");
 
     gameState.inCombat = true;
@@ -208,7 +207,6 @@ const { assert, resetTransientState } = require('./_helpers.js');
     resetTransientState();
     updateUI();
     assert(ui.urbanTravelOverlay.classList.contains('hidden') === true, "updateUI() : overlay Carte Urbaine masqué sur un étage classique");
-    assert(ui.knownLocationsSection.classList.contains('hidden') === false, "updateUI() : panneau Lieux connus visible sur un étage classique");
 }
 
 // devJumpToUrbanFloor() (menu DEV) : saute directement à l'étage 3 (urbain), quel que soit l'état
