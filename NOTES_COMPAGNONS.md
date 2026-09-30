@@ -95,3 +95,7 @@ stats de base recalculées pour que ses stats actuelles restent EXACTEMENT les m
 - La loyauté monte vite en jeu normal (+2 par victoire) : un compagnon ne partira que si l'on fuit
   souvent ou qu'on le laisse tomber à terre. C'était l'objectif (« fuient trop vite »), à confirmer.
 - Rencontres toujours rares (3 % des tirages d'exploration) : non touché, à rediscuter.
+
+## Hors périmètre (pour plus tard)
+- Rencontres plus fréquentes, plusieurs compagnons, ordres donnés au compagnon, compagnon qui trahit.
+- Qualificatifs des objets donnés non appliqués au compagnon (V1).

@@ -43,7 +43,10 @@ Tailwind CDN, **aucun build step**.
 - `scene.js` — rendu des scènes en vue latérale et de leur décor (`distanceToX()`, `composeBackdrop()`, point d'entrée unique `renderScene(mode)`)
 - `fx.js` — effets d'attaque de la scène de combat (moteur en 3 temps, chargé après `scene.js`, avant `app.js`)
 - `tests/` — voir plus bas
-- `CHANTIERS.md` — registre des chantiers planifiés (voir « Gros chantiers à venir »)
+- `CHANTIERS.md` — registre des chantiers (statut, décisions, point d'étape, voir « Chantiers »)
+- `NOTES_*.md` — notes détaillées d'un chantier (diagnostic, chiffres, tests, « À surveiller en playtest ») :
+  `COMPAGNONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, et pour les
+  chantiers antérieurs au registre `COMBAT`, `LISIBILITE_COMBAT`, `QOL_EQUILIBRAGE`
 
 ## Architecture (résumé)
 - **Étage classique = un « borough »** (chantier 5 « rework de la carte », voir `NOTES_CARTE.md`) :
@@ -509,7 +512,7 @@ Tailwind CDN, **aucun build step**.
   1.0 pour une arme, `spellCatalog` réajusté en conséquence — voir
   `tests/regression/magic-balance.js`). Le plancher de backfire est ABAISSÉ (8% → 3%) : plus punitif
   à haut niveau de compétence Magie, pour que le risque reste réel même une fois la compétence montée.
-  **Sorts à effet et utilitaires** (chantier 11) : `spellEffect` (catalogue `SPELL_EFFECTS` de `spells.js`,
+  **Sorts à effet et utilitaires** (chantier 11, voir `NOTES_SORTS.md`) : `spellEffect` (catalogue `SPELL_EFFECTS` de `spells.js`,
   phrase d'inspection `describeSpellEffect()`) — après un coup porté, `castSpellEffect()` réutilise les états
   existants (`resolveQualifierEffect()` : vol de vie, étourdi, corrodé, saignement, terreur ; aveuglé = 
   `status.distracted`) ; la Chaîne d'Éclairs ajoute son second éclair AU coup (`options.chainPct` de
@@ -528,7 +531,7 @@ Tailwind CDN, **aucun build step**.
   à chaque fois que `gameState.timeLeft` diminue pour une raison "normale" (`performExploreStep()`,
   `travelToRoom()`, `autoTravelToNearestFrontier()`) — jamais sur la perte de temps punitive du piège "Contretemps", qui
   perdrait sinon son sens.
-- **Interface allégée** (chantier 9) : sous le nom, la fiche du crawler `#player-sheet` (barre de PV
+- **Interface allégée** (chantier 9, voir `NOTES_INTERFACE.md`) : sous le nom, la fiche du crawler `#player-sheet` (barre de PV
   `setHpBar()`, mana si un sort est équipé, XP, ATQ/DEF/PO/états). **Barre d'icônes** `#bottom-nav`, fixée en
   bas de l'écran et **masquée en combat** (`updateBottomNav()`, appelée par `updateUI()`/`updateInventoryUI()`/
   `updateSpellbookUI()`) : 🛡️ Équipement / 🎒 Sac / 📖 Grimoire ouvrent chacun un panneau
@@ -976,7 +979,8 @@ Tailwind CDN, **aucun build step**.
   push dont la CI passe au rouge doit être corrigé avant de continuer sur autre chose.
 
 ## Backlog
-- Sons : hébergement des fichiers non tranché (3 catégories : actions, ambiance, mobs).
+Les idées de fonctionnalités (sons, mini-jeux, salles narratives) vivent dans `CHANTIERS.md` ; ici ne
+restent que les chiffres à valider par playtest (repris dans la section « À playtester » du registre).
 - À valider par playtest réel : fréquence de changement de quartier, formule de risque des trajets
   sur la carte (distance × 9 %, plafond 80 %, avenues ×0,5), courbes de furtivité, table D100 des événements
   (`config.chances` — une proposition de rééquilibrage a été faite, jamais validée).
@@ -993,9 +997,9 @@ Tailwind CDN, **aucun build step**.
   (`npm run sim:items`), à confirmer par playtest — en particulier l'économie (un Légendaire vaut ~20×
   un Commun : un seul objet signature revendu finance beaucoup de boutique).
 
-## Gros chantiers à venir
-Voir **`CHANTIERS.md`** (registre des chantiers : ordre recommandé, ampleur, statut, dépendances,
-décisions). Méthode : Exploré → Suggéré → Planifié → Codé. Tenir ce registre à jour à chaque étape.
+## Chantiers
+Voir **`CHANTIERS.md`** (registre des chantiers : point d'étape, ampleur, statut, dépendances,
+décisions, points à playtester). Méthode : Exploré → Suggéré → Planifié → Codé. Tenir ce registre à jour à chaque étape.
 **Questions à l'utilisateur** (des phases Exploré à Planifié, jusqu'au début du code) : passer par l'outil
 de questions à choix multiples en regroupant jusqu'à **4 questions par round** (le maximum de l'outil),
 plutôt qu'une seule à la fois ou une liste en texte libre ; enchaîner plusieurs rounds s'il en faut plus.

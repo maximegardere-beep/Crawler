@@ -59,6 +59,14 @@ première victoire sur ce boss, puis 20 %.
 Mesuré (`npm run sim:items`, 20 000 tirages) : boss d'étage 1 ~30 % Commun / 60 % Rare / 10 % Épique ;
 étage 8 ~62 / 28 / 10 % Rare / Épique / Légendaire ; étage 15 ~66 % Épique / 34 % Légendaire.
 
+Effet de la refonte — probabilité d'avoir vu au moins une arme de mêlée légendaire (hors objet signature)
+à la fin de l'étage, sur une partie type (12 butins de mob, 1-2 élites et 2 boss par étage) :
+
+| Étage | 1 | 2 | 3 | 5 | 8 | 10 | 12 | 15 | 18 |
+|---|---|---|---|---|---|---|---|---|---|
+| Avant | 1,2 % | 2,7 % | 9,2 % | 21 % | 57 % | 75 % | 88 % | 96 % | 99 % |
+| Après | 0,1 % | 0,2 % | 0,8 % | 3,8 % | 23 % | 42 % | 61 % | 82 % | 95 % |
+
 **Valeur** : `baseValue × valueMult × (1 + 0,15 × (niveau − 1)) × (1 + 0,15 × qualificatifs)`. Arme
 moyenne : Commun 14 PO / Légendaire ~400 PO à l'étage 1, ~1 550 PO à l'étage 10 (revente ×0,4, achat ×2,5).
 

@@ -12,6 +12,9 @@ Registre : `CHANTIERS.md` (tours de suggestions 1 à 5, décisions, plan final r
 - Carte **stylisée**, en **panneau sous la scène**, zoom ＋/－/◎ et glissement, brouillard.
 - Déplacement « entre-deux » : **M1** (voyage sur carte vers une salle visitée ou aperçue) + **P1**
   (explorer depuis la carte). Les portes Nord/Sud/Est/Ouest dans la scène (M2) ont été **abandonnées**.
+- Options écartées pour l'« entre-deux » : **P2** (cap posé sur la carte) et **P3** (humeur d'exploration
+  Prudent/Curieux/Pressé) ; **P4** (flair : indices ❗ ✨ 💤 sur les salles aperçues, avec la Furtivité ou un
+  Éclaireur) éventuellement plus tard.
 - Départ **aléatoire mais hors de danger**. Liste « Lieux connus » **supprimée**, remplacée par la carte.
 - Anciennes sauvegardes : pas de migration exigée (finalement : l'étage en cours est regénéré).
 
