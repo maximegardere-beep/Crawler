@@ -5498,7 +5498,7 @@ function generateShopStock(specialty) {
     // stock appartient à l'anomalie de CET étage précis.
     const discount = 1 - (gameState.anomalyEffects.shopDiscountPct || 0);
     for (let i = 0; i < 3; i++) {
-        const item = generateItem({ source: 'explore', category: specialty });
+        const item = generateItem({ source: 'explore', category: specialty, familyMult: itemBalance.shopFamilyBoost });
         item.price = Math.max(1, Math.round(getItemValue(item) * SHOP_MARKUP * discount));
         stock.push(item);
     }

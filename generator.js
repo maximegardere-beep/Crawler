@@ -373,13 +373,28 @@ function computeItemValue(baseValue, rarityKey, itemLevel, enchantCount = 0) {
 }
 
 // Objet de base tiré dans un pool : seulement ceux déjà accessibles à cet étage (`minFloor`), et les
-// objets blagues (`jokeItem`) uniquement au palier Camelote.
-function pickBaseItem(pool, floor, rarity) {
+// objets blagues (`jokeItem`) uniquement au palier Camelote. Tirage PONDÉRÉ par la famille de l'objet
+// (chantier 10, ITEM_FAMILIES : beaucoup de bricolage, rarement du vrai matériel) ; `familyMult` (option)
+// multiplie le poids de certaines familles (boutiques, voir itemBalance.shopFamilyBoost).
+function baseItemWeight(base, familyMult = null) {
+    if (base.dropWeight !== undefined) return base.dropWeight;
+    const family = ITEM_FAMILIES[base.family] || ITEM_FAMILIES.standard;
+    const jokeMult = base.jokeItem ? itemBalance.jokeWeightMult : 1; // objets blagues : moins fréquents que le reste du bricolage
+    return family.weight * jokeMult * ((familyMult && familyMult[base.family]) || 1);
+}
+
+function pickBaseItem(pool, floor, rarity, familyMult = null) {
     const allowJokes = rarity.key === 'camelote';
     let candidates = pool.filter(b => (b.minFloor || 1) <= floor && (allowJokes || !b.jokeItem));
     if (candidates.length === 0) candidates = pool.filter(b => !b.jokeItem);
     if (candidates.length === 0) candidates = pool;
-    return candidates[Math.floor(Math.random() * candidates.length)];
+    const total = candidates.reduce((sum, b) => sum + baseItemWeight(b, familyMult), 0);
+    let roll = Math.random() * total;
+    for (const b of candidates) {
+        roll -= baseItemWeight(b, familyMult);
+        if (roll < 0) return b;
+    }
+    return candidates[candidates.length - 1];
 }
 
 // --- Qualificatifs (itemQualifiers, items.js) ---------------------------------------------------
@@ -514,10 +529,18 @@ function buildItem(base, category, rarity, itemLevel, options = {}) {
     if (item.mana > 0) item.mana = Math.round(item.mana * mult);
 
     const target = qualifierTarget(category);
-    const qualifiers = options.qualifiers || rollItemQualifiers(item, rarity, target);
+    const qualifiers = withFixedTrait(base, options.qualifiers || rollItemQualifiers(item, rarity, target), target);
     applyQualifiers(item, qualifiers, target);
     item.value = computeItemValue(base.baseValue, rarity.key, item.itemLevel, countValuableQualifiers(qualifiers));
     return item;
+}
+
+// Trait fixe d'un objet de base (chantier 10, `base.trait`) : ajouté en tête de ses qualificatifs, toujours,
+// quelle que soit la rareté (compromis d'un gros objet : Grinçant, Bancal…) — jamais en double.
+function withFixedTrait(base, qualifiers, target) {
+    if (!base.trait || !target || !itemQualifiers[base.trait] || !getQualifierValues(base.trait, target, 1)) return qualifiers;
+    if (qualifiers.some(q => q.key === base.trait)) return qualifiers;
+    return [{ key: base.trait, rank: 1, fixed: true }, ...qualifiers];
 }
 
 /**
@@ -602,7 +625,7 @@ function generateItem(options = {}) {
     const rarity = options.rarityKey
         ? getRarityByKey(options.rarityKey)
         : rollLootRarity({ source: options.source, floor, minRarityKey: options.minRarityKey, luckChance: options.luckChance });
-    const base = pickBaseItem(baseItems[categoryName], floor, rarity);
+    const base = pickBaseItem(baseItems[categoryName], floor, rarity, options.familyMult || null);
     return buildItem(base, categoryName, rarity, itemLevel, options);
 }
 
@@ -638,8 +661,9 @@ function generateWelcomeGiftItem(type) {
     const junk = getRarityByKey('camelote');
     const categoryName = { weapon: 'weapons', ranged: 'ranged', armor: 'armors' }[type];
     if (categoryName) {
-        const pool = baseItems[categoryName].filter(b => (b.minFloor || 1) <= 1);
-        return buildItem(pool[Math.floor(Math.random() * pool.length)], categoryName, junk, 1, { jitter: false });
+        // Même tirage pondéré que le loot (familles, objets blagues à demi-poids) : environ un cadeau sur trois
+        // reste une blague, comme avant l'arrivée des nouveaux objets blagues.
+        return buildItem(pickBaseItem(baseItems[categoryName], 1, junk), categoryName, junk, 1, { jitter: false });
     }
     if (type === 'spell') {
         // Toujours un sort offensif : un crawler de départ avec un simple sort de soin n'aurait aucune attaque.

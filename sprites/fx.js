@@ -32,6 +32,13 @@ const MELEE_SWING_STYLES = {
     'Gantelet Électrique': 'thrust',
     'Antivol de Voiture': 'smash',
     'Pied de Parasol': 'smash',
+    "Masse d'Armes": 'smash',
+    'Épée Longue': 'slash',
+    'Katana de Collection': 'slash',
+    'Tronçonneuse': 'thrust',
+    'Marteau de Guerre': 'smash',
+    'Nouille de Piscine': 'smash',
+    'Tapette à Mouches': 'smash',
     'Sifflet du Chef de Gare Nécrosé': 'smash',
     'Tronçon de Liane Toxique': 'slash',
     'Couperet du Boucher Sans Visage': 'slash',
@@ -50,7 +57,10 @@ const MELEE_IMPACTS = {
     'Micro Électrifié de l\'Animateur Vedette': 'shock',
     'Extincteur Cabossé': 'foam',
     'Seringue Géante du Professeur Démentiel': 'splash',
-    'Tronçon de Liane Toxique': 'splash'
+    'Tronçon de Liane Toxique': 'splash',
+    'Tronçonneuse': 'slash',
+    'Marteau de Guerre': 'pow',
+    'Nouille de Piscine': 'foam'
 };
 
 // Projectile de chaque arme à distance.
@@ -64,6 +74,11 @@ const RANGED_PROJECTILES = {
     'Sarbacane Improvisée': 'dart',
     'Pistolet à Eau Surpuissant': 'water',
     'Lance-Confettis Bricolé': 'confetti',
+    'Arc Long de Compétition': 'arrow',
+    'Lance-Harpon': 'bolt',
+    'Arbalète Lourde': 'bolt',
+    'Fusil à Pompe': 'pellets',
+    'Pistolet à Bulles': 'water',
     'Tampon Encreur du Directeur': 'stamp',
     'Canon à Impulsions de l\'IA Malveillante': 'pulse'
 };

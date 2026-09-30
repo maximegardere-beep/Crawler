@@ -69,5 +69,53 @@ Object.assign(ITEM_SPRITES, {
         <path d="M-12 -6 L-12 4 M-4 -5 V4" stroke="#fde047" stroke-width="1.6"/>
         <rect x="0" y="3" width="4" height="7" fill="#4a3a24" stroke="#05060c" stroke-width="0.8"/>
         <rect x="-25" y="-6" width="2" height="2" fill="#f472b6" transform="rotate(20 -24 -5)"/><rect x="-24" y="1" width="2" height="2" fill="#4ade80"/><rect x="-27" y="-2" width="2" height="2" fill="#60a5fa"/>`
+    },
+
+    // Chantier 10 « expansion de la banque d'objets » : Militaire / Arsenal, et un objet blague.
+    'Arc Long de Compétition': {
+        kind: 'ranged', tip: [-12, 0],
+        art: `
+        <path d="M2 -30 Q-14 0 2 30" fill="none" stroke="#05060c" stroke-width="4"/>
+        <path d="M2 -30 Q-14 0 2 30" fill="none" stroke="#3f2a1a" stroke-width="2.4"/>
+        <path d="M2 -30 L7 0 L2 30" fill="none" stroke="#e5e7eb" stroke-width="0.7"/>
+        <rect x="-5" y="-4" width="4" height="8" rx="1" fill="#1f2937"/>
+        <path d="M7 0 H-24" stroke="#d6b27a" stroke-width="1.3"/><path d="M-24 0 l4 -2 v4 Z" fill="#cbd5e1" stroke="#05060c" stroke-width="0.5"/>
+        <path d="M7 0 l3 -2.5 M7 0 l3 2.5" stroke="#38bdf8" stroke-width="1.2"/>`
+    },
+    'Lance-Harpon': {
+        kind: 'ranged', tip: [-30, -3],
+        art: `
+        <path d="M-4 -5 H12 L16 1 H9 L6 -1 H-4 Z" fill="#374151" stroke="#05060c" stroke-width="1.2" stroke-linejoin="round"/>
+        <rect x="-22" y="-5.5" width="20" height="4" rx="1.5" fill="#64748b" stroke="#05060c" stroke-width="1"/>
+        <path d="M-4 -3.5 H-30" stroke="#d1d5db" stroke-width="1.4"/>
+        <path d="M-31 -3.5 l5 -3 l-1 3 l1 3 Z" fill="#e5e7eb" stroke="#05060c" stroke-width="0.6"/>
+        <path d="M4 -1 v6 h3 v-5" fill="#1f2937" stroke="#05060c" stroke-width="0.8"/>`
+    },
+    'Arbalète Lourde': {
+        kind: 'ranged', tip: [-26, -4],
+        art: `
+        <path d="M-22 -3 H10 L15 3 H6 L2 0 H-22 Z" fill="#3f3f46" stroke="#05060c" stroke-width="1.3" stroke-linejoin="round"/>
+        <path d="M-18 -3 Q-24 -17 -13 -24 M-18 -3 Q-24 11 -13 16" fill="none" stroke="#05060c" stroke-width="3.8"/>
+        <path d="M-18 -3 Q-24 -17 -13 -24 M-18 -3 Q-24 11 -13 16" fill="none" stroke="#6b7280" stroke-width="2.2"/>
+        <path d="M-13 -24 L2 -3 L-13 16" fill="none" stroke="#d1d5db" stroke-width="0.7"/>
+        <path d="M-4 -4 H-26" stroke="#9ca3af" stroke-width="1.6"/><path d="M-26 -4 l4 -2.4 v4.8 Z" fill="#e5e7eb" stroke="#05060c" stroke-width="0.5"/>
+        <rect x="4" y="-6" width="5" height="3" fill="#b45309"/>
+        <path d="M5 0 v6 h3 v-5" fill="#1f2937" stroke="#05060c" stroke-width="0.8"/>`
+    },
+    'Fusil à Pompe': {
+        kind: 'ranged', tip: [-26, -4.5],
+        art: `
+        <rect x="-26" y="-6.2" width="26" height="3.4" rx="1" fill="#1f2937" stroke="#05060c" stroke-width="1"/>
+        <rect x="-20" y="-2.6" width="12" height="3.4" rx="1.2" fill="#7c4a22" stroke="#05060c" stroke-width="1"/>
+        <path d="M-18 -1 H-10" stroke="#a16207" stroke-width="0.7"/>
+        <path d="M0 -6.5 H8 L16 -2 L16 4 L10 4 L6 0 H0 Z" fill="#7c4a22" stroke="#05060c" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M2 0 v5 h3 v-4" fill="#1f2937" stroke="#05060c" stroke-width="0.8"/>`
+    },
+    'Pistolet à Bulles': {
+        kind: 'ranged', tip: [-16, -3],
+        art: `
+        <path d="M-12 -5 H6 Q10 -5 10 -1 V2 H2 L0 7 H-4 L-2 2 H-12 Z" fill="#a78bfa" stroke="#05060c" stroke-width="1.2" stroke-linejoin="round"/>
+        <circle cx="-14" cy="-3" r="2.6" fill="#fde047" stroke="#05060c" stroke-width="0.8"/>
+        <circle cx="-20" cy="-7" r="2.2" fill="none" stroke="#7dd3fc" stroke-width="0.8"/><circle cx="-24" cy="-2" r="1.5" fill="none" stroke="#7dd3fc" stroke-width="0.7"/>`
     }
 });

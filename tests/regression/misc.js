@@ -144,7 +144,9 @@ const { assert, resetTransientState } = require('./_helpers.js');
         const weapon = generateTestKitItem('weapons');
         assert(weapon.category === 'weapons' && weapon.rarity === 'Légendaire', "generateTestKitItem('weapons') : catégorie et rareté forcées");
         if (weapon.canEnchant !== false) {
-            assert(weapon.mechanics && weapon.mechanics.length === legendaire.slots, "generateTestKitItem('weapons') : tous les slots d'enchantement du palier Légendaire sont remplis");
+            // (le trait fixe d'un gros objet — chantier 10 — s'ajoute aux emplacements, il n'en occupe aucun)
+            const rolled = (weapon.qualifiers || []).filter(q => !q.fixed);
+            assert(rolled.length === legendaire.slots, "generateTestKitItem('weapons') : tous les slots d'enchantement du palier Légendaire sont remplis");
         }
 
         const ranged = generateTestKitItem('ranged');
