@@ -232,10 +232,11 @@ compétence liée) ; Immobiliser = **maintenir le doigt dans une zone mouvante**
 - **Succès et piques DeathWatch** liés aux issues : lot final (`recordRunEvent('minigame', …)`).
 - **Plan révisé** : lot 0 (hôte d'épreuve, bande d'UI, réglages, cadre des animations) → V1 (crochetage, désamorçage,
   glyphe) → V2 (mains nues, tir) → V3 (boss) → V4 (salle de jeux) → lot final (succès, piques, notes, version).
-- **À trancher** : (1) « 100 % si Parfait, 0 % sinon » + jet automatique sans Parfait = un joueur en jet automatique
-  ne verrait plus jamais d'arme signature (aujourd'hui garantie à la 1re victoire puis 20 %) : garder la règle
-  actuelle comme plancher, ou laisser le jet automatique donner un Parfait ? (2) Quel Parfait compte : n'importe
-  lequel des 3-4, ou celui du Coup de grâce ?
+- **Tranché** : (1) l'arme signature est **strictement conditionnée au Parfait** (pas de plancher : sans Parfait,
+  elle ne tombe pas, même à la 1re victoire) — conséquence assumée : en jet automatique (qui ne donne jamais de
+  Parfait), on ne l'obtient plus ; (2) **le Parfait qui compte est celui du Coup de grâce**. Le qualificatif
+  supplémentaire (3 Parfaits ou plus sur l'ensemble des épreuves du combat) s'ajoute à cette condition.
+  À surveiller en playtest : économie des objets signature, frustration en cas de Coup de grâce raté.
 
 **Plan proposé** : en attente de validation des chiffres (liste soumise à l'utilisateur).
 
