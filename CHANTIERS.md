@@ -31,9 +31,9 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
 | 8 | Sons | M | Idée (ancien backlog) | hébergement des fichiers non tranché |
-| 9 | Interface inventaire allégée (stats sous le nom, icônes Équipement / Sac / Grimoire) | M | **Suggéré** | — |
-| 10 | Expansion de la banque d'objets (objets rares et puissants + rééquilibrage) | L | **Suggéré** (chiffres à valider) | 9 conseillé avant |
-| 11 | Nouveaux sorts (avec effets, pas seulement des dégâts) | M | **Suggéré** (chiffres à valider) | 9 conseillé avant |
+| 9 | Interface inventaire allégée (stats sous le nom, icônes Équipement / Sac / Grimoire) | M | **Validé** — en cours | — |
+| 10 | Expansion de la banque d'objets (objets rares et puissants + rééquilibrage) | L | **Validé** (objets) — rareté : chiffres à proposer | 9 conseillé avant |
+| 11 | Nouveaux sorts (avec effets, pas seulement des dégâts) | M | **Validé** — en cours | 9 conseillé avant |
 
 **Pourquoi cet ordre** :
 - **1 d'abord** : c'est le seul système DÉJÀ en jeu qui est cassé (voir diagnostic plus bas). Ajouter du
@@ -737,6 +737,9 @@ Voir `NOTES_CARTE.md` (détail, chiffres, points à surveiller) :
 2. En combat : garder la barre d'icônes accessible (changer d'arme) ou la masquer ?
 3. Pastille d'alerte sur 🎒 quand un nouvel objet arrive (et sur 📖 pour un nouveau sort) ?
 
+### Décisions (utilisateur)
+1. Barre d'icônes **fixée en bas de l'écran**. 2. **Masquée en combat**. 3. **Pastilles** : oui.
+
 ## 10. Expansion de la banque d'objets — L — Suggéré (chiffres à valider)
 
 **Demande** : des objets puissants mais rares (armure de plates, épée longue…), un rééquilibrage pour les
@@ -792,6 +795,13 @@ intégrer : fréquent de trouver un objet médiocre (antivol de voiture), rare d
 3. La liste ci-dessus : à garder, retirer, renommer ? D'autres idées d'objets ?
 4. Objets blagues : on en ajoute quelques-uns au passage (ils ne tombent qu'en Camelote) ?
 
+### Décisions (utilisateur)
+- Familles, poids, traits fixes, liste d'objets : **tout validé** ; ajouter des objets blagues au passage.
+- **Rareté à revoir en plus** : trop vite triviale à bas étage. Les boss ne doivent lâcher des objets puissants
+  que progressivement (pas forcément un Légendaire dès l'étage 1) ; une épée légendaire doit être un
+  événement incroyable — normale vers l'étage 15, miraculeuse à l'étage 1. → Nouvelles tables de rareté
+  (salles, élites, boss, trésors, boîtes, boutiques) à proposer en liste, calibrées par `npm run sim:items`.
+
 ## 11. Nouveaux sorts — M — Suggéré (chiffres à valider)
 
 **Demande** : de nouveaux sorts.
@@ -826,6 +836,10 @@ intégrer : fréquent de trouver un objet médiocre (antivol de voiture), rare d
 1. Effets intrinsèques + sorts utilitaires : ok, ou seulement de nouveaux sorts de dégâts ?
 2. La liste : à garder, retirer, renommer ? D'autres idées ?
 3. Les sorts utilitaires consomment-ils le tour (le mob riposte) ? Je propose oui.
+
+### Décisions (utilisateur)
+- **Tout validé** (effets intrinsèques, sorts utilitaires, liste et chiffres) ; un sort utilitaire **consomme le
+  tour** (le mob riposte).
 
 ## 6. Mini-jeux d'exploration — ? — En attente
 
