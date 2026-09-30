@@ -33,8 +33,8 @@ Tailwind CDN, **aucun build step**.
   `items-generic.js` (registre
   `ITEM_SPRITES` des sprites d'équipement, dessins génériques de repli par catégorie, cadrages d'icône
   `ITEM_ICON_TRANSFORMS`, couleurs d'enchantement `ENCHANT_COLORS`), puis un dessin par objet, clé = nom
-  exact, ajoutés au registre par `Object.assign` : `items-melee.js` (11 armes de mêlée), `items-ranged.js`
-  (8 armes à distance), `items-armor.js` (12 armures), `items-signature.js` (13 objets signature de boss),
+  exact, ajoutés au registre par `Object.assign` : `items-melee.js` (18 armes de mêlée), `items-ranged.js`
+  (13 armes à distance), `items-armor.js` (17 armures), `items-signature.js` (13 objets signature de boss),
   et `fx.js` (catalogue des effets d'attaque : style de coup par arme, projectiles, sorts, attaques de mob,
   éclats d'impact). Tous chargés avant `backdrops.js`/`scene.js`,
   même ordre dans `index.html` et `tests/load_game.js` (`GAME_FILES`) — un nouveau fichier doit être ajouté
@@ -43,7 +43,10 @@ Tailwind CDN, **aucun build step**.
 - `scene.js` — rendu des scènes en vue latérale et de leur décor (`distanceToX()`, `composeBackdrop()`, point d'entrée unique `renderScene(mode)`)
 - `fx.js` — effets d'attaque de la scène de combat (moteur en 3 temps, chargé après `scene.js`, avant `app.js`)
 - `tests/` — voir plus bas
-- `CHANTIERS.md` — registre des chantiers planifiés (voir « Gros chantiers à venir »)
+- `CHANTIERS.md` — registre des chantiers (statut, décisions, point d'étape, voir « Chantiers »)
+- `NOTES_*.md` — notes détaillées d'un chantier (diagnostic, chiffres, tests, « À surveiller en playtest ») :
+  `COMPAGNONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, et pour les
+  chantiers antérieurs au registre `COMBAT`, `LISIBILITE_COMBAT`, `QOL_EQUILIBRAGE`
 
 ## Architecture (résumé)
 - **Étage classique = un « borough »** (chantier 5 « rework de la carte », voir `NOTES_CARTE.md`) :
@@ -158,14 +161,17 @@ Tailwind CDN, **aucun build step**.
   paliers : Camelote ×0,7 / Commun ×1 / Rare ×1,25 / Épique ×1,5 / Légendaire ×1,8 — slots de
   qualificatifs, rang maximal, `valueMult`). Les meilleurs objets de base ont une profondeur minimale
   (`minFloor`, `pickBaseItem()`). Rareté tirée selon l'ÉTAGE (`rollLootRarity({ source, floor })`,
-  tables `itemBalance.lootTables` — aucun Légendaire aux étages 1-2 hors boss), plus selon la puissance
-  du monstre : `source` 'elite' (chance de +1 palier), 'boss' (+1 palier, plancher Rare), 'treasure'
-  (+1 palier) ; `luckChance` (qualificatif Chanceux porté). Valeur marchande
+  tables `itemBalance.lootTables` — refonte validée du chantier 10 : Légendaire « miraculeux » avant l'étage
+  10, vrai espoir vers le 15), plus selon la puissance du monstre : `source` 'elite' (20 % de +1 palier),
+  'boss' (+1 palier, plancher `getBossMinRarityKey()` : aucun aux étages 1-3, Rare dès 4, Épique dès 12),
+  'treasure' (+1 palier) ; `luckChance` (qualificatif Chanceux porté). Plafond des montées
+  (`itemBalance.upgradeCaps`, `getUpgradeCapRarity()`) : jusqu'à l'étage 4, une montée ne dépasse jamais
+  Épique — seul le tirage de base peut aller au-delà, et il n'est jamais rabaissé. Valeur marchande
   `computeItemValue()` → `item.value` (rareté × niveau d'objet × qualificatifs), lue via `getItemValue()`
   (repli `baseValue` pour un objet construit à la main) par la revente et le marchand.
   **Qualificatifs** (`itemQualifiers`, clé = mécanique, aussi copiée dans `item.mechanics` pour le rendu) :
   `item.qualifiers = [{ key, rank }]`, rang I-III = `rarity.maxRank` (Rare I, Épique II, Légendaire III ;
-  signature au rang III). Chaque qualificatif définit ses valeurs PAR CIBLE (`weapon` = mêlée et
+  signature au rang maximal de SA rareté). Chaque qualificatif définit ses valeurs PAR CIBLE (`weapon` = mêlée et
   distance, `armor`, `spell`) et sa phrase d'inspection `text(v)` à côté des chiffres qu'elle décrit —
   `getQualifierValues()`/`describeQualifier()` (generator.js) sont la SEULE source des chiffres, lue à la
   fois par le moteur et par l'affichage. Trois types : `proc` (chance par coup porté/encaissé,
@@ -182,7 +188,14 @@ Tailwind CDN, **aucun build step**.
   priceLine })`, HTML pur `buildItemInspectHtml()`, `#item-inspect-overlay`) : ouvert depuis les cartes
   d'inventaire, l'équipement porté, le grimoire et la boutique (achat/vente uniquement par ce panneau).
   `jokeItem: true` (`items.js`) marque un objet volontairement dérisoire (blague DCC), qui ne tombe
-  qu'au palier Camelote. Réserve d'équipement (armes/armures/armes à distance,
+  qu'au palier Camelote. **Familles d'objets** (chantier 10, `ITEM_FAMILIES` : Bricolage 10 / Standard 6 /
+  Militaire 3 / Arsenal 1) : `base.family` fixe la FRÉQUENCE d'un objet de base, indépendante de sa rareté —
+  `pickBaseItem()` tire au poids (`baseItemWeight()`, objets blagues à `itemBalance.jokeWeightMult`, boutiques
+  à `itemBalance.shopFamilyBoost` via l'option `familyMult` de `generateItem()`) ; le cadeau de départ passe par
+  le même tirage. **Trait fixe** (`base.trait`, clé d'`itemQualifiers`) : compromis permanent d'un gros objet
+  (Grinçant pour les objets bruyants, Bancal pour les lourds), ajouté par `withFixedTrait()` en plus des
+  qualificatifs tirés (`{ fixed: true }`, n'occupe aucun emplacement). Refonte de la rareté (tables, plafond
+  des montées, boss, objet signature) validée et appliquée : voir `CHANTIERS.md`, chantier 10. Réserve d'équipement (armes/armures/armes à distance,
   consommables et parchemins jamais comptés, voir `addLoot()`) : `config.inventory.maxEquipment` (8,
   chantier "QoL/équilibrage", Chantier B — voir `NOTES_QOL_EQUILIBRAGE.md`) — `gameState.maxInventory`
   en est un simple alias, posé juste après la déclaration de `config` (`gameState` est déclaré avant
@@ -225,8 +238,8 @@ Tailwind CDN, **aucun build step**.
   `executeBossStrike(enemy, atk, label, pressureFloorOverride)` accepte désormais un plancher réparti
   explicitement entre les frappes d'un même tour, pour que la SOMME reste le plancher standard d'un
   tour de boss. Récompenses de boss (revues par le chantier "refonte des objets") : un objet garanti
-  (`itemBalance.boss` : +1 palier, plancher Rare, second objet à 25 %) et l'objet signature légendaire
-  du boss (`bestiary.js`, `districtBosses.*.signatureItem`, stats de base mises à l'échelle par
+  (`itemBalance.boss` : +1 palier, plancher selon l'étage, second objet à 25 %) et l'objet signature
+  du boss, dont la rareté suit l'étage (`getSignatureRarity()` : Rare 1-4, Épique 5-9, Légendaire 10+) (`bestiary.js`, `districtBosses.*.signatureItem`, stats de base mises à l'échelle par
   `buildSignatureItem()`), garanti à la PREMIÈRE victoire sur ce boss dans la partie
   (`gameState.signaturesAwarded`) puis à 20 % (`awardBossSignatureItem()`).
 - **Enrage distance et engagement** (chantier "rework combat", Chantier 3 — voir `NOTES_COMBAT.md`
@@ -499,6 +512,17 @@ Tailwind CDN, **aucun build step**.
   1.0 pour une arme, `spellCatalog` réajusté en conséquence — voir
   `tests/regression/magic-balance.js`). Le plancher de backfire est ABAISSÉ (8% → 3%) : plus punitif
   à haut niveau de compétence Magie, pour que le risque reste réel même une fois la compétence montée.
+  **Sorts à effet et utilitaires** (chantier 11, voir `NOTES_SORTS.md`) : `spellEffect` (catalogue `SPELL_EFFECTS` de `spells.js`,
+  phrase d'inspection `describeSpellEffect()`) — après un coup porté, `castSpellEffect()` réutilise les états
+  existants (`resolveQualifierEffect()` : vol de vie, étourdi, corrodé, saignement, terreur ; aveuglé = 
+  `status.distracted`) ; la Chaîne d'Éclairs ajoute son second éclair AU coup (`options.chainPct` de
+  `performPlayerAttack()`). Catégorie `any` (« Partout », `spellRangeLabel()`) : sorts utilitaires sans
+  dégâts, utilisables à toute distance, qui consomment le tour (`castUtilitySpell()` puis
+  `resolveEnemyReaction()`) — Soin Express (part des PV max, suit la rareté), Bouclier de Mana
+  (`gameState.status.manaShield`, appliqué dans `companionInterceptHit()`, décompté par `tryPlayerAction()`),
+  Pas de l'Ombre (+2 d'écart sans jet). Effets visuels `FX_SPELLS` (style `self` pour les utilitaires,
+  `fxPlayerSelfSpell()`). Le cadeau de départ, le kit de test et les compagnons n'utilisent que des sorts
+  offensifs.
 - **Régénération passive (PV/mana)** : `applyTimeElapsedRegen(hours)` — PV **dégressif** selon le %
   de PV déjà restants (`HP_REGEN_TIERS` : 10/h sous 50%, 4/h entre 50-80%, 1/h au-delà — un vrai filet
   de sécurité en dessous, un simple filet d'eau au-delà), mana à **12/h** (seulement si un sort est
@@ -507,6 +531,14 @@ Tailwind CDN, **aucun build step**.
   à chaque fois que `gameState.timeLeft` diminue pour une raison "normale" (`performExploreStep()`,
   `travelToRoom()`, `autoTravelToNearestFrontier()`) — jamais sur la perte de temps punitive du piège "Contretemps", qui
   perdrait sinon son sens.
+- **Interface allégée** (chantier 9, voir `NOTES_INTERFACE.md`) : sous le nom, la fiche du crawler `#player-sheet` (barre de PV
+  `setHpBar()`, mana si un sort est équipé, XP, ATQ/DEF/PO/états). **Barre d'icônes** `#bottom-nav`, fixée en
+  bas de l'écran et **masquée en combat** (`updateBottomNav()`, appelée par `updateUI()`/`updateInventoryUI()`/
+  `updateSpellbookUI()`) : 🛡️ Équipement / 🎒 Sac / 📖 Grimoire ouvrent chacun un panneau
+  (`openInventorySheet()`/`closeInventorySheets()`, `#equipment-sheet`/`#bag-sheet`/`#spellbook-sheet`, un seul
+  à la fois, refermés en combat), 🏆 les succès. Pastilles « nouveau » : `item.isNew` posé par
+  `storeLootItem()` (jamais sur un consommable), retiré à l'ouverture du Sac / du Grimoire. La barre de
+  consommables (`#consumable-quickbar`) reste visible dans la page.
 - **Écran de départ** : `#start-screen-overlay` (saisie du nom, `confirmPlayerName()`) puis
   `#gift-reveal-overlay` (`revealWelcomeGift()`) recouvrent l'UI de jeu au chargement — celle-ci est
   déjà entièrement initialisée en arrière-plan (aucun état de jeu propre à ces deux écrans). Le
@@ -876,9 +908,9 @@ Tailwind CDN, **aucun build step**.
    commit de merge et une GitHub Release portant le même numéro. Non automatisé pour l'instant (pas de
    script de release) — à faire à la main à chaque merge.
    **Compteur unique depuis la PR #25** (choix de l'utilisateur) : `APP_VERSION.pr`, le tag, la release et
-   `package.json` valent le numéro de la dernière PR mergée (31 : chantier 5, qui inclut aussi la #30). Le
+   `package.json` valent le numéro de la dernière PR mergée (32 : chantiers 9, 10 et 11). Le
    `?v=` d'`index.html` ne peut plus suivre ce numéro : les valeurs jusqu'à 34 ont déjà servi (entre deux
-   merges, convention 4) — il ne fait donc que croître (37 à la PR #31), jamais recalé vers le bas,
+   merges, convention 4) — il ne fait donc que croître (41 à la PR #32), jamais recalé vers le bas,
    sans quoi un navigateur pourrait resservir un fichier gardé en cache sous une ancienne valeur. En cas de
    doute sur iPhone, vider le cache du site.
 
@@ -899,7 +931,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests
@@ -947,7 +979,8 @@ Tailwind CDN, **aucun build step**.
   push dont la CI passe au rouge doit être corrigé avant de continuer sur autre chose.
 
 ## Backlog
-- Sons : hébergement des fichiers non tranché (3 catégories : actions, ambiance, mobs).
+Les idées de fonctionnalités (sons, mini-jeux, salles narratives) vivent dans `CHANTIERS.md` ; ici ne
+restent que les chiffres à valider par playtest (repris dans la section « À playtester » du registre).
 - À valider par playtest réel : fréquence de changement de quartier, formule de risque des trajets
   sur la carte (distance × 9 %, plafond 80 %, avenues ×0,5), courbes de furtivité, table D100 des événements
   (`config.chances` — une proposition de rééquilibrage a été faite, jamais validée).
@@ -964,9 +997,12 @@ Tailwind CDN, **aucun build step**.
   (`npm run sim:items`), à confirmer par playtest — en particulier l'économie (un Légendaire vaut ~20×
   un Commun : un seul objet signature revendu finance beaucoup de boutique).
 
-## Gros chantiers à venir
-Voir **`CHANTIERS.md`** (registre des chantiers : ordre recommandé, ampleur, statut, dépendances,
-décisions). Méthode : Exploré → Suggéré → Planifié → Codé. Tenir ce registre à jour à chaque étape.
+## Chantiers
+Voir **`CHANTIERS.md`** (registre des chantiers : point d'étape, ampleur, statut, dépendances,
+décisions, points à playtester). Méthode : Exploré → Suggéré → Planifié → Codé. Tenir ce registre à jour à chaque étape.
+**Questions à l'utilisateur** (des phases Exploré à Planifié, jusqu'au début du code) : passer par l'outil
+de questions à choix multiples en regroupant jusqu'à **4 questions par round** (le maximum de l'outil),
+plutôt qu'une seule à la fois ou une liste en texte libre ; enchaîner plusieurs rounds s'il en faut plus.
 
 ## Notes
 - GitHub Pages sert tout le dépôt tel quel : `/tests` n'affecte pas le jeu, pas besoin de l'exclure.

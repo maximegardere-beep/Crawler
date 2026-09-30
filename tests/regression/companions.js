@@ -164,7 +164,8 @@ function makeCompanion(type = 'strike', overrides = {}) {
     const weapon = generateItem({ category: 'weapons', rarityKey: 'rare', jitter: false });
     medic.gear.weapon = weapon;
     assert(getCompanionAtk(medic) === medic.atk + weapon.baseDmg, "Arme donnée : ATQ effective = ATQ + dégâts de l'arme");
-    const spell = generateSpellScroll({ rarityKey: 'commun', jitter: false });
+    let spell = generateSpellScroll({ rarityKey: 'commun', jitter: false });
+    while (spell.spellCategory === 'any') spell = generateSpellScroll({ rarityKey: 'commun', jitter: false }); // un compagnon ne lance que les sorts offensifs
     medic.gear.spell = spell;
     const e3 = { name: "Mannequin", hp: 500, maxHp: 500, atk: 1, def: 0 };
     withRandom(0, () => companionCombatSupport(e3));

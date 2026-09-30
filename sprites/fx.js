@@ -32,6 +32,13 @@ const MELEE_SWING_STYLES = {
     'Gantelet Électrique': 'thrust',
     'Antivol de Voiture': 'smash',
     'Pied de Parasol': 'smash',
+    "Masse d'Armes": 'smash',
+    'Épée Longue': 'slash',
+    'Katana de Collection': 'slash',
+    'Tronçonneuse': 'thrust',
+    'Marteau de Guerre': 'smash',
+    'Nouille de Piscine': 'smash',
+    'Tapette à Mouches': 'smash',
     'Sifflet du Chef de Gare Nécrosé': 'smash',
     'Tronçon de Liane Toxique': 'slash',
     'Couperet du Boucher Sans Visage': 'slash',
@@ -50,7 +57,10 @@ const MELEE_IMPACTS = {
     'Micro Électrifié de l\'Animateur Vedette': 'shock',
     'Extincteur Cabossé': 'foam',
     'Seringue Géante du Professeur Démentiel': 'splash',
-    'Tronçon de Liane Toxique': 'splash'
+    'Tronçon de Liane Toxique': 'splash',
+    'Tronçonneuse': 'slash',
+    'Marteau de Guerre': 'pow',
+    'Nouille de Piscine': 'foam'
 };
 
 // Projectile de chaque arme à distance.
@@ -64,6 +74,11 @@ const RANGED_PROJECTILES = {
     'Sarbacane Improvisée': 'dart',
     'Pistolet à Eau Surpuissant': 'water',
     'Lance-Confettis Bricolé': 'confetti',
+    'Arc Long de Compétition': 'arrow',
+    'Lance-Harpon': 'bolt',
+    'Arbalète Lourde': 'bolt',
+    'Fusil à Pompe': 'pellets',
+    'Pistolet à Bulles': 'water',
     'Tampon Encreur du Directeur': 'stamp',
     'Canon à Impulsions de l\'IA Malveillante': 'pulse'
 };
@@ -122,7 +137,19 @@ const FX_SPELLS = {
     '🌩️': { style: 'sky', color: '#fde047', impact: 'shock' },
     '🧪': { style: 'bolt', projectile: 'orb', color: '#a3e635', impact: 'splash' },
     '❄️': { style: 'bolt', projectile: 'shard', color: '#7dd3fc', impact: 'frost' },
-    '☄️': { style: 'meteor', projectile: 'fireball', color: '#f97316', impact: 'explosion' }
+    '☄️': { style: 'meteor', projectile: 'fireball', color: '#f97316', impact: 'explosion' },
+    // Chantier 11 « nouveaux sorts »
+    '🧛': { style: 'arc', color: '#dc2626', impact: 'slash' },
+    '👋': { style: 'punch', color: '#e0f2fe', impact: 'pow' },
+    '🔩': { style: 'punch', color: '#b45309', impact: 'splash' },
+    '🐝': { style: 'bolt', projectile: 'pellets', color: '#facc15', impact: 'hit' },
+    '💡': { style: 'zap', color: '#fef9c3', impact: 'shock' },
+    '⛓️': { style: 'sky', color: '#93c5fd', impact: 'shock' },
+    '😱': { style: 'cone', color: '#a78bfa', impact: 'pow' },
+    // Sorts utilitaires (catégorie `any`) : l'effet se joue sur le crawler lui-même (style 'self').
+    '💚': { style: 'self', color: '#4ade80', impact: 'foam' },
+    '🔰': { style: 'self', color: '#60a5fa', impact: 'frost' },
+    '🌑': { style: 'self', color: '#6b7280', impact: 'foam' }
 };
 
 // Attaque au contact de chaque archétype de mob (sprites/mobs.js) : 'smash', 'slash' (arc au bout du

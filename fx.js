@@ -493,9 +493,29 @@ function fxPlayerUnarmed(spec, opts, reduced, glowColor) {
     };
 }
 
+// Sort utilitaire (chantier 11, style 'self') : la lueur se charge, puis l'éclat se joue sur le crawler
+// lui-même (soin, bouclier, recul) — aucune cible.
+function fxPlayerSelfSpell(spec, reduced) {
+    const at = [CRAWLER_X - 4, SCENE_GROUND_Y - 40];
+    const burst = fxBurst(spec.impact, spec.color, at[0], at[1], { big: true, reduced });
+    const windup = reduced ? 0 : 120;
+    const impactAt = reduced ? 60 : windup;
+    return {
+        impactAt,
+        duration: impactAt + 320,
+        update(t) {
+            if (!reduced && t < windup) fxSetGlow(fxLerp(1, 2.2, fxEaseOut(t / windup)));
+            else if (!reduced) fxSetGlow(fxLerp(2.2, 1, fxClamp((t - windup) / 200)));
+            if (t >= impactAt) burst.update(t - impactAt);
+        },
+        cleanup() { fxRemove(burst.el); fxResetCrawler(); }
+    };
+}
+
 // Sort du crawler : la lueur de la main se charge, puis l'effet du sort part (FX_SPELLS).
 function fxPlayerSpell(spec, opts, reduced) {
     if (spec.style === 'punch') return fxPlayerUnarmed({ impact: spec.impact }, opts, reduced, spec.color);
+    if (spec.style === 'self' || opts.self) return fxPlayerSelfSpell(spec, reduced);
     const arm = CRAWLER_ARMS.magic;
     const from = [CRAWLER_X + arm.hand[0] - 3, SCENE_GROUND_Y + arm.hand[1] - 6];
     const target = fxMobHitPoint();

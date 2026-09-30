@@ -37,6 +37,10 @@ try {
     while (steps < MAX_STEPS && floorsCleared < MAX_FLOORS && gameState.hp > 0 && gameState.timeLeft > 0) {
         steps++;
         if (gameState.timeLeft < 50) gameState.timeLeft = gameState.maxTime;
+        // Même principe pour les PV (hors combat) : la simulation vérifie des invariants, pas la survie — sans
+        // ça, environ 1 simulation sur 16 mourait dès l'étage 1 (élite, piège, saignement) et échouait sur
+        // « progression significative », y compris sur main avant le chantier 9.
+        if (!gameState.inCombat && gameState.hp > 0 && gameState.hp < gameState.maxHp * 0.5) gameState.hp = gameState.maxHp;
 
         if (gameState.bossChoicePending) {
             bossesEncountered++;
@@ -105,7 +109,9 @@ try {
             const enemy = gameState.currentEnemy;
             if (enemy && isEliteMob(enemy)) eliteMobsSeen++;
             if (enemy) {
-                for (let round = 0; round < 3 && gameState.inCombat && gameState.hp > 20; round++) {
+                // Seuil à la moitié des PV max (et non 20 PV fixes) : un élite à deux modificateurs de l'étage 1
+                // pouvait sinon tuer la simulation en 3 ripostes (voir le commentaire du soin plus haut).
+                for (let round = 0; round < 3 && gameState.inCombat && gameState.hp > gameState.maxHp * 0.5; round++) {
                     const atkBefore = enemy.atk;
                     enemyCounterAttack();
                     const st = enemy.status || {};

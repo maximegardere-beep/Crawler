@@ -39,20 +39,33 @@ Le mana et le coût en mana ne dépendent jamais du niveau d'objet (mana plafonn
 ×0,6, et profondeur minimale (`minFloor`) pour les meilleurs (ex. Fusil de Chasse à l'étage 6).
 Objets blagues uniquement en Camelote.
 
-**Rareté par étage** (`itemBalance.lootTables`, Camelote / Commun / Rare / Épique / Légendaire) :
+**Rareté par étage** (`itemBalance.lootTables`, Camelote / Commun / Rare / Épique / Légendaire) —
+refonte validée au chantier 10 (l'ancienne table rendait la rareté triviale dès les premiers étages) :
 
 | Étages | Cam. | Com. | Rare | Épi. | Lég. |
 |--------|------|------|------|------|------|
-| 1-2    | 12   | 65   | 20   | 3    | 0    |
-| 3-5    | 8    | 55   | 28   | 8    | 1    |
-| 6-9    | 5    | 42   | 34   | 15   | 4    |
-| 10-14  | 3    | 33   | 34   | 22   | 8    |
-| 15+    | 2    | 24   | 34   | 28   | 12   |
+| 1-2    | 30   | 60   | 9,48 | 0,5  | 0,02 |
+| 3-5    | 20   | 58   | 18   | 3,8  | 0,2  |
+| 6-9    | 12   | 50   | 28   | 9    | 1    |
+| 10-14  | 6    | 40   | 34   | 16   | 4    |
+| 15+    | 3    | 28   | 36   | 24   | 9    |
 
-Élite : 25 % de monter d'un palier. Boss : +1 palier, plancher Rare, second objet 25 % (au lieu de 50 %).
-Objet signature garanti à la première victoire sur ce boss, puis 20 %. Trésor de CAFET_ASSOMBRIE : +1 palier.
+Élite : 20 % de monter d'un palier. Boss : +1 palier, plancher selon l'étage (aucun 1-3, Rare dès 4, Épique
+dès 12), second objet 25 %. Trésor de CAFET_ASSOMBRIE : +1 palier. Plafond des montées (élite, boss, trésor,
+Chanceux) : Épique jusqu'à l'étage 4 ; le tirage de base n'est jamais rabaissé (le « miracle »).
+Objet signature : Rare aux étages 1-4, Épique 5-9, Légendaire dès 10 (rang de sa rareté), garanti à la
+première victoire sur ce boss, puis 20 %.
 
-Mesuré (20 000 tirages) : un boss d'étage 1 donne ~77 % Rare / 20 % Épique / 3 % Légendaire.
+Mesuré (`npm run sim:items`, 20 000 tirages) : boss d'étage 1 ~30 % Commun / 60 % Rare / 10 % Épique ;
+étage 8 ~62 / 28 / 10 % Rare / Épique / Légendaire ; étage 15 ~66 % Épique / 34 % Légendaire.
+
+Effet de la refonte — probabilité d'avoir vu au moins une arme de mêlée légendaire (hors objet signature)
+à la fin de l'étage, sur une partie type (12 butins de mob, 1-2 élites et 2 boss par étage) :
+
+| Étage | 1 | 2 | 3 | 5 | 8 | 10 | 12 | 15 | 18 |
+|---|---|---|---|---|---|---|---|---|---|
+| Avant | 1,2 % | 2,7 % | 9,2 % | 21 % | 57 % | 75 % | 88 % | 96 % | 99 % |
+| Après | 0,1 % | 0,2 % | 0,8 % | 3,8 % | 23 % | 42 % | 61 % | 82 % | 95 % |
 
 **Valeur** : `baseValue × valueMult × (1 + 0,15 × (niveau − 1)) × (1 + 0,15 × qualificatifs)`. Arme
 moyenne : Commun 14 PO / Légendaire ~400 PO à l'étage 1, ~1 550 PO à l'étage 10 (revente ×0,4, achat ×2,5).
@@ -95,3 +108,20 @@ Cadeau : Arme 38 / Tir 25 / Armure 17 / Magie 15 / Rien 5, toujours en Camelote,
 - Étage 1 sans arme (5 % des départs, ou cadeau Magie/Armure) : le plus lent de la partie (~8 tours par
   mob moyen dans le modèle).
 - Taux de proc (20-40 %) : à ressentir en jeu, en particulier Lourd (étourdissement) et Vibrant.
+
+## Chantier 10 — expansion de la banque d'objets (voir CHANTIERS.md)
+- **Familles** (`ITEM_FAMILIES`, `items.js`) : Bricolage 10 · Standard 6 · Militaire 3 · Arsenal 1 — poids du
+  tirage de l'objet de BASE (`pickBaseItem()`), indépendant de la rareté. Objets blagues à demi-poids
+  (`itemBalance.jokeWeightMult`), boutiques ×2 Militaire / ×3 Arsenal (`itemBalance.shopFamilyBoost`).
+- **13 nouveaux objets** : Masse d'Armes (10, ét. 4), Épée Longue (12, ét. 5), Katana de Collection (12, ét. 6),
+  Tronçonneuse (14, ét. 7, Grinçante), Marteau de Guerre (15, ét. 9, Bancal) ; Arc Long de Compétition (12, ét. 5),
+  Lance-Harpon (13, ét. 7), Arbalète Lourde (14, ét. 8, Bancale), Fusil à Pompe (15, ét. 10, Grinçant) ; Armure
+  Anti-Émeute (9, ét. 5), Cotte de Mailles (10, ét. 6), Tenue de Démineur (12, ét. 8, Grinçante), Armure de Plates
+  (13, ét. 9, Grinçante).
+- **Objets blagues** ajoutés : Nouille de Piscine, Tapette à Mouches, Pistolet à Bulles, Poncho en Sac-Poubelle.
+- **Rééquilibrage** : Antivol de Voiture 7 → 4 dégâts, dès l'étage 1 (Bricolage) ; Bâton de Dynamite, Lance à
+  Feu, Fusil de Chasse Rouillé et Manteau en Skaï Renforcé en Militaire.
+- **Traits fixes** (`base.trait`) : qualificatif toujours porté, hors emplacements (`withFixedTrait()`).
+- **Rareté** : refonte validée et appliquée (tables, plafond des montées, boss, objet signature) — voir
+  « Rareté par étage » plus haut et CHANTIERS.md, chantier 10.
+

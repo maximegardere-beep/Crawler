@@ -19,9 +19,10 @@ const withRandom = (value, fn) => {
     assert(getRarityByKey('legendaire').valueMult >= 15 * getRarityByKey('commun').valueMult, "itemRarities : un Légendaire vaut au moins 15× un Commun");
 }
 
-// Tables de rareté par étage : aucun Légendaire aux étages 1-2, Légendaire de plus en plus fréquent en profondeur.
+// Tables de rareté par étage (refonte validée, chantier 10) : Légendaire miraculeux aux premiers étages,
+// de plus en plus fréquent en profondeur ; Épique rarissime avant l'étage 3.
 {
-    assert(getLootRarityWeights(1).legendaire === 0 && getLootRarityWeights(2).legendaire === 0, "getLootRarityWeights() : aucun Légendaire aux étages 1-2");
+    assert(getLootRarityWeights(1).legendaire < 0.05 && getLootRarityWeights(2).epique <= 0.5, "getLootRarityWeights() : Légendaire miraculeux et Épique rarissime aux étages 1-2");
     let previous = -1;
     [1, 3, 6, 10, 15, 18, 40].forEach(floor => {
         const w = getLootRarityWeights(floor);
@@ -32,26 +33,38 @@ const withRandom = (value, fn) => {
     assert(early.commun > early.rare + early.epique + early.legendaire, "getLootRarityWeights() : au début, le Commun domine");
 }
 
-// rollLootRarity() : exploration d'étage 1 jamais Légendaire ; boss jamais sous Rare et rarement Légendaire à l'étage 1.
+// rollLootRarity() : plafond des montées aux premiers étages, plancher des boss selon l'étage.
 {
-    let legendary = 0, bossLegendary = 0, bossBelowRare = 0;
+    let legendary = 0, bossLegendary = 0, bossBelowRare4 = 0, bossBelowEpic12 = 0;
     for (let i = 0; i < 2000; i++) {
         if (rollLootRarity({ source: 'explore', floor: 1 }).key === 'legendaire') legendary++;
-        const boss = rollLootRarity({ source: 'boss', floor: 1 });
-        if (rarityIndex(boss.key) < rarityIndex('rare')) bossBelowRare++;
-        if (boss.key === 'legendaire') bossLegendary++;
+        if (rollLootRarity({ source: 'boss', floor: 1 }).key === 'legendaire') bossLegendary++;
+        if (rarityIndex(rollLootRarity({ source: 'boss', floor: 4 }).key) < rarityIndex('rare')) bossBelowRare4++;
+        if (rarityIndex(rollLootRarity({ source: 'boss', floor: 12 }).key) < rarityIndex('epique')) bossBelowEpic12++;
     }
-    assert(legendary === 0, "rollLootRarity() : jamais de Légendaire en explorant l'étage 1");
-    assert(bossBelowRare === 0, "rollLootRarity() : un boss lâche toujours au moins du Rare");
-    assert(bossLegendary / 2000 < 0.08, `rollLootRarity() : Légendaire rare sur un boss d'étage 1 (${(bossLegendary / 20).toFixed(1)} %)`);
+    assert(legendary / 2000 < 0.005, `rollLootRarity() : Légendaire quasi impossible en explorant l'étage 1 (${legendary})`);
+    assert(bossLegendary / 2000 < 0.005, `rollLootRarity() : boss d'étage 1 -> Légendaire seulement par miracle (${bossLegendary})`);
+    assert(bossBelowRare4 === 0, "rollLootRarity() : un boss lâche au moins du Rare dès l'étage 4");
+    assert(bossBelowEpic12 === 0, "rollLootRarity() : un boss lâche au moins de l'Épique dès l'étage 12");
 
-    // Jet 0 -> premier palier (Camelote) ; un boss monte d'un palier puis applique le plancher Rare.
+    // Jet 0 -> premier palier (Camelote).
     assert(withRandom(0, () => rollLootRarity({ source: 'explore', floor: 1 })).key === 'camelote', "rollLootRarity() : jet 0 -> Camelote");
-    assert(withRandom(0, () => rollLootRarity({ source: 'boss', floor: 1 })).key === 'rare', "rollLootRarity() : boss, jet 0 -> Camelote +1 palier, plancher Rare");
+    assert(withRandom(0, () => rollLootRarity({ source: 'boss', floor: 1 })).key === 'commun', "rollLootRarity() : boss d'étage 1, jet 0 -> Camelote +1 palier, aucun plancher");
+    assert(withRandom(0, () => rollLootRarity({ source: 'boss', floor: 4 })).key === 'rare', "rollLootRarity() : boss d'étage 4, jet 0 -> plancher Rare");
+    assert(withRandom(0, () => rollLootRarity({ source: 'boss', floor: 12 })).key === 'epique', "rollLootRarity() : boss d'étage 12, jet 0 -> plancher Épique");
     assert(withRandom(0, () => rollLootRarity({ source: 'treasure', floor: 1 })).key === 'commun', "rollLootRarity() : trésor -> toujours un palier au-dessus");
     assert(withRandom(0, () => rollLootRarity({ source: 'elite', floor: 1 })).key === 'commun', "rollLootRarity() : élite, jet de montée réussi -> un palier au-dessus");
     assert(withRandom(0.99, () => rollLootRarity({ source: 'boss', floor: 18 })).key === 'legendaire', "rollLootRarity() : jamais au-delà de Légendaire");
     assert(withRandom(0, () => rollLootRarity({ source: 'explore', floor: 1, minRarityKey: 'epique' })).key === 'epique', "rollLootRarity() : minRarityKey sert de plancher");
+
+    // Plafond : jusqu'à l'étage 4, une montée ne dépasse jamais Épique ; le tirage de base, lui, n'est jamais rabaissé.
+    // Jet 0.9999 à l'étage 3 : le tirage de base tombe sur Légendaire (miracle), gardé tel quel.
+    assert(withRandom(0.99999, () => rollLootRarity({ source: 'boss', floor: 3 })).key === 'legendaire', "rollLootRarity() : un Légendaire tiré de base n'est jamais rabaissé");
+    const seq = (values) => { let i = 0; return () => values[Math.min(i++, values.length - 1)]; };
+    const withSeq = (values, fn) => { const orig = Math.random; Math.random = seq(values); try { return fn(); } finally { Math.random = orig; } };
+    // Étage 3 : jet de base à 98 % du total (Épique : 96-99,8) -> Épique, puis boss +1 palier -> plafonné à Épique.
+    assert(withSeq([0.98, 0], () => rollLootRarity({ source: 'boss', floor: 3 })).key === 'epique', "rollLootRarity() : étage 3, Épique de base + montée de boss -> reste Épique (plafond)");
+    assert(withSeq([0.98, 0], () => rollLootRarity({ source: 'boss', floor: 5 })).key === 'legendaire', "rollLootRarity() : étage 5, plus de plafond -> la montée de boss atteint Légendaire");
 }
 
 // Objets de base : `minFloor` respecté, objets blagues seulement au palier Camelote.
@@ -118,7 +131,7 @@ const withRandom = (value, fn) => {
     assert(getSellPrice({ value: 100 }) === Math.round(100 * SELL_VALUE_RATIO) && getSellPrice({ baseValue: 10 }) === Math.round(10 * SELL_VALUE_RATIO), "getSellPrice() : value en priorité, baseValue en repli");
 }
 
-// Butin d'un boss : au moins un objet de rareté >= Rare, objet signature garanti la première fois
+// Butin d'un boss : au moins un objet de rareté >= Rare dès l'étage 4, objet signature garanti la première fois
 // seulement, au niveau d'objet de l'étage (+1 pour le boss d'un repaire).
 {
     resetTransientState();
@@ -130,8 +143,9 @@ const withRandom = (value, fn) => {
 
     awardBossSignatureItem(boss, 4);
     const signature = gameState.inventory.find(i => i.signature);
-    assert(signature && signature.rarityKey === 'legendaire' && signature.itemLevel === 4, "awardBossSignatureItem() : première victoire -> objet signature Légendaire au niveau d'objet demandé");
-    assert(signature.baseDmg === Math.round(template.signatureItem.baseDmg * getRarityByKey('legendaire').statMult * getItemLevelMult(4)), "buildSignatureItem() : stats de base × Légendaire × niveau d'objet, sans aléa");
+    assert(signature && signature.rarityKey === 'rare' && signature.itemLevel === 4, "awardBossSignatureItem() : première victoire à l'étage 4 -> objet signature Rare au niveau d'objet demandé");
+    assert(signature.baseDmg === Math.round(template.signatureItem.baseDmg * getRarityByKey('rare').statMult * getItemLevelMult(4)), "buildSignatureItem() : stats de base × rareté × niveau d'objet, sans aléa");
+    assert(getSignatureRarity(1).key === 'rare' && getSignatureRarity(5).key === 'epique' && getSignatureRarity(9).key === 'epique' && getSignatureRarity(10).key === 'legendaire' && getSignatureRarity(18).key === 'legendaire', "getSignatureRarity() : Rare 1-4, Épique 5-9, Légendaire 10+");
     assert(gameState.signaturesAwarded.includes(template.name), "awardBossSignatureItem() : boss mémorisé dans signaturesAwarded");
 
     gameState.inventory = [];

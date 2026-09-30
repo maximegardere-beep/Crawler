@@ -34,25 +34,45 @@ const itemBalance = {
     statJitter: 0.1,
     // Valeur = baseValue × valueMult(rareté) × (1 + perLevel × (itemLevel − 1)) × (1 + perEnchant × qualificatifs)
     value: { perLevel: 0.15, perEnchant: 0.15 },
-    // Poids de rareté du loot selon l'étage (première ligne dont maxFloor >= étage courant). La
-    // Camelote n'est jamais qu'un petit bruit de fond : c'est surtout le palier du cadeau de départ.
+    // Poids de rareté du loot selon l'étage (première ligne dont maxFloor >= étage courant). Refonte de la
+    // rareté (chantier 10, validée) : un Épique reste exceptionnel avant l'étage 6, un Légendaire tient du
+    // miracle avant l'étage 10 et ne devient un vrai espoir qu'à partir de l'étage 15.
     lootTables: [
-        { maxFloor: 2,        weights: { camelote: 12, commun: 65, rare: 20, epique: 3,  legendaire: 0 } },
-        { maxFloor: 5,        weights: { camelote: 8,  commun: 55, rare: 28, epique: 8,  legendaire: 1 } },
-        { maxFloor: 9,        weights: { camelote: 5,  commun: 42, rare: 34, epique: 15, legendaire: 4 } },
-        { maxFloor: 14,       weights: { camelote: 3,  commun: 33, rare: 34, epique: 22, legendaire: 8 } },
-        { maxFloor: Infinity, weights: { camelote: 2,  commun: 24, rare: 34, epique: 28, legendaire: 12 } }
+        { maxFloor: 2,        weights: { camelote: 30, commun: 60, rare: 9.48, epique: 0.5, legendaire: 0.02 } },
+        { maxFloor: 5,        weights: { camelote: 20, commun: 58, rare: 18,   epique: 3.8, legendaire: 0.2 } },
+        { maxFloor: 9,        weights: { camelote: 12, commun: 50, rare: 28,   epique: 9,   legendaire: 1 } },
+        { maxFloor: 14,       weights: { camelote: 6,  commun: 40, rare: 34,   epique: 16,  legendaire: 4 } },
+        { maxFloor: Infinity, weights: { camelote: 3,  commun: 28, rare: 36,   epique: 24,  legendaire: 9 } }
     ],
     // Montées de palier après le tirage (voir rollLootRarity() dans generator.js) : un mob élite a une
-    // CHANCE de monter d'un palier, un boss (ou un trésor de CAFET_ASSOMBRIE) monte TOUJOURS d'un palier,
-    // avec un plancher.
-    eliteUpgradeChance: 25,
+    // CHANCE de monter d'un palier, un boss (ou un trésor de CAFET_ASSOMBRIE) monte TOUJOURS d'un palier.
+    eliteUpgradeChance: 20,
+    // Plafond des montées (élite, boss, trésor, Chanceux) : jusqu'à l'étage maxFloor, une montée ne dépasse
+    // jamais ce palier — seul le tirage de base (le miracle) peut aller au-delà.
+    upgradeCaps: [{ maxFloor: 4, key: "epique" }],
     // Chance (%) qu'un objet de Camelote porte un défaut (itemQualifiers, kind 'malus').
     junkMalusChance: 60,
-    boss: { tierBonus: 1, minRarityKey: "rare", secondItemChance: 25, signatureRepeatChance: 20 },
+    // Boss : +1 palier, plancher selon l'étage (aucun aux étages 1-3, Rare dès l'étage 4, Épique dès le 12).
+    boss: {
+        tierBonus: 1,
+        minRarityByFloor: [{ fromFloor: 4, key: "rare" }, { fromFloor: 12, key: "epique" }],
+        secondItemChance: 25,
+        signatureRepeatChance: 20
+    },
+    // Rareté de l'objet signature d'un boss selon l'étage : Rare 1-4, Épique 5-9, Légendaire 10+.
+    signatureRarityByFloor: [
+        { maxFloor: 4, key: "rare" },
+        { maxFloor: 9, key: "epique" },
+        { maxFloor: Infinity, key: "legendaire" }
+    ],
     treasure: { tierBonus: 1 },
     // Le boss d'un repaire (étage urbain) lâche un butin d'un niveau d'objet au-dessus de l'étage.
-    lairBossLevelBonus: 1
+    lairBossLevelBonus: 1,
+    // Boutiques (chantier 10) : poids des familles Militaire / Arsenal multiplié dans le stock d'un marchand,
+    // pour qu'on y trouve plus souvent du vrai matériel (à un prix en conséquence).
+    shopFamilyBoost: { militaire: 2, arsenal: 3 },
+    // Poids d'un objet blague (jokeItem, ne tombe qu'en Camelote) relatif à sa famille.
+    jokeWeightMult: 0.5
 };
 
 // ==========================================
@@ -185,45 +205,73 @@ const itemQualifiers = {
 // `minFloor` (défaut 1) : étage à partir duquel un objet de base peut tomber — les meilleurs objets de
 // base n'apparaissent qu'en profondeur, ce qui s'ajoute au niveau d'objet pour donner une vraie
 // sensation de progression. Les objets blagues (`jokeItem`) ne tombent jamais qu'au palier Camelote.
+// Chantier 10 « expansion de la banque d'objets » : `family` (ITEM_FAMILIES) fixe la FRÉQUENCE d'un objet
+// de base — beaucoup de bricolage, rarement du vrai matériel — indépendamment de sa rareté (qui qualifie un
+// exemplaire). `trait` : qualificatif FIXE, toujours porté quelle que soit la rareté (compromis d'un gros
+// objet : bruyant, lourd…), clé d'itemQualifiers.
+const ITEM_FAMILIES = {
+    bricolage: { label: "Bricolage", weight: 10 },
+    standard: { label: "Standard", weight: 6 },
+    militaire: { label: "Militaire", weight: 3 },
+    arsenal: { label: "Arsenal", weight: 1 }
+};
+
 const baseItems = {
     weapons: [
-        { name: "Pied-de-biche", baseDmg: 4, baseValue: 10 },
-        { name: "Extincteur Cabossé", baseDmg: 1, baseValue: 2, canEnchant: false, jokeItem: true },
-        { name: "Agrafeuse Tactique", baseDmg: 3, baseValue: 15 },
-        { name: "Épée en Pain de Mie", baseDmg: 6, baseValue: 20, minFloor: 2 },
-        { name: "Hache à Viande", baseDmg: 7, baseValue: 25, minFloor: 3 },
-        { name: "Bâton de Dynamite", baseDmg: 9, baseValue: 30, minFloor: 5 },
-        { name: "Couteau en Beurre", baseDmg: 2, baseValue: 5, canEnchant: false, jokeItem: true },
-        { name: "Lance à Feu", baseDmg: 8, baseValue: 35, minFloor: 4 },
-        { name: "Gantelet Électrique", baseDmg: 7, baseValue: 28, minFloor: 3 },
-        { name: "Antivol de Voiture", baseDmg: 7, baseValue: 26, minFloor: 3 },
-        { name: "Pied de Parasol", baseDmg: 5, baseValue: 16 }
+        { name: "Pied-de-biche", baseDmg: 4, baseValue: 10, family: 'bricolage' },
+        { name: "Extincteur Cabossé", baseDmg: 1, baseValue: 2, canEnchant: false, jokeItem: true, family: 'bricolage' },
+        { name: "Agrafeuse Tactique", baseDmg: 3, baseValue: 15, family: 'bricolage' },
+        { name: "Épée en Pain de Mie", baseDmg: 6, baseValue: 20, minFloor: 2, family: 'standard' },
+        { name: "Hache à Viande", baseDmg: 7, baseValue: 25, minFloor: 3, family: 'standard' },
+        { name: "Bâton de Dynamite", baseDmg: 9, baseValue: 30, minFloor: 5, family: 'militaire' },
+        { name: "Couteau en Beurre", baseDmg: 2, baseValue: 5, canEnchant: false, jokeItem: true, family: 'bricolage' },
+        { name: "Lance à Feu", baseDmg: 8, baseValue: 35, minFloor: 4, family: 'militaire' },
+        { name: "Gantelet Électrique", baseDmg: 7, baseValue: 28, minFloor: 3, family: 'standard' },
+        { name: "Antivol de Voiture", baseDmg: 4, baseValue: 12, family: 'bricolage' },
+        { name: "Pied de Parasol", baseDmg: 5, baseValue: 16, family: 'bricolage' },
+        { name: "Masse d'Armes", baseDmg: 10, baseValue: 40, minFloor: 4, family: 'militaire' },
+        { name: "Épée Longue", baseDmg: 12, baseValue: 55, minFloor: 5, family: 'militaire' },
+        { name: "Katana de Collection", baseDmg: 12, baseValue: 60, minFloor: 6, family: 'militaire' },
+        { name: "Tronçonneuse", baseDmg: 14, baseValue: 80, minFloor: 7, family: 'arsenal', trait: 'squeaky' },
+        { name: "Marteau de Guerre", baseDmg: 15, baseValue: 90, minFloor: 9, family: 'arsenal', trait: 'wobbly' },
+        { name: "Nouille de Piscine", baseDmg: 1, baseValue: 2, canEnchant: false, jokeItem: true, family: 'bricolage' },
+        { name: "Tapette à Mouches", baseDmg: 2, baseValue: 3, canEnchant: false, jokeItem: true, family: 'bricolage' }
     ],
     // Armes à distance : utilisées uniquement quand un écart sépare le joueur du mob (voir
     // attackRanged() dans app.js). Même système de rareté/qualificatifs que les armes de mêlée.
     ranged: [
-        { name: "Lance-Pierre de Chantier", baseDmg: 5, baseValue: 18 },
-        { name: "Arc de Fortune Rafistolé", baseDmg: 6, baseValue: 22, minFloor: 2 },
-        { name: "Arbalète de Musée", baseDmg: 9, baseValue: 35, minFloor: 4 },
-        { name: "Pistolet à Clous", baseDmg: 7, baseValue: 28, minFloor: 3 },
-        { name: "Fusil de Chasse Rouillé", baseDmg: 11, baseValue: 45, minFloor: 6 },
-        { name: "Sarbacane Improvisée", baseDmg: 3, baseValue: 8, jokeItem: true },
-        { name: "Pistolet à Eau Surpuissant", baseDmg: 4, baseValue: 14 },
-        { name: "Lance-Confettis Bricolé", baseDmg: 4, baseValue: 12 }
+        { name: "Lance-Pierre de Chantier", baseDmg: 5, baseValue: 18, family: 'bricolage' },
+        { name: "Arc de Fortune Rafistolé", baseDmg: 6, baseValue: 22, minFloor: 2, family: 'standard' },
+        { name: "Arbalète de Musée", baseDmg: 9, baseValue: 35, minFloor: 4, family: 'standard' },
+        { name: "Pistolet à Clous", baseDmg: 7, baseValue: 28, minFloor: 3, family: 'standard' },
+        { name: "Fusil de Chasse Rouillé", baseDmg: 11, baseValue: 45, minFloor: 6, family: 'militaire' },
+        { name: "Sarbacane Improvisée", baseDmg: 3, baseValue: 8, jokeItem: true, family: 'bricolage' },
+        { name: "Pistolet à Eau Surpuissant", baseDmg: 4, baseValue: 14, family: 'bricolage' },
+        { name: "Lance-Confettis Bricolé", baseDmg: 4, baseValue: 12, family: 'bricolage' },
+        { name: "Arc Long de Compétition", baseDmg: 12, baseValue: 55, minFloor: 5, family: 'militaire' },
+        { name: "Lance-Harpon", baseDmg: 13, baseValue: 70, minFloor: 7, family: 'arsenal' },
+        { name: "Arbalète Lourde", baseDmg: 14, baseValue: 80, minFloor: 8, family: 'arsenal', trait: 'wobbly' },
+        { name: "Fusil à Pompe", baseDmg: 15, baseValue: 90, minFloor: 10, family: 'arsenal', trait: 'squeaky' },
+        { name: "Pistolet à Bulles", baseDmg: 2, baseValue: 3, canEnchant: false, jokeItem: true, family: 'bricolage' }
     ],
     armors: [
-        { name: "Couvercle de Poubelle", baseArmor: 3, baseValue: 8 },
-        { name: "Costume Trois-Pièces Déchiré", baseArmor: 1, baseValue: 20 },
-        { name: "Gilet Haute Visibilité", baseArmor: 2, baseValue: 5, canEnchant: false, jokeItem: true },
-        { name: "Armure de Carton", baseArmor: 5, baseValue: 12, minFloor: 2 },
-        { name: "Plastron de Coquillage", baseArmor: 4, baseValue: 15 },
-        { name: "Rideau de Douche Camouflage", baseArmor: 0, baseValue: 8, jokeItem: true },
-        { name: "Combinaison de Plongée", baseArmor: 6, baseValue: 22, minFloor: 3 },
-        { name: "Gilet Pare-Balles Périmé", baseArmor: 2, baseValue: 10 },
-        { name: "Bouclier en Polystyrène", baseArmor: 4, baseValue: 18, minFloor: 2 },
-        { name: "Manteau en Cuir de Skaï Renforcé", baseArmor: 7, baseValue: 40, minFloor: 5 },
-        { name: "Bouée Canard Renforcée", baseArmor: 4, baseValue: 14 },
-        { name: "Gilet de Sécurité Chantier", baseArmor: 5, baseValue: 20, minFloor: 3 }
+        { name: "Couvercle de Poubelle", baseArmor: 3, baseValue: 8, family: 'bricolage' },
+        { name: "Costume Trois-Pièces Déchiré", baseArmor: 1, baseValue: 20, family: 'bricolage' },
+        { name: "Gilet Haute Visibilité", baseArmor: 2, baseValue: 5, canEnchant: false, jokeItem: true, family: 'bricolage' },
+        { name: "Armure de Carton", baseArmor: 5, baseValue: 12, minFloor: 2, family: 'standard' },
+        { name: "Plastron de Coquillage", baseArmor: 4, baseValue: 15, family: 'standard' },
+        { name: "Rideau de Douche Camouflage", baseArmor: 0, baseValue: 8, jokeItem: true, family: 'bricolage' },
+        { name: "Combinaison de Plongée", baseArmor: 6, baseValue: 22, minFloor: 3, family: 'standard' },
+        { name: "Gilet Pare-Balles Périmé", baseArmor: 2, baseValue: 10, family: 'bricolage' },
+        { name: "Bouclier en Polystyrène", baseArmor: 4, baseValue: 18, minFloor: 2, family: 'bricolage' },
+        { name: "Manteau en Cuir de Skaï Renforcé", baseArmor: 7, baseValue: 40, minFloor: 5, family: 'militaire' },
+        { name: "Bouée Canard Renforcée", baseArmor: 4, baseValue: 14, family: 'bricolage' },
+        { name: "Gilet de Sécurité Chantier", baseArmor: 5, baseValue: 20, minFloor: 3, family: 'standard' },
+        { name: "Armure Anti-Émeute", baseArmor: 9, baseValue: 50, minFloor: 5, family: 'militaire' },
+        { name: "Cotte de Mailles", baseArmor: 10, baseValue: 60, minFloor: 6, family: 'militaire' },
+        { name: "Tenue de Démineur", baseArmor: 12, baseValue: 80, minFloor: 8, family: 'arsenal', trait: 'squeaky' },
+        { name: "Armure de Plates", baseArmor: 13, baseValue: 90, minFloor: 9, family: 'arsenal', trait: 'squeaky' },
+        { name: "Poncho en Sac-Poubelle", baseArmor: 1, baseValue: 2, canEnchant: false, jokeItem: true, family: 'bricolage' }
     ],
     // Les consommables n'ont jamais de qualificatif : seuls `heal` (rareté + niveau d'objet) et
     // `mana` (rareté seule) sont mis à l'échelle. `mana` restaure du mana (voir useConsumable() dans app.js) : n'a d'effet que si un sort
@@ -248,5 +296,5 @@ const baseItems = {
 };
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { itemRarities, itemBalance, itemQualifiers, baseItems };
+    module.exports = { itemRarities, itemBalance, itemQualifiers, ITEM_FAMILIES, baseItems };
 }

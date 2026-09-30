@@ -55,7 +55,9 @@ const CRAWLER_ARMS = {
 // Lueur du sort équipé dans la paume (posture `magic`), par icône de sort (spells.js) ; repli violet.
 const CRAWLER_SPELL_GLOWS = {
     '⚡': '#fde047', '🌩️': '#fde047', '🧊': '#7dd3fc', '❄️': '#7dd3fc',
-    '🔥': '#fb923c', '☄️': '#f97316', '👻': '#c7d2fe', '🧪': '#a3e635'
+    '🔥': '#fb923c', '☄️': '#f97316', '👻': '#c7d2fe', '🧪': '#a3e635',
+    '🧛': '#dc2626', '👋': '#e0f2fe', '🔩': '#b45309', '🐝': '#facc15', '💡': '#fef9c3', '⛓️': '#93c5fd',
+    '😱': '#a78bfa', '💚': '#4ade80', '🔰': '#60a5fa', '🌑': '#6b7280'
 };
 const CRAWLER_DEFAULT_GLOW = '#c084fc';
 

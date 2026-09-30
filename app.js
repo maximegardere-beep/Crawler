@@ -191,7 +191,7 @@ gameState.anomalyEffects = createNeutralAnomalyEffects();
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 31, label: "Nouveaux étages (quartiers + avenues) et carte de l'étage ; répliques de l'émission liées à la pique" };
+const APP_VERSION = { pr: 32, label: "Interface allégée (barre d'icônes), objets rares et puissants, nouveaux sorts à effet" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -618,9 +618,21 @@ const ui = {
     playerName: document.getElementById('player-name'),
     floorLevel: document.getElementById('floor-level'),
     districtName: document.getElementById('district-name'),
-    compactVitals: document.getElementById('player-vitals-compact'),
-    compactHpRing: document.getElementById('compact-hp-ring'),
-    compactHpValue: document.getElementById('compact-hp-value'),
+    hpBar: document.getElementById('hp-bar'),
+    hpText: document.getElementById('hp-text'),
+    xpBarMini: document.getElementById('xp-bar-mini'),
+    xpTextMini: document.getElementById('xp-text-mini'),
+    bottomNav: document.getElementById('bottom-nav'),
+    navEquipment: document.getElementById('nav-equipment'),
+    navBag: document.getElementById('nav-bag'),
+    navBagCount: document.getElementById('nav-bag-count'),
+    navBagDot: document.getElementById('nav-bag-dot'),
+    navSpellbook: document.getElementById('nav-spellbook'),
+    navSpellbookDot: document.getElementById('nav-spellbook-dot'),
+    equipmentSheet: document.getElementById('equipment-sheet'),
+    bagSheet: document.getElementById('bag-sheet'),
+    spellbookSheet: document.getElementById('spellbook-sheet'),
+    equippedSpellSheet: document.getElementById('equipped-spell-sheet'),
     playerAtk: document.getElementById('player-atk'),
     playerDef: document.getElementById('player-def'),
     playerGold: document.getElementById('player-gold'),
@@ -1203,8 +1215,8 @@ function updateUI() {
     ui.floorLevel.innerText = gameState.currentFloor;
     ui.districtName.innerText = gameState.currentDistrict;
 
-    // Mise à jour des PV (anneau circulaire), ATK et DEF
-    setHpRing(ui.compactHpRing, ui.compactHpValue, gameState.hp, gameState.maxHp);
+    // Fiche du crawler sous le nom (chantier 9) : barre de PV, ATK et DEF
+    setHpBar(ui.hpBar, ui.hpText, gameState.hp, gameState.maxHp);
     ui.playerAtk.innerText = gameState.atk;
     ui.playerDef.innerText = getEffectiveDef();
     if (ui.playerGold) ui.playerGold.innerText = gameState.gold;
@@ -1222,12 +1234,16 @@ function updateUI() {
     if (gameState.status.corroded && gameState.status.corroded.rounds > 0) playerIcons += "🧪";
     if (gameState.status.feared && gameState.status.feared.rounds > 0) playerIcons += "😱";
     if (gameState.status.adrenaline && gameState.status.adrenaline.rounds > 0) playerIcons += "💉";
+    if (gameState.status.manaShield && gameState.status.manaShield.rounds > 0) playerIcons += "🔰";
     ui.playerStatusIcons.innerText = playerIcons;
 
     // Mise à jour du niveau et de l'XP
     ui.playerLevel.innerText = gameState.level;
     ui.xpText.innerText = `${gameState.xp}/${gameState.xpToNextLevel}`;
     ui.xpBar.style.width = `${Math.min(100, (gameState.xp / gameState.xpToNextLevel) * 100)}%`;
+    if (ui.xpBarMini) ui.xpBarMini.style.width = ui.xpBar.style.width;
+    if (ui.xpTextMini) ui.xpTextMini.innerText = `${gameState.xp}/${gameState.xpToNextLevel}`;
+    updateBottomNav();
 
     // Mise à jour de la carte joueur (compétences)
     const skillBarMap = {
@@ -1288,7 +1304,6 @@ function updateUI() {
     if (gameState.inCombat) {
         ui.advanceHint.classList.add('hidden'); // On ne peut pas avancer pendant un combat
         ui.combatZone.classList.remove('hidden');
-        ui.compactVitals.classList.add('hidden'); // Les PV sont déjà affichés au-dessus de la scène
         ui.exploreStage.classList.add('hidden');
 
         let playerIcons = "";
@@ -1301,6 +1316,7 @@ function updateUI() {
         if (gameState.status.corroded && gameState.status.corroded.rounds > 0) playerIcons += "🧪";
         if (gameState.status.feared && gameState.status.feared.rounds > 0) playerIcons += "😱";
         if (gameState.status.adrenaline && gameState.status.adrenaline.rounds > 0) playerIcons += "💉";
+        if (gameState.status.manaShield && gameState.status.manaShield.rounds > 0) playerIcons += "🔰";
         ui.combatPlayerStatus.innerText = playerIcons;
 
         // Indicateur compagnon (sous la barre de vie du joueur), si un compagnon est actif
@@ -1368,7 +1384,7 @@ function updateUI() {
             const spell = gameState.equipment.spell;
             let magicUsable = false;
             if (spell) {
-                const spellDistanceOk = spell.spellCategory === 'melee' ? atMelee : !atMelee;
+                const spellDistanceOk = spell.spellCategory === 'any' || (spell.spellCategory === 'melee' ? atMelee : !atMelee);
                 magicUsable = spellDistanceOk && gameState.mana >= getSpellManaCost(spell);
             }
             ui.btnAttackMagic.disabled = !magicUsable;
@@ -1418,7 +1434,6 @@ function updateUI() {
         ui.advanceHint.innerText = gameState.urbanMap ? "👆 Touchez la scène pour ouvrir la carte" : "👆 Touchez la scène pour explorer (-1H)";
         if (ui.exploreScene) ui.exploreScene.setAttribute('aria-label', gameState.urbanMap ? "Ouvrir la carte" : "Explorer (-1H)");
         ui.combatZone.classList.add('hidden');
-        ui.compactVitals.classList.remove('hidden'); // On réaffiche les PV compacts hors combat
         ui.exploreStage.classList.remove('hidden');
         // Salle sécurisée et ville spécialisée ont leur propre scène (au-dessus de leurs boutons) : la
         // scène d'exploration s'efface alors, seuls son titre et la dernière ligne restent.
@@ -1469,6 +1484,16 @@ function hpColor(pct) {
 }
 
 // Met à jour un anneau de vie circulaire (remplissage + couleur) et le nombre affiché en son centre.
+// Barre de PV horizontale de la fiche du crawler (chantier 9) : même code couleur que l'anneau (hpColor()).
+function setHpBar(barEl, textEl, current, max) {
+    if (!barEl) return;
+    const safeMax = max > 0 ? max : 1;
+    const pct = Math.max(0, Math.min(1, current / safeMax));
+    barEl.style.width = `${pct * 100}%`;
+    barEl.style.background = hpColor(pct);
+    if (textEl) textEl.innerText = `${Math.max(0, Math.round(current))}/${Math.round(max)}`;
+}
+
 function setHpRing(ringEl, valueEl, current, max) {
     const safeMax = max > 0 ? max : 1; // évite une division par zéro si jamais max vaut 0
     const pct = Math.max(0, Math.min(1, current / safeMax));
@@ -1678,6 +1703,54 @@ function showFloorArrivalScene() {
 // Carte de l'étage (Carte Urbaine) ouverte ou fermée par #btn-toggle-map — préférence d'affichage
 // seulement, jamais un état de jeu (d'où une variable de module et non un champ de gameState).
 let mapPanelOpen = true;
+// ---------- Barre d'icônes et panneaux d'inventaire (chantier 9 « interface inventaire allégée ») ----------
+// #bottom-nav (fixée en bas, masquée en combat) ouvre trois panneaux : Équipement porté, Sac (réserve +
+// consommables) et Grimoire. Une pastille signale un objet ou un sort nouveau (`item.isNew`, posé par
+// storeLootItem(), retiré à l'ouverture du panneau correspondant — l'objet garde sa mention « Nouveau »
+// tant que le panneau reste ouvert). Le panneau ouvert est une préférence d'affichage (variable de module).
+const INVENTORY_SHEETS = { equipment: 'equipmentSheet', bag: 'bagSheet', spellbook: 'spellbookSheet' };
+let openInventorySheetName = null;
+
+function hasNewBagItems() {
+    return gameState.inventory.some(item => item && item.isNew);
+}
+
+function hasNewSpells() {
+    return gameState.spellbook.some(spell => spell && spell.isNew);
+}
+
+function updateBottomNav() {
+    if (!ui.bottomNav) return;
+    const hidden = !!gameState.inCombat;
+    ui.bottomNav.classList.toggle('hidden', hidden);
+    if (hidden && openInventorySheetName) closeInventorySheets();
+    if (ui.navBagCount) {
+        const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
+        ui.navBagCount.innerText = `${equipmentCount}/${gameState.maxInventory}`;
+    }
+    if (ui.navBagDot) ui.navBagDot.classList.toggle('hidden', !hasNewBagItems());
+    if (ui.navSpellbookDot) ui.navSpellbookDot.classList.toggle('hidden', !hasNewSpells());
+}
+
+function openInventorySheet(name) {
+    if (!INVENTORY_SHEETS[name] || gameState.inCombat) return false;
+    closeInventorySheets();
+    if (name === 'spellbook') updateSpellbookUI(); else updateInventoryUI();
+    const sheet = ui[INVENTORY_SHEETS[name]];
+    if (sheet) sheet.classList.remove('hidden');
+    openInventorySheetName = name;
+    // Vu : la pastille disparaît (les cartes déjà affichées gardent leur mention « Nouveau »).
+    if (name === 'bag') gameState.inventory.forEach(item => { if (item && item.isNew) delete item.isNew; });
+    if (name === 'spellbook') gameState.spellbook.forEach(spell => { if (spell && spell.isNew) delete spell.isNew; });
+    updateBottomNav();
+    return true;
+}
+
+function closeInventorySheets() {
+    Object.values(INVENTORY_SHEETS).forEach(key => { if (ui[key]) ui[key].classList.add('hidden'); });
+    openInventorySheetName = null;
+}
+
 function toggleMapPanel(forceOpen) {
     mapPanelOpen = forceOpen === undefined ? !mapPanelOpen : !!forceOpen;
     updateUI();
@@ -1688,6 +1761,7 @@ function updateInventoryUI() {
     const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
     ui.inventoryCount.innerText = equipmentCount;
     if (ui.inventoryMax) ui.inventoryMax.innerText = gameState.maxInventory;
+    updateBottomNav();
     // Objets équipés : icône (même dessin que sur le crawler, voir itemIconSvg() dans scene.js) + nom.
     const equippedLabel = (item) => item
         ? `<span class="inline-flex items-center gap-1 align-middle">${itemIconSvg(item, 22)}<span>${formatItemDisplayName(item)}</span></span>`
@@ -1727,6 +1801,7 @@ function updateInventoryUI() {
             // Badges de qualificatifs (arme, distance ou armure), effet exact en infobulle.
             const armorBadges = buildQualifierBadgesHtml(item);
             card.innerHTML = `
+                ${item.isNew ? '<span class="absolute top-1 left-1 px-1 rounded bg-amber-400 text-[7px] font-black uppercase text-gray-900">Nouveau</span>' : ''}
                 <div class="flex justify-center leading-none">${itemIconSvg(item, 40) || `<span class="text-xl">${icon}</span>`}</div>
                 <div class="text-[10px] font-bold leading-tight">${item.name}</div>
                 ${item.rarity ? `<div class="text-[8px] font-bold uppercase tracking-wider" style="color:${rarityColor}">${item.rarity}</div>` : ""}
@@ -1818,16 +1893,24 @@ function groupSpellbook(spellbook, equipped = null) {
 
 // Ligne de stats d'un exemplaire de sort (grimoire et boutique).
 function spellCopyStats(spell) {
-    return `⚔️ +${spell.baseDmg} · 🔷 ${getSpellManaCost(spell)}`;
+    const effect = spell.spellEffect && SPELL_EFFECTS[spell.spellEffect.kind];
+    const main = spell.spellCategory === 'any' ? `${effect ? effect.label : 'Utilitaire'}${spell.spellEffect && spell.spellEffect.kind === 'heal' ? ` ${spell.spellEffect.pct} %` : ''}` : `⚔️ +${spell.baseDmg}${effect ? ` · ${effect.label}` : ''}`;
+    return `${main} · 🔷 ${getSpellManaCost(spell)}`;
+}
+
+// Portée d'un sort (chantier 11 : `any` = utilitaire, utilisable à toute distance).
+function spellRangeLabel(category) {
+    return category === 'melee' ? "Corps à corps" : category === 'any' ? "Partout" : "À distance";
 }
 
 // Grimoire : une carte par sort (groupSpellbook()), une ligne par exemplaire — rareté, dégâts, coût en
 // mana et bouton "Équiper" (voir equipSpell()) ; l'exemplaire équipé y figure avec la mention "Équipé".
 // Inventaire séparé de l'équipement classique, jamais limité (voir addLoot()).
 function updateSpellbookUI() {
-    if (ui.equippedSpell) {
-        ui.equippedSpell.innerText = gameState.equipment.spell ? formatItemDisplayName(gameState.equipment.spell) : "Aucun";
-    }
+    const spellLabel = gameState.equipment.spell ? formatItemDisplayName(gameState.equipment.spell) : "Aucun";
+    if (ui.equippedSpell) ui.equippedSpell.innerText = spellLabel;
+    if (ui.equippedSpellSheet) ui.equippedSpellSheet.innerText = spellLabel;
+    updateBottomNav();
     if (!ui.spellbookCards) return;
 
     ui.spellbookCards.innerHTML = "";
@@ -1842,7 +1925,7 @@ function updateSpellbookUI() {
 
     groups.forEach(group => {
         const best = group.copies[0].spell;
-        const categoryLabel = group.spellCategory === 'melee' ? "Corps à corps" : "À distance";
+        const categoryLabel = spellRangeLabel(group.spellCategory);
         const card = document.createElement('div');
         card.className = "mini-card rounded-lg p-2 flex flex-col gap-1";
         card.style.borderColor = best.rarityColor || "#57534e";
@@ -1862,7 +1945,7 @@ function updateSpellbookUI() {
             <div class="flex items-center gap-2">
                 <span class="text-xl leading-none">${group.icon || '✨'}</span>
                 <span class="flex-1 min-w-0">
-                    <span class="block text-[10px] font-bold leading-tight">${group.spellName}</span>
+                    <span class="block text-[10px] font-bold leading-tight">${group.spellName}${group.copies.some(c => c.spell.isNew) ? ' <span class="ml-1 px-1 rounded bg-purple-400 text-[7px] font-black uppercase text-gray-900 align-middle">Nouveau</span>' : ''}</span>
                     <span class="block text-[9px] text-stone-500">${categoryLabel}${group.copies.length > 1 ? ` · ${group.copies.length} exemplaires` : ''}</span>
                 </span>
             </div>
@@ -1937,7 +2020,7 @@ function describeItemStats(item) {
     if (!item) return [];
     const stats = [];
     if (item.category === 'scrolls') {
-        stats.push({ key: 'dmg', icon: '⚔️', label: 'Dégâts', value: item.baseDmg || 0, prefix: '+', better: 'up' });
+        if (item.spellCategory !== 'any') stats.push({ key: 'dmg', icon: '⚔️', label: 'Dégâts', value: item.baseDmg || 0, prefix: '+', better: 'up' });
         stats.push({ key: 'mana', icon: '🔷', label: 'Coût en mana', value: getSpellManaCost(item), better: 'down' });
         return stats;
     }
@@ -1973,7 +2056,7 @@ function buildItemInspectHtml(item, options = {}) {
     const icon = itemIconSvg(item, 56) || `<span class="text-4xl leading-none">${item.icon || '✨'}</span>`;
     const level = item.itemLevel ? ` · Niveau d'objet ${item.itemLevel}` : '';
     const categoryLabel = ITEM_CATEGORY_LABELS[item.category] || '';
-    const spellKind = item.category === 'scrolls' ? ` · ${item.spellCategory === 'melee' ? 'corps à corps' : 'à distance'}` : '';
+    const spellKind = item.category === 'scrolls' ? ` · ${spellRangeLabel(item.spellCategory).toLowerCase()}` : '';
 
     const otherStats = Object.fromEntries(describeItemStats(compareTo).map(s => [s.key, s.value]));
     const statsHtml = describeItemStats(item).map(stat => {
@@ -1981,8 +2064,12 @@ function buildItemInspectHtml(item, options = {}) {
         return `<li class="flex justify-between gap-2"><span>${stat.icon} ${stat.label}</span><span class="font-bold text-gray-100">${stat.prefix || ''}${stat.value}${stat.suffix || ''}${delta}</span></li>`;
     }).join('');
 
+    const spellEffectText = item.category === 'scrolls' ? describeSpellEffect(item.spellEffect) : '';
+    const spellEffectHtml = spellEffectText
+        ? `<div class="border-l-2 pl-2 border-purple-500"><p class="font-bold text-purple-200">${item.icon || '✨'} Effet du sort</p><p class="text-gray-400">${spellEffectText}</p></div>`
+        : '';
     const qualifiers = getItemQualifierList(item);
-    const qualifiersHtml = qualifiers.length > 0
+    const qualifiersHtml = spellEffectHtml + (qualifiers.length > 0
         ? qualifiers.map(({ key, rank }) => {
             const q = itemQualifiers[key];
             if (!q) return '';
@@ -1992,7 +2079,7 @@ function buildItemInspectHtml(item, options = {}) {
                 <p class="text-gray-400">${describeQualifier(key, target || 'weapon', rank)}</p>
             </div>`;
         }).join('')
-        : `<p class="text-gray-500 italic">${item.category === 'consumables' ? 'Un consommable ne porte jamais de qualificatif.' : 'Aucun qualificatif.'}</p>`;
+        : `<p class="text-gray-500 italic">${item.category === 'consumables' ? 'Un consommable ne porte jamais de qualificatif.' : 'Aucun qualificatif.'}</p>`);
 
     const value = getItemValue(item);
     const valueHtml = `<p class="text-gray-400">💰 Valeur : <span class="text-yellow-300 font-bold">${value} PO</span> · revente <span class="text-emerald-300 font-bold">${getSellPrice(item)} PO</span></p>`;
@@ -2855,6 +2942,19 @@ function checkCompanionDowned() {
 // (strayHitChance). Le compagnon absorbe une part du coup ; son armure réduit ce qu'il perd lui-même.
 // Renvoie { playerDamage, note } — l'appelant log les dégâts puis appelle checkCompanionDowned().
 function companionInterceptHit(damage) {
+    // Bouclier de Mana (sort utilitaire, chantier 11) : réduit le coup AVANT l'éventuelle interception.
+    const shield = gameState.status.manaShield;
+    let shieldNote = "";
+    if (shield && shield.rounds > 0 && damage > 0) {
+        const absorbedByShield = Math.round(damage * shield.pct / 100);
+        damage -= absorbedByShield;
+        if (absorbedByShield > 0) shieldNote = ` (🔰 bouclier −${absorbedByShield})`;
+    }
+    const res = companionInterceptHitInner(damage);
+    return { playerDamage: res.playerDamage, note: shieldNote + res.note };
+}
+
+function companionInterceptHitInner(damage) {
     const c = activeCompanion();
     if (!c || !(damage > 0)) return { playerDamage: damage, note: "" };
     const bal = config.companions;
@@ -2882,7 +2982,7 @@ function companionCombatSupport(enemy) {
     if (!c || !enemy || enemy.hp <= 0) return;
     const s = config.companions.support;
     const spell = c.gear && c.gear.spell;
-    if (spell && Math.random() * 100 < s.spellCastChance) {
+    if (spell && spell.spellCategory !== 'any' && Math.random() * 100 < s.spellCastChance) {
         const dmg = Math.max(1, Math.round((getCompanionAtk(c) + (spell.baseDmg || 0)) * s.spellRatio * (gameState.anomalyEffects.spellMult || 1)));
         enemy.hp -= dmg;
         logEvent(`${c.name} lance [${spell.spellName || spell.name}] ! (+${dmg} dégâts)`, "info");
@@ -4021,6 +4121,8 @@ function addLoot(options = {}) {
 // Range un objet déjà construit (loot ou objet signature) : grimoire, inventaire, ou perdu si la
 // réserve d'équipement est pleine. `prefix` : décoration du message de log (objet signature).
 function storeLootItem(item, prefix = "") {
+    // Pastille « nouveau » sur la barre d'icônes (chantier 9) jusqu'à l'ouverture du Sac / du Grimoire.
+    if (item.category !== 'consumables') item.isNew = true;
     if (item.category === 'scrolls') {
         gameState.spellbook.push(item);
         gameState.floorStats.itemsFound += 1;
@@ -4059,15 +4161,16 @@ function getOverflowSellPrice(item) {
 // Objet signature d'un boss précis (bestiary.js, districtBosses.*.signatureItem) : garanti à la
 // PREMIÈRE défaite de ce boss dans la partie (gameState.signaturesAwarded), puis seulement à
 // itemBalance.boss.signatureRepeatChance — plusieurs quartiers d'un même type reviennent au fil des
-// étages, un Légendaire garanti à chaque fois inonderait le joueur. Toujours Légendaire, au niveau
-// d'objet du butin du boss (voir buildSignatureItem() dans generator.js).
+// étages, un objet signature garanti à chaque fois inonderait le joueur. Sa rareté suit l'étage courant
+// (Rare, Épique, Légendaire dès l'étage 10 — getSignatureRarity()), au niveau d'objet du butin du boss
+// (voir buildSignatureItem() dans generator.js).
 function awardBossSignatureItem(boss, itemLevel = gameState.currentFloor) {
     if (!boss || !boss.signatureItem) return;
     const key = boss.baseName || boss.name;
     const alreadyAwarded = gameState.signaturesAwarded.includes(key);
     if (alreadyAwarded && Math.random() * 100 >= itemBalance.boss.signatureRepeatChance) return;
     if (!alreadyAwarded) gameState.signaturesAwarded.push(key);
-    storeLootItem(buildSignatureItem(boss.signatureItem, itemLevel), "✨ Objet signature — ");
+    storeLootItem(buildSignatureItem(boss.signatureItem, itemLevel, getSignatureRarity(gameState.currentFloor).key), "✨ Objet signature — ");
 }
 
 // Point de passage UNIQUE pour toute perte de PV du joueur (piège, saignement, riposte ennemie...) —
@@ -5396,7 +5499,7 @@ function generateShopStock(specialty) {
     // stock appartient à l'anomalie de CET étage précis.
     const discount = 1 - (gameState.anomalyEffects.shopDiscountPct || 0);
     for (let i = 0; i < 3; i++) {
-        const item = generateItem({ source: 'explore', category: specialty });
+        const item = generateItem({ source: 'explore', category: specialty, familyMult: itemBalance.shopFamilyBoost });
         item.price = Math.max(1, Math.round(getItemValue(item) * SHOP_MARKUP * discount));
         stock.push(item);
     }
@@ -6586,6 +6689,11 @@ function tryPlayerAction() {
     // Même convention pour "Charger" (Chantier 3, attemptEngage()) : la DEF divisée par 2 ne doit
     // couvrir QUE la riposte qui suit la charge, jamais fuiter sur l'action suivante du joueur.
     gameState.engageDefHalved = false;
+    // Bouclier de Mana (chantier 11) : couvre les ripostes des `rounds` actions suivant le sort.
+    if (gameState.status.manaShield) {
+        gameState.status.manaShield.rounds -= 1;
+        if (gameState.status.manaShield.rounds <= 0) gameState.status.manaShield = null;
+    }
 
     // Saignement en cours sur le joueur : tique avant son action
     if (gameState.status.bleed && gameState.status.bleed.rounds > 0) {
@@ -6745,6 +6853,12 @@ function performPlayerAttack(attackerAtk, options, label) {
         const bonus = Math.max(1, Math.round(playerDamage * shock.pct / 100));
         playerDamage += bonus;
         gearNote += ` (⚡ +${bonus})`;
+    }
+    // Chaîne d'éclairs (effet de sort, chantier 11) : second éclair ajouté au coup, avant le test de victoire.
+    if (options.chainPct > 0) {
+        const bonus = Math.max(1, Math.round(playerDamage * options.chainPct / 100));
+        playerDamage += bonus;
+        gearNote += ` (⛓️ +${bonus})`;
     }
     const blast = gearQ('aoe');
     if (blast && Math.random() * 100 < blast.chance) {
@@ -7786,11 +7900,12 @@ function attackMagic() {
         return;
     }
     const needsMelee = spell.spellCategory === 'melee';
+    const anyRange = spell.spellCategory === 'any'; // Sort utilitaire (chantier 11) : toute distance
     if (needsMelee && gameState.combatDistance > 0) {
         logEvent(`Trop loin pour lancer [${spell.spellName}] — approchez-vous !`, "danger");
         return;
     }
-    if (!needsMelee && gameState.combatDistance <= 0) {
+    if (!needsMelee && !anyRange && gameState.combatDistance <= 0) {
         logEvent(`Trop près pour lancer [${spell.spellName}] — éloignez-vous !`, "danger");
         return;
     }
@@ -7831,16 +7946,71 @@ function attackMagic() {
         return;
     }
 
+    // Sort utilitaire (chantier 11) : aucun coup porté, mais le tour est consommé — le mob riposte.
+    if (anyRange) {
+        castUtilitySpell(spell);
+        gainSkillXp('magic', SKILL_XP_PER_USE);
+        resolveEnemyReaction();
+        return;
+    }
+
+    const effect = spell.spellEffect || null;
     const effectiveAtk = gameState.atk + (spell.baseDmg || 0);
     const used = performPlayerAttack(
         effectiveAtk,
-        { atkMultiplier, varianceRange: 0.35, defReduction: 0.15, gear: spell, gearTarget: 'spell' }, // Les sorts ignorent un peu de DEF (thématique), pas toute
+        { atkMultiplier, varianceRange: 0.35, defReduction: 0.15, gear: spell, gearTarget: 'spell', chainPct: effect && effect.kind === 'chain' ? effect.pct : 0 }, // Les sorts ignorent un peu de DEF (thématique), pas toute
         `avec [${spell.spellName}]`
     );
     if (used) {
         gainSkillXp('magic', SKILL_XP_PER_USE);
+        castSpellEffect(spell);
         applyWeaponMechanic(spell); // Qualificatifs du sort (brûlure, poison, gel, vol de vie…)
     }
+}
+
+// Effet intrinsèque d'un sort offensif (chantier 11, SPELL_EFFECTS dans spells.js), après un coup porté :
+// réutilise les états d'ennemi existants (resolveQualifierEffect()). La chaîne d'éclairs est déjà comptée
+// dans le coup lui-même (option chainPct de performPlayerAttack()). Le vol de vie s'applique même sur le
+// coup fatal ; les états, seulement sur une cible encore debout.
+function castSpellEffect(spell) {
+    const effect = spell && spell.spellEffect;
+    const enemy = gameState.currentEnemy;
+    if (!effect || !enemy) return;
+    const dealt = gameState._lastPlayerDamage || 0;
+    if (effect.kind === 'lifesteal') {
+        resolveQualifierEffect('lifesteal', { pct: effect.pct }, enemy, dealt, 'spell');
+        return;
+    }
+    if (enemy.hp <= 0) return;
+    switch (effect.kind) {
+        case 'stun': if (Math.random() * 100 < effect.chance) resolveQualifierEffect('stun', {}, enemy, dealt, 'spell'); break;
+        case 'corrode': resolveQualifierEffect('corrode', { rounds: effect.rounds }, enemy, dealt, 'spell'); break;
+        case 'bleed': resolveQualifierEffect('bleed', { pct: effect.pct, rounds: effect.rounds }, enemy, dealt, 'weapon'); break;
+        case 'fear': resolveQualifierEffect('fear', { rounds: effect.rounds }, enemy, dealt, 'spell'); break;
+        case 'blind':
+            enemy.status = enemy.status || {};
+            enemy.status.distracted = { rounds: effect.rounds, miss: effect.miss };
+            logEvent(`💡 [${enemy.name}] est aveuglé ! (${effect.miss} % de chances de rater pendant ${effect.rounds} tours)`, "danger");
+            break;
+    }
+}
+
+// Sort utilitaire (catégorie `any`, chantier 11) : soin, bouclier de mana ou recul — sans jet d'attaque.
+function castUtilitySpell(spell) {
+    const effect = spell.spellEffect || {};
+    showDie(ui.combatPlayerDie, spell.icon || '✨');
+    if (effect.kind === 'heal') {
+        const healed = applyPlayerHeal(Math.max(1, Math.round(gameState.maxHp * effect.pct / 100)));
+        logEvent(`💚 [${spell.spellName}] referme vos plaies (+${healed} PV).`, "success");
+    } else if (effect.kind === 'shield') {
+        gameState.status.manaShield = { rounds: effect.rounds, pct: effect.pct };
+        logEvent(`🔰 [${spell.spellName}] : un bouclier de mana vous entoure (dégâts reçus −${effect.pct} % pendant ${effect.rounds} tours).`, "success");
+    } else if (effect.kind === 'shadowStep') {
+        const before = gameState.combatDistance;
+        gameState.combatDistance = Math.min(config.rangedCombat.maxDistance, before + effect.gap);
+        logEvent(`🌑 [${spell.spellName}] : vous glissez dans l'ombre et reculez (écart ${before} → ${gameState.combatDistance}).`, "success");
+    }
+    playPlayerAttackFx('magic', { self: true }, () => {});
 }
 
 // Tentative de fuite : quitte le combat sans le gagner ni obtenir de loot/XP.
@@ -8461,6 +8631,20 @@ ui.btnDeclineLair.addEventListener('click', declineLair);
 
 // Bouton "Recentrer" de la Carte Urbaine (voir recenterUrbanMap())
 if (ui.btnRecenterMap) ui.btnRecenterMap.addEventListener('click', recenterUrbanMap);
+// Barre d'icônes du bas et ses panneaux (chantier 9).
+if (ui.navEquipment) ui.navEquipment.addEventListener('click', () => openInventorySheet('equipment'));
+if (ui.navBag) ui.navBag.addEventListener('click', () => openInventorySheet('bag'));
+if (ui.navSpellbook) ui.navSpellbook.addEventListener('click', () => openInventorySheet('spellbook'));
+Object.values(INVENTORY_SHEETS).forEach(key => {
+    const sheet = ui[key];
+    if (!sheet || !sheet.addEventListener) return;
+    sheet.addEventListener('click', (e) => {
+        if (!e) return;
+        const target = e.target;
+        const closeBtn = target && target.closest ? target.closest('[data-close-sheet]') : null;
+        if (target === sheet || closeBtn) closeInventorySheets();
+    });
+});
 attachFloorMapPointerHandlers(ui.floorMapSvg);
 if (ui.btnFloorMapGo) ui.btnFloorMapGo.addEventListener('click', confirmFloorMapTravel);
 if (ui.btnFloorMapCancel) ui.btnFloorMapCancel.addEventListener('click', cancelFloorMapTravel);
