@@ -183,7 +183,7 @@ gameState.anomalyEffects = createNeutralAnomalyEffects();
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 32, label: "Interface allégée (barre d'icônes), objets rares et puissants, nouveaux sorts à effet" };
+const APP_VERSION = { pr: 33, label: "Villes explorables (étages urbains), crawler mort définitif, barre du bas agrandie" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES

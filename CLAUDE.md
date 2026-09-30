@@ -825,9 +825,9 @@ Tailwind CDN, **aucun build step**.
    commit de merge et une GitHub Release portant le même numéro. Non automatisé pour l'instant (pas de
    script de release) — à faire à la main à chaque merge.
    **Compteur unique depuis la PR #25** (choix de l'utilisateur) : `APP_VERSION.pr`, le tag, la release et
-   `package.json` valent le numéro de la dernière PR mergée (32 : chantiers 9, 10 et 11). Le
+   `package.json` valent le numéro de la dernière PR mergée (33 : chantier 12 « villes explorables »). Le
    `?v=` d'`index.html` ne peut plus suivre ce numéro : les valeurs jusqu'à 34 ont déjà servi (entre deux
-   merges, convention 4) — il ne fait donc que croître (44 depuis la PR #32), jamais recalé vers le bas,
+   merges, convention 4) — il ne fait donc que croître (45 à la PR #33), jamais recalé vers le bas,
    sans quoi un navigateur pourrait resservir un fichier gardé en cache sous une ancienne valeur. En cas de
    doute sur iPhone, vider le cache du site.
 
