@@ -122,7 +122,19 @@ const FX_SPELLS = {
     '🌩️': { style: 'sky', color: '#fde047', impact: 'shock' },
     '🧪': { style: 'bolt', projectile: 'orb', color: '#a3e635', impact: 'splash' },
     '❄️': { style: 'bolt', projectile: 'shard', color: '#7dd3fc', impact: 'frost' },
-    '☄️': { style: 'meteor', projectile: 'fireball', color: '#f97316', impact: 'explosion' }
+    '☄️': { style: 'meteor', projectile: 'fireball', color: '#f97316', impact: 'explosion' },
+    // Chantier 11 « nouveaux sorts »
+    '🧛': { style: 'arc', color: '#dc2626', impact: 'slash' },
+    '👋': { style: 'punch', color: '#e0f2fe', impact: 'pow' },
+    '🔩': { style: 'punch', color: '#b45309', impact: 'splash' },
+    '🐝': { style: 'bolt', projectile: 'pellets', color: '#facc15', impact: 'hit' },
+    '💡': { style: 'zap', color: '#fef9c3', impact: 'shock' },
+    '⛓️': { style: 'sky', color: '#93c5fd', impact: 'shock' },
+    '😱': { style: 'cone', color: '#a78bfa', impact: 'pow' },
+    // Sorts utilitaires (catégorie `any`) : l'effet se joue sur le crawler lui-même (style 'self').
+    '💚': { style: 'self', color: '#4ade80', impact: 'foam' },
+    '🔰': { style: 'self', color: '#60a5fa', impact: 'frost' },
+    '🌑': { style: 'self', color: '#6b7280', impact: 'foam' }
 };
 
 // Attaque au contact de chaque archétype de mob (sprites/mobs.js) : 'smash', 'slash' (arc au bout du

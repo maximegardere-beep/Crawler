@@ -528,7 +528,7 @@ function buildItem(base, category, rarity, itemLevel, options = {}) {
 function buildSpellScroll(base, rarity, itemLevel, options = {}) {
     const scroll = JSON.parse(JSON.stringify(base));
     scroll.category = 'scrolls';
-    scroll.spellCategory = base.category; // 'melee' | 'ranged' — voir attackMagic() dans app.js
+    scroll.spellCategory = base.category; // 'melee' | 'ranged' | 'any' (utilitaire) — voir attackMagic() dans app.js
     scroll.spellName = base.name;
     applyRarity(scroll, rarity);
     scroll.itemLevel = Math.max(1, itemLevel || 1);
@@ -538,6 +538,10 @@ function buildSpellScroll(base, rarity, itemLevel, options = {}) {
     scroll.baseDmg = Math.max(1, Math.round(base.baseDmg * rarity.statMult * jitter * getItemLevelMult(scroll.itemLevel, 'equipment')));
     scroll.manaCost = Math.max(5, Math.round(base.manaCost * manaMult * jitter));
     scroll.name = `Parchemin : ${base.name}`;
+    // Soin Express (chantier 11) : la part de PV soignée suit la rareté du parchemin, comme des dégâts.
+    if (scroll.spellEffect && scroll.spellEffect.kind === 'heal') {
+        scroll.spellEffect = { ...scroll.spellEffect, pct: Math.round(base.spellEffect.pct * rarity.statMult) };
+    }
     const qualifiers = options.qualifiers || rollItemQualifiers(scroll, rarity, 'spell');
     applyQualifiers(scroll, qualifiers, 'spell');
     scroll.value = computeItemValue(base.baseValue, rarity.key, scroll.itemLevel, countValuableQualifiers(qualifiers));
@@ -638,7 +642,8 @@ function generateWelcomeGiftItem(type) {
         return buildItem(pool[Math.floor(Math.random() * pool.length)], categoryName, junk, 1, { jitter: false });
     }
     if (type === 'spell') {
-        const pool = spellCatalog.filter(s => (s.minFloor || 1) <= 1);
+        // Toujours un sort offensif : un crawler de départ avec un simple sort de soin n'aurait aucune attaque.
+        const pool = spellCatalog.filter(s => (s.minFloor || 1) <= 1 && s.category !== 'any');
         return buildSpellScroll(pool[Math.floor(Math.random() * pool.length)], junk, 1, { jitter: false });
     }
     return null;
@@ -663,7 +668,8 @@ function generateTestKitItem(categoryName) {
  * @returns {object}
  */
 function generateTestKitSpell() {
-    const base = spellCatalog[Math.floor(Math.random() * spellCatalog.length)];
+    const pool = spellCatalog.filter(s => s.category !== 'any'); // un sort offensif, comme le cadeau de départ
+    const base = pool[Math.floor(Math.random() * pool.length)];
     return buildSpellScroll(base, itemRarities[itemRarities.length - 1], currentFloorForLoot(), { jitter: false });
 }
 

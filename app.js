@@ -1234,6 +1234,7 @@ function updateUI() {
     if (gameState.status.corroded && gameState.status.corroded.rounds > 0) playerIcons += "🧪";
     if (gameState.status.feared && gameState.status.feared.rounds > 0) playerIcons += "😱";
     if (gameState.status.adrenaline && gameState.status.adrenaline.rounds > 0) playerIcons += "💉";
+    if (gameState.status.manaShield && gameState.status.manaShield.rounds > 0) playerIcons += "🔰";
     ui.playerStatusIcons.innerText = playerIcons;
 
     // Mise à jour du niveau et de l'XP
@@ -1315,6 +1316,7 @@ function updateUI() {
         if (gameState.status.corroded && gameState.status.corroded.rounds > 0) playerIcons += "🧪";
         if (gameState.status.feared && gameState.status.feared.rounds > 0) playerIcons += "😱";
         if (gameState.status.adrenaline && gameState.status.adrenaline.rounds > 0) playerIcons += "💉";
+        if (gameState.status.manaShield && gameState.status.manaShield.rounds > 0) playerIcons += "🔰";
         ui.combatPlayerStatus.innerText = playerIcons;
 
         // Indicateur compagnon (sous la barre de vie du joueur), si un compagnon est actif
@@ -1382,7 +1384,7 @@ function updateUI() {
             const spell = gameState.equipment.spell;
             let magicUsable = false;
             if (spell) {
-                const spellDistanceOk = spell.spellCategory === 'melee' ? atMelee : !atMelee;
+                const spellDistanceOk = spell.spellCategory === 'any' || (spell.spellCategory === 'melee' ? atMelee : !atMelee);
                 magicUsable = spellDistanceOk && gameState.mana >= getSpellManaCost(spell);
             }
             ui.btnAttackMagic.disabled = !magicUsable;
@@ -1891,7 +1893,14 @@ function groupSpellbook(spellbook, equipped = null) {
 
 // Ligne de stats d'un exemplaire de sort (grimoire et boutique).
 function spellCopyStats(spell) {
-    return `⚔️ +${spell.baseDmg} · 🔷 ${getSpellManaCost(spell)}`;
+    const effect = spell.spellEffect && SPELL_EFFECTS[spell.spellEffect.kind];
+    const main = spell.spellCategory === 'any' ? `${effect ? effect.label : 'Utilitaire'}${spell.spellEffect && spell.spellEffect.kind === 'heal' ? ` ${spell.spellEffect.pct} %` : ''}` : `⚔️ +${spell.baseDmg}${effect ? ` · ${effect.label}` : ''}`;
+    return `${main} · 🔷 ${getSpellManaCost(spell)}`;
+}
+
+// Portée d'un sort (chantier 11 : `any` = utilitaire, utilisable à toute distance).
+function spellRangeLabel(category) {
+    return category === 'melee' ? "Corps à corps" : category === 'any' ? "Partout" : "À distance";
 }
 
 // Grimoire : une carte par sort (groupSpellbook()), une ligne par exemplaire — rareté, dégâts, coût en
@@ -1916,7 +1925,7 @@ function updateSpellbookUI() {
 
     groups.forEach(group => {
         const best = group.copies[0].spell;
-        const categoryLabel = group.spellCategory === 'melee' ? "Corps à corps" : "À distance";
+        const categoryLabel = spellRangeLabel(group.spellCategory);
         const card = document.createElement('div');
         card.className = "mini-card rounded-lg p-2 flex flex-col gap-1";
         card.style.borderColor = best.rarityColor || "#57534e";
@@ -2011,7 +2020,7 @@ function describeItemStats(item) {
     if (!item) return [];
     const stats = [];
     if (item.category === 'scrolls') {
-        stats.push({ key: 'dmg', icon: '⚔️', label: 'Dégâts', value: item.baseDmg || 0, prefix: '+', better: 'up' });
+        if (item.spellCategory !== 'any') stats.push({ key: 'dmg', icon: '⚔️', label: 'Dégâts', value: item.baseDmg || 0, prefix: '+', better: 'up' });
         stats.push({ key: 'mana', icon: '🔷', label: 'Coût en mana', value: getSpellManaCost(item), better: 'down' });
         return stats;
     }
@@ -2047,7 +2056,7 @@ function buildItemInspectHtml(item, options = {}) {
     const icon = itemIconSvg(item, 56) || `<span class="text-4xl leading-none">${item.icon || '✨'}</span>`;
     const level = item.itemLevel ? ` · Niveau d'objet ${item.itemLevel}` : '';
     const categoryLabel = ITEM_CATEGORY_LABELS[item.category] || '';
-    const spellKind = item.category === 'scrolls' ? ` · ${item.spellCategory === 'melee' ? 'corps à corps' : 'à distance'}` : '';
+    const spellKind = item.category === 'scrolls' ? ` · ${spellRangeLabel(item.spellCategory).toLowerCase()}` : '';
 
     const otherStats = Object.fromEntries(describeItemStats(compareTo).map(s => [s.key, s.value]));
     const statsHtml = describeItemStats(item).map(stat => {
@@ -2055,8 +2064,12 @@ function buildItemInspectHtml(item, options = {}) {
         return `<li class="flex justify-between gap-2"><span>${stat.icon} ${stat.label}</span><span class="font-bold text-gray-100">${stat.prefix || ''}${stat.value}${stat.suffix || ''}${delta}</span></li>`;
     }).join('');
 
+    const spellEffectText = item.category === 'scrolls' ? describeSpellEffect(item.spellEffect) : '';
+    const spellEffectHtml = spellEffectText
+        ? `<div class="border-l-2 pl-2 border-purple-500"><p class="font-bold text-purple-200">${item.icon || '✨'} Effet du sort</p><p class="text-gray-400">${spellEffectText}</p></div>`
+        : '';
     const qualifiers = getItemQualifierList(item);
-    const qualifiersHtml = qualifiers.length > 0
+    const qualifiersHtml = spellEffectHtml + (qualifiers.length > 0
         ? qualifiers.map(({ key, rank }) => {
             const q = itemQualifiers[key];
             if (!q) return '';
@@ -2066,7 +2079,7 @@ function buildItemInspectHtml(item, options = {}) {
                 <p class="text-gray-400">${describeQualifier(key, target || 'weapon', rank)}</p>
             </div>`;
         }).join('')
-        : `<p class="text-gray-500 italic">${item.category === 'consumables' ? 'Un consommable ne porte jamais de qualificatif.' : 'Aucun qualificatif.'}</p>`;
+        : `<p class="text-gray-500 italic">${item.category === 'consumables' ? 'Un consommable ne porte jamais de qualificatif.' : 'Aucun qualificatif.'}</p>`);
 
     const value = getItemValue(item);
     const valueHtml = `<p class="text-gray-400">💰 Valeur : <span class="text-yellow-300 font-bold">${value} PO</span> · revente <span class="text-emerald-300 font-bold">${getSellPrice(item)} PO</span></p>`;
@@ -2929,6 +2942,19 @@ function checkCompanionDowned() {
 // (strayHitChance). Le compagnon absorbe une part du coup ; son armure réduit ce qu'il perd lui-même.
 // Renvoie { playerDamage, note } — l'appelant log les dégâts puis appelle checkCompanionDowned().
 function companionInterceptHit(damage) {
+    // Bouclier de Mana (sort utilitaire, chantier 11) : réduit le coup AVANT l'éventuelle interception.
+    const shield = gameState.status.manaShield;
+    let shieldNote = "";
+    if (shield && shield.rounds > 0 && damage > 0) {
+        const absorbedByShield = Math.round(damage * shield.pct / 100);
+        damage -= absorbedByShield;
+        if (absorbedByShield > 0) shieldNote = ` (🔰 bouclier −${absorbedByShield})`;
+    }
+    const res = companionInterceptHitInner(damage);
+    return { playerDamage: res.playerDamage, note: shieldNote + res.note };
+}
+
+function companionInterceptHitInner(damage) {
     const c = activeCompanion();
     if (!c || !(damage > 0)) return { playerDamage: damage, note: "" };
     const bal = config.companions;
@@ -2956,7 +2982,7 @@ function companionCombatSupport(enemy) {
     if (!c || !enemy || enemy.hp <= 0) return;
     const s = config.companions.support;
     const spell = c.gear && c.gear.spell;
-    if (spell && Math.random() * 100 < s.spellCastChance) {
+    if (spell && spell.spellCategory !== 'any' && Math.random() * 100 < s.spellCastChance) {
         const dmg = Math.max(1, Math.round((getCompanionAtk(c) + (spell.baseDmg || 0)) * s.spellRatio * (gameState.anomalyEffects.spellMult || 1)));
         enemy.hp -= dmg;
         logEvent(`${c.name} lance [${spell.spellName || spell.name}] ! (+${dmg} dégâts)`, "info");
@@ -6662,6 +6688,11 @@ function tryPlayerAction() {
     // Même convention pour "Charger" (Chantier 3, attemptEngage()) : la DEF divisée par 2 ne doit
     // couvrir QUE la riposte qui suit la charge, jamais fuiter sur l'action suivante du joueur.
     gameState.engageDefHalved = false;
+    // Bouclier de Mana (chantier 11) : couvre les ripostes des `rounds` actions suivant le sort.
+    if (gameState.status.manaShield) {
+        gameState.status.manaShield.rounds -= 1;
+        if (gameState.status.manaShield.rounds <= 0) gameState.status.manaShield = null;
+    }
 
     // Saignement en cours sur le joueur : tique avant son action
     if (gameState.status.bleed && gameState.status.bleed.rounds > 0) {
@@ -6821,6 +6852,12 @@ function performPlayerAttack(attackerAtk, options, label) {
         const bonus = Math.max(1, Math.round(playerDamage * shock.pct / 100));
         playerDamage += bonus;
         gearNote += ` (⚡ +${bonus})`;
+    }
+    // Chaîne d'éclairs (effet de sort, chantier 11) : second éclair ajouté au coup, avant le test de victoire.
+    if (options.chainPct > 0) {
+        const bonus = Math.max(1, Math.round(playerDamage * options.chainPct / 100));
+        playerDamage += bonus;
+        gearNote += ` (⛓️ +${bonus})`;
     }
     const blast = gearQ('aoe');
     if (blast && Math.random() * 100 < blast.chance) {
@@ -7862,11 +7899,12 @@ function attackMagic() {
         return;
     }
     const needsMelee = spell.spellCategory === 'melee';
+    const anyRange = spell.spellCategory === 'any'; // Sort utilitaire (chantier 11) : toute distance
     if (needsMelee && gameState.combatDistance > 0) {
         logEvent(`Trop loin pour lancer [${spell.spellName}] — approchez-vous !`, "danger");
         return;
     }
-    if (!needsMelee && gameState.combatDistance <= 0) {
+    if (!needsMelee && !anyRange && gameState.combatDistance <= 0) {
         logEvent(`Trop près pour lancer [${spell.spellName}] — éloignez-vous !`, "danger");
         return;
     }
@@ -7907,16 +7945,71 @@ function attackMagic() {
         return;
     }
 
+    // Sort utilitaire (chantier 11) : aucun coup porté, mais le tour est consommé — le mob riposte.
+    if (anyRange) {
+        castUtilitySpell(spell);
+        gainSkillXp('magic', SKILL_XP_PER_USE);
+        resolveEnemyReaction();
+        return;
+    }
+
+    const effect = spell.spellEffect || null;
     const effectiveAtk = gameState.atk + (spell.baseDmg || 0);
     const used = performPlayerAttack(
         effectiveAtk,
-        { atkMultiplier, varianceRange: 0.35, defReduction: 0.15, gear: spell, gearTarget: 'spell' }, // Les sorts ignorent un peu de DEF (thématique), pas toute
+        { atkMultiplier, varianceRange: 0.35, defReduction: 0.15, gear: spell, gearTarget: 'spell', chainPct: effect && effect.kind === 'chain' ? effect.pct : 0 }, // Les sorts ignorent un peu de DEF (thématique), pas toute
         `avec [${spell.spellName}]`
     );
     if (used) {
         gainSkillXp('magic', SKILL_XP_PER_USE);
+        castSpellEffect(spell);
         applyWeaponMechanic(spell); // Qualificatifs du sort (brûlure, poison, gel, vol de vie…)
     }
+}
+
+// Effet intrinsèque d'un sort offensif (chantier 11, SPELL_EFFECTS dans spells.js), après un coup porté :
+// réutilise les états d'ennemi existants (resolveQualifierEffect()). La chaîne d'éclairs est déjà comptée
+// dans le coup lui-même (option chainPct de performPlayerAttack()). Le vol de vie s'applique même sur le
+// coup fatal ; les états, seulement sur une cible encore debout.
+function castSpellEffect(spell) {
+    const effect = spell && spell.spellEffect;
+    const enemy = gameState.currentEnemy;
+    if (!effect || !enemy) return;
+    const dealt = gameState._lastPlayerDamage || 0;
+    if (effect.kind === 'lifesteal') {
+        resolveQualifierEffect('lifesteal', { pct: effect.pct }, enemy, dealt, 'spell');
+        return;
+    }
+    if (enemy.hp <= 0) return;
+    switch (effect.kind) {
+        case 'stun': if (Math.random() * 100 < effect.chance) resolveQualifierEffect('stun', {}, enemy, dealt, 'spell'); break;
+        case 'corrode': resolveQualifierEffect('corrode', { rounds: effect.rounds }, enemy, dealt, 'spell'); break;
+        case 'bleed': resolveQualifierEffect('bleed', { pct: effect.pct, rounds: effect.rounds }, enemy, dealt, 'weapon'); break;
+        case 'fear': resolveQualifierEffect('fear', { rounds: effect.rounds }, enemy, dealt, 'spell'); break;
+        case 'blind':
+            enemy.status = enemy.status || {};
+            enemy.status.distracted = { rounds: effect.rounds, miss: effect.miss };
+            logEvent(`💡 [${enemy.name}] est aveuglé ! (${effect.miss} % de chances de rater pendant ${effect.rounds} tours)`, "danger");
+            break;
+    }
+}
+
+// Sort utilitaire (catégorie `any`, chantier 11) : soin, bouclier de mana ou recul — sans jet d'attaque.
+function castUtilitySpell(spell) {
+    const effect = spell.spellEffect || {};
+    showDie(ui.combatPlayerDie, spell.icon || '✨');
+    if (effect.kind === 'heal') {
+        const healed = applyPlayerHeal(Math.max(1, Math.round(gameState.maxHp * effect.pct / 100)));
+        logEvent(`💚 [${spell.spellName}] referme vos plaies (+${healed} PV).`, "success");
+    } else if (effect.kind === 'shield') {
+        gameState.status.manaShield = { rounds: effect.rounds, pct: effect.pct };
+        logEvent(`🔰 [${spell.spellName}] : un bouclier de mana vous entoure (dégâts reçus −${effect.pct} % pendant ${effect.rounds} tours).`, "success");
+    } else if (effect.kind === 'shadowStep') {
+        const before = gameState.combatDistance;
+        gameState.combatDistance = Math.min(config.rangedCombat.maxDistance, before + effect.gap);
+        logEvent(`🌑 [${spell.spellName}] : vous glissez dans l'ombre et reculez (écart ${before} → ${gameState.combatDistance}).`, "success");
+    }
+    playPlayerAttackFx('magic', { self: true }, () => {});
 }
 
 // Tentative de fuite : quitte le combat sans le gagner ni obtenir de loot/XP.

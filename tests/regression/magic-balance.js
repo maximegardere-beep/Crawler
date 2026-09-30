@@ -32,9 +32,11 @@ function effectiveSpellDmg(playerAtk, avgSpellBaseDmg, rarityStatMult, skillLeve
     const playerAtk = gameState.atk; // 10, base fraîche après reset
 
     const meleeWeapons = baseItems.weapons.filter(w => !w.jokeItem);
-    const meleeSpells = spellCatalog.filter(s => s.category === 'melee');
+    // Sorts de dégâts PURS seulement : un sort à effet (chantier 11) échange volontairement des dégâts
+    // contre son effet (vol de vie, étourdissement…).
+    const meleeSpells = spellCatalog.filter(s => s.category === 'melee' && !s.spellEffect);
     const rangedWeapons = baseItems.ranged.filter(w => !w.jokeItem);
-    const rangedSpells = spellCatalog.filter(s => s.category === 'ranged');
+    const rangedSpells = spellCatalog.filter(s => s.category === 'ranged' && !s.spellEffect);
 
     const commun = itemRarities.find(r => r.key === 'commun');
     const epique = itemRarities.find(r => r.key === 'epique');

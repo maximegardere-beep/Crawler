@@ -83,7 +83,8 @@ function freshFloor() {
     const ids = Object.keys(fm.roomsById);
     const a = ids[3], b = ids[40];
     assert(computeDistance(a, a) === 0, "computeDistance() : 0 vers soi-même");
-    assert(computeDistance(a, b) === computeDistance(b, a) && computeDistance(a, b) > 0, "computeDistance() : symétrique et positive");
+    // Arrondi au dixième : l'aller et le retour peuvent tomber de part et d'autre d'un arrondi (somme flottante).
+    assert(Math.abs(computeDistance(a, b) - computeDistance(b, a)) <= 0.1 + 1e-9 && computeDistance(a, b) > 0, "computeDistance() : symétrique et positive");
     const path = computeFloorPath(a, b);
     assert(path.rooms[0] === a && path.rooms[path.rooms.length - 1] === b, "computeFloorPath() : chemin de bout en bout");
 }
@@ -126,9 +127,13 @@ function freshFloor() {
 
 // --- Voyage sur carte (M1) et exploration depuis la carte (P1) ---
 {
-    const fm = freshFloor();
-    const start = fm.roomsById[fm.currentRoomId];
-    const seenNeighbor = start.neighbors.map(e => fm.roomsById[e.to]).find(r => !r.visited && r.type === 'normal');
+    // (un départ dont la seule voisine est une salle sûre existe : on regénère alors l'étage)
+    let fm, start, seenNeighbor;
+    for (let attempt = 0; attempt < 30 && !seenNeighbor; attempt++) {
+        fm = freshFloor();
+        start = fm.roomsById[fm.currentRoomId];
+        seenNeighbor = start.neighbors.map(e => fm.roomsById[e.to]).find(r => !r.visited && r.type === 'normal');
+    }
     assert(isRoomSeen(seenNeighbor), "Une salle voisine du départ est « aperçue »");
     const far = Object.values(fm.roomsById).find(r => !r.visited && !isRoomSeen(r));
     assert(planTravelToRoom(far.id) === null && travelToRoom(far.id) === null, "Salle inconnue et non aperçue : pas de voyage possible");

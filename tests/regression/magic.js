@@ -230,3 +230,94 @@ const { assert, resetTransientState } = require('./_helpers.js');
     gameState.spellbook = [];
     gameState.equipment.spell = null;
 }
+
+// ===================================================================
+// Chantier 11 « nouveaux sorts » : effets intrinsèques (SPELL_EFFECTS) et sorts utilitaires (catégorie any).
+// ===================================================================
+function withRandomValue(value, fn) {
+    const original = Math.random;
+    Math.random = () => value;
+    try { return fn(); } finally { Math.random = original; }
+}
+
+function castSpellInCombat(spellName, { distance = 0, rarityKey = 'commun', random = 0.99, enemyHp = 500 } = {}) {
+    resetTransientState();
+    const base = spellCatalog.find(s => s.name === spellName);
+    const scroll = buildSpellScroll(base, getRarityByKey(rarityKey), 1, { jitter: false, qualifiers: [] });
+    gameState.equipment.spell = scroll;
+    gameState.mana = gameState.maxMana;
+    const enemy = { name: "Mannequin", hp: enemyHp, maxHp: enemyHp, atk: 1, def: 0, xpReward: 1, status: {} };
+    gameState.inCombat = true;
+    gameState.currentEnemy = enemy;
+    gameState.combatDistance = distance;
+    withRandomValue(random, () => attackMagic());
+    return { scroll, enemy };
+}
+
+{
+    assert(spellCatalog.filter(s => s.spellEffect).length >= 10, "Au moins 10 sorts à effet (chantier 11)");
+    assert(spellCatalog.every(s => !s.spellEffect || (SPELL_EFFECTS[s.spellEffect.kind] && describeSpellEffect(s.spellEffect).length > 10)), "Chaque effet de sort est décrit (SPELL_EFFECTS)");
+    assert(spellCatalog.filter(s => s.category === 'any').every(s => s.baseDmg === 0 && s.spellEffect), "Sorts utilitaires : aucun dégât, un effet");
+    const heal = spellCatalog.find(s => s.name === "Soin Express");
+    const common = buildSpellScroll(heal, getRarityByKey('commun'), 1, { jitter: false, qualifiers: [] });
+    const legend = buildSpellScroll(heal, getRarityByKey('legendaire'), 1, { jitter: false, qualifiers: [] });
+    assert(common.spellEffect.pct === 20 && legend.spellEffect.pct > common.spellEffect.pct, "Soin Express : la part soignée suit la rareté");
+    assert(heal.spellEffect.pct === 20, "Le catalogue n'est jamais modifié par la construction d'un parchemin");
+    assert(buildItemInspectHtml(common).includes('Effet du sort') && buildItemInspectHtml(common).toLowerCase().includes('partout'), "Inspection : effet du sort et portée « Partout »");
+    assert(!describeItemStats(common).some(st => st.key === 'dmg'), "Sort utilitaire : pas de ligne de dégâts");
+    assert(spellRangeLabel('any') === 'Partout' && spellRangeLabel('melee') === 'Corps à corps', "Libellés de portée");
+    for (let i = 0; i < 30; i++) {
+        const gift = generateWelcomeGiftItem('spell');
+        const kit = generateTestKitSpell();
+        if (gift.spellCategory === 'any' || kit.spellCategory === 'any') { assert(false, "Cadeau de départ / kit de test : toujours un sort offensif"); break; }
+    }
+}
+
+{
+    // Utilitaires : utilisables au contact comme à distance, consomment mana et tour.
+    gameState.hp = 10;
+    let r = castSpellInCombat("Soin Express", { distance: 0 });
+    assert(gameState.hp > 10 || gameState.maxHp <= 10, "Soin Express au contact : soigne");
+    assert(gameState.mana < gameState.maxMana, "Soin Express : coûte du mana");
+
+    r = castSpellInCombat("Pas de l'Ombre", { distance: 0 });
+    assert(gameState.combatDistance === 2, "Pas de l'Ombre : recule de 2 cases sans jet");
+    r = castSpellInCombat("Pas de l'Ombre", { distance: config.rangedCombat.maxDistance - 1 });
+    assert(gameState.combatDistance === config.rangedCombat.maxDistance, "Pas de l'Ombre : jamais au-delà de l'écart maximal");
+
+    r = castSpellInCombat("Bouclier de Mana", { distance: 3 });
+    assert(gameState.status.manaShield && gameState.status.manaShield.pct === 40, "Bouclier de Mana : posé à distance");
+    gameState.companion = null;
+    const hit = companionInterceptHit(100);
+    assert(hit.playerDamage === 60 && hit.note.includes('bouclier'), "Bouclier de Mana : −40 % sur le coup encaissé");
+    tryPlayerAction();
+    assert(gameState.status.manaShield && gameState.status.manaShield.rounds === 1, "Bouclier : couvre encore la riposte suivante");
+    tryPlayerAction();
+    assert(!gameState.status.manaShield, "Bouclier : dissipé après 2 tours");
+    assert(companionInterceptHit(100).playerDamage === 100, "Sans bouclier : coup plein");
+}
+
+{
+    // Effets offensifs.
+    gameState.hp = 20;
+    let r = castSpellInCombat("Étreinte Vampirique", { distance: 0 });
+    assert(gameState.hp > 20 || r.enemy.hp === 500, "Étreinte Vampirique : rend des PV");
+    r = castSpellInCombat("Main de Rouille", { distance: 0 });
+    assert(r.enemy.hp < 500 && r.enemy.status.corroded && r.enemy.status.corroded.rounds === 3, "Main de Rouille : corrode 3 tours");
+    r = castSpellInCombat("Flash Aveuglant", { distance: 3 });
+    assert(r.enemy.status.distracted && r.enemy.status.distracted.miss === 40, "Flash Aveuglant : 40 % de ratés");
+    r = castSpellInCombat("Nuée de Guêpes", { distance: 3 });
+    assert(r.enemy.status.bleed && r.enemy.status.bleed.rounds === 3, "Nuée de Guêpes : saignement");
+    r = castSpellInCombat("Cri de Terreur", { distance: 3 });
+    assert(r.enemy.status.feared, "Cri de Terreur : terreur");
+    r = castSpellInCombat("Gifle Sonique", { distance: 0, random: 0.99 });
+    assert(!r.enemy.status.stunned, "Gifle Sonique : pas d'étourdissement sur un mauvais jet (30 %)");
+    const withChain = castSpellInCombat("Chaîne d'Éclairs", { distance: 3 });
+    const lostWithChain = 500 - withChain.enemy.hp;
+    const plain = buildSpellScroll(spellCatalog.find(s => s.name === "Chaîne d'Éclairs"), getRarityByKey('commun'), 1, { jitter: false, qualifiers: [] });
+    assert(lostWithChain > 0 && withChain.scroll.spellEffect.kind === 'chain', "Chaîne d'Éclairs : frappe (second éclair compris)");
+    r = castSpellInCombat("Main de Rouille", { distance: 3 });
+    assert(r.enemy.hp === 500, "Sort de mêlée : refusé à distance (pas de changement de règle)");
+    gameState.inCombat = false;
+    gameState.currentEnemy = null;
+}
