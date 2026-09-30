@@ -212,6 +212,31 @@ Passer, aussi utilisé par la simulation longue et les tests) ; glyphe = **relie
 compétence liée) ; Immobiliser = **maintenir le doigt dans une zone mouvante** (~3 s) ; stand de tir et ring =
 **nouvelle salle « salle de jeux »** dans 1 à 2 villes par étage urbain (V3, à cadrer : mises, jeux, gains).
 
+**Décidé (round 6 — mini-jeux de boss, fluidité, animations)** :
+- **Épreuves de boss** (V3) : **Parade au télégraphe**, **Briser la garde** (toucher le point faible quand le boss
+  se hérisse) et **Coup de grâce** (boss sous ~10 % de PV, mini-jeu selon l'arme). Épreuves de transition de phase
+  **non retenues** pour l'instant. **3 à 4 épreuves par boss**, plafonné (les télégraphes suivants se résolvent
+  automatiquement). Issues communes : Parfait / Réussi / Raté ; un raté = **aucune pénalité supplémentaire** (le
+  comportement actuel du boss). Jet automatique possible partout (il ne donne jamais de Parfait).
+- **Récompense d'un Parfait** : l'**arme signature** du boss n'est plus garantie à la 1re victoire mais
+  **100 % avec un Parfait, 0 % sans** ; avec 3 Parfaits ou plus, elle reçoit en plus **un qualificatif
+  supplémentaire**.
+- **Fluidité** (principes retenus) : mini-jeu dans une bande en bas de `#combat-zone` (jamais un overlay plein
+  écran), pas de fenêtre de résultat (l'issue passe par l'animation + une ligne de log), consigne en une icône,
+  durée plafonnée (3 s mob / 5 s boss, temps écoulé = Raté), skip Espace/Entrée/Passer, pause si l'onglet perd le
+  focus, anti-répétition de l'Occasion, réglage Jouer / Réduit / Jet auto, haptique, `startMinigame(spec,
+  onResult)` par callbacks (jamais de Promise) avec une étape « interactive » du séquenceur de beats.
+- **Animations d'issue** : trois issues (Parfait / Réussi / Raté) par épreuve, `minigameOutcomeFxSpec(kind,
+  outcome)` pure et testée (une entrée exigée par épreuve × issue), gel de 120 ms et secousse d'écran réservés à
+  Parfait et à la Parade. Livrées avec chaque mini-jeu.
+- **Succès et piques DeathWatch** liés aux issues : lot final (`recordRunEvent('minigame', …)`).
+- **Plan révisé** : lot 0 (hôte d'épreuve, bande d'UI, réglages, cadre des animations) → V1 (crochetage, désamorçage,
+  glyphe) → V2 (mains nues, tir) → V3 (boss) → V4 (salle de jeux) → lot final (succès, piques, notes, version).
+- **À trancher** : (1) « 100 % si Parfait, 0 % sinon » + jet automatique sans Parfait = un joueur en jet automatique
+  ne verrait plus jamais d'arme signature (aujourd'hui garantie à la 1re victoire puis 20 %) : garder la règle
+  actuelle comme plancher, ou laisser le jet automatique donner un Parfait ? (2) Quel Parfait compte : n'importe
+  lequel des 3-4, ou celui du Coup de grâce ?
+
 **Plan proposé** : en attente de validation des chiffres (liste soumise à l'utilisateur).
 
 ## 12. Villes explorables (étages urbains sur le modèle de la carte) — XL — Codé (à playtester)
