@@ -618,9 +618,21 @@ const ui = {
     playerName: document.getElementById('player-name'),
     floorLevel: document.getElementById('floor-level'),
     districtName: document.getElementById('district-name'),
-    compactVitals: document.getElementById('player-vitals-compact'),
-    compactHpRing: document.getElementById('compact-hp-ring'),
-    compactHpValue: document.getElementById('compact-hp-value'),
+    hpBar: document.getElementById('hp-bar'),
+    hpText: document.getElementById('hp-text'),
+    xpBarMini: document.getElementById('xp-bar-mini'),
+    xpTextMini: document.getElementById('xp-text-mini'),
+    bottomNav: document.getElementById('bottom-nav'),
+    navEquipment: document.getElementById('nav-equipment'),
+    navBag: document.getElementById('nav-bag'),
+    navBagCount: document.getElementById('nav-bag-count'),
+    navBagDot: document.getElementById('nav-bag-dot'),
+    navSpellbook: document.getElementById('nav-spellbook'),
+    navSpellbookDot: document.getElementById('nav-spellbook-dot'),
+    equipmentSheet: document.getElementById('equipment-sheet'),
+    bagSheet: document.getElementById('bag-sheet'),
+    spellbookSheet: document.getElementById('spellbook-sheet'),
+    equippedSpellSheet: document.getElementById('equipped-spell-sheet'),
     playerAtk: document.getElementById('player-atk'),
     playerDef: document.getElementById('player-def'),
     playerGold: document.getElementById('player-gold'),
@@ -1203,8 +1215,8 @@ function updateUI() {
     ui.floorLevel.innerText = gameState.currentFloor;
     ui.districtName.innerText = gameState.currentDistrict;
 
-    // Mise à jour des PV (anneau circulaire), ATK et DEF
-    setHpRing(ui.compactHpRing, ui.compactHpValue, gameState.hp, gameState.maxHp);
+    // Fiche du crawler sous le nom (chantier 9) : barre de PV, ATK et DEF
+    setHpBar(ui.hpBar, ui.hpText, gameState.hp, gameState.maxHp);
     ui.playerAtk.innerText = gameState.atk;
     ui.playerDef.innerText = getEffectiveDef();
     if (ui.playerGold) ui.playerGold.innerText = gameState.gold;
@@ -1228,6 +1240,9 @@ function updateUI() {
     ui.playerLevel.innerText = gameState.level;
     ui.xpText.innerText = `${gameState.xp}/${gameState.xpToNextLevel}`;
     ui.xpBar.style.width = `${Math.min(100, (gameState.xp / gameState.xpToNextLevel) * 100)}%`;
+    if (ui.xpBarMini) ui.xpBarMini.style.width = ui.xpBar.style.width;
+    if (ui.xpTextMini) ui.xpTextMini.innerText = `${gameState.xp}/${gameState.xpToNextLevel}`;
+    updateBottomNav();
 
     // Mise à jour de la carte joueur (compétences)
     const skillBarMap = {
@@ -1288,7 +1303,6 @@ function updateUI() {
     if (gameState.inCombat) {
         ui.advanceHint.classList.add('hidden'); // On ne peut pas avancer pendant un combat
         ui.combatZone.classList.remove('hidden');
-        ui.compactVitals.classList.add('hidden'); // Les PV sont déjà affichés au-dessus de la scène
         ui.exploreStage.classList.add('hidden');
 
         let playerIcons = "";
@@ -1418,7 +1432,6 @@ function updateUI() {
         ui.advanceHint.innerText = gameState.urbanMap ? "👆 Touchez la scène pour ouvrir la carte" : "👆 Touchez la scène pour explorer (-1H)";
         if (ui.exploreScene) ui.exploreScene.setAttribute('aria-label', gameState.urbanMap ? "Ouvrir la carte" : "Explorer (-1H)");
         ui.combatZone.classList.add('hidden');
-        ui.compactVitals.classList.remove('hidden'); // On réaffiche les PV compacts hors combat
         ui.exploreStage.classList.remove('hidden');
         // Salle sécurisée et ville spécialisée ont leur propre scène (au-dessus de leurs boutons) : la
         // scène d'exploration s'efface alors, seuls son titre et la dernière ligne restent.
@@ -1469,6 +1482,16 @@ function hpColor(pct) {
 }
 
 // Met à jour un anneau de vie circulaire (remplissage + couleur) et le nombre affiché en son centre.
+// Barre de PV horizontale de la fiche du crawler (chantier 9) : même code couleur que l'anneau (hpColor()).
+function setHpBar(barEl, textEl, current, max) {
+    if (!barEl) return;
+    const safeMax = max > 0 ? max : 1;
+    const pct = Math.max(0, Math.min(1, current / safeMax));
+    barEl.style.width = `${pct * 100}%`;
+    barEl.style.background = hpColor(pct);
+    if (textEl) textEl.innerText = `${Math.max(0, Math.round(current))}/${Math.round(max)}`;
+}
+
 function setHpRing(ringEl, valueEl, current, max) {
     const safeMax = max > 0 ? max : 1; // évite une division par zéro si jamais max vaut 0
     const pct = Math.max(0, Math.min(1, current / safeMax));
@@ -1678,6 +1701,54 @@ function showFloorArrivalScene() {
 // Carte de l'étage (Carte Urbaine) ouverte ou fermée par #btn-toggle-map — préférence d'affichage
 // seulement, jamais un état de jeu (d'où une variable de module et non un champ de gameState).
 let mapPanelOpen = true;
+// ---------- Barre d'icônes et panneaux d'inventaire (chantier 9 « interface inventaire allégée ») ----------
+// #bottom-nav (fixée en bas, masquée en combat) ouvre trois panneaux : Équipement porté, Sac (réserve +
+// consommables) et Grimoire. Une pastille signale un objet ou un sort nouveau (`item.isNew`, posé par
+// storeLootItem(), retiré à l'ouverture du panneau correspondant — l'objet garde sa mention « Nouveau »
+// tant que le panneau reste ouvert). Le panneau ouvert est une préférence d'affichage (variable de module).
+const INVENTORY_SHEETS = { equipment: 'equipmentSheet', bag: 'bagSheet', spellbook: 'spellbookSheet' };
+let openInventorySheetName = null;
+
+function hasNewBagItems() {
+    return gameState.inventory.some(item => item && item.isNew);
+}
+
+function hasNewSpells() {
+    return gameState.spellbook.some(spell => spell && spell.isNew);
+}
+
+function updateBottomNav() {
+    if (!ui.bottomNav) return;
+    const hidden = !!gameState.inCombat;
+    ui.bottomNav.classList.toggle('hidden', hidden);
+    if (hidden && openInventorySheetName) closeInventorySheets();
+    if (ui.navBagCount) {
+        const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
+        ui.navBagCount.innerText = `${equipmentCount}/${gameState.maxInventory}`;
+    }
+    if (ui.navBagDot) ui.navBagDot.classList.toggle('hidden', !hasNewBagItems());
+    if (ui.navSpellbookDot) ui.navSpellbookDot.classList.toggle('hidden', !hasNewSpells());
+}
+
+function openInventorySheet(name) {
+    if (!INVENTORY_SHEETS[name] || gameState.inCombat) return false;
+    closeInventorySheets();
+    if (name === 'spellbook') updateSpellbookUI(); else updateInventoryUI();
+    const sheet = ui[INVENTORY_SHEETS[name]];
+    if (sheet) sheet.classList.remove('hidden');
+    openInventorySheetName = name;
+    // Vu : la pastille disparaît (les cartes déjà affichées gardent leur mention « Nouveau »).
+    if (name === 'bag') gameState.inventory.forEach(item => { if (item && item.isNew) delete item.isNew; });
+    if (name === 'spellbook') gameState.spellbook.forEach(spell => { if (spell && spell.isNew) delete spell.isNew; });
+    updateBottomNav();
+    return true;
+}
+
+function closeInventorySheets() {
+    Object.values(INVENTORY_SHEETS).forEach(key => { if (ui[key]) ui[key].classList.add('hidden'); });
+    openInventorySheetName = null;
+}
+
 function toggleMapPanel(forceOpen) {
     mapPanelOpen = forceOpen === undefined ? !mapPanelOpen : !!forceOpen;
     updateUI();
@@ -1688,6 +1759,7 @@ function updateInventoryUI() {
     const equipmentCount = gameState.inventory.filter(i => i.category !== 'consumables').length;
     ui.inventoryCount.innerText = equipmentCount;
     if (ui.inventoryMax) ui.inventoryMax.innerText = gameState.maxInventory;
+    updateBottomNav();
     // Objets équipés : icône (même dessin que sur le crawler, voir itemIconSvg() dans scene.js) + nom.
     const equippedLabel = (item) => item
         ? `<span class="inline-flex items-center gap-1 align-middle">${itemIconSvg(item, 22)}<span>${formatItemDisplayName(item)}</span></span>`
@@ -1727,6 +1799,7 @@ function updateInventoryUI() {
             // Badges de qualificatifs (arme, distance ou armure), effet exact en infobulle.
             const armorBadges = buildQualifierBadgesHtml(item);
             card.innerHTML = `
+                ${item.isNew ? '<span class="absolute top-1 left-1 px-1 rounded bg-amber-400 text-[7px] font-black uppercase text-gray-900">Nouveau</span>' : ''}
                 <div class="flex justify-center leading-none">${itemIconSvg(item, 40) || `<span class="text-xl">${icon}</span>`}</div>
                 <div class="text-[10px] font-bold leading-tight">${item.name}</div>
                 ${item.rarity ? `<div class="text-[8px] font-bold uppercase tracking-wider" style="color:${rarityColor}">${item.rarity}</div>` : ""}
@@ -1825,9 +1898,10 @@ function spellCopyStats(spell) {
 // mana et bouton "Équiper" (voir equipSpell()) ; l'exemplaire équipé y figure avec la mention "Équipé".
 // Inventaire séparé de l'équipement classique, jamais limité (voir addLoot()).
 function updateSpellbookUI() {
-    if (ui.equippedSpell) {
-        ui.equippedSpell.innerText = gameState.equipment.spell ? formatItemDisplayName(gameState.equipment.spell) : "Aucun";
-    }
+    const spellLabel = gameState.equipment.spell ? formatItemDisplayName(gameState.equipment.spell) : "Aucun";
+    if (ui.equippedSpell) ui.equippedSpell.innerText = spellLabel;
+    if (ui.equippedSpellSheet) ui.equippedSpellSheet.innerText = spellLabel;
+    updateBottomNav();
     if (!ui.spellbookCards) return;
 
     ui.spellbookCards.innerHTML = "";
@@ -1862,7 +1936,7 @@ function updateSpellbookUI() {
             <div class="flex items-center gap-2">
                 <span class="text-xl leading-none">${group.icon || '✨'}</span>
                 <span class="flex-1 min-w-0">
-                    <span class="block text-[10px] font-bold leading-tight">${group.spellName}</span>
+                    <span class="block text-[10px] font-bold leading-tight">${group.spellName}${group.copies.some(c => c.spell.isNew) ? ' <span class="ml-1 px-1 rounded bg-purple-400 text-[7px] font-black uppercase text-gray-900 align-middle">Nouveau</span>' : ''}</span>
                     <span class="block text-[9px] text-stone-500">${categoryLabel}${group.copies.length > 1 ? ` · ${group.copies.length} exemplaires` : ''}</span>
                 </span>
             </div>
@@ -4021,6 +4095,8 @@ function addLoot(options = {}) {
 // Range un objet déjà construit (loot ou objet signature) : grimoire, inventaire, ou perdu si la
 // réserve d'équipement est pleine. `prefix` : décoration du message de log (objet signature).
 function storeLootItem(item, prefix = "") {
+    // Pastille « nouveau » sur la barre d'icônes (chantier 9) jusqu'à l'ouverture du Sac / du Grimoire.
+    if (item.category !== 'consumables') item.isNew = true;
     if (item.category === 'scrolls') {
         gameState.spellbook.push(item);
         gameState.floorStats.itemsFound += 1;
@@ -8461,6 +8537,20 @@ ui.btnDeclineLair.addEventListener('click', declineLair);
 
 // Bouton "Recentrer" de la Carte Urbaine (voir recenterUrbanMap())
 if (ui.btnRecenterMap) ui.btnRecenterMap.addEventListener('click', recenterUrbanMap);
+// Barre d'icônes du bas et ses panneaux (chantier 9).
+if (ui.navEquipment) ui.navEquipment.addEventListener('click', () => openInventorySheet('equipment'));
+if (ui.navBag) ui.navBag.addEventListener('click', () => openInventorySheet('bag'));
+if (ui.navSpellbook) ui.navSpellbook.addEventListener('click', () => openInventorySheet('spellbook'));
+Object.values(INVENTORY_SHEETS).forEach(key => {
+    const sheet = ui[key];
+    if (!sheet || !sheet.addEventListener) return;
+    sheet.addEventListener('click', (e) => {
+        if (!e) return;
+        const target = e.target;
+        const closeBtn = target && target.closest ? target.closest('[data-close-sheet]') : null;
+        if (target === sheet || closeBtn) closeInventorySheets();
+    });
+});
 attachFloorMapPointerHandlers(ui.floorMapSvg);
 if (ui.btnFloorMapGo) ui.btnFloorMapGo.addEventListener('click', confirmFloorMapTravel);
 if (ui.btnFloorMapCancel) ui.btnFloorMapCancel.addEventListener('click', cancelFloorMapTravel);
