@@ -86,8 +86,7 @@ const gameState = {
     pendingStealthEncounter: null, // L'ennemi généré, en attente de cette décision
     pendingSneakAttack: false, // Consommé par le tout premier coup porté (bonus x2)
     pendingBossEncounter: null, // { roomId, guardsStairs } pendant que bossChoicePending est vrai
-    knownLocations: [], // Lieux repérés : { id, type: 'stairs'|'boss'|'safeRoom', roomId, label }
-    pendingTravel: null, // { destination, ambushesRemaining } pendant un trajet vers un lieu connu
+    pendingTravel: null, // { destination, ambushesRemaining } pendant un trajet sur la carte (voir travelToRoom())
     // Carte de l'étage courant : une zone circulaire divisée en 4 quartiers fixes, chacun un
     // graphe de pièces/couloirs (voir generateFloorMap()). roomsById aplatit les 4 quartiers en
     // un seul graphe (les jonctions inter-quartiers sont des arêtes comme les autres), ce qui
@@ -192,7 +191,7 @@ gameState.anomalyEffects = createNeutralAnomalyEffects();
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 28, label: "Compagnons, succès sarcastiques, chasseurs de primes et émission DeathWatch" };
+const APP_VERSION = { pr: 31, label: "Nouveaux étages (quartiers + avenues) et carte de l'étage ; répliques de l'émission liées à la pique" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -220,6 +219,13 @@ const config = {
         audienceGift: 4,    // NOUVEAU : cadeau des spectateurs (petit bonus d'XP), clin d'œil à l'émission
         companionEncounter: 3, // NOUVEAU : rencontre d'un autre crawler (ami ou hostile, 50/50)
         flavorOnly: 3       // Pur moment narratif, sans effet mécanique (réduit de 6 à 3 pour compenser)
+    },
+    // Table d'événements des AVENUES (chantier 5, validée par l'utilisateur) : mêmes clés et même ordre que
+    // config.chances, zone plus sûre et plus fréquentée (moins de combats et de pièges, plus de crawlers et
+    // de cadeaux du public). Choisie par getZoneEventTable() selon la zone de la salle (ZONE_TYPES, floorgen.js).
+    avenueChances: {
+        nothing: 40, combat: 12, loot: 4, trap: 3, timeLoss: 5, minorFind: 5, goldFind: 6,
+        audienceGift: 8, companionEncounter: 12, flavorOnly: 5
     },
     // "stairGuardedChance" a été retiré : l'escalier est désormais TOUJOURS gardé par le boss de
     // son quartier (placement déterministe, voir generateFloorMap()), plus un tirage au hasard.
@@ -721,11 +727,19 @@ const ui = {
     btnPactAtk: document.getElementById('btn-pact-atk'),
     btnPactHp: document.getElementById('btn-pact-hp'),
     combatZone: document.getElementById('combat-zone'),
-    knownLocationsSection: document.getElementById('known-locations-section'),
-    knownLocationsContainer: document.getElementById('known-locations'),
     urbanTravelOverlay: document.getElementById('urban-travel-overlay'),
     urbanMapSvg: document.getElementById('urban-map-svg'),
     btnRecenterMap: document.getElementById('btn-recenter-map'),
+    floorMapOverlay: document.getElementById('floor-map-overlay'),
+    floorMapSvg: document.getElementById('floor-map-svg'),
+    floorMapBubble: document.getElementById('floor-map-bubble'),
+    floorMapBubbleTitle: document.getElementById('floor-map-bubble-title'),
+    floorMapBubbleText: document.getElementById('floor-map-bubble-text'),
+    btnFloorMapGo: document.getElementById('btn-floor-map-go'),
+    btnFloorMapCancel: document.getElementById('btn-floor-map-cancel'),
+    btnFloorMapZoomIn: document.getElementById('btn-floor-map-zoom-in'),
+    btnFloorMapZoomOut: document.getElementById('btn-floor-map-zoom-out'),
+    btnFloorMapRecenter: document.getElementById('btn-floor-map-recenter'),
     companionChoiceFriendly: document.getElementById('companion-choice-friendly'),
     companionChoiceHostile: document.getElementById('companion-choice-hostile'),
     btnRecruitFriendly: document.getElementById('btn-recruit-friendly'),
@@ -942,10 +956,17 @@ function restoreSaveForName(name) {
     gameState.pendingNextFloorAnomalies = null;
     gameState.safehouseChoicePending = false;
     gameState.pendingSafehouseRoomId = null;
-    // Escalier en attente : la salle du gardien est déjà un lieu connu (voir offerStairsChoice()), et une
+    // Escalier en attente : la salle du gardien vaincu est marquée 🪜 sur la carte (listFloorLandmarks()), et une
     // ville-escalier reste sur la Carte Urbaine — le choix sera reproposé en y retournant.
     gameState.stairsChoicePending = false;
     gameState.pendingStairsChoice = null;
+
+    // Carte d'un format antérieur (chantier 5, FLOOR_MAP_VERSION) : l'étage en cours est regénéré au nouveau
+    // format (même numéro d'étage, mêmes anomalies) ; le crawler garde tout le reste.
+    if (gameState.floorMap && gameState.floorMap.version !== FLOOR_MAP_VERSION) {
+        generateFloorMap();
+        logEvent("Le Donjon s'est réaménagé pendant votre absence : cet étage a été entièrement redessiné.", "info");
+    }
 
     gameState.saveEnabled = true; // Réactive l'autosave après une restauration réussie
     return true;
@@ -1409,23 +1430,22 @@ function updateUI() {
     renderScene('combat');
     renderScene('crawlers'); // posture/équipement du crawler dans les scènes hors combat
 
-    // "Lieux connus" (donjon classique) reste un panneau séparé ; la "Carte Urbaine" (étage urbain) est
-    // un panneau sous la scène, ouvert/fermé par #btn-toggle-map (ouvert par défaut, mapPanelOpen). Elle
-    // se masque, avec son bouton, dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
-    // voir isActionBlocked()) : la scène montre alors la situation.
-    if (ui.knownLocationsSection) ui.knownLocationsSection.classList.toggle('hidden', !!gameState.urbanMap);
-    const mapAvailable = !!gameState.urbanMap && !isActionBlocked();
-    if (ui.urbanTravelOverlay) ui.urbanTravelOverlay.classList.toggle('hidden', !mapAvailable || !mapPanelOpen);
+    // La carte de l'étage est un panneau sous la scène, ouvert/fermé par #btn-toggle-map (ouvert par défaut,
+    // mapPanelOpen) : Carte Urbaine sur un étage urbain, carte stylisée (#floor-map-overlay, chantier 5) sur
+    // un étage classique. Elle se masque, avec son bouton, dès qu'une "situation" est en cours
+    // (combat/boss/furtivité/compagnon, voir isActionBlocked()) : la scène montre alors la situation.
+    const mapAvailable = !!(gameState.urbanMap || gameState.floorMap) && !isActionBlocked();
+    if (ui.urbanTravelOverlay) ui.urbanTravelOverlay.classList.toggle('hidden', !mapAvailable || !gameState.urbanMap || !mapPanelOpen);
+    if (ui.floorMapOverlay) ui.floorMapOverlay.classList.toggle('hidden', !mapAvailable || !gameState.floorMap || !mapPanelOpen);
     if (ui.btnToggleMap) {
         ui.btnToggleMap.classList.toggle('hidden', !mapAvailable);
         ui.btnToggleMap.innerText = mapPanelOpen ? "✕ Fermer la carte" : "🗺️ Carte";
         ui.btnToggleMap.setAttribute('aria-expanded', mapPanelOpen ? 'true' : 'false');
     }
 
-    // Les distances affichées dans "Lieux connus" dépendent de la position actuelle : on les
-    // rafraîchit à chaque rendu pour qu'elles restent toujours à jour sans action explicite.
-    updateKnownLocationsUI();
+    // Les cartes suivent la position courante : rafraîchies à chaque rendu.
     updateUrbanMapUI();
+    updateFloorMapUI();
 
     // Autosauvegarde (no-op tant que gameState.saveEnabled est faux, voir confirmPlayerName() /
     // restoreSaveForName()) : updateUI() est déjà appelée après quasiment toute action modifiant
@@ -2164,7 +2184,7 @@ function sellSpell(index) {
 // ==========================================
 
 // Régénération passive de PV et de mana, proportionnelle au temps qui s'écoule en explorant ou en
-// voyageant vers un lieu connu (voir performExploreStep()/travelToKnownLocation()/
+// voyageant sur la carte (voir performExploreStep()/travelToRoom()/
 // autoTravelToNearestFrontier()) — jamais sur une perte de temps punitive (piège "Contretemps"),
 // pour ne pas annuler la sanction. Le mana ne régénère que si un sort est équipé (sinon la barre
 // n'existe pas côté joueur).
@@ -2202,15 +2222,23 @@ function applyTimeElapsedRegen(hours) {
     }
 }
 
+// Table d'événements de la zone courante : config.chances dans un bloc de quartier, config.avenueChances
+// sur une avenue (ZONE_TYPES[zone].eventTable, floorgen.js). Hors étage classique : table des salles.
+function getZoneEventTable() {
+    const zone = ZONE_TYPES[roomZone(currentFloorRoom())] || ZONE_TYPES.block;
+    return zone.eventTable === 'avenue' ? config.avenueChances : config.chances;
+}
+
 function resolveCardEvent() {
     // L'escalier et les salles sécurisées ne sont plus tirés ici : ce sont des pièces fixes du
     // graphe de l'étage (voir generateFloorMap() et enterRoom()). Cette fonction ne résout plus
     // que le contenu des pièces "normales".
+    const table = getZoneEventTable();
     const d100 = Math.random() * 100;
     let cumulative = 0;
 
     // Rien de notable
-    cumulative += config.chances.nothing;
+    cumulative += table.nothing;
     if (d100 < cumulative) {
         setSceneHeader('🌑', 'Silence', 'Exploration', 'silence');
         logEvent(pick(flavorText.nothing), "normal");
@@ -2218,7 +2246,7 @@ function resolveCardEvent() {
     }
 
     // Combat : passe d'abord par une tentative de furtivité (voir handleStealthEncounter)
-    cumulative += config.chances.combat;
+    cumulative += table.combat;
     if (d100 < cumulative) {
         handleStealthEncounter();
         return;
@@ -2228,7 +2256,7 @@ function resolveCardEvent() {
     // explore(), pas via un tirage D100 ici. Salle sécurisée : voir enterRoom() (pièce fixe).
 
     // Découverte d'objet (générateur procédural)
-    cumulative += config.chances.loot;
+    cumulative += table.loot;
     if (d100 < cumulative) {
         setSceneHeader('💰', 'Trésor', 'Butin', 'treasure');
         logEvent("Vous trébuchez sur quelque chose de brillant...", "info");
@@ -2237,7 +2265,7 @@ function resolveCardEvent() {
     }
 
     // NOUVEAU : Piège dangereux (vrais dégâts, plusieurs variantes)
-    cumulative += config.chances.trap;
+    cumulative += table.trap;
     if (d100 < cumulative) {
         const trap = pick(flavorText.trap);
         // Compagnon Éclaireur : repère le piège à temps une fois sur deux (config.companions.scout)
@@ -2259,7 +2287,7 @@ function resolveCardEvent() {
     }
 
     // NOUVEAU : Détour qui coûte du temps (la ressource la plus précieuse du jeu)
-    cumulative += config.chances.timeLoss;
+    cumulative += table.timeLoss;
     if (d100 < cumulative) {
         const lost = Math.floor(Math.random() * 3) + 1; // 1 à 3 heures perdues en plus
         gameState.timeLeft = Math.max(0, gameState.timeLeft - lost);
@@ -2273,7 +2301,7 @@ function resolveCardEvent() {
     }
 
     // NOUVEAU : Petite trouvaille (soin mineur)
-    cumulative += config.chances.minorFind;
+    cumulative += table.minorFind;
     if (d100 < cumulative) {
         const heal = Math.floor(Math.random() * 8) + 5; // 5 à 12 PV
         const actualHeal = applyPlayerHeal(heal);
@@ -2283,7 +2311,7 @@ function resolveCardEvent() {
     }
 
     // NOUVEAU : Quelques PO trouvées (voir sellItem() pour l'autre source de revenu)
-    cumulative += config.chances.goldFind;
+    cumulative += table.goldFind;
     if (d100 < cumulative) {
         const baseGold = Math.floor(Math.random() * 16) + 5; // 5 à 20 PO
         const strikerMult = hasActiveCompanion('strike') ? 1 + config.companions.striker.goldBonusPct / 100 : 1; // Frappe d'appoint : il a l'œil pour les pièces
@@ -2295,7 +2323,7 @@ function resolveCardEvent() {
     }
 
     // NOUVEAU : Cadeau des spectateurs (petit bonus d'XP — clin d'œil au format "émission" du livre)
-    cumulative += config.chances.audienceGift;
+    cumulative += table.audienceGift;
     if (d100 < cumulative) {
         const bonusXp = Math.floor(Math.random() * 6) + 5; // 5 à 10 XP
         setSceneHeader('📢', 'Cadeau du Public', 'Bonus', 'audienceGift');
@@ -2305,7 +2333,7 @@ function resolveCardEvent() {
     }
 
     // NOUVEAU : Rencontre d'un autre crawler (ami ou hostile, un seul compagnon actif à la fois)
-    cumulative += config.chances.companionEncounter;
+    cumulative += table.companionEncounter;
     if (d100 < cumulative) {
         if (gameState.companion) {
             // Déjà accompagné : ce tirage se résout comme un moment calme, pas de rencontre superposée
@@ -2369,7 +2397,7 @@ function handleStealthEncounter() {
     }
     // LABYRINTHE (anomalies.js) : mobs rencontrés dans le quartier qui garde l'escalier ont plus de
     // chances d'être élite ("escalier mieux gardé") — n'affecte aucun autre quartier de l'étage.
-    const inStairsQuadrant = gameState.floorMap && gameState.floorMap.currentQuadrant === gameState.floorMap.stairsQuadrant;
+    const inStairsQuadrant = gameState.floorMap && roomZone(currentFloorRoom()) === 'block' && gameState.floorMap.currentQuadrant === gameState.floorMap.stairsQuadrant;
     const eliteBonus = (gameState.anomalyEffects.guardedStairsBoost && inStairsQuadrant) ? 25 : 0;
     const enemy = generateMob(gameState.currentDistrict, eliteBonus);
     const undetected = Math.random() * 100 < getStealthChance();
@@ -2439,98 +2467,118 @@ function isActionBlocked() {
     return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending;
 }
 
-// Enregistre un lieu connu (aucun doublon) et rafraîchit le panneau
-function registerKnownLocation(loc) {
-    if (gameState.knownLocations.some(l => l.id === loc.id)) return;
-    gameState.knownLocations.push(loc);
-    updateKnownLocationsUI();
+// ---------- Voyage sur carte (chantier 5, M1 + P1 — remplace les anciens « Lieux connus ») ----------
+// Plus de registre séparé : boss repérés, salles sûres et escalier libre sont lus directement dans l'état
+// des salles (listFloorLandmarks()), et tout voyage passe par travelToRoom() depuis la carte.
+
+// Salle aperçue : pas encore visitée, mais voisine d'une salle visitée (sa porte a été vue).
+function isRoomSeen(room) {
+    const fm = gameState.floorMap;
+    return !!(fm && room && !room.visited && room.neighbors.some(e => fm.roomsById[e.to] && fm.roomsById[e.to].visited));
 }
 
-// Retire un lieu connu de la liste (utilisé une fois qu'il est effectivement résolu)
-function removeKnownLocation(id) {
-    gameState.knownLocations = gameState.knownLocations.filter(loc => loc.id !== id);
-    updateKnownLocationsUI();
-}
-
-// Reconstruit la liste visuelle des lieux connus, avec la distance réelle (en coût de graphe,
-// artère=1/ruelle=2) recalculée depuis la position actuelle à chaque rafraîchissement.
-function updateKnownLocationsUI() {
-    ui.knownLocationsContainer.innerHTML = "";
-
-    const icons = { stairs: '🪜', boss: '👑', safeRoom: '🏥' };
-    let entries = [...gameState.knownLocations];
-
-    // Pré-calcule la distance de chaque entrée une seule fois (réutilisée pour le filtrage ET l'affichage)
-    entries = entries.map(loc => ({
-        loc,
-        distance: gameState.floorMap ? computeDistance(gameState.floorMap.currentRoomId, loc.roomId) : null
-    }));
-
-    // Ne garder que la salle sécurisée la plus proche : plusieurs salles connues encombreraient le
-    // panneau sans vraie valeur ajoutée (boss/escalier/bifurcation restent tous affichés, eux).
-    let nearestSafe = null;
-    entries = entries.filter(({ loc, distance }) => {
-        if (loc.type !== 'safeRoom') return true;
-        if (nearestSafe === null || (distance ?? Infinity) < nearestSafe.distance) nearestSafe = { loc, distance };
-        return false;
+// Repères de l'étage (marqueurs de la carte) — dérivés des salles, jamais stockés à part.
+function listFloorLandmarks() {
+    const fm = gameState.floorMap;
+    if (!fm) return [];
+    const marks = [];
+    Object.values(fm.roomsById).forEach(room => {
+        if (room.type === 'boss' && (room.visited || room.defeated)) {
+            if (room.defeated && room.guardsStairs) marks.push({ roomId: room.id, kind: 'stairs', icon: '🪜', label: `Escalier libre (${roomDistrict(room)})` });
+            else if (!room.defeated) marks.push({ roomId: room.id, kind: room.guardsStairs ? 'stairsGuarded' : 'boss', icon: '👑', label: `${room.guardsStairs ? "Escalier gardé" : "Boss"} (${roomDistrict(room)})` });
+        } else if (room.type === 'safe' && room.visited) {
+            const sh = room.safehouse || { name: "Salle sûre", icon: '🛏️' };
+            marks.push({ roomId: room.id, kind: 'safe', icon: sh.icon, label: sh.name });
+        }
     });
-    if (nearestSafe) entries.push(nearestSafe);
+    return marks;
+}
 
-    if (entries.length === 0) {
-        const empty = document.createElement('p');
-        empty.className = "text-[10px] text-gray-600 italic";
-        empty.innerText = "Aucun lieu repéré pour l'instant.";
-        ui.knownLocationsContainer.appendChild(empty);
-        return;
+// Libellé court d'une salle (bulle de la carte, journal de trajet).
+function floorRoomLabel(room) {
+    if (!room) return "Salle";
+    if (!room.visited) return roomZone(room) === 'avenue' ? "Avenue inexplorée" : `Salle inconnue (${roomDistrict(room)})`;
+    const mark = listFloorLandmarks().find(m => m.roomId === room.id);
+    if (mark) return mark.label;
+    if (roomZone(room) === 'avenue') return "Avenue";
+    return `Salle (${roomDistrict(room)})`;
+}
+
+// Prépare un voyage vers `roomId` (pure vis-à-vis de gameState : ne modifie rien). Destination : une salle
+// visitée, ou une salle APERÇUE (P1) — on marche alors jusqu'à la salle visitée voisine la plus proche
+// (`viaRoomId`), puis on fait le pas dans l'inconnu (un pas d'exploration normal, -1 H, événement tiré).
+// Le trajet ne passe que par des salles déjà visitées. Renvoie null si la salle n'est ni visitée ni
+// aperçue, ou si c'est la salle courante. { roomId, viaRoomId, exploreStep, distance, timeCost,
+// ambushChance, label }.
+function planTravelToRoom(roomId) {
+    const fm = gameState.floorMap;
+    if (!fm) return null;
+    const target = fm.roomsById[roomId];
+    if (!target || roomId === fm.currentRoomId) return null;
+    const visitedOnly = id => fm.roomsById[id] && fm.roomsById[id].visited;
+    let viaRoomId = roomId;
+    let path = null;
+    if (target.visited) {
+        path = computeFloorPath(fm.currentRoomId, roomId, visitedOnly);
+    } else {
+        if (!isRoomSeen(target)) return null;
+        target.neighbors.forEach(edge => {
+            if (!visitedOnly(edge.to)) return;
+            const p = edge.to === fm.currentRoomId ? { cost: 0, rooms: [edge.to] } : computeFloorPath(fm.currentRoomId, edge.to, visitedOnly);
+            if (p && (!path || p.cost < path.cost)) { path = p; viaRoomId = edge.to; }
+        });
+    }
+    if (!path) return null;
+    const distance = Math.round(path.cost * 10) / 10;
+    return {
+        roomId,
+        viaRoomId,
+        exploreStep: !target.visited,
+        distance,
+        timeCost: distance > 0 ? Math.max(1, Math.round(distance / 2)) : 0,
+        ambushChance: distance > 0 ? computeAmbushBaseChance(distance) : 0,
+        label: floorRoomLabel(target)
+    };
+}
+
+// Voyage vers une salle de la carte (M1) ou exploration d'une salle aperçue (P1) : temps et risque
+// d'embuscade selon la longueur réelle du chemin (avenues ×0,5, compagnon Garde), puis arrivée par
+// enterRoom() — ou, pour une salle aperçue, le pas d'exploration dans l'inconnu. Renvoie le plan (tests).
+function travelToRoom(roomId) {
+    if (isActionBlocked()) return null;
+    if (gameState.hp <= 0 || gameState.timeLeft <= 0) return null;
+    const plan = planTravelToRoom(roomId);
+    if (!plan) return null;
+
+    // Salle aperçue juste à côté : un simple pas d'exploration vers elle.
+    if (plan.exploreStep && plan.viaRoomId === gameState.floorMap.currentRoomId) {
+        performExploreStep(roomId);
+        return plan;
     }
 
-    entries.forEach(({ loc, distance }) => {
-        const row = document.createElement('button');
-        row.className = "w-full flex justify-between items-center px-3 py-2 bg-gray-950 border border-gray-800 rounded text-xs text-gray-300 hover:border-blue-600 hover:bg-blue-950/30 transition-all cursor-pointer";
-        const icon = loc.icon || icons[loc.type] || '📍';
-        const distLabel = (distance !== null && distance !== undefined) ? ` (${distance})` : "";
-        row.innerHTML = `<span>${icon} ${loc.label}${distLabel}</span><span class="text-blue-400 uppercase tracking-widest text-[10px]">Aller →</span>`;
-        row.addEventListener('click', () => travelToKnownLocation(loc.id));
-        ui.knownLocationsContainer.appendChild(row);
-    });
-}
-
-// Décide de repartir vers un lieu connu (ou la bifurcation inexplorée la plus proche, via
-// virtualLocation) : le coût en temps et le risque d'embuscade grandissent avec la distance
-// réelle sur le graphe (pondérée par artère/ruelle), au lieu d'un taux fixe.
-function travelToKnownLocation(id, virtualLocation = null) {
-    if (isActionBlocked()) return;
-    const location = virtualLocation || gameState.knownLocations.find(loc => loc.id === id);
-    if (!location || !gameState.floorMap) return;
-
-    const distance = computeDistance(gameState.floorMap.currentRoomId, location.roomId);
-    if (distance === null || distance === undefined) {
-        logEvent("Ce lieu semble hors d'atteinte pour l'instant...", "danger");
-        return;
-    }
-
-    const timeCost = Math.max(1, Math.round(distance / 2));
-    // Formule de départ, à ajuster par playtest : 9% de risque par unité de distance, plafonné à 80%
-    const ambushBaseChance = computeAmbushBaseChance(distance); // Compagnon Garde : moins d'embuscades
     let ambushCount = 0;
-    if (Math.random() * 100 < ambushBaseChance) {
+    if (Math.random() * 100 < plan.ambushChance) {
         ambushCount = 1;
-        if (Math.random() * 100 < ambushBaseChance * 0.6) ambushCount = 2;
+        if (Math.random() * 100 < plan.ambushChance * 0.6) ambushCount = 2;
     }
-
-    gameState.timeLeft = Math.max(0, gameState.timeLeft - timeCost);
-    applyTimeElapsedRegen(timeCost);
-    gameState.pendingTravel = { destination: location, ambushesRemaining: ambushCount };
-    logEvent(`Vous repartez vers : ${location.label} (${distance}, -${timeCost}H)...`, "info");
-    if (ambushCount > 0) {
-        logEvent("Le trajet ne s'annonce pas de tout repos...", "danger");
-    }
+    gameState.timeLeft = Math.max(0, gameState.timeLeft - plan.timeCost);
+    applyTimeElapsedRegen(plan.timeCost);
+    gameState.pendingTravel = {
+        destination: { roomId: plan.viaRoomId, label: plan.exploreStep ? floorRoomLabel(gameState.floorMap.roomsById[plan.viaRoomId]) : plan.label },
+        exploreRoomId: plan.exploreStep ? roomId : null,
+        ambushesRemaining: ambushCount
+    };
+    logEvent(plan.exploreStep
+        ? `Vous traversez le terrain connu vers ${plan.label.toLowerCase()} (${plan.distance}, -${plan.timeCost}H)...`
+        : `Vous repartez vers : ${plan.label} (${plan.distance}, -${plan.timeCost}H)...`, "info");
+    if (ambushCount > 0) logEvent("Le trajet ne s'annonce pas de tout repos...", "danger");
 
     if (gameState.timeLeft <= 0) {
         gameOver(true);
-        return;
+        return plan;
     }
     triggerNextAmbushOrArrive();
+    return plan;
 }
 
 // Résout la prochaine embuscade du trajet en cours, ou l'arrivée si le trajet est terminé
@@ -2549,9 +2597,10 @@ function triggerNextAmbushOrArrive() {
     arriveAtDestination();
 }
 
-// Arrivée effective au lieu connu : se positionne sur la pièce cible et réutilise EXACTEMENT la
-// même logique d'entrée que l'exploration normale (enterRoom), pour un comportement cohérent
-// que la salle soit atteinte en marchant ou via un trajet de retour.
+// Arrivée effective : se positionne sur la salle cible et réutilise EXACTEMENT la même logique d'entrée que
+// l'exploration normale (enterRoom), pour un comportement cohérent que la salle soit atteinte en marchant
+// ou en voyageant. Pour une salle aperçue (P1, `exploreRoomId`), on s'arrête à la salle voisine sans y
+// « entrer » de nouveau, et on fait directement le pas dans l'inconnu.
 function arriveAtDestination() {
     const travel = gameState.pendingTravel;
     if (!travel) return;
@@ -2561,10 +2610,12 @@ function arriveAtDestination() {
     const room = gameState.floorMap && gameState.floorMap.roomsById[destination.roomId];
     if (!room) return;
 
-    gameState.floorMap.currentRoomId = room.id;
-    gameState.floorMap.currentQuadrant = room.quadrant;
-    gameState.currentDistrict = gameState.floorMap.quadrants[room.quadrant].district;
+    moveToFloorRoom(room);
 
+    if (travel.exploreRoomId) {
+        performExploreStep(travel.exploreRoomId);
+        return;
+    }
     logEvent(`Vous atteignez : ${destination.label}.`, "info");
     enterRoom(room);
     updateUI();
@@ -3319,7 +3370,9 @@ function maybeSpawnBountyHunter() {
     const b = gameState.bounty;
     const tier = getBountyTier(b.value);
     if (tier < 2 || b.combatsSinceHunter < config.bounty.minCombatsBetween) return null;
-    const chance = tier >= 3 ? config.bounty.encounterChance.squad : config.bounty.encounterChance.hunters;
+    // Avenues (chantier 5) : chasseurs deux fois plus fréquents (ZONE_TYPES.avenue.hunterMult, floorgen.js).
+    const zone = gameState.floorMap ? (ZONE_TYPES[roomZone(currentFloorRoom())] || ZONE_TYPES.block) : ZONE_TYPES.block;
+    const chance = (tier >= 3 ? config.bounty.encounterChance.squad : config.bounty.encounterChance.hunters) * zone.hunterMult;
     if (Math.random() * 100 >= chance) return null;
     b.combatsSinceHunter = 0;
     gameState.pendingBountySquad = tier >= 3 ? 1 : 0;
@@ -3550,7 +3603,6 @@ function advanceToNextFloor() {
     // tardifs (mobs/distances plus coûteux) sans supprimer la pression du temps.
     gameState.maxTime = config.floorTimeBudget.base + config.floorTimeBudget.perFloor * (gameState.currentFloor - 1);
     gameState.timeLeft = gameState.maxTime; // Réinitialisation du temps
-    gameState.knownLocations = []; // Les lieux repérés à l'étage précédent ne sont plus accessibles
     gameState.floorMap = null;
     gameState.urbanMap = null;
     // Tally du nouvel étage repart à zéro — celui qui vient de se terminer a déjà été affiché sur
@@ -3587,7 +3639,6 @@ function advanceToNextFloor() {
     if (gameState.activeAnomalies.length > 0) {
         logEvent(`⚠️ Anomalie(s) active(s) : ${gameState.activeAnomalies.map(a => `${a.icon} ${a.name}`).join(', ')}.`, "danger");
     }
-    updateKnownLocationsUI();
     updateUrbanMapUI();
     updateAnomalyStatusUI();
 
@@ -3685,18 +3736,13 @@ function continueFromFloorTransition() {
 // l'étage suivant, propose « Descendre » (écran d'escalier, voir triggerFloorTransition()) ou « Rester
 // sur l'étage » (finir d'explorer, se soigner…). Bloque via gameState.stairsChoicePending (inclus dans
 // isActionBlocked()), comme un choix de boss. `context` : { kind: 'room', roomId } (étage classique —
-// la salle devient tout de suite un lieu connu, pour pouvoir y revenir quoi qu'il arrive) ou
+// la salle vaincue est marquée 🪜 sur la carte, pour pouvoir y revenir quoi qu'il arrive) ou
 // { kind: 'city', cityId } (étage urbain — la ville reste sur la Carte Urbaine). Le choix est reproposé
 // à chaque retour (enterRoom()/arriveAtCity()). La Sortie de l'étage final n'y passe jamais (victoire
 // immédiate, choix de l'utilisateur).
 function offerStairsChoice(context) {
     gameState.stairsChoicePending = true;
     gameState.pendingStairsChoice = context;
-    if (context.kind === 'room' && gameState.floorMap) {
-        const room = gameState.floorMap.roomsById[context.roomId];
-        const district = room ? gameState.floorMap.quadrants[room.quadrant].district : 'quartier inconnu';
-        registerKnownLocation({ id: `stairs-${context.roomId}`, type: 'stairs', roomId: context.roomId, label: `Escalier libre (${district})` });
-    }
     setSceneHeader('🪜', 'Escalier', 'Escalier', 'stairs');
     logEvent(`L'escalier vers l'étage ${gameState.currentFloor + 1} est libre. Descendre maintenant, ou rester sur cet étage ?`, "info");
     if (ui.stairsChoiceZone) ui.stairsChoiceZone.classList.remove('hidden');
@@ -4124,148 +4170,119 @@ function skillLabel(key) {
 }
 
 // ==========================================
-// 4. CARTE DE L'ÉTAGE (ZONE CIRCULAIRE À 4 QUARTIERS)
+// 4. CARTE DE L'ÉTAGE (BOROUGH : 4 BLOCS DE QUARTIER + AVENUES)
 // ==========================================
-// Chaque étage est une zone circulaire découpée en 4 quartiers fixes, générés une fois pour
-// toutes à l'arrivée sur l'étage. Chaque quartier est un petit réseau aléatoire de pièces reliées
-// par des couloirs typés (artère = passage principal, ruelle = embranchement secondaire). Rien de
-// tout ceci n'est affiché : c'est une mémoire interne qui alimente le système de lieux connus
-// (distance réelle, risque de trajet) et la narration.
+// Chantier 5 « rework de la carte » (voir NOTES_CARTE.md) : la géométrie vient du générateur PUR
+// floorgen.js (generateBorough()) — 4 blocs de quartier (2 × 2) séparés par des avenues (croix +
+// anneau), des salles rectangulaires reliées par des couloirs courts, 2-3 portes par bloc sur les
+// avenues. Ici, on ne fait qu'habiller ce résultat pour le jeu : quartiers tirés, types de salles sûres,
+// escalier, anomalies. Le reste du jeu ne voit l'étage qu'à travers roomsById / neighbors / type /
+// visited, computeDistance() et enterRoom().
 
-// Relie deux pièces par un couloir du type donné (dans les deux sens)
-function addEdge(roomsById, aId, bId, kind) {
-    if (aId === bId) return;
-    roomsById[aId].neighbors.push({ to: bId, kind });
-    roomsById[bId].neighbors.push({ to: aId, kind });
+// Version du format de gameState.floorMap : une sauvegarde d'un format plus ancien ne peut pas reprendre
+// son étage (voir restoreSaveForName()).
+const FLOOR_MAP_VERSION = 2;
+
+// Salle courante de l'étage classique (null hors étage classique).
+function currentFloorRoom() {
+    const fm = gameState.floorMap;
+    return fm ? fm.roomsById[fm.currentRoomId] || null : null;
 }
 
-// Renvoie l'id d'une pièce parmi les plus "profondes" du quartier (BFS depuis l'entrée), pour que
-// la salle de boss ne soit jamais accessible trivialement dès les premiers pas.
-function pickDeepRoom(roomsById, roomIds, entryId) {
-    const depth = { [entryId]: 0 };
-    const queue = [entryId];
-    while (queue.length > 0) {
-        const currentId = queue.shift();
-        roomsById[currentId].neighbors.forEach(edge => {
-            if (depth[edge.to] === undefined) {
-                depth[edge.to] = depth[currentId] + 1;
-                queue.push(edge.to);
-            }
-        });
-    }
-    const maxDepth = Math.max(...roomIds.map(id => depth[id] || 0));
-    const deepest = roomIds.filter(id => (depth[id] || 0) >= Math.max(1, maxDepth - 1));
-    return deepest[Math.floor(Math.random() * deepest.length)];
+// Zone de la salle (ZONE_TYPES, floorgen.js) : 'block' ou 'avenue'.
+function roomZone(room) {
+    return (room && room.zone) || 'block';
 }
 
-// Génère le réseau de pièces d'un seul quartier (arbre principal + quelques ruelles annexes) et
-// y place sa salle de boss ainsi que ses salles sécurisées.
-function generateQuadrant(quadrantIndex, districtName, roomsById) {
-    // LABYRINTHE (anomalies.js) : +50% de pièces par quartier (donc sur l'étage entier, 4 quartiers).
-    const roomCount = Math.round((10 + Math.floor(Math.random() * 5)) * (1 + (gameState.anomalyEffects.extraRoomsPct || 0))); // 10 à 14 pièces de base
-    const roomIds = [];
-    const entryId = `q${quadrantIndex}_r0`;
-    roomsById[entryId] = { id: entryId, quadrant: quadrantIndex, type: 'normal', visited: false, neighbors: [] };
-    roomIds.push(entryId);
-
-    // Arbre principal : chaque nouvelle pièce se raccroche à une pièce existante, avec un biais
-    // vers la plus récente pour favoriser un tronc plutôt qu'une étoile plate.
-    for (let i = 1; i < roomCount; i++) {
-        const newId = `q${quadrantIndex}_r${i}`;
-        const parentId = Math.random() < 0.7
-            ? roomIds[roomIds.length - 1]
-            : roomIds[Math.floor(Math.random() * roomIds.length)];
-        const kind = Math.random() < 0.4 ? 'artery' : 'alley'; // ~40% d'artères sur le tronc
-        roomsById[newId] = { id: newId, quadrant: quadrantIndex, type: 'normal', visited: false, neighbors: [] };
-        addEdge(roomsById, parentId, newId, kind);
-        roomIds.push(newId);
-    }
-
-    // Salle de boss : parmi les pièces les plus profondes, hors entrée
-    const bossId = pickDeepRoom(roomsById, roomIds, entryId);
-    roomsById[bossId].type = 'boss';
-
-    // Salle(s) sécurisée(s) parmi les pièces restantes : 1 à 2 par quartier (jamais 0, pour garantir
-    // un vrai point de répit sur chaque quartier).
-    const safeCandidates = roomIds.filter(id => id !== entryId && id !== bossId);
-    for (let i = safeCandidates.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [safeCandidates[i], safeCandidates[j]] = [safeCandidates[j], safeCandidates[i]];
-    }
-    const safeCount = Math.min(safeCandidates.length, Math.random() < 0.5 ? 2 : 1);
-    for (let i = 0; i < safeCount; i++) {
-        roomsById[safeCandidates[i]].type = 'safe';
-        roomsById[safeCandidates[i]].safehouse = pickSafehouseType();
-    }
-
-    // Quelques ruelles annexes pour texturer le graphe (raccourcis, pas forcément utiles)
-    const extraLoops = 1 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < extraLoops; i++) {
-        const a = roomIds[Math.floor(Math.random() * roomIds.length)];
-        const b = roomIds[Math.floor(Math.random() * roomIds.length)];
-        addEdge(roomsById, a, b, 'alley');
-    }
-
-    return { district: districtName, entryRoomId: entryId, bossRoomId: bossId, roomIds };
+// Quartier d'une salle : celui de son bloc ; une avenue n'appartient à aucun quartier.
+function roomDistrict(room) {
+    const fm = gameState.floorMap;
+    if (!fm || !room || room.quadrant === null || room.quadrant === undefined) return null;
+    return fm.quadrants[room.quadrant] ? fm.quadrants[room.quadrant].district : null;
 }
 
-// Génère la carte complète du nouvel étage : 4 quartiers distincts, une jonction (artère) entre
-// chaque paire de quartiers adjacents (cercle : 0-1, 1-2, 2-3, 3-0), un quartier tiré au hasard
-// pour héberger l'escalier (sa salle de boss devient le gardien de l'escalier).
+// Se place dans une salle de l'étage. Le quartier courant (décor, mobs) suit le bloc où l'on se trouve ;
+// sur une avenue, on garde le dernier quartier traversé. Renvoie vrai si le quartier vient de changer.
+function moveToFloorRoom(room) {
+    const fm = gameState.floorMap;
+    fm.currentRoomId = room.id;
+    if (room.quadrant === null || room.quadrant === undefined || room.quadrant === fm.currentQuadrant) return false;
+    fm.currentQuadrant = room.quadrant;
+    gameState.currentDistrict = fm.quadrants[room.quadrant].district;
+    return true;
+}
+
+// Génère l'étage classique : 4 quartiers distincts tirés au hasard, un bloc chacun ; l'escalier est gardé
+// par le boss de l'un des 4 blocs ; départ aléatoire hors de danger (voir pickSafeStartRoom(), floorgen.js).
 function generateFloorMap() {
     const pool = [...Object.keys(districts)];
     for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    const chosenDistricts = pool.slice(0, 4);
+    // LABYRINTHE (anomalies.js) : +50 % de salles par bloc (bloc agrandi d'autant, même densité).
+    const floor = generateBorough({ districts: pool.slice(0, 4), extraRoomsPct: gameState.anomalyEffects.extraRoomsPct || 0 });
+    const { roomsById, quadrants } = floor;
 
-    const roomsById = {};
-    const quadrants = [];
-    for (let q = 0; q < 4; q++) {
-        quadrants.push(generateQuadrant(q, chosenDistricts[q], roomsById));
-    }
-
-    // Jonctions inter-quartiers : cercle à 4 quartiers, chacun relié à ses deux voisins directs
-    for (let q = 0; q < 4; q++) {
-        const nextQ = (q + 1) % 4;
-        const roomA = quadrants[q].roomIds[Math.floor(Math.random() * quadrants[q].roomIds.length)];
-        const roomB = quadrants[nextQ].roomIds[Math.floor(Math.random() * quadrants[nextQ].roomIds.length)];
-        addEdge(roomsById, roomA, roomB, 'artery'); // Jonction = artère (passage principal)
-    }
+    Object.values(roomsById).forEach(room => {
+        if (room.type === 'safe') room.safehouse = pickSafehouseType();
+    });
 
     const stairsQuadrant = Math.floor(Math.random() * 4);
     roomsById[quadrants[stairsQuadrant].bossRoomId].guardsStairs = true;
 
+    // Départ : si c'est un tronçon d'avenue, le quartier « courant » (décor, mobs) est celui du bloc le
+    // plus proche, jusqu'au premier bloc traversé.
+    const start = roomsById[floor.startRoomId];
+    let startQuadrant = start.quadrant;
+    if (startQuadrant === null) {
+        const hops = hopDistances(roomsAdjacency(roomsById), [start.id]);
+        const nearest = Object.values(roomsById)
+            .filter(r => r.zone === 'block')
+            .sort((a, b) => (hops[a.id] - hops[b.id]) || (a.id < b.id ? -1 : 1))[0];
+        startQuadrant = nearest.quadrant;
+    }
+
     gameState.floorMap = {
+        version: FLOOR_MAP_VERSION,
+        geometry: floor.geometry,
         quadrants,
         roomsById,
         stairsQuadrant,
-        currentQuadrant: 0,
-        currentRoomId: quadrants[0].entryRoomId
+        currentQuadrant: startQuadrant,
+        currentRoomId: start.id,
+        startRoomId: start.id
     };
-    roomsById[quadrants[0].entryRoomId].visited = true;
-    gameState.currentDistrict = quadrants[0].district;
+    start.visited = true;
+    gameState.currentDistrict = quadrants[startQuadrant].district;
 
-    // CAFET_ASSOMBRIE (anomalies.js) : une pièce normale au hasard (jamais l'entrée, un boss ou une
-    // salle sécurisée) cache un piège sévère + un trésor nettement supérieur — voir enterRoom().
+    // CAFET_ASSOMBRIE (anomalies.js) : une salle ordinaire d'un bloc au hasard (jamais le départ, un boss ou
+    // une salle sûre) cache un piège sévère + un trésor nettement supérieur — voir enterRoom().
     if (gameState.anomalyEffects.cafetRoom) {
-        const candidates = Object.values(roomsById).filter(r => r.type === 'normal' && r.id !== quadrants[0].entryRoomId);
+        const candidates = Object.values(roomsById).filter(r => r.type === 'normal' && r.zone === 'block' && r.id !== start.id);
         if (candidates.length > 0) {
             candidates[Math.floor(Math.random() * candidates.length)].cafetRoom = true;
         }
     }
 }
 
-// Distance pondérée (Dijkstra) entre deux pièces du graphe de l'étage, tous quartiers confondus
-// (les jonctions inter-quartiers sont des arêtes comme les autres). Une artère coûte 1, une ruelle
-// coûte 2 : un trajet par ruelles paraît donc plus long/risqué qu'un trajet par artères, même à
-// nombre de pièces égal. Renvoie null si aucun chemin n'existe (ne devrait pas arriver, le graphe
-// de l'étage est toujours connexe par construction).
+// Distance de trajet (Dijkstra) entre deux salles de l'étage, tous quartiers et avenues confondus : somme
+// des `cost` des couloirs empruntés — longueur réelle du couloir convertie en unités de trajet, × 0,5 sur les
+// avenues (ZONE_TYPES.avenue.travelMult, floorgen.js), plus rapides et plus sûres. Le temps et le risque
+// d'embuscade d'un trajet en dépendent (voir travelToRoom()). Arrondie au dixième. null si aucun chemin
+// (ne devrait pas arriver, l'étage est connexe par construction).
 function computeDistance(fromRoomId, toRoomId) {
     if (fromRoomId === toRoomId) return 0;
+    const path = computeFloorPath(fromRoomId, toRoomId);
+    return path ? Math.round(path.cost * 10) / 10 : null;
+}
+
+// Plus court chemin (Dijkstra sur les `cost`) : { cost, rooms: [ids, départ et arrivée compris] } ou null.
+// `canPass(id)` limite les salles intermédiaires (ex. seulement les salles visitées, voir planTravelToRoom()).
+function computeFloorPath(fromRoomId, toRoomId, canPass = null) {
     const roomsById = gameState.floorMap.roomsById;
     const dist = { [fromRoomId]: 0 };
+    const prev = {};
     const visited = new Set();
 
     while (true) {
@@ -4277,21 +4294,27 @@ function computeDistance(fromRoomId, toRoomId) {
                 currentId = id;
             }
         }
-        if (currentId === null) break;
-        if (currentId === toRoomId) return currentCost;
+        if (currentId === null) return null;
+        if (currentId === toRoomId) {
+            const rooms = [toRoomId];
+            while (rooms[0] !== fromRoomId) rooms.unshift(prev[rooms[0]]);
+            return { cost: currentCost, rooms };
+        }
 
         visited.add(currentId);
         const room = roomsById[currentId];
         if (!room) continue;
         room.neighbors.forEach(edge => {
-            const weight = edge.kind === 'artery' ? 1 : 2;
+            // `canPass` (optionnel) : salles traversables en chemin (la destination l'est toujours).
+            if (canPass && edge.to !== toRoomId && !canPass(edge.to)) return;
+            const weight = edge.cost !== undefined ? edge.cost : (edge.kind === 'artery' ? 1 : 2);
             const newCost = currentCost + weight;
             if (dist[edge.to] === undefined || newCost < dist[edge.to]) {
                 dist[edge.to] = newCost;
+                prev[edge.to] = currentId;
             }
         });
     }
-    return null;
 }
 
 // ==========================================
@@ -4934,7 +4957,7 @@ const URBAN_MAP_BACKGROUND = (() => {
 })();
 
 // Ajoute une route bidirectionnelle entre deux villes (aucun doublon), avec une distance 1-4 —
-// même échelle que le coût de trajet des lieux connus classiques (voir travelToKnownLocation()).
+// même échelle que le coût de trajet des trajets d'un étage classique (voir travelToRoom()).
 function addCityRoad(citiesById, aId, bId) {
     if (aId === bId || citiesById[aId].roads.some(r => r.to === bId)) return;
     const distance = 1 + Math.floor(Math.random() * 4);
@@ -5148,7 +5171,7 @@ function computeCityDistance(fromCityId, toCityId) {
     return null;
 }
 
-// Voyage vers une ville connue du réseau urbain — calqué sur travelToKnownLocation() (coût en
+// Voyage vers une ville connue du réseau urbain — calqué sur travelToRoom() (coût en
 // temps + embuscades proportionnels à la distance réelle), mais entre villes plutôt que vers un
 // lieu connu de donjon classique. Les embuscades utilisent le thème unique de l'étage sans aucune
 // adaptation (gameState.currentDistrict y est déjà aligné par generateUrbanFloorMap()).
@@ -5564,7 +5587,7 @@ function updateShopUI() {
 }
 
 // Reconstruit le panneau "Carte Urbaine" : liste des villes connues, avec leur statut (ici / gardée /
-// escalier / Sortie) et un bouton pour s'y rendre — même esprit que updateKnownLocationsUI(), mais
+// escalier / Sortie) et un bouton pour s'y rendre — même esprit que la carte des étages classiques, mais
 // pour le réseau villes/routes plutôt que les lieux connus classiques d'un donjon.
 // Adapte le réseau villes/routes courant au format générique nœuds/arêtes attendu par
 // computeGraphLayout()/renderGraphMiniMap() : seule fonction qui connaît la forme des données du
@@ -5666,8 +5689,134 @@ function recenterUrbanMap() {
     updateUrbanMapUI();
 }
 
+// ---------- Carte stylisée des étages classiques (chantier 5, voir NOTES_CARTE.md) ----------
+// Rendu pur dans floormap.js (buildFloorMapSvg()) ; ici, le panneau : vue (zoom + caméra, préférences
+// d'affichage — variables de module comme mapPanelOpen, jamais sauvegardées), salle sélectionnée et bulle
+// « Y aller / Annuler » (travelToRoom()), glissement et toucher (attachés UNE fois, voir plus bas).
+let floorMapZoom = FLOOR_MAP_DEFAULT_ZOOM;
+let floorMapCamera = null;      // null = centrée sur le crawler ; {x, y} = centre choisi en glissant
+let floorMapSelectedRoomId = null;
+let floorMapLiveView = null;    // fenêtre affichée au dernier rendu (monde), pour le glissement et le toucher
+
+// Contenu de la bulle pour une salle (pure vis-à-vis du DOM) : { title, text } ou null si hors d'atteinte.
+function describeFloorMapTravel(roomId) {
+    const plan = planTravelToRoom(roomId);
+    if (!plan) return null;
+    const risk = plan.ambushChance > 0 ? `, risque d'embuscade ${Math.round(plan.ambushChance)} %` : "";
+    if (plan.exploreStep && plan.timeCost === 0) {
+        return { title: `Explorer : ${plan.label}`, text: "Un pas dans l'inconnu (-1 H), comme en touchant la scène, mais par là." };
+    }
+    if (plan.exploreStep) {
+        return { title: `Explorer : ${plan.label}`, text: `Trajet par le chemin connu (-${plan.timeCost} H${risk}), puis un pas dans l'inconnu (-1 H).` };
+    }
+    return { title: `Aller : ${plan.label}`, text: `Trajet par le chemin connu : -${plan.timeCost} H${risk}.` };
+}
+
+function updateFloorMapUI() {
+    if (!ui.floorMapSvg) return;
+    const fm = gameState.floorMap;
+    if (!fm || !fm.geometry) {
+        ui.floorMapSvg.innerHTML = "";
+        floorMapSelectedRoomId = null;
+        if (ui.floorMapBubble) ui.floorMapBubble.classList.add('hidden');
+        return;
+    }
+    const view = floorMapDefaultView(fm, floorMapZoom, floorMapCamera);
+    floorMapLiveView = view;
+    ui.floorMapSvg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
+    if (floorMapSelectedRoomId && (floorMapSelectedRoomId === fm.currentRoomId || !planTravelToRoom(floorMapSelectedRoomId))) floorMapSelectedRoomId = null;
+    ui.floorMapSvg.innerHTML = buildFloorMapSvg(fm, { landmarks: listFloorLandmarks(), selectedRoomId: floorMapSelectedRoomId });
+
+    const info = floorMapSelectedRoomId ? describeFloorMapTravel(floorMapSelectedRoomId) : null;
+    if (ui.floorMapBubble) ui.floorMapBubble.classList.toggle('hidden', !info);
+    if (info) {
+        if (ui.floorMapBubbleTitle) ui.floorMapBubbleTitle.innerText = info.title;
+        if (ui.floorMapBubbleText) ui.floorMapBubbleText.innerText = info.text;
+    }
+}
+
+// Toucher la carte au point (monde) : sélectionne la salle connue la plus proche (bulle), ou referme la bulle.
+function selectFloorMapRoomAt(x, y) {
+    const fm = gameState.floorMap;
+    if (!fm) return null;
+    const id = floorMapHitTest(fm, x, y);
+    floorMapSelectedRoomId = id && id !== fm.currentRoomId && planTravelToRoom(id) ? id : null;
+    updateFloorMapUI();
+    return floorMapSelectedRoomId;
+}
+
+// Bouton « Y aller » de la bulle.
+function confirmFloorMapTravel() {
+    const id = floorMapSelectedRoomId;
+    floorMapSelectedRoomId = null;
+    if (!id) { updateFloorMapUI(); return null; }
+    const plan = travelToRoom(id);
+    updateFloorMapUI();
+    return plan;
+}
+
+function cancelFloorMapTravel() {
+    floorMapSelectedRoomId = null;
+    updateFloorMapUI();
+}
+
+// ＋ / － (index de FLOOR_MAP_ZOOMS : 0 = vue d'ensemble) et ◎ (retour sur le crawler).
+function zoomFloorMap(delta) {
+    floorMapZoom = Math.max(0, Math.min(FLOOR_MAP_ZOOMS.length - 1, floorMapZoom + delta));
+    updateFloorMapUI();
+}
+
+function recenterFloorMap() {
+    floorMapCamera = null;
+    updateFloorMapUI();
+}
+
+// Glissement (souris et tactile) et toucher sur la carte : attachés UNE seule fois au <svg> (jamais à
+// chaque rendu). Pendant le glissement, seul le viewBox bouge ; à la fin, la caméra est mémorisée. Un
+// relâchement sous 6 px de mouvement est un toucher, résolu par position MONDE (floorMapHitTest()) —
+// pas par le `click` natif, peu fiable après une capture de pointeur (voir renderGraphMiniMap()).
+function attachFloorMapPointerHandlers(svg) {
+    if (!svg || !svg.addEventListener) return;
+    let drag = null;
+    const toWorld = (e, view) => {
+        const rect = svg.getBoundingClientRect ? svg.getBoundingClientRect() : { left: 0, top: 0, width: view.w, height: view.h };
+        // preserveAspectRatio « meet » : même échelle sur les deux axes, fenêtre centrée.
+        const scale = Math.max(view.w / (rect.width || view.w), view.h / (rect.height || view.h));
+        const offX = (rect.width * scale - view.w) / 2, offY = (rect.height * scale - view.h) / 2;
+        return { x: view.x + (e.clientX - rect.left) * scale - offX, y: view.y + (e.clientY - rect.top) * scale - offY, scale };
+    };
+    svg.addEventListener('pointerdown', (e) => {
+        if (!floorMapLiveView) return;
+        const w = toWorld(e, floorMapLiveView);
+        drag = { startX: e.clientX, startY: e.clientY, view: { ...floorMapLiveView }, scale: w.scale, moved: false, pointerId: e.pointerId };
+        if (svg.setPointerCapture) { try { svg.setPointerCapture(e.pointerId); } catch (err) { /* déjà relâché */ } }
+    });
+    svg.addEventListener('pointermove', (e) => {
+        if (!drag || !gameState.floorMap) return;
+        const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+        if (!drag.moved && Math.hypot(dx, dy) <= 6) return;
+        drag.moved = true;
+        const moved = clampFloorMapView({ ...drag.view, x: drag.view.x - dx * drag.scale, y: drag.view.y - dy * drag.scale }, gameState.floorMap);
+        floorMapLiveView = moved;
+        svg.setAttribute('viewBox', `${moved.x} ${moved.y} ${moved.w} ${moved.h}`);
+    });
+    const end = (e) => {
+        if (!drag) return;
+        if (svg.releasePointerCapture && drag.pointerId !== undefined) { try { svg.releasePointerCapture(drag.pointerId); } catch (err) { /* déjà relâché */ } }
+        if (drag.moved) {
+            floorMapCamera = { x: floorMapLiveView.x + floorMapLiveView.w / 2, y: floorMapLiveView.y + floorMapLiveView.h / 2 };
+        } else if (e && e.type === 'pointerup' && !isActionBlocked()) {
+            const w = toWorld(e, drag.view);
+            selectFloorMapRoomAt(w.x, w.y);
+        }
+        drag = null;
+    };
+    svg.addEventListener('pointerup', end);
+    svg.addEventListener('pointercancel', end);
+}
+
 // Point d'entrée unique pour "arriver" dans une pièce, que ce soit en explorant normalement ou en
-// y retournant via un lieu connu (voir arriveAtDestination) : le comportement est donc identique
+// y voyageant depuis la carte (voir arriveAtDestination) : le comportement est donc identique
 // dans les deux cas.
 function enterRoom(room) {
     const firstVisit = !room.visited;
@@ -5690,7 +5839,7 @@ function enterRoom(room) {
     if (room.type === 'safe') {
         // Entrée à choix explicite (chantier "QoL/équilibrage" — voir restAtSafehouse()/
         // leaveSafehouse() plus bas) : plus de soin automatique ni de coût de temps à l'entrée
-        // elle-même. La salle est enregistrée comme lieu connu dès l'entrée, quelle que soit l'issue
+        // elle-même. La salle est marquée sur la carte dès l'entrée (visitée), quelle que soit l'issue
         // choisie ensuite (comportement conservé de l'ancienne version).
         const safehouse = room.safehouse || { name: "Salle Sécurisée", icon: "🏥", desc: "" };
         gameState.safehouseChoicePending = true;
@@ -5703,7 +5852,6 @@ function enterRoom(room) {
                 : `Vous retrouvez ${safehouse.name}, toujours aussi accueillant.`,
             "info"
         );
-        registerKnownLocation({ id: `safe-${room.id}`, type: 'safeRoom', roomId: room.id, label: safehouse.name, icon: safehouse.icon });
 
         updateSafehouseRestButtons();
         ui.safehouseChoiceZone.classList.remove('hidden');
@@ -5805,7 +5953,7 @@ function restAtSafehouse(kind = 'nap') {
 }
 
 // Choix "Partir" d'une salle sécurisée : gratuit, aucun effet — la salle reste visitée et déjà
-// enregistrée comme lieu connu (voir enterRoom()), simplement réutilisable lors d'un futur passage.
+// marquée sur la carte (voir listFloorLandmarks()), simplement réutilisable lors d'un futur passage.
 function leaveSafehouse() {
     if (!gameState.safehouseChoicePending) return;
     gameState.safehouseChoicePending = false;
@@ -5838,7 +5986,7 @@ function triggerCafetRoom(room) {
 // (room.bossInstance), pour rester le même monstre si le joueur repère puis revient plus tard.
 function triggerBossEncounter(room) {
     if (!room.bossInstance) {
-        const district = gameState.floorMap.quadrants[room.quadrant].district;
+        const district = roomDistrict(room) || gameState.currentDistrict;
         room.bossInstance = generateBoss(district) || generateMob(district);
     }
     const boss = room.bossInstance;
@@ -5877,8 +6025,8 @@ function fightBossNow() {
     initiateCombat(room.bossInstance);
 }
 
-// Bouton "Repérer et partir" de la zone de choix de boss : mémorise l'emplacement comme lieu
-// connu, sans y descendre/combattre. Dispatche vers retreatFromUrbanBoss() sur un étage urbain.
+// Bouton "Repérer et partir" de la zone de choix de boss : l'antre reste marquée 👑 sur la carte,
+// sans y descendre/combattre. Dispatche vers retreatFromUrbanBoss() sur un étage urbain.
 function retreatFromBoss() {
     if (gameState.pendingUrbanBossEncounter) {
         retreatFromUrbanBoss();
@@ -5888,18 +6036,8 @@ function retreatFromBoss() {
     gameState.bossChoicePending = false;
     ui.bossChoiceZone.classList.add('hidden');
     gameState.pendingBossEncounter = null;
-    if (encounter) {
-        const room = gameState.floorMap.roomsById[encounter.roomId];
-        const district = room ? gameState.floorMap.quadrants[room.quadrant].district : 'quartier inconnu';
-        registerKnownLocation({
-            id: `boss-${encounter.roomId}`,
-            type: encounter.guardsStairs ? 'stairs' : 'boss',
-            roomId: encounter.roomId,
-            label: encounter.guardsStairs ? `Escalier gardé (${district})` : `Boss (${district})`
-        });
-    }
-    logEvent("Vous repérez soigneusement l'endroit et repartez explorer.", "info");
-    updateKnownLocationsUI();
+    // L'antre reste marquée 👑 sur la carte (salle visitée, boss non vaincu — voir listFloorLandmarks()).
+    logEvent(encounter ? "Vous repérez soigneusement l'endroit (marqué sur votre carte) et repartez explorer." : "Vous repérez soigneusement l'endroit et repartez explorer.", "info");
     updateUI();
 }
 
@@ -7809,7 +7947,7 @@ function winCombat() {
     if (defeatedEnemy && onBountyVictory(defeatedEnemy)) return;
 
     // Si ce combat était une salle de boss du quartier (escalier ou non), la salle est désormais
-    // calme : on la marque vaincue et on retire le lieu connu correspondant, s'il existait.
+    // calme : on la marque vaincue (son marqueur de carte passe de 👑 à 🪜 si elle gardait l'escalier).
     // Pièce / ville du gardien vaincu, gardées pour le choix d'escalier plus bas (ces deux champs sont
     // remis à zéro juste en dessous).
     const defeatedBossRoomId = gameState.pendingBossRoomId;
@@ -7817,7 +7955,6 @@ function winCombat() {
     if (gameState.pendingBossRoomId) {
         const bossRoom = gameState.floorMap && gameState.floorMap.roomsById[gameState.pendingBossRoomId];
         if (bossRoom) bossRoom.defeated = true;
-        removeKnownLocation(`boss-${gameState.pendingBossRoomId}`);
         gameState.pendingBossRoomId = null;
     }
     // Équivalent urbain : la ville gardienne (escalier ou Sortie) est désormais vaincue, elle reste
@@ -7901,34 +8038,26 @@ function winCombat() {
 // ==========================================
 // 2. BOUCLE DE GAMEPLAY
 // ==========================================
-// Depuis une pièce donnée, trouve la pièce-frontière (avec au moins un voisin non visité) la plus
-// proche par BFS (hors la pièce de départ elle-même). Utilisé pour la nouvelle option "Chemin
-// connu -> Bifurcation la plus proche", qui voyage jusqu'à cette pièce comme un lieu connu
-// (coût en temps + risque d'embuscade proportionnels à la distance réelle).
-function findNearestFrontierRoom(startRoomId) {
-    const roomsById = gameState.floorMap.roomsById;
-    const seen = new Set([startRoomId]);
-    const queue = [startRoomId];
-
-    while (queue.length > 0) {
-        const id = queue.shift();
-        const room = roomsById[id];
-        const isFrontier = room.neighbors.some(edge => !roomsById[edge.to].visited);
-        if (id !== startRoomId && isFrontier) return id;
-        room.neighbors.forEach(edge => {
-            if (!seen.has(edge.to)) {
-                seen.add(edge.to);
-                queue.push(edge.to);
-            }
-        });
-    }
-    return null;
+// Salle aperçue (inconnue, voisine d'une salle visitée) la plus proche en distance de trajet depuis la
+// salle courante, en ne passant que par des salles visitées (voir planTravelToRoom()). À égalité, au hasard.
+function findNearestSeenRoom() {
+    const fm = gameState.floorMap;
+    let best = [];
+    let bestDist = Infinity;
+    Object.values(fm.roomsById).forEach(room => {
+        if (!isRoomSeen(room)) return;
+        const plan = planTravelToRoom(room.id);
+        if (!plan) return;
+        if (plan.distance < bestDist - 1e-9) { best = [room.id]; bestDist = plan.distance; }
+        else if (Math.abs(plan.distance - bestDist) < 1e-9) best.push(room.id);
+    });
+    return best.length > 0 ? best[Math.floor(Math.random() * best.length)] : null;
 }
 
 // Étape d'exploration proprement dite : consomme le temps et avance vers un voisin non visité au
-// hasard. Appelée directement dès qu'un voisin non visité existe (bifurcation ou non) ; sinon,
+// hasard (ou vers `targetRoomId`, voisin inconnu choisi sur la carte). Appelée directement dès qu'un voisin non visité existe (bifurcation ou non) ; sinon,
 // c'est autoTravelToNearestFrontier() qui prend le relais.
-function performExploreStep() {
+function performExploreStep(targetRoomId = null) {
     const roomsById = gameState.floorMap.roomsById;
     const current = roomsById[gameState.floorMap.currentRoomId];
 
@@ -7949,59 +8078,40 @@ function performExploreStep() {
         updateUI();
         return;
     }
-    const nextRoomId = unvisitedNeighbors[Math.floor(Math.random() * unvisitedNeighbors.length)].to;
+    // `targetRoomId` (exploration depuis la carte, voir exploreFromMap()) : une salle voisine inconnue précise,
+    // sinon une au hasard.
+    const chosen = targetRoomId && unvisitedNeighbors.find(edge => edge.to === targetRoomId);
+    const nextRoomId = chosen ? chosen.to : unvisitedNeighbors[Math.floor(Math.random() * unvisitedNeighbors.length)].to;
     const nextRoom = roomsById[nextRoomId];
-    const changedQuadrant = nextRoom.quadrant !== gameState.floorMap.currentQuadrant;
-
-    gameState.floorMap.currentRoomId = nextRoomId;
-    gameState.floorMap.currentQuadrant = nextRoom.quadrant;
-
-    if (changedQuadrant) {
-        gameState.currentDistrict = gameState.floorMap.quadrants[nextRoom.quadrant].district;
-        logEvent(`Le couloir débouche sur un nouveau secteur. Vous entrez dans : ${gameState.currentDistrict}.`, "info");
-    }
+    announceZoneChange(current, nextRoom, moveToFloorRoom(nextRoom));
 
     enterRoom(nextRoom);
     recordRunEvent('explore'); // Réévalue les succès liés à l'état (PO en poche, réserve pleine…)
     updateUI();
 }
 
-// Si la pièce courante n'a plus aucun voisin non visité, part automatiquement vers la bifurcation
-// inexplorée la plus proche (même système de coût/risque que pour un lieu connu), sans demander
-// confirmation : à égalité de distance, le choix se fait au hasard (via findNearestFrontierRoom,
-// qui explore le graphe dans un ordre non biaisé).
+// Annonce le passage d'une zone à l'autre (bloc -> avenue, avenue -> bloc, bloc -> autre quartier).
+function announceZoneChange(from, to, changedQuadrant) {
+    if (roomZone(to) === 'avenue' && roomZone(from) !== 'avenue') {
+        logEvent("Vous débouchez sur une avenue : large, éclairée, et pleine de monde.", "info");
+    } else if (roomZone(to) === 'block' && (changedQuadrant || roomZone(from) === 'avenue')) {
+        logEvent(`Vous franchissez une porte. Vous entrez dans : ${gameState.currentDistrict}.`, "info");
+    }
+}
+
+// Si la salle courante n'a plus aucun voisin inconnu, part automatiquement vers la salle aperçue la plus
+// proche (même trajet qu'un voyage sur carte, voir travelToRoom() : temps et embuscades selon la distance,
+// puis le pas dans l'inconnu), sans demander confirmation.
 function autoTravelToNearestFrontier() {
-    const frontierRoomId = findNearestFrontierRoom(gameState.floorMap.currentRoomId);
-    if (!frontierRoomId) {
+    const targetId = findNearestSeenRoom();
+    if (!targetId) {
         setSceneHeader('🗺️', 'Étage Entièrement Exploré', 'Exploration', 'floorCleared');
         logEvent("Vous avez arpenté chaque recoin accessible de cet étage. Direction l'escalier ?", "info");
         updateUI();
         return;
     }
-
-    const location = { id: 'frontier', type: 'frontier', roomId: frontierRoomId, label: 'Zone inexplorée la plus proche' };
-    const distance = computeDistance(gameState.floorMap.currentRoomId, frontierRoomId);
-    const timeCost = Math.max(1, Math.round(distance / 2));
-    const ambushBaseChance = computeAmbushBaseChance(distance); // Compagnon Garde : moins d'embuscades
-    let ambushCount = 0;
-    if (Math.random() * 100 < ambushBaseChance) {
-        ambushCount = 1;
-        if (Math.random() * 100 < ambushBaseChance * 0.6) ambushCount = 2;
-    }
-
-    gameState.timeLeft = Math.max(0, gameState.timeLeft - timeCost);
-    applyTimeElapsedRegen(timeCost);
-    gameState.pendingTravel = { destination: location, ambushesRemaining: ambushCount };
-    logEvent(`Ce secteur est entièrement connu : vous filez vers une zone inexplorée (${distance}, -${timeCost}H)...`, "info");
-    if (ambushCount > 0) {
-        logEvent("Le trajet ne s'annonce pas de tout repos...", "danger");
-    }
-
-    if (gameState.timeLeft <= 0) {
-        gameOver(true);
-        return;
-    }
-    triggerNextAmbushOrArrive();
+    logEvent("Ce secteur est entièrement connu : vous filez vers la zone inexplorée la plus proche.", "info");
+    travelToRoom(targetId);
 }
 
 function explore() {
@@ -8351,6 +8461,12 @@ ui.btnDeclineLair.addEventListener('click', declineLair);
 
 // Bouton "Recentrer" de la Carte Urbaine (voir recenterUrbanMap())
 if (ui.btnRecenterMap) ui.btnRecenterMap.addEventListener('click', recenterUrbanMap);
+attachFloorMapPointerHandlers(ui.floorMapSvg);
+if (ui.btnFloorMapGo) ui.btnFloorMapGo.addEventListener('click', confirmFloorMapTravel);
+if (ui.btnFloorMapCancel) ui.btnFloorMapCancel.addEventListener('click', cancelFloorMapTravel);
+if (ui.btnFloorMapZoomIn) ui.btnFloorMapZoomIn.addEventListener('click', () => zoomFloorMap(1));
+if (ui.btnFloorMapZoomOut) ui.btnFloorMapZoomOut.addEventListener('click', () => zoomFloorMap(-1));
+if (ui.btnFloorMapRecenter) ui.btnFloorMapRecenter.addEventListener('click', recenterFloorMap);
 
 // Clic sur le kit de test (bouton discret)
 ui.btnDevTestKit.addEventListener('click', giveTestKit);
@@ -8362,7 +8478,6 @@ showFloorArrivalScene();
 updateUI();
 updateInventoryUI();
 updateSpellbookUI();
-updateKnownLocationsUI();
 updateCompanionUI();
 
 // Indice de sauvegardes existantes sur l'écran de départ (voir listSavedCrawlerNames())

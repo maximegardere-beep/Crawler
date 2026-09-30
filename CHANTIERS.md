@@ -27,7 +27,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Codé** — à playtester | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | **Codé** — à playtester | 2, 1, 3 (faits) |
-| 5 | Rework de la carte + génération des étages | XL | **Plan final révisé** (à valider) | — |
+| 5 | Rework de la carte + génération des étages | XL | **Codé** (à playtester) | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
 | 8 | Sons | M | Idée (ancien backlog) | hébergement des fichiers non tranché |
@@ -414,7 +414,7 @@ Les 5 lots sont livrés (détail et points à surveiller : `NOTES_DEATHWATCH.md`
 codant : l'émission n'a lieu que dans une vraie partie (nom confirmé), comme les succès ; l'échec « −2 H »
 ne peut jamais tuer (au moins 1 H reste).
 
-## 5. Rework de la carte + génération des étages — XL — Plan final révisé proposé
+## 5. Rework de la carte + génération des étages — XL — Codé (à playtester)
 
 **Demande** : zoom, réseau plus complexe et logique, bouton carte pour les étages non urbains ; **revoir
 la génération des couloirs et des salles, de mauvaise qualité**. Méthode demandée : prendre le temps,
@@ -684,7 +684,18 @@ Lot 3 (M1) et lot 5 partagent la même bulle et la même fonction de trajet (`tr
 de les livrer à la suite.
 
 ### Décisions
-- M2 (portes dans la scène) abandonné ; **P1** retenu. Plan final révisé en attente de validation.
+- M2 (portes dans la scène) abandonné ; **P1** retenu. Plan final révisé **validé** (« Go »).
+
+### Codé
+Voir `NOTES_CARTE.md` (détail, chiffres, points à surveiller) :
+1. `floorgen.js` (générateur pur, `FLOOR_LAYOUT`/`ROOM_TYPES`/`ZONE_TYPES`) + `npm run sim:floors`.
+2. Branchement moteur : `generateFloorMap()`, distance réelle (`computeFloorPath()`), `config.avenueChances`,
+   chasseurs ×2 sur les avenues, LABYRINTHE / CAFET_ASSOMBRIE, `FLOOR_MAP_VERSION` (étage regénéré pour une
+   sauvegarde ancienne plutôt que de la supprimer).
+3. M1 : `travelToRoom()`, repères dérivés (`listFloorLandmarks()`), fin des « Lieux connus ».
+4. Carte stylisée : `floormap.js` + panneau `#floor-map-overlay` (zoom, glissement, brouillard, bulle).
+5. P1 : salle aperçue touchable, trajet + pas dans l'inconnu en un geste.
+6. Tests `tests/regression/floor-map.js`, simulation longue (voyages sur carte), documentation.
 
 ## 6. Mini-jeux d'exploration — ? — En attente
 

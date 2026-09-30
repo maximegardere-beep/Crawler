@@ -4,7 +4,7 @@ Rogue-like textuel minimaliste inspiré de Dungeon Crawler Carl. GitHub Pages, H
 Tailwind CDN, **aucun build step**.
 
 ## Fichiers
-- `index.html` — UI (scène d'exploration, combat, inventaire, grimoire, "Lieux connus"/"Carte Urbaine", Game Over/Victoire)
+- `index.html` — UI (scène d'exploration, combat, inventaire, grimoire, carte de l'étage / "Carte Urbaine", Game Over/Victoire)
 - `app.js` — moteur : état, exploration, combat, niveau/XP, compétences, équipement, magie/mana, compagnons, carte d'étage
 - `bestiary.js` — monstres de base + boss de quartier (`districtBosses`)
 - `items.js` — objets de base, raretés (`itemRarities`), réglages du loot (`itemBalance`), qualificatifs (`itemQualifiers`)
@@ -15,8 +15,14 @@ Tailwind CDN, **aucun build step**.
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
 - `achievements.js` — chronique de run et succès (catalogue pur `ACHIEVEMENTS`, paliers, `createEmptyRunStats()`,
   indice de domination `computeDominance()`), chargé juste après `anomalies.js`
-- `deathwatch.js` — émission DeathWatch (catalogue pur : présentateur, piques à trous, répliques, réactions,
-  `pickShowTaunt()`/`fillShowTemplate()`), chargé juste après `achievements.js`
+- `deathwatch.js` — émission DeathWatch (catalogue pur : présentateur, piques à trous (avec `theme`),
+  répliques par thème de pique et par ton, réactions, `pickShowTaunt()`/`getShowReplyLines()`/
+  `fillShowTemplate()`), chargé juste après `achievements.js`
+- `floorgen.js` — génération PURE des étages classiques (chantier 5, voir `NOTES_CARTE.md`) : réglages
+  `FLOOR_LAYOUT`, catalogues `ROOM_TYPES`/`ZONE_TYPES`, `generateBorough()` (hasard injectable,
+  `createFloorRng(seed)`), mesures `measureBorough()` ; chargé après `deathwatch.js`
+- `floormap.js` — rendu PUR de la carte stylisée des étages classiques (`buildFloorMapSvg()`,
+  `floorMapHitTest()`, zooms `FLOOR_MAP_ZOOMS`), chargé après `floorgen.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
   que le fichier concerné) : `crawler.js` (crawler + cadavre vu de dessus), `npcs.js` (compagnon, marchand,
   professeur), `mobs.js` (10 silhouettes d'archétype avec palette naturelle, couronne de boss),
@@ -40,12 +46,47 @@ Tailwind CDN, **aucun build step**.
 - `CHANTIERS.md` — registre des chantiers planifiés (voir « Gros chantiers à venir »)
 
 ## Architecture (résumé)
-- Étage = zone circulaire à **4 quartiers fixes** générés à l'entrée (`generateFloorMap()`), graphe
-  de pièces reliées par couloirs artère (rapide/sûr) ou ruelle (lent/risqué).
+- **Étage classique = un « borough »** (chantier 5 « rework de la carte », voir `NOTES_CARTE.md`) :
+  `generateFloorMap()` habille le résultat du générateur PUR `generateBorough()` (`floorgen.js`) —
+  4 blocs de quartier (2 × 2, un quartier chacun) séparés par des **avenues** (croix + anneau, 12
+  tronçons = salles de la zone `avenue`, `quadrant: null`). Chaque bloc : 12-14 salles rectangulaires
+  (géométrie réelle `x/y/w/h` en cases, taille S/M/L), jamais collées, reliées par un arbre couvrant
+  minimal + 1-3 boucles courtes (aucun couloir croisé), grande salle de boss à ≥ 3 salles des 2-3
+  **portes** qui donnent sur les avenues (jamais dans un boss), 1-2 salles sûres à mi-profondeur. Tout
+  réglage dans `FLOOR_LAYOUT` ; ajouter un type de salle = une entrée de `ROOM_TYPES` (+ son effet dans
+  `enterRoom()`), une zone = une entrée de `ZONE_TYPES`. `npm run sim:floors` mesure la qualité sur des
+  centaines d'étages. Départ aléatoire hors de danger (`pickSafeStartRoom()` : salle ordinaire ou
+  avenue, ≥ 3 salles de tout boss) ; sur une avenue, le quartier courant (décor, mobs) reste le dernier
+  bloc traversé (`moveToFloorRoom()`, `roomDistrict()`, `roomZone()`). Couloirs `{ to, length, cost,
+  kind: 'corridor'|'door'|'avenue' }` : `computeDistance()`/`computeFloorPath()` (Dijkstra) somment les
+  `cost` = longueur réelle / `cellsPerDistanceUnit` × `ZONE_TYPES[zone].travelMult` (avenues ×0,5 :
+  temps ET risque de trajet deux fois moindres). Table d'événements par zone : `getZoneEventTable()`
+  (`config.chances` dans un bloc, `config.avenueChances` sur une avenue : moins de combats/pièges, plus
+  de crawlers, PO et cadeaux du public) ; chasseurs de primes ×2 sur les avenues
+  (`ZONE_TYPES.avenue.hunterMult`, `maybeSpawnBountyHunter()`). `gameState.floorMap.version` =
+  `FLOOR_MAP_VERSION` : une sauvegarde d'un format antérieur voit son étage en cours regénéré à la
+  restauration (même numéro d'étage), le crawler garde tout le reste.
 - 1 boss par quartier ; l'escalier est gardé par l'un des 4. "Repérer et partir" garde le même mob
-  en cache sur sa pièce, combattable plus tard via "Lieux connus" (distance réelle par Dijkstra,
-  `computeDistance()`, coût/risque de trajet proportionnels).
-- Salles sécurisées : pièces fixes, thème tiré dans `safehouses.js`, deviennent un lieu connu.
+  en cache sur sa pièce (marqué 👑 sur la carte), combattable plus tard en y retournant par la carte.
+- **Carte + voyage** (plus de liste « Lieux connus ») : `#floor-map-overlay` (panneau sous la scène,
+  ouvert/fermé par `#btn-toggle-map` comme la Carte Urbaine, masqué pendant une situation), rendu par
+  `buildFloorMapSvg()` (`floormap.js`) : blocs teintés (nom du quartier une fois visité, sinon « ??? »),
+  avenues toujours visibles, brouillard (salle visitée pleine, *aperçue* — voisine d'une visitée,
+  `isRoomSeen()` — en pointillé « ? », inconnue invisible), repères `listFloorLandmarks()` DÉRIVÉS des
+  salles (👑 boss repéré, 🪜 escalier libre, salle sûre visitée — aucun registre séparé), pion du crawler.
+  Zoom ＋/－ (`zoomFloorMap()`, `FLOOR_MAP_ZOOMS`), ◎ (`recenterFloorMap()`), glissement souris/tactile
+  (`attachFloorMapPointerHandlers()`, attaché UNE fois ; tap résolu par `floorMapHitTest()` en coordonnées
+  monde). Vue/zoom/sélection = variables de module (préférences d'affichage, jamais sauvegardées).
+  Toucher une salle visitée ou aperçue → bulle `#floor-map-bubble` (`describeFloorMapTravel()` : temps,
+  risque) → « Y aller » (`confirmFloorMapTravel()` → `travelToRoom()`). **M1** : vers une salle visitée,
+  trajet par le chemin CONNU (`planTravelToRoom()`, seulement des salles visitées), temps
+  `max(1, round(distance/2))`, embuscades `computeAmbushBaseChance()`, arrivée par `enterRoom()`.
+  **P1** (explorer depuis la carte, choix de l'utilisateur à la place de portes N/S/E/O dans la scène) :
+  vers une salle aperçue, trajet jusqu'à sa voisine visitée la plus proche puis le pas d'exploration
+  dans l'inconnu (`performExploreStep(targetRoomId)`, −1 H, événement tiré) — un seul geste
+  (`gameState.pendingTravel.exploreRoomId`). Toucher la scène reste l'exploration au hasard ; sans voisin
+  inconnu, `autoTravelToNearestFrontier()` file vers la salle aperçue la plus proche (`findNearestSeenRoom()`).
+- Salles sécurisées : pièces fixes, thème tiré dans `safehouses.js`, marquées sur la carte dès l'entrée.
   **Entrée à choix explicite** (chantier "QoL/équilibrage", voir `NOTES_QOL_EQUILIBRAGE.md`) : plus de
   soin automatique — `enterRoom()` pose `gameState.safehouseChoicePending`/`pendingSafehouseRoomId`
   (inclus dans `isActionBlocked()`) et affiche `#safehouse-choice-zone`, même famille que
@@ -55,7 +96,7 @@ Tailwind CDN, **aucun build step**.
   (`safehouseRestAmounts(kind)`, pure — en pourcentage plutôt qu'en valeur absolue pour rester juste à
   tous les niveaux ; soin ensuite réduit par PEAU_DE_VERRE via `applyPlayerHeal()` comme tout soin),
   gratuits en temps sous REPAS_DE_FAMILLE (anomalies.js) ; `leaveSafehouse()` (Partir) reste gratuit,
-  sans effet — la salle reste de toute façon enregistrée comme lieu connu dès l'entrée, quelle que soit
+  sans effet — la salle reste de toute façon marquée sur la carte dès l'entrée, quelle que soit
   l'issue. `updateSafehouseRestButtons()` écrit sur chaque bouton son coût et ce qu'il rendra. Garde-fou :
   chaque bouton (`#btn-nap-safehouse`/`#btn-sleep-safehouse`) est désactivé dès l'affichage si SON coût
   ferait tomber `timeLeft` à 0 (`canRestAtSafehouse(kind)`), doublé d'une vérification identique dans
@@ -330,8 +371,8 @@ Tailwind CDN, **aucun build step**.
   propose « Descendre » (`descendStairs()` → `triggerFloorTransition()`) ou « Rester sur l'étage »
   (`stayOnFloor()`, aucun effet, le temps continue de s'écouler). Bloque via
   `gameState.stairsChoicePending` (inclus dans `isActionBlocked()`) ; `gameState.pendingStairsChoice` =
-  `{ kind: 'room', roomId }` (étage classique : la salle devient DÈS l'offre le lieu connu « Escalier
-  libre », `stairs-<roomId>`, pour y revenir quoi qu'il arrive, même après une restauration de
+  `{ kind: 'room', roomId }` (étage classique : la salle du gardien vaincu est marquée 🪜 « Escalier libre » sur la
+  carte, `listFloorLandmarks()`, pour y revenir quoi qu'il arrive, même après une restauration de
   sauvegarde) ou `{ kind: 'city', cityId }` (étage urbain : la ville reste sur la Carte Urbaine). Le
   choix est reproposé à chaque retour : `enterRoom()` sur la salle d'un gardien d'escalier vaincu (au
   lieu de l'« antre silencieuse », gardée pour les boss de quartier) et `arriveAtCity()`. La Sortie de
@@ -407,7 +448,7 @@ Tailwind CDN, **aucun build step**.
   `attemptStealthEvasion()` (`stealthCapBonus`/`detectionBonus` NOCTURNE — plafond relevé ET pénalité
   sur la chance de base, calcul indépendant : un fort investissement en Furtivité profite du plafond
   relevé, un faible subit surtout la pénalité), `attackMagic()` (`spellMult`/`backfireBonusPct`
-  ZONE_MAGIQUE), `generateQuadrant()` (`extraRoomsPct` LABYRINTHE, +50% pièces par quartier),
+  ZONE_MAGIQUE), `generateBorough()` (`extraRoomsPct` LABYRINTHE, +50% salles par bloc, bloc agrandi d'autant),
   `handleStealthEncounter()` (`guardedStairsBoost` LABYRINTHE, `eliteBonus` passé à `generateMob()`
   UNIQUEMENT dans le quartier qui garde l'escalier — décale les seuils du jet de modificateurs sans
   toucher au système de boss lui-même), `initiateCombat()` (`mobsActFirst` TEMPO_CREE, frappe
@@ -464,7 +505,7 @@ Tailwind CDN, **aucun build step**.
   équipé). Une salle sécurisée reste le seul moyen fiable de repartir plein PV/mana (Sommeil
   réparateur, 8H, voir `restAtSafehouse()`). Appliqué
   à chaque fois que `gameState.timeLeft` diminue pour une raison "normale" (`performExploreStep()`,
-  `travelToKnownLocation()`, `autoTravelToNearestFrontier()`) — jamais sur la perte de temps punitive du piège "Contretemps", qui
+  `travelToRoom()`, `autoTravelToNearestFrontier()`) — jamais sur la perte de temps punitive du piège "Contretemps", qui
   perdrait sinon son sens.
 - **Écran de départ** : `#start-screen-overlay` (saisie du nom, `confirmPlayerName()`) puis
   `#gift-reveal-overlay` (`revealWelcomeGift()`) recouvrent l'UI de jeu au chargement — celle-ci est
@@ -502,7 +543,7 @@ Tailwind CDN, **aucun build step**.
   QUEL le nom d'un quartier existant de `districts.js`/`bestiary.js` comme thématique unique de tout
   l'étage : `generateMob()`/`generateBoss()` n'ont besoin d'aucune adaptation (`gameState.currentDistrict`
   y reste aligné en permanence). Déplacement via `travelToCity()` — calqué sur
-  `travelToKnownLocation()` (coût en temps + embuscades proportionnels à `computeCityDistance()`,
+  `travelToRoom()` (coût en temps + embuscades proportionnels à `computeCityDistance()`,
   Dijkstra équivalent à `computeDistance()`) — avec découverte progressive (`city.known`, révélé
   ville par ville via `revealCityNeighbors()`). Une ville (jamais la ville de départ) porte
   l'escalier, avec une chance de garde croissante avec la profondeur
@@ -520,9 +561,8 @@ Tailwind CDN, **aucun build step**.
   `mapPanelOpen` est une variable de module, préférence d'affichage et non état de jeu) ; toucher la
   scène sur un étage urbain la rouvre au lieu d'explorer (pas d'exploration libre ici). Panneau et
   bouton sont masqués dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
-  `isActionBlocked()`) : la scène montre alors la situation (toggle dans `updateUI()`). Le bouton est
-  prévu pour ouvrir aussi, plus tard, une carte des étages classiques (pas encore implémentée : il
-  reste masqué hors étage urbain). Le déplacement s'y représente comme une **mini carte
+  `isActionBlocked()`) : la scène montre alors la situation (toggle dans `updateUI()`). Le même bouton
+  ouvre la carte des étages classiques (`#floor-map-overlay`, voir « Carte + voyage » plus haut). Le déplacement s'y représente comme une **mini carte
   graphique** (nœuds = villes, arêtes = routes) plutôt qu'une liste, sur une **grille logique** (gx/gy
   entiers, `URBAN_GRID_CELL` = 70 unités monde par cellule) plutôt qu'un gabarit de points fixes :
   `generateConnectedCityGrid(cityCount)` fait croître une région CONNEXE par construction (chaque
@@ -836,9 +876,9 @@ Tailwind CDN, **aucun build step**.
    commit de merge et une GitHub Release portant le même numéro. Non automatisé pour l'instant (pas de
    script de release) — à faire à la main à chaque merge.
    **Compteur unique depuis la PR #25** (choix de l'utilisateur) : `APP_VERSION.pr`, le tag, la release et
-   `package.json` valent le numéro de la dernière PR mergée (28, rattrapage groupé de #26-#28). Le `?v=`
-   d'`index.html` ne peut plus suivre ce numéro : les valeurs jusqu'à 34 ont déjà servi (entre deux merges,
-   convention 4) — il ne fait donc que croître (35 au rattrapage de la PR #28), jamais recalé vers le bas,
+   `package.json` valent le numéro de la dernière PR mergée (31 : chantier 5, qui inclut aussi la #30). Le
+   `?v=` d'`index.html` ne peut plus suivre ce numéro : les valeurs jusqu'à 34 ont déjà servi (entre deux
+   merges, convention 4) — il ne fait donc que croître (37 à la PR #31), jamais recalé vers le bas,
    sans quoi un navigateur pourrait resservir un fichier gardé en cache sous une ancienne valeur. En cas de
    doute sur iPhone, vider le cache du site.
 
@@ -847,6 +887,9 @@ Tailwind CDN, **aucun build step**.
   charge les fichiers sources dans l'ordre (`GAME_FILES`).
 - `npm test` (= `node tests/regression.test.js`), `npm run test:long` (= `node tests/long_playthrough.js`),
   `npm run test:all` (les deux à la suite, s'arrête au premier échec) — voir `package.json`.
+- `npm run sim:floors [n] [labyrinthe]` (`tests/tools/floor-sim.js`, outil de calibrage, jamais lancé par la
+  CI) : génère n étages avec `floorgen.js` et affiche salles/bloc, culs-de-sac, profondeur du boss, portes,
+  croisements, temps — à relancer avant toute retouche de `FLOOR_LAYOUT`.
 - `npm run sim:items` (`tests/tools/item-curve.js`, outil de calibrage, jamais lancé par la CI) :
   répartition des raretés par étage et source, courbe de puissance selon l'équipement, valeur marchande
   — à relancer avant toute retouche de `itemBalance`/`itemRarities`.
@@ -856,7 +899,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests
@@ -906,7 +949,7 @@ Tailwind CDN, **aucun build step**.
 ## Backlog
 - Sons : hébergement des fichiers non tranché (3 catégories : actions, ambiance, mobs).
 - À valider par playtest réel : fréquence de changement de quartier, formule de risque des trajets
-  vers lieux connus (distance × 9 %, plafond 80 %), courbes de furtivité, table D100 des événements
+  sur la carte (distance × 9 %, plafond 80 %, avenues ×0,5), courbes de furtivité, table D100 des événements
   (`config.chances` — une proposition de rééquilibrage a été faite, jamais validée).
 - Simulation mob/joueur (voir historique) : les boss restent disproportionnellement plus punitifs
   que les mobs normaux à profondeur égale, et l'écart se rouvre en fin de run (étage 8+) sous

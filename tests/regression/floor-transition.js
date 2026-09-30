@@ -185,7 +185,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
 }
 
 // Choix « Descendre / Rester sur l'étage » (offerStairsChoice()) : escalier classique laissé pour plus
-// tard, lieu connu, retour dans la salle, sauvegarde restaurée.
+// tard, repère de carte, retour dans la salle, sauvegarde restaurée.
 {
     resetTransientState();
     gameState.currentFloor = 1;
@@ -201,8 +201,8 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(gameState.stairsChoicePending === true && isActionBlocked() === true, "Victoire sur le gardien : choix d'escalier en attente, actions bloquées");
     assert(gameState.pendingStairsChoice.kind === 'room' && gameState.pendingStairsChoice.roomId === stairsRoom.id, "Le choix mémorise la salle de l'escalier");
     assert(ui.stairsChoiceZone.classList.contains('hidden') === false, "#stairs-choice-zone est affichée");
-    assert(gameState.knownLocations.some(l => l.id === `stairs-${stairsRoom.id}` && l.type === 'stairs'), "L'escalier libre devient tout de suite un lieu connu");
-    assert(!gameState.knownLocations.some(l => l.id === `boss-${stairsRoom.id}`), "L'ancien lieu « escalier gardé » a disparu");
+    assert(listFloorLandmarks().some(m => m.roomId === stairsRoom.id && m.kind === 'stairs'), "L'escalier libre est tout de suite marqué 🪜 sur la carte");
+    assert(!listFloorLandmarks().some(m => m.roomId === stairsRoom.id && m.kind === 'stairsGuarded'), "L'ancien repère « escalier gardé » a disparu");
 
     const timeBefore = gameState.timeLeft;
     stayOnFloor();
@@ -210,7 +210,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(ui.stairsChoiceZone.classList.contains('hidden') === true, "Rester sur l'étage : masque la zone");
     assert(gameState.currentFloor === 1 && gameState.floorTransitionPending === false, "Rester sur l'étage : on reste bien à l'étage 1");
     assert(gameState.timeLeft === timeBefore, "Rester sur l'étage : ne coûte rien en soi");
-    assert(gameState.knownLocations.some(l => l.id === `stairs-${stairsRoom.id}`), "Rester sur l'étage : l'escalier reste dans les lieux connus");
+    assert(listFloorLandmarks().some(m => m.roomId === stairsRoom.id && m.kind === 'stairs'), "Rester sur l'étage : l'escalier reste marqué sur la carte");
 
     enterRoom(stairsRoom);
     assert(gameState.stairsChoicePending === true, "Revenir dans la salle du gardien vaincu repropose le choix (plus d'« antre silencieuse »)");

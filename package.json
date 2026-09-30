@@ -1,12 +1,13 @@
 {
   "name": "crawler",
-  "version": "28.0.0",
+  "version": "31.0.0",
   "private": true,
   "description": "Rogue-like textuel minimaliste (HTML/JS vanilla, aucun build step) — voir CLAUDE.md.",
   "scripts": {
     "test": "node tests/regression.test.js",
     "test:long": "node tests/long_playthrough.js",
     "test:all": "npm test && npm run test:long",
-    "sim:items": "node tests/tools/item-curve.js"
+    "sim:items": "node tests/tools/item-curve.js",
+    "sim:floors": "node tests/tools/floor-sim.js"
   }
 }
