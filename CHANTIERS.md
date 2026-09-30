@@ -207,6 +207,11 @@ Passer, aussi utilisé par la simulation longue et les tests) ; glyphe = **relie
 - Ampleur revue à **XL** : à livrer en trois temps — V1 (crochetage, désamorçage, glyphe), V2 (mains nues, tir,
   parade), V3 (stand / ring).
 
+**Décidé (round 5)** : échec d'une action spéciale de combat = **tour perdu, sans autre pénalité** ; Occasion à
+**25 % par tour** (bouton mis en avant pour ce tour seulement, chance un peu relevée par le niveau de la
+compétence liée) ; Immobiliser = **maintenir le doigt dans une zone mouvante** (~3 s) ; stand de tir et ring =
+**nouvelle salle « salle de jeux »** dans 1 à 2 villes par étage urbain (V3, à cadrer : mises, jeux, gains).
+
 **Plan proposé** : en attente de validation des chiffres (liste soumise à l'utilisateur).
 
 ## 12. Villes explorables (étages urbains sur le modèle de la carte) — XL — Codé (à playtester)
