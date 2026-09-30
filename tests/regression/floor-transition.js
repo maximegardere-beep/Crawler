@@ -234,35 +234,36 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(gameState.floorTransitionPending === false && gameState.currentFloor === 1, "descendStairs()/stayOnFloor() sans choix en attente : aucun effet");
 }
 
-// Étage urbain : ville-escalier sans gardien -> choix ; rester garde la ville, y revenir repropose ; la
-// Sortie de l'étage final reste une victoire immédiate.
+// Étage urbain (villes explorables, chantier 12) : salle de l'escalier sans gardien -> choix ; rester la laisse
+// marquée, y revenir repropose ; la Sortie de l'étage final reste une victoire immédiate.
 {
     resetTransientState();
     gameState.currentFloor = 3;
     generateUrbanFloorMap();
-    const um = gameState.urbanMap;
-    const stairsCity = Object.values(um.citiesById).find(c => c.isStairs);
-    stairsCity.guarded = false;
-    gameState.pendingUrbanTravel = { destinationCityId: stairsCity.id };
-    arriveAtCity();
-    assert(gameState.stairsChoicePending === true && gameState.pendingStairsChoice.kind === 'city' && gameState.pendingStairsChoice.cityId === stairsCity.id, "Ville-escalier libre : propose Descendre / Rester");
-    assert(gameState.floorTransitionPending === false, "Ville-escalier libre : pas d'écran d'escalier direct");
+    const fm = gameState.floorMap;
+    const stairsRoom = Object.values(fm.roomsById).find(r => r.type === 'stairs');
+    stairsRoom.guarded = false;
+    moveToFloorRoom(stairsRoom);
+    enterRoom(stairsRoom);
+    assert(gameState.stairsChoicePending === true && gameState.pendingStairsChoice.kind === 'room' && gameState.pendingStairsChoice.roomId === stairsRoom.id, "Escalier urbain libre : propose Descendre / Rester");
+    assert(gameState.floorTransitionPending === false, "Escalier urbain libre : pas d'écran d'escalier direct");
     stayOnFloor();
-    assert(gameState.stairsChoicePending === false && um.currentCityId === stairsCity.id && gameState.currentFloor === 3, "Rester : on reste dans la ville, sur l'étage 3");
-    gameState.pendingUrbanTravel = { destinationCityId: stairsCity.id };
-    arriveAtCity();
-    assert(gameState.stairsChoicePending === true, "Revenir dans la ville-escalier repropose le choix");
+    assert(gameState.stairsChoicePending === false && fm.currentRoomId === stairsRoom.id && gameState.currentFloor === 3, "Rester : on reste près de l'escalier, sur l'étage 3");
+    assert(listFloorLandmarks().some(m => m.roomId === stairsRoom.id && m.icon === '🪜'), "Rester : l'escalier libre reste marqué 🪜 sur la carte");
+    enterRoom(stairsRoom);
+    assert(gameState.stairsChoicePending === true, "Revenir à l'escalier repropose le choix");
     descendStairs();
     assert(gameState.floorTransitionPending === true, "Descendre : écran d'escalier");
 
     resetTransientState();
     gameState.currentFloor = config.urbanFloors.finalFloor;
     generateUrbanFloorMap();
-    const exitCity = Object.values(gameState.urbanMap.citiesById).find(c => c.isExit);
-    exitCity.guarded = false;
+    const exitRoom = Object.values(gameState.floorMap.roomsById).find(r => r.type === 'stairs');
+    assert(exitRoom.isExit === true && exitRoom.guarded === true, "Étage final : la Sortie est toujours gardée");
+    exitRoom.guarded = false;
     gameState.hasWon = false;
-    gameState.pendingUrbanTravel = { destinationCityId: exitCity.id };
-    arriveAtCity();
+    moveToFloorRoom(exitRoom);
+    enterRoom(exitRoom);
     assert(gameState.hasWon === true && gameState.stairsChoicePending === false, "Sortie de l'étage final : victoire immédiate, sans choix");
     gameState.hasWon = false;
     gameState.inCombat = false;

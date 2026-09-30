@@ -89,8 +89,8 @@ function expectedHunterHit(hunter, playerDef) {
     withRandom(0, () => handleStealthEncounter());
     assert(gameState.inCombat && gameState.currentEnemy && gameState.currentEnemy.isBountyHunter, "Exploration : le chasseur remplace le combat");
     assert(!gameState.stealthChoicePending, "Chasseur : aucune esquive furtive possible");
-    assert(triggerNextAmbushOrArrive.toString().includes('maybeSpawnBountyHunter()') && triggerNextCityAmbushOrArrive.toString().includes('maybeSpawnBountyHunter()'),
-        "Embuscades de trajet (lieux connus et villes) : un chasseur peut aussi s'y présenter");
+    assert(triggerNextAmbushOrArrive.toString().includes('maybeSpawnBountyHunter()'),
+        "Embuscades de trajet (tous étages, villes comprises) : un chasseur peut aussi s'y présenter");
     gameState.inCombat = false; gameState.currentEnemy = null;
 }
 

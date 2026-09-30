@@ -80,7 +80,7 @@ try {
             // Ville spécialisée (marchand/professeur, voir triggerShopEncounter()) : achète/forme si
             // possible, repart dans tous les cas — pas de round-trip infini sur l'écran boutique.
             shopEncounters++;
-            const shopCity = gameState.urbanMap.citiesById[gameState.pendingShopCityId];
+            const shopCity = urbanCityById(gameState.pendingShopCityId);
             if (shopCity.role === 'merchant') {
                 const affordable = shopCity.stock.findIndex(item => gameState.gold >= item.price);
                 if (affordable >= 0) buyShopItem(affordable);
@@ -89,7 +89,7 @@ try {
             }
             leaveShop();
         } else if (gameState.lairChoicePending) {
-            // Repaire repéré (voir triggerLairChoice()) : alterne plonger/poursuivre pour exercer les
+            // Repaire (voir triggerLairChoice()) : alterne plonger/ressortir pour exercer les
             // deux issues ; une plongée s'enchaîne ensuite via la branche inCombat ci-dessous, exactement
             // comme n'importe quel autre combat (winCombat() relance le suivant tout seul).
             lairEncounters++;
@@ -127,24 +127,12 @@ try {
                 gameState.inCombat = false;
                 gameState.currentEnemy = null;
             }
-        } else if (gameState.urbanMap) {
-            // Étage urbain (multiple de 3) : explore() ne fait rien ici (floorMap est null), donc on
-            // simule un déplacement vers une ville connue à la place — en priorité la ville gardienne
-            // (escalier/Sortie) une fois repérée, sinon une ville connue au hasard pour continuer à
-            // révéler le réseau (voir generateUrbanFloorMap()/travelToCity() dans app.js).
-            urbanFloorsSeen++;
-            const urbanMap = gameState.urbanMap;
-            const reachable = Object.values(urbanMap.citiesById).filter(c => c.known && c.id !== urbanMap.currentCityId);
-            if (reachable.length > 0) {
-                const target = reachable.find(c => c.isStairs || c.isExit) || reachable[Math.floor(Math.random() * reachable.length)];
-                travelToCity(target.id);
-                cityTravels++;
-            }
-        } else if (gameState.floorMap && steps % 4 === 0) {
-            // Étage classique (chantier 5) : un pas sur quatre passe par la carte — voyage vers une salle
-            // visitée ou aperçue au hasard (travelToRoom(), M1 + P1), en priorité l'escalier libre ou gardé
-            // une fois repéré, pour exercer trajets, embuscades et pas dans l'inconnu.
+        } else if (gameState.floorMap && (steps % 4 === 0 || (isUrbanFloor() && steps % 2 === 0))) {
+            // Un pas sur quatre (un sur deux sur un étage urbain, chantier 12) passe par la carte — voyage vers
+            // une salle visitée ou aperçue au hasard (travelToRoom(), M1 + P1), en priorité l'escalier libre ou
+            // gardé une fois repéré, pour exercer trajets, embuscades et pas dans l'inconnu.
             const fm = gameState.floorMap;
+            if (isUrbanFloor()) { urbanFloorsSeen++; cityTravels++; }
             const stairs = listFloorLandmarks().find(m => m.kind === 'stairs' || m.kind === 'stairsGuarded');
             const options = Object.values(fm.roomsById).filter(r => r.id !== fm.currentRoomId && (r.visited || isRoomSeen(r)));
             const target = stairs && stairs.roomId !== fm.currentRoomId ? stairs.roomId : (options.length > 0 ? options[Math.floor(Math.random() * options.length)].id : null);
@@ -152,6 +140,7 @@ try {
             else explore();
             assert(!!fm.roomsById[gameState.floorMap ? gameState.floorMap.currentRoomId : fm.currentRoomId], `salle courante invalide après un voyage sur carte à l'étape ${steps}`);
         } else {
+            if (isUrbanFloor()) urbanFloorsSeen++;
             explore();
         }
 
@@ -172,12 +161,12 @@ try {
             assert(!Number.isNaN(c.hp) && c.hp >= 0 && c.hp <= c.maxHp, `PV du compagnon hors bornes à l'étape ${steps}`);
             assert(c.downed === (c.hp <= 0) || (c.downed && c.hp === 0), `état « à terre » incohérent à l'étape ${steps}`);
         }
-        if (gameState.urbanMap) {
-            const um = gameState.urbanMap;
-            assert(!!um.citiesById[um.currentCityId], `urbanMap.currentCityId invalide à l'étape ${steps}`);
-            assert(Object.values(um.citiesById).some(c => c.isStairs || c.isExit), `Aucune ville gardienne (escalier/Sortie) à l'étape ${steps}`);
+        if (isUrbanFloor()) {
+            const fm = gameState.floorMap;
+            assert(!!fm.citiesById[fm.currentCityId], `floorMap.currentCityId invalide à l'étape ${steps}`);
+            assert(Object.values(fm.roomsById).filter(r => r.type === 'stairs').length === 1, `Étage urbain sans escalier unique à l'étape ${steps}`);
         }
-        assert(!(gameState.floorMap && gameState.urbanMap), `floorMap et urbanMap ne devraient jamais être définis simultanément (étape ${steps})`);
+        assert(!('urbanMap' in gameState), `l'ancien gameState.urbanMap ne doit plus exister (étape ${steps})`);
         if (gameState.currentFloor > floorsCleared) floorsCleared = gameState.currentFloor;
         if (gameState.hp <= 0 || winTriggered) break;
     }
@@ -242,18 +231,26 @@ try {
     gameState.hp = gameState.maxHp;
     gameState.inCombat = false;
     gameState.bossChoicePending = false;
-    gameState.pendingUrbanBossEncounter = null;
     gameState.hasWon = false;
     advanceToNextFloor(); // Génère l'étage final
-    assert(gameState.urbanMap && gameState.urbanMap.isFinalFloor, "L'étage final doit générer un urbanMap marqué isFinalFloor");
-    assert(Object.values(gameState.urbanMap.citiesById).some(c => c.isExit && c.guarded), "La Sortie de l'étage final doit toujours être gardée");
+    assert(isUrbanFloor() && gameState.floorMap.isFinalFloor, "L'étage final doit être un étage urbain marqué isFinalFloor");
+    const exitRoom = Object.values(gameState.floorMap.roomsById).find(r => r.type === 'stairs');
+    assert(exitRoom && exitRoom.isExit && exitRoom.guarded, "La Sortie de l'étage final doit toujours être gardée");
 
     let finalSteps = 0;
     while (!gameState.hasWon && finalSteps < 200) {
         finalSteps++;
         if (gameState.timeLeft < 50) gameState.timeLeft = gameState.maxTime;
+        if (!gameState.inCombat && gameState.hp < gameState.maxHp * 0.5) gameState.hp = gameState.maxHp;
         if (gameState.bossChoicePending) {
             fightBossNow();
+        } else if (gameState.safehouseChoicePending) {
+            leaveSafehouse(); // Étage final : pas de repos, priorité à la Sortie
+        } else if (gameState.stealthChoicePending) {
+            attemptStealthAttack();
+        } else if (gameState.companionChoicePending) {
+            const candidate = gameState.pendingCompanionCandidate;
+            if (candidate && candidate.disposition === 'friendly') recruitCompanion(); else attackCompanionEncounter();
         } else if (gameState.shopChoicePending) {
             leaveShop(); // Étage final : on ne s'attarde pas en boutique, priorité à la Sortie
         } else if (gameState.lairChoicePending) {
@@ -273,13 +270,9 @@ try {
             } else {
                 gameState.inCombat = false;
             }
-        } else if (gameState.urbanMap) {
-            const um = gameState.urbanMap;
-            const reachable = Object.values(um.citiesById).filter(c => c.known && c.id !== um.currentCityId);
-            if (reachable.length > 0) {
-                const target = reachable.find(c => c.isExit) || reachable[Math.floor(Math.random() * reachable.length)];
-                travelToCity(target.id);
-            }
+        } else if (isUrbanFloor()) {
+            // Sortie visitée ou aperçue : on y va par la carte ; sinon on explore.
+            if (!((exitRoom.visited || isRoomSeen(exitRoom)) && travelToRoom(exitRoom.id))) explore();
         }
     }
     reachedFinalWin = gameState.hasWon;

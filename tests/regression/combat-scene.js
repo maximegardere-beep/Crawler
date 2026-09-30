@@ -268,14 +268,14 @@ function backdropProblems(key, def) {
 // ===================================================================
 {
     resetTransientState();
-    const saved = { urbanMap: gameState.urbanMap, district: gameState.currentDistrict };
+    const saved = { floorMap: gameState.floorMap, district: gameState.currentDistrict };
     const setpiece = document.getElementById('shop-scene-setpiece');
     const shopBackdrop = document.getElementById('shop-scene-backdrop');
     const cities = {
         m: { id: 'm', name: 'Échoppe', role: 'merchant', specialty: 'armors', stock: [] },
         t: { id: 't', name: 'École', role: 'trainer', specialty: 'stealth' }
     };
-    gameState.urbanMap = { citiesById: cities };
+    gameState.floorMap = { kind: 'urban', citiesById: cities, roomsById: {}, lairsById: {} };
     gameState.currentDistrict = Object.keys(districts)[0];
     delete lastBackdropKeys.sbd;
     lastShopSetpieceKey = null;
@@ -318,7 +318,7 @@ function backdropProblems(key, def) {
     renderScene('mode-inconnu');
     assert(setpiece.innerHTML === trainerMarkup && document.getElementById('scene-backdrop').innerHTML === combatBackdrop, "renderScene() : un mode sans scène ne touche à rien");
 
-    gameState.urbanMap = saved.urbanMap;
+    gameState.floorMap = saved.floorMap;
     gameState.currentDistrict = saved.district;
     gameState.pendingShopCityId = null;
     delete lastBackdropKeys.sbd;
@@ -512,12 +512,12 @@ function isRedHex(hex) {
     assert(problems.length === 0, `Décors de combat urbains valides (${problems.join(' ; ')})`);
 
     resetTransientState();
-    const saved = { urbanMap: gameState.urbanMap, district: gameState.currentDistrict, enemy: gameState.currentEnemy, inCombat: gameState.inCombat };
+    const saved = { floorMap: gameState.floorMap, district: gameState.currentDistrict, enemy: gameState.currentEnemy, inCombat: gameState.inCombat };
     gameState.currentDistrict = Object.keys(districts)[2];
-    gameState.urbanMap = null;
+    gameState.floorMap = null;
     assert(resolveCombatBackdrop().key === gameState.currentDistrict, "Étage classique : combat dans le décor du quartier");
-    gameState.urbanMap = {
-        citiesById: { a: { id: 'a', name: 'Faubourg' } }, currentCityId: 'a',
+    gameState.floorMap = {
+        kind: 'urban', roomsById: {}, citiesById: { a: { id: 'a', name: 'Faubourg' } }, currentCityId: 'a',
         lairsById: { L: { id: 'L', combatsRemaining: 3, cleared: false } }
     };
     assert(resolveCombatBackdrop().key === 'urban:road' && resolveCombatBackdrop().def === URBAN_COMBAT_BACKDROPS.road, "Étage urbain : combat sur la route");
@@ -549,7 +549,7 @@ function isRedHex(hex) {
     assert(stairsGuard.includes(BACKDROP_PROPS.stairsDown.markup({})) && exitGuard.includes('SORTIE') && exitGuard.includes(SCENE_BOSS_CROWN_SVG), "Gardien urbain : l'escalier ou la porte de Sortie derrière le boss couronné");
     assert(composeExploreVignette('citySafe', { cityName: 'Port Fluvial' }).includes('Port Fluvial'), "Ville sûre : panneau au nom de la ville");
 
-    Object.assign(gameState, { urbanMap: saved.urbanMap, currentDistrict: saved.district, currentEnemy: saved.enemy, inCombat: saved.inCombat });
+    Object.assign(gameState, { floorMap: saved.floorMap, currentDistrict: saved.district, currentEnemy: saved.enemy, inCombat: saved.inCombat });
     ['cbd'].forEach(p => { delete lastBackdropKeys[p]; delete vignetteKeys[p]; });
     resetTransientState();
 }
