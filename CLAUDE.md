@@ -158,14 +158,17 @@ Tailwind CDN, **aucun build step**.
   paliers : Camelote ×0,7 / Commun ×1 / Rare ×1,25 / Épique ×1,5 / Légendaire ×1,8 — slots de
   qualificatifs, rang maximal, `valueMult`). Les meilleurs objets de base ont une profondeur minimale
   (`minFloor`, `pickBaseItem()`). Rareté tirée selon l'ÉTAGE (`rollLootRarity({ source, floor })`,
-  tables `itemBalance.lootTables` — aucun Légendaire aux étages 1-2 hors boss), plus selon la puissance
-  du monstre : `source` 'elite' (chance de +1 palier), 'boss' (+1 palier, plancher Rare), 'treasure'
-  (+1 palier) ; `luckChance` (qualificatif Chanceux porté). Valeur marchande
+  tables `itemBalance.lootTables` — refonte validée du chantier 10 : Légendaire « miraculeux » avant l'étage
+  10, vrai espoir vers le 15), plus selon la puissance du monstre : `source` 'elite' (20 % de +1 palier),
+  'boss' (+1 palier, plancher `getBossMinRarityKey()` : aucun aux étages 1-3, Rare dès 4, Épique dès 12),
+  'treasure' (+1 palier) ; `luckChance` (qualificatif Chanceux porté). Plafond des montées
+  (`itemBalance.upgradeCaps`, `getUpgradeCapRarity()`) : jusqu'à l'étage 4, une montée ne dépasse jamais
+  Épique — seul le tirage de base peut aller au-delà, et il n'est jamais rabaissé. Valeur marchande
   `computeItemValue()` → `item.value` (rareté × niveau d'objet × qualificatifs), lue via `getItemValue()`
   (repli `baseValue` pour un objet construit à la main) par la revente et le marchand.
   **Qualificatifs** (`itemQualifiers`, clé = mécanique, aussi copiée dans `item.mechanics` pour le rendu) :
   `item.qualifiers = [{ key, rank }]`, rang I-III = `rarity.maxRank` (Rare I, Épique II, Légendaire III ;
-  signature au rang III). Chaque qualificatif définit ses valeurs PAR CIBLE (`weapon` = mêlée et
+  signature au rang maximal de SA rareté). Chaque qualificatif définit ses valeurs PAR CIBLE (`weapon` = mêlée et
   distance, `armor`, `spell`) et sa phrase d'inspection `text(v)` à côté des chiffres qu'elle décrit —
   `getQualifierValues()`/`describeQualifier()` (generator.js) sont la SEULE source des chiffres, lue à la
   fois par le moteur et par l'affichage. Trois types : `proc` (chance par coup porté/encaissé,
@@ -188,8 +191,8 @@ Tailwind CDN, **aucun build step**.
   à `itemBalance.shopFamilyBoost` via l'option `familyMult` de `generateItem()`) ; le cadeau de départ passe par
   le même tirage. **Trait fixe** (`base.trait`, clé d'`itemQualifiers`) : compromis permanent d'un gros objet
   (Grinçant pour les objets bruyants, Bancal pour les lourds), ajouté par `withFixedTrait()` en plus des
-  qualificatifs tirés (`{ fixed: true }`, n'occupe aucun emplacement). Proposition de refonte de la rareté
-  (tables, plafond des montées, boss, objet signature) en attente de validation : voir `CHANTIERS.md`, chantier 10. Réserve d'équipement (armes/armures/armes à distance,
+  qualificatifs tirés (`{ fixed: true }`, n'occupe aucun emplacement). Refonte de la rareté (tables, plafond
+  des montées, boss, objet signature) validée et appliquée : voir `CHANTIERS.md`, chantier 10. Réserve d'équipement (armes/armures/armes à distance,
   consommables et parchemins jamais comptés, voir `addLoot()`) : `config.inventory.maxEquipment` (8,
   chantier "QoL/équilibrage", Chantier B — voir `NOTES_QOL_EQUILIBRAGE.md`) — `gameState.maxInventory`
   en est un simple alias, posé juste après la déclaration de `config` (`gameState` est déclaré avant
@@ -232,8 +235,8 @@ Tailwind CDN, **aucun build step**.
   `executeBossStrike(enemy, atk, label, pressureFloorOverride)` accepte désormais un plancher réparti
   explicitement entre les frappes d'un même tour, pour que la SOMME reste le plancher standard d'un
   tour de boss. Récompenses de boss (revues par le chantier "refonte des objets") : un objet garanti
-  (`itemBalance.boss` : +1 palier, plancher Rare, second objet à 25 %) et l'objet signature légendaire
-  du boss (`bestiary.js`, `districtBosses.*.signatureItem`, stats de base mises à l'échelle par
+  (`itemBalance.boss` : +1 palier, plancher selon l'étage, second objet à 25 %) et l'objet signature
+  du boss, dont la rareté suit l'étage (`getSignatureRarity()` : Rare 1-4, Épique 5-9, Légendaire 10+) (`bestiary.js`, `districtBosses.*.signatureItem`, stats de base mises à l'échelle par
   `buildSignatureItem()`), garanti à la PREMIÈRE victoire sur ce boss dans la partie
   (`gameState.signaturesAwarded`) puis à 20 % (`awardBossSignatureItem()`).
 - **Enrage distance et engagement** (chantier "rework combat", Chantier 3 — voir `NOTES_COMBAT.md`
@@ -904,7 +907,7 @@ Tailwind CDN, **aucun build step**.
    **Compteur unique depuis la PR #25** (choix de l'utilisateur) : `APP_VERSION.pr`, le tag, la release et
    `package.json` valent le numéro de la dernière PR mergée (32 : chantiers 9, 10 et 11). Le
    `?v=` d'`index.html` ne peut plus suivre ce numéro : les valeurs jusqu'à 34 ont déjà servi (entre deux
-   merges, convention 4) — il ne fait donc que croître (40 à la PR #32), jamais recalé vers le bas,
+   merges, convention 4) — il ne fait donc que croître (41 à la PR #32), jamais recalé vers le bas,
    sans quoi un navigateur pourrait resservir un fichier gardé en cache sous une ancienne valeur. En cas de
    doute sur iPhone, vider le cache du site.
 

@@ -70,8 +70,10 @@ const qItem = (category, qualifiers, extra = {}) => Object.assign({ name: "Objet
     assert(junkItems.some(i => i.qualifiers), "Camelote : porte parfois un défaut");
 
     const template = Object.values(districtBosses).find(b => b.signatureItem).signatureItem;
-    const signature = buildSignatureItem(template, 3);
-    assert(signature.qualifiers.length === template.mechanics.length && signature.qualifiers.every(q => q.rank === 3), "Objet signature : son mécanisme fixe au rang III");
+    const signature = buildSignatureItem(template, 3, 'legendaire');
+    assert(signature.qualifiers.length === template.mechanics.length && signature.qualifiers.every(q => q.rank === 3), "Objet signature Légendaire : son mécanisme fixe au rang III");
+    const rareSignature = buildSignatureItem(template, 3, 'rare');
+    assert(rareSignature.rarityKey === 'rare' && rareSignature.qualifiers.every(q => q.rank === 1), "Objet signature Rare : son mécanisme fixe au rang I");
 }
 
 // Effets déclenchés : valeurs exactes du rang.

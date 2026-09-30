@@ -32,7 +32,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
 | 8 | Sons | M | Idée (ancien backlog) | hébergement des fichiers non tranché |
 | 9 | Interface inventaire allégée (stats sous le nom, icônes Équipement / Sac / Grimoire) | M | **Codé** (à playtester) | — |
-| 10 | Expansion de la banque d'objets (objets rares et puissants + rééquilibrage) | L | **Objets codés** — refonte de la rareté **proposée** (à valider) | — |
+| 10 | Expansion de la banque d'objets (objets rares et puissants + rééquilibrage) | L | **Codé** (objets + refonte de la rareté validée) — à playtester | — |
 | 11 | Nouveaux sorts (avec effets, pas seulement des dégâts) | M | **Codé** (à playtester) | — |
 
 **Pourquoi cet ordre** :
@@ -740,7 +740,7 @@ Voir `NOTES_CARTE.md` (détail, chiffres, points à surveiller) :
 ### Décisions (utilisateur)
 1. Barre d'icônes **fixée en bas de l'écran**. 2. **Masquée en combat**. 3. **Pastilles** : oui.
 
-## 10. Expansion de la banque d'objets — L — Objets codés, rareté proposée
+## 10. Expansion de la banque d'objets — L — Codé (à playtester)
 
 **Demande** : des objets puissants mais rares (armure de plates, épée longue…), un rééquilibrage pour les
 intégrer : fréquent de trouver un objet médiocre (antivol de voiture), rare de trouver du vrai matériel.
@@ -802,7 +802,9 @@ intégrer : fréquent de trouver un objet médiocre (antivol de voiture), rare d
   événement incroyable — normale vers l'étage 15, miraculeuse à l'étage 1. → Nouvelles tables de rareté
   (salles, élites, boss, trésors, boîtes, boutiques) à proposer en liste, calibrées par `npm run sim:items`.
 
-### Proposition de rareté (à valider — rien n'est appliqué)
+### Refonte de la rareté — validée par l'utilisateur, appliquée
+(`itemBalance` dans items.js, `rollLootRarity()`/`getSignatureRarity()` dans generator.js ; mesures `npm run sim:items`
+conformes à la simulation ci-dessous.)
 Simulée sur 100 000 tirages par case (outil jetable, même logique que `rollLootRarity()`).
 1. **Tables de base** (butin d'exploration et de mob) — Camelote / Commun / Rare / Épique / Légendaire :
 

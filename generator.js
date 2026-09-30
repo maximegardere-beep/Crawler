@@ -319,12 +319,35 @@ function getLootRarityWeights(floor) {
     return (tables.find(row => f <= row.maxFloor) || tables[tables.length - 1]).weights;
 }
 
+// Plafond des montées de palier à un étage (itemBalance.upgradeCaps), ou null s'il n'y en a pas.
+function getUpgradeCapRarity(floor) {
+    const f = Math.max(1, floor || 1);
+    const row = (itemBalance.upgradeCaps || []).find(r => f <= r.maxFloor);
+    return row ? getRarityByKey(row.key) : null;
+}
+
+// Plancher de rareté du butin d'un boss à un étage (itemBalance.boss.minRarityByFloor), ou null.
+function getBossMinRarityKey(floor) {
+    const f = Math.max(1, floor || 1);
+    let key = null;
+    (itemBalance.boss.minRarityByFloor || []).forEach(r => { if (f >= r.fromFloor) key = r.key; });
+    return key;
+}
+
+// Rareté de l'objet signature d'un boss vaincu à un étage (itemBalance.signatureRarityByFloor).
+function getSignatureRarity(floor) {
+    const f = Math.max(1, floor || 1);
+    const rows = itemBalance.signatureRarityByFloor;
+    return getRarityByKey((rows.find(r => f <= r.maxFloor) || rows[rows.length - 1]).key);
+}
+
 /**
  * Tire la rareté d'un objet de loot. `source` : 'explore' (trouvé en explorant, marchand) | 'mob' |
- * 'elite' (CHANCE de monter d'un palier) | 'boss' (monte toujours d'un palier, plancher Rare) |
- * 'treasure' (trésor exceptionnel, monte toujours d'un palier). `minRarityKey` : plancher
- * supplémentaire optionnel, appliqué après coup. `luckChance` (%) : chance de monter d'un palier
- * (qualificatif Chanceux de l'équipement porté, voir addLoot() dans app.js).
+ * 'elite' (CHANCE de monter d'un palier) | 'boss' (monte toujours d'un palier, plancher selon l'étage) |
+ * 'treasure' (trésor exceptionnel, monte toujours d'un palier). `luckChance` (%) : chance de monter d'un
+ * palier (qualificatif Chanceux de l'équipement porté, voir addLoot() dans app.js). Les montées sont
+ * plafonnées aux premiers étages (itemBalance.upgradeCaps) sans jamais rabaisser le tirage de base.
+ * `minRarityKey` : plancher supplémentaire optionnel, appliqué en dernier (boîte Or, par exemple).
  */
 function rollLootRarity({ source = 'explore', floor = currentFloorForLoot(), minRarityKey = null, luckChance = 0 } = {}) {
     const weights = getLootRarityWeights(floor);
@@ -336,17 +359,21 @@ function rollLootRarity({ source = 'explore', floor = currentFloorForLoot(), min
         if (roll < w) { rarity = r; break; }
         roll -= w;
     }
+    const base = rarity;
     if (source === 'elite' && Math.random() * 100 < itemBalance.eliteUpgradeChance) rarity = shiftRarity(rarity, 1);
-    if (source === 'boss') {
-        rarity = shiftRarity(rarity, itemBalance.boss.tierBonus);
-        minRarityKey = minRarityKey || itemBalance.boss.minRarityKey;
-    }
+    if (source === 'boss') rarity = shiftRarity(rarity, itemBalance.boss.tierBonus);
     if (source === 'treasure') rarity = shiftRarity(rarity, itemBalance.treasure.tierBonus);
     if (luckChance > 0 && Math.random() * 100 < luckChance) rarity = shiftRarity(rarity, 1); // Chanceux (qualificatif porté)
-    if (minRarityKey) {
-        const min = getRarityByKey(minRarityKey);
-        if (min && itemRarities.indexOf(rarity) < itemRarities.indexOf(min)) rarity = min;
+    const cap = getUpgradeCapRarity(floor);
+    if (cap) {
+        const capIndex = Math.max(itemRarities.indexOf(base), itemRarities.indexOf(cap));
+        if (itemRarities.indexOf(rarity) > capIndex) rarity = itemRarities[capIndex];
     }
+    const minKeys = [minRarityKey, source === 'boss' ? getBossMinRarityKey(floor) : null].filter(Boolean);
+    minKeys.forEach(key => {
+        const min = getRarityByKey(key);
+        if (min && itemRarities.indexOf(rarity) < itemRarities.indexOf(min)) rarity = min;
+    });
     return rarity;
 }
 
@@ -630,21 +657,23 @@ function generateItem(options = {}) {
 }
 
 /**
- * Objet signature d'un boss (bestiary.js, districtBosses.*.signatureItem) : toujours Légendaire,
- * mis à l'échelle par le niveau d'objet comme tout objet, mais sans aléa ni qualificatif aléatoire
- * (son mécanisme thématique est fixe).
+ * Objet signature d'un boss (bestiary.js, districtBosses.*.signatureItem) : sa rareté suit l'étage où le
+ * boss tombe (getSignatureRarity() : Rare, puis Épique, Légendaire seulement dès l'étage 10), mis à
+ * l'échelle par le niveau d'objet comme tout objet, mais sans aléa ni qualificatif aléatoire (son
+ * mécanisme thématique est fixe, au rang maximal de sa rareté).
  */
-function buildSignatureItem(template, itemLevel) {
-    const legendary = itemRarities[itemRarities.length - 1];
+function buildSignatureItem(template, itemLevel, rarityKey = getSignatureRarity(currentFloorForLoot()).key) {
+    const rarity = getRarityByKey(rarityKey) || itemRarities[itemRarities.length - 1];
     const item = JSON.parse(JSON.stringify(template));
-    applyRarity(item, legendary);
+    applyRarity(item, rarity);
     item.itemLevel = Math.max(1, itemLevel || 1);
     const levelMult = getItemLevelMult(item.itemLevel, 'equipment');
-    if (item.baseDmg !== undefined) item.baseDmg = Math.max(1, Math.round(item.baseDmg * legendary.statMult * levelMult));
-    if (item.baseArmor !== undefined) item.baseArmor = Math.round(item.baseArmor * legendary.statMult * levelMult);
-    // Son mécanisme thématique fixe, au rang maximal (III) — le nom de l'objet reste celui du boss.
-    item.qualifiers = (item.mechanics || []).map(key => ({ key, rank: legendary.maxRank }));
-    item.value = computeItemValue(template.baseValue, legendary.key, item.itemLevel, countValuableQualifiers(item.qualifiers));
+    if (item.baseDmg !== undefined) item.baseDmg = Math.max(1, Math.round(item.baseDmg * rarity.statMult * levelMult));
+    if (item.baseArmor !== undefined) item.baseArmor = Math.round(item.baseArmor * rarity.statMult * levelMult);
+    // Son mécanisme thématique fixe, au rang maximal de sa rareté — le nom de l'objet reste celui du boss.
+    const rank = Math.max(1, rarity.maxRank);
+    item.qualifiers = (item.mechanics || []).map(key => ({ key, rank }));
+    item.value = computeItemValue(template.baseValue, rarity.key, item.itemLevel, countValuableQualifiers(item.qualifiers));
     return item;
 }
 

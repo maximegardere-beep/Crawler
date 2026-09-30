@@ -34,22 +34,37 @@ const itemBalance = {
     statJitter: 0.1,
     // Valeur = baseValue × valueMult(rareté) × (1 + perLevel × (itemLevel − 1)) × (1 + perEnchant × qualificatifs)
     value: { perLevel: 0.15, perEnchant: 0.15 },
-    // Poids de rareté du loot selon l'étage (première ligne dont maxFloor >= étage courant). La
-    // Camelote n'est jamais qu'un petit bruit de fond : c'est surtout le palier du cadeau de départ.
+    // Poids de rareté du loot selon l'étage (première ligne dont maxFloor >= étage courant). Refonte de la
+    // rareté (chantier 10, validée) : un Épique reste exceptionnel avant l'étage 6, un Légendaire tient du
+    // miracle avant l'étage 10 et ne devient un vrai espoir qu'à partir de l'étage 15.
     lootTables: [
-        { maxFloor: 2,        weights: { camelote: 12, commun: 65, rare: 20, epique: 3,  legendaire: 0 } },
-        { maxFloor: 5,        weights: { camelote: 8,  commun: 55, rare: 28, epique: 8,  legendaire: 1 } },
-        { maxFloor: 9,        weights: { camelote: 5,  commun: 42, rare: 34, epique: 15, legendaire: 4 } },
-        { maxFloor: 14,       weights: { camelote: 3,  commun: 33, rare: 34, epique: 22, legendaire: 8 } },
-        { maxFloor: Infinity, weights: { camelote: 2,  commun: 24, rare: 34, epique: 28, legendaire: 12 } }
+        { maxFloor: 2,        weights: { camelote: 30, commun: 60, rare: 9.48, epique: 0.5, legendaire: 0.02 } },
+        { maxFloor: 5,        weights: { camelote: 20, commun: 58, rare: 18,   epique: 3.8, legendaire: 0.2 } },
+        { maxFloor: 9,        weights: { camelote: 12, commun: 50, rare: 28,   epique: 9,   legendaire: 1 } },
+        { maxFloor: 14,       weights: { camelote: 6,  commun: 40, rare: 34,   epique: 16,  legendaire: 4 } },
+        { maxFloor: Infinity, weights: { camelote: 3,  commun: 28, rare: 36,   epique: 24,  legendaire: 9 } }
     ],
     // Montées de palier après le tirage (voir rollLootRarity() dans generator.js) : un mob élite a une
-    // CHANCE de monter d'un palier, un boss (ou un trésor de CAFET_ASSOMBRIE) monte TOUJOURS d'un palier,
-    // avec un plancher.
-    eliteUpgradeChance: 25,
+    // CHANCE de monter d'un palier, un boss (ou un trésor de CAFET_ASSOMBRIE) monte TOUJOURS d'un palier.
+    eliteUpgradeChance: 20,
+    // Plafond des montées (élite, boss, trésor, Chanceux) : jusqu'à l'étage maxFloor, une montée ne dépasse
+    // jamais ce palier — seul le tirage de base (le miracle) peut aller au-delà.
+    upgradeCaps: [{ maxFloor: 4, key: "epique" }],
     // Chance (%) qu'un objet de Camelote porte un défaut (itemQualifiers, kind 'malus').
     junkMalusChance: 60,
-    boss: { tierBonus: 1, minRarityKey: "rare", secondItemChance: 25, signatureRepeatChance: 20 },
+    // Boss : +1 palier, plancher selon l'étage (aucun aux étages 1-3, Rare dès l'étage 4, Épique dès le 12).
+    boss: {
+        tierBonus: 1,
+        minRarityByFloor: [{ fromFloor: 4, key: "rare" }, { fromFloor: 12, key: "epique" }],
+        secondItemChance: 25,
+        signatureRepeatChance: 20
+    },
+    // Rareté de l'objet signature d'un boss selon l'étage : Rare 1-4, Épique 5-9, Légendaire 10+.
+    signatureRarityByFloor: [
+        { maxFloor: 4, key: "rare" },
+        { maxFloor: 9, key: "epique" },
+        { maxFloor: Infinity, key: "legendaire" }
+    ],
     treasure: { tierBonus: 1 },
     // Le boss d'un repaire (étage urbain) lâche un butin d'un niveau d'objet au-dessus de l'étage.
     lairBossLevelBonus: 1,

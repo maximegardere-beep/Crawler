@@ -39,20 +39,25 @@ Le mana et le coût en mana ne dépendent jamais du niveau d'objet (mana plafonn
 ×0,6, et profondeur minimale (`minFloor`) pour les meilleurs (ex. Fusil de Chasse à l'étage 6).
 Objets blagues uniquement en Camelote.
 
-**Rareté par étage** (`itemBalance.lootTables`, Camelote / Commun / Rare / Épique / Légendaire) :
+**Rareté par étage** (`itemBalance.lootTables`, Camelote / Commun / Rare / Épique / Légendaire) —
+refonte validée au chantier 10 (l'ancienne table rendait la rareté triviale dès les premiers étages) :
 
 | Étages | Cam. | Com. | Rare | Épi. | Lég. |
 |--------|------|------|------|------|------|
-| 1-2    | 12   | 65   | 20   | 3    | 0    |
-| 3-5    | 8    | 55   | 28   | 8    | 1    |
-| 6-9    | 5    | 42   | 34   | 15   | 4    |
-| 10-14  | 3    | 33   | 34   | 22   | 8    |
-| 15+    | 2    | 24   | 34   | 28   | 12   |
+| 1-2    | 30   | 60   | 9,48 | 0,5  | 0,02 |
+| 3-5    | 20   | 58   | 18   | 3,8  | 0,2  |
+| 6-9    | 12   | 50   | 28   | 9    | 1    |
+| 10-14  | 6    | 40   | 34   | 16   | 4    |
+| 15+    | 3    | 28   | 36   | 24   | 9    |
 
-Élite : 25 % de monter d'un palier. Boss : +1 palier, plancher Rare, second objet 25 % (au lieu de 50 %).
-Objet signature garanti à la première victoire sur ce boss, puis 20 %. Trésor de CAFET_ASSOMBRIE : +1 palier.
+Élite : 20 % de monter d'un palier. Boss : +1 palier, plancher selon l'étage (aucun 1-3, Rare dès 4, Épique
+dès 12), second objet 25 %. Trésor de CAFET_ASSOMBRIE : +1 palier. Plafond des montées (élite, boss, trésor,
+Chanceux) : Épique jusqu'à l'étage 4 ; le tirage de base n'est jamais rabaissé (le « miracle »).
+Objet signature : Rare aux étages 1-4, Épique 5-9, Légendaire dès 10 (rang de sa rareté), garanti à la
+première victoire sur ce boss, puis 20 %.
 
-Mesuré (20 000 tirages) : un boss d'étage 1 donne ~77 % Rare / 20 % Épique / 3 % Légendaire.
+Mesuré (`npm run sim:items`, 20 000 tirages) : boss d'étage 1 ~30 % Commun / 60 % Rare / 10 % Épique ;
+étage 8 ~62 / 28 / 10 % Rare / Épique / Légendaire ; étage 15 ~66 % Épique / 34 % Légendaire.
 
 **Valeur** : `baseValue × valueMult × (1 + 0,15 × (niveau − 1)) × (1 + 0,15 × qualificatifs)`. Arme
 moyenne : Commun 14 PO / Légendaire ~400 PO à l'étage 1, ~1 550 PO à l'étage 10 (revente ×0,4, achat ×2,5).
@@ -109,6 +114,6 @@ Cadeau : Arme 38 / Tir 25 / Armure 17 / Magie 15 / Rien 5, toujours en Camelote,
 - **Rééquilibrage** : Antivol de Voiture 7 → 4 dégâts, dès l'étage 1 (Bricolage) ; Bâton de Dynamite, Lance à
   Feu, Fusil de Chasse Rouillé et Manteau en Skaï Renforcé en Militaire.
 - **Traits fixes** (`base.trait`) : qualificatif toujours porté, hors emplacements (`withFixedTrait()`).
-- **Rareté** : refonte proposée (tables, plafond des montées, boss, objet signature), pas encore appliquée —
-  voir CHANTIERS.md, chantier 10.
+- **Rareté** : refonte validée et appliquée (tables, plafond des montées, boss, objet signature) — voir
+  « Rareté par étage » plus haut et CHANTIERS.md, chantier 10.
 

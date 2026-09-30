@@ -4161,15 +4161,16 @@ function getOverflowSellPrice(item) {
 // Objet signature d'un boss précis (bestiary.js, districtBosses.*.signatureItem) : garanti à la
 // PREMIÈRE défaite de ce boss dans la partie (gameState.signaturesAwarded), puis seulement à
 // itemBalance.boss.signatureRepeatChance — plusieurs quartiers d'un même type reviennent au fil des
-// étages, un Légendaire garanti à chaque fois inonderait le joueur. Toujours Légendaire, au niveau
-// d'objet du butin du boss (voir buildSignatureItem() dans generator.js).
+// étages, un objet signature garanti à chaque fois inonderait le joueur. Sa rareté suit l'étage courant
+// (Rare, Épique, Légendaire dès l'étage 10 — getSignatureRarity()), au niveau d'objet du butin du boss
+// (voir buildSignatureItem() dans generator.js).
 function awardBossSignatureItem(boss, itemLevel = gameState.currentFloor) {
     if (!boss || !boss.signatureItem) return;
     const key = boss.baseName || boss.name;
     const alreadyAwarded = gameState.signaturesAwarded.includes(key);
     if (alreadyAwarded && Math.random() * 100 >= itemBalance.boss.signatureRepeatChance) return;
     if (!alreadyAwarded) gameState.signaturesAwarded.push(key);
-    storeLootItem(buildSignatureItem(boss.signatureItem, itemLevel), "✨ Objet signature — ");
+    storeLootItem(buildSignatureItem(boss.signatureItem, itemLevel, getSignatureRarity(gameState.currentFloor).key), "✨ Objet signature — ");
 }
 
 // Point de passage UNIQUE pour toute perte de PV du joueur (piège, saignement, riposte ennemie...) —
