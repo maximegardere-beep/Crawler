@@ -32,9 +32,9 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 - **Tous les chantiers codés restent « à playtester »** : les chiffres sont des valeurs de départ,
   calibrées au mieux par simulation. Les points à vérifier sont regroupés plus bas (« À playtester »).
 - **PR #32 mergée** (chantiers 9, 10 et 11) : tag `v32` et release à créer (convention 6 de `CLAUDE.md`).
-- **Chantier en cours : 12 (villes explorables)**, planifié ; ensuite 13 (race et classe à l'étage 3) et 6
-  (mini-jeux), cadrés. Correctifs déjà sur la branche (prochaine PR) : crawler mort non restaurable, barre du
-  bas agrandie.
+- **Chantier 12 (villes explorables) codé** sur la branche, avec deux correctifs (crawler mort non restaurable,
+  barre du bas agrandie) : une seule PR à ouvrir. Ensuite : 13 (race et classe à l'étage 3) et 6 (mini-jeux),
+  cadrés.
 
 ## Vue d'ensemble
 
@@ -45,7 +45,6 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 6 | Mini-jeux (adresse + glyphes de sorts) | L | Exploré (cadrage) | correctif de bug d'abord |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
-| 12 | Villes explorables (carte des étages urbains sur le modèle du chantier 5) | XL | **En cours** (lots 1-5, une PR à la fin) | — |
 | 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage) | correctif de bug d'abord |
 
 ### Codés (à playtester)
@@ -60,6 +59,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 9 | Interface inventaire allégée | M | #32 | `NOTES_INTERFACE.md` |
 | 10 | Expansion de la banque d'objets + refonte de la rareté | L | #32 | `NOTES_ITEMS.md` (section « Chantier 10 ») |
 | 11 | Nouveaux sorts (effets et utilitaires) | M | #32 | `NOTES_SORTS.md` |
+| 12 | Villes explorables (étages urbains sur le modèle de la carte) | XL | prochaine PR | `NOTES_VILLES.md` |
 
 ### Chantiers antérieurs au registre
 
@@ -88,6 +88,8 @@ Leviers à regarder en premier ; le détail est dans la section « À surveiller
 - **Carte** (5) : coût et risque des trajets (`cellsPerDistanceUnit`), avenues trop rentables à « farmer » ?
   lisibilité des blocs sur petit écran.
 - **Interface** (9) : fiche lisible avec beaucoup d'états, barre du bas qui ne masque rien.
+- **Villes** (12) : durée d'un étage urbain (~56 salles), routes « plus dures » trop punitives ? auberge dans chaque
+  ville trop généreuse ? pickpocket, lisibilité des routes diagonales sur petit écran.
 - **Objets** (10) : rareté (Légendaire « miracle » avant l'étage 10), économie (un Légendaire vaut ~20× un
   Commun), taux de proc des qualificatifs.
 - **Sorts** (11) : combo Bouclier de Mana + Soin Express, Pas de l'Ombre et le kiting, étourdissement à 30 %.
@@ -163,7 +165,7 @@ N/S/E/O dans la scène), **P2** (cap) et **P3** (humeur d'exploration) écartés
 **Livré** : générateur pur `floorgen.js` + `npm run sim:floors`, branchement moteur (distance réelle,
 table d'événements par zone, chasseurs ×2 sur les avenues, sauvegarde versionnée), voyage M1, carte
 `floormap.js`, P1 — voir `NOTES_CARTE.md`. **Plus tard** : **P4** (flair : indices sur les salles aperçues),
-guildes / toilettes / réserves, étages urbains sur le même modèle.
+guildes / toilettes / réserves (étages urbains sur le même modèle : fait au chantier 12).
 
 ## 6. Mini-jeux — L — Exploré (cadrage)
 
@@ -191,86 +193,21 @@ petit risque de backfire).
 jeu d'adresse = dégâts, temps ou perte du butin ; fréquence ; option d'accessibilité (résolution automatique
 par un jet, comme avant).
 
-## 12. Villes explorables (étages urbains sur le modèle de la carte) — XL — En cours
+## 12. Villes explorables (étages urbains sur le modèle de la carte) — XL — Codé (à playtester)
 
 **Demande** : poursuivre la refonte de la carte (chantier 5) en l'intégrant aux étages urbains.
 
-**Cadrage (1er round)** : **villes explorables** — chaque ville devient un petit bloc de salles (marchand,
-professeur, salle sûre y sont des salles), les routes des tronçons dangereux explorés pas à pas ; même carte
-(`floormap.js`) et même voyage M1/P1 qu'aux étages classiques.
+**Décisions** : villes de **3 à 5 salles**, routes de **2 à 4 tronçons** explorés pas à pas, villes **calmes**
+(pickpocket parfois), **auberge dans chaque ville**, gardien dans la salle de l'escalier au fond de sa ville,
+**repaire en impasse** sur une route, ancienne Carte Urbaine **remplacée** par la carte stylisée (villes en bloc
+clair + nom, routes d'asphalte), tables d'événements ville / route validées (variante **« routes plus dures »** :
+Combat 40, Piège 14), **une PR à la fin**.
 
-**Exploré** :
-- Aujourd'hui : `generateUrbanFloorMap()` (app.js) = 6-8 villes sur une grille (`generateConnectedCityGrid()`),
-  routes entre cases adjacentes, carte à part (`renderGraphMiniMap()`, Carte Urbaine), voyage
-  `travelToCity()`, repaires sur les routes, gardien d'escalier/Sortie sur une ville, marchand et professeur
-  garantis. Tout cela est un second système de carte, parallèle à `floorgen.js`/`floormap.js`.
-- `floorgen.js` est prévu pour : nouvelle zone = une entrée de `ZONE_TYPES` (ex. `city` sûre, `road`
-  dangereuse), nouveau type de salle = une entrée de `ROOM_TYPES` (`shop`, `trainer`, `lair`…).
-- À reprendre : repaires (tronçon de route), gardien, Sortie de l'étage 18, scènes urbaines (route/repaire,
-  `resolveCombatBackdrop()`), sauvegardes (`FLOOR_MAP_VERSION`), ~150 assertions de `urban-*.js`.
-
-**Décisions (rounds 2 et 3)** : chantier mené **en premier**. Villes de **3 à 5 salles** ; routes de **2 à 4
-tronçons** explorés pas à pas ; villes **calmes** (jamais de combat ni de piège, parfois un pickpocket) ;
-**auberge dans chaque ville** (repos Sieste / Sommeil, comme une salle sûre) ; **gardien dans une salle au
-fond de la ville de l'escalier**, **repaire en impasse** partant d'un tronçon de route ; l'ancienne Carte
-Urbaine est **remplacée** par la carte stylisée (module `renderGraphMiniMap()` retiré) ; villes dessinées
-en **bloc clair + nom** (« ??? » tant qu'inconnue), routes en bandes d'asphalte ; **une seule PR à la fin**
-(avec le correctif « crawler mort » et la barre du bas agrandie).
-
-### Suggéré — proposition détaillée
-- **Réseau** : 6-8 villes sur la grille actuelle (même `generateConnectedCityGrid()`, rendue pure et à hasard
-  injectable), une route par paire de villes voisines (8 directions).
-- **Ville** (zone `city`) : une **place** (arrivée des routes, départ de l'étage dans la ville de départ), une
-  **auberge** (`safe`, repos existant `restAtSafehouse()`), la salle du **marchand** ou du **professeur** si la
-  ville en a un, 0-2 **ruelles** ; ville de l'escalier (ou de la Sortie) : + salle de l'escalier au fond,
-  gardée comme une salle de boss (même chance de garde qu'aujourd'hui). Mêmes rôles garantis qu'aujourd'hui
-  (un marchand, un professeur par étage).
-- **Route** (zone `road`) : 2-3 tronçons entre deux villes voisines en ligne droite, 3-4 en diagonale. Un
-  tronçon inconnu = un pas d'exploration (−1 H, événement tiré dans la table route) ; une route connue se
-  reprend d'un geste depuis la carte (voyage M1, embuscades selon la distance, comme aux étages classiques).
-- **Repaire** (zone `lair`) : une salle en impasse accrochée à un tronçon ; y entrer propose plonger / partir
-  (même enchaînement sbires puis boss, même butin) ; 1 par étage, 2 à l'étage final (inchangé).
-- **Moteur** : l'étage urbain passe par `gameState.floorMap` comme un étage classique (`travelToRoom()`,
-  `performExploreStep()`, `enterRoom()`, carte `floormap.js`) ; `gameState.urbanMap`, `travelToCity()`,
-  `arriveAtCity()` et la Carte Urbaine disparaissent. `FLOOR_MAP_VERSION` 3 : une sauvegarde en plein étage
-  urbain voit cet étage regénéré (comme au chantier 5).
-
-**Tables d'événements validées** (variante « routes plus dures » choisie par l'utilisateur) — mêmes clés que
-`config.chances` :
-
-| Événement | Quartier (actuel) | Avenue (actuel) | **Ville** | **Route** |
-|---|---|---|---|---|
-| Rien | 37 | 40 | 40 | 13 |
-| Combat | 25 | 12 | 0 | 40 |
-| Butin | 4 | 4 | 0 | 5 |
-| Piège | 10 | 3 | 0 | 14 |
-| Contretemps | 8 | 5 | 0 | 10 |
-| Petite trouvaille | 3 | 5 | 6 | 3 |
-| PO | 3 | 6 | 12 | 4 |
-| Cadeau du public | 4 | 8 | 10 | 3 |
-| Rencontre de crawler | 3 | 12 | 14 | 5 |
-| Ambiance | 3 | 5 | 13 | 3 |
-| **Pickpocket** (nouveau) | — | — | 5 | — |
-
-Pickpocket : perte de 10 % des PO (5 PO minimum si on en a, jamais plus de 50 PO). Trajet sur route connue :
-risque d'embuscade de la formule actuelle (distance × 9 %, plafond 80 %), ×1 sur une route (pas de
-réduction comme les avenues), chasseurs de primes ×1,5 sur les routes.
-
-### Planifié — lots (poussés au fil de l'eau, une PR à la fin)
-1. **Générateur pur** (`floorgen.js`) : `generateMetropolis()` (villes, routes découpées en tronçons, repaires en
-   impasse, salles typées), zones `city`/`road`/`lair` et types de salles `plaza`/`inn`/`shop`/`trainer`/
-   `stairs`/`lair` dans `ROOM_TYPES`/`ZONE_TYPES` ; `npm run sim:floors` mesure aussi les étages urbains
-   (connexité, tronçons par route, temps pour traverser) ; tests purs.
-2. **Branchement moteur** : `generateUrbanFloorMap()` → `gameState.floorMap` ; `enterRoom()` pour les nouveaux
-   types (boutique, professeur, auberge, escalier gardé ou libre, Sortie, repaire), tables `ville`/`route`,
-   pickpocket, gardien et plongée de repaire, sauvegarde `FLOOR_MAP_VERSION` 3.
-3. **Carte** : rendu des villes (bloc clair + nom), des routes (asphalte, tronçons) et des repères
-   (🛒 🎓 🛏️ 👑 🪜 💀/🏆) dans `floormap.js` ; retrait de `#urban-travel-overlay`, `renderGraphMiniMap()`, du fond
-   de pâtés de maisons et de leurs tests.
-4. **Scènes** : décor de combat selon la zone (route / repaire / ville), vignettes existantes (`citySafe`,
-   `urbanGuardian`, `lairSpotted`) branchées sur les salles, vignette pickpocket.
-5. **Tests et docs** : réécriture des tests `urban-*.js`, simulation longue (le résolveur passe par la carte),
-   `NOTES_VILLES.md`, `CLAUDE.md`, registre.
+**Livré** : générateur pur `generateMetropolis()` + `npm run sim:floors … urbain`, étage urbain dans
+`gameState.floorMap` (exploration, voyage M1/P1, carte, repères communs), tables ville / route et pickpocket,
+gardien de l'escalier et de la Sortie par le choix de boss existant, repaires en impasse, rendu urbain de la
+carte, retrait de l'ancien réseau (`urbanMap`, `travelToCity()`, Carte Urbaine, `renderGraphMiniMap()`),
+migration des sauvegardes — voir `NOTES_VILLES.md`.
 
 ## 13. Race et classe à l'étage 3 — L — Exploré (cadrage)
 

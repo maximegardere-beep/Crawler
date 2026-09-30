@@ -4,7 +4,7 @@ Rogue-like textuel minimaliste inspiré de Dungeon Crawler Carl. GitHub Pages, H
 Tailwind CDN, **aucun build step**.
 
 ## Fichiers
-- `index.html` — UI (scène d'exploration, combat, inventaire, grimoire, carte de l'étage / "Carte Urbaine", Game Over/Victoire)
+- `index.html` — UI (scène d'exploration, combat, inventaire, grimoire, carte de l'étage, Game Over/Victoire)
 - `app.js` — moteur : état, exploration, combat, niveau/XP, compétences, équipement, magie/mana, compagnons, carte d'étage
 - `bestiary.js` — monstres de base + boss de quartier (`districtBosses`)
 - `items.js` — objets de base, raretés (`itemRarities`), réglages du loot (`itemBalance`), qualificatifs (`itemQualifiers`)
@@ -18,11 +18,12 @@ Tailwind CDN, **aucun build step**.
 - `deathwatch.js` — émission DeathWatch (catalogue pur : présentateur, piques à trous (avec `theme`),
   répliques par thème de pique et par ton, réactions, `pickShowTaunt()`/`getShowReplyLines()`/
   `fillShowTemplate()`), chargé juste après `achievements.js`
-- `floorgen.js` — génération PURE des étages classiques (chantier 5, voir `NOTES_CARTE.md`) : réglages
+- `floorgen.js` — génération PURE des étages (chantier 5, voir `NOTES_CARTE.md`) : réglages
   `FLOOR_LAYOUT`, catalogues `ROOM_TYPES`/`ZONE_TYPES`, `generateBorough()` (hasard injectable,
-  `createFloorRng(seed)`), mesures `measureBorough()` ; chargé après `deathwatch.js`
-- `floormap.js` — rendu PUR de la carte stylisée des étages classiques (`buildFloorMapSvg()`,
-  `floorMapHitTest()`, zooms `FLOOR_MAP_ZOOMS`), chargé après `floorgen.js`
+  `createFloorRng(seed)`), mesures `measureBorough()` ; étages urbains (chantier 12, voir `NOTES_VILLES.md`) :
+  `METRO_LAYOUT`, `generateMetropolis()`, `measureMetropolis()` ; chargé après `deathwatch.js`
+- `floormap.js` — rendu PUR de la carte stylisée des étages classiques et urbains (`buildFloorMapSvg()`,
+  `buildUrbanMapSvg()`, `floorMapHitTest()`, zooms `FLOOR_MAP_ZOOMS`), chargé après `floorgen.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
   que le fichier concerné) : `crawler.js` (crawler + cadavre vu de dessus), `npcs.js` (compagnon, marchand,
   professeur), `mobs.js` (10 silhouettes d'archétype avec palette naturelle, couronne de boss),
@@ -45,7 +46,7 @@ Tailwind CDN, **aucun build step**.
 - `tests/` — voir plus bas
 - `CHANTIERS.md` — registre des chantiers (statut, décisions, point d'étape, voir « Chantiers »)
 - `NOTES_*.md` — notes détaillées d'un chantier (diagnostic, chiffres, tests, « À surveiller en playtest ») :
-  `COMPAGNONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, et pour les
+  `COMPAGNONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, et pour les
   chantiers antérieurs au registre `COMBAT`, `LISIBILITE_COMBAT`, `QOL_EQUILIBRAGE`
 
 ## Architecture (résumé)
@@ -72,7 +73,7 @@ Tailwind CDN, **aucun build step**.
 - 1 boss par quartier ; l'escalier est gardé par l'un des 4. "Repérer et partir" garde le même mob
   en cache sur sa pièce (marqué 👑 sur la carte), combattable plus tard en y retournant par la carte.
 - **Carte + voyage** (plus de liste « Lieux connus ») : `#floor-map-overlay` (panneau sous la scène,
-  ouvert/fermé par `#btn-toggle-map` comme la Carte Urbaine, masqué pendant une situation), rendu par
+  ouvert/fermé par `#btn-toggle-map`, masqué pendant une situation, étages classiques ET urbains), rendu par
   `buildFloorMapSvg()` (`floormap.js`) : blocs teintés (nom du quartier une fois visité, sinon « ??? »),
   avenues toujours visibles, brouillard (salle visitée pleine, *aperçue* — voisine d'une visitée,
   `isRoomSeen()` — en pointillé « ? », inconnue invisible), repères `listFloorLandmarks()` DÉRIVÉS des
@@ -379,16 +380,15 @@ Tailwind CDN, **aucun build step**.
   discrète (`#stair-alert-banner`, pulse `prefers-reduced-motion`-safe) affichée par `updateUI()` dès
   `timeLeft/maxTime <= 25%`, jamais en combat.
 - **Choix d'escalier** (`offerStairsChoice(context)`, demandé par l'utilisateur) : un escalier libre
-  (gardien vaincu dans `winCombat()`, classique ET urbain, ou ville-escalier non gardée / déjà vaincue
-  atteinte par `arriveAtCity()`) ne mène plus directement à l'écran d'escalier : `#stairs-choice-zone`
+  (gardien vaincu dans `winCombat()`, classique ET urbain, ou salle d'escalier urbaine non gardée atteinte par
+  `enterUrbanStairs()`) ne mène plus directement à l'écran d'escalier : `#stairs-choice-zone`
   propose « Descendre » (`descendStairs()` → `triggerFloorTransition()`) ou « Rester sur l'étage »
   (`stayOnFloor()`, aucun effet, le temps continue de s'écouler). Bloque via
   `gameState.stairsChoicePending` (inclus dans `isActionBlocked()`) ; `gameState.pendingStairsChoice` =
-  `{ kind: 'room', roomId }` (étage classique : la salle du gardien vaincu est marquée 🪜 « Escalier libre » sur la
+  `{ kind: 'room', roomId }` (la salle de l'escalier est marquée 🪜 « Escalier libre » sur la
   carte, `listFloorLandmarks()`, pour y revenir quoi qu'il arrive, même après une restauration de
-  sauvegarde) ou `{ kind: 'city', cityId }` (étage urbain : la ville reste sur la Carte Urbaine). Le
-  choix est reproposé à chaque retour : `enterRoom()` sur la salle d'un gardien d'escalier vaincu (au
-  lieu de l'« antre silencieuse », gardée pour les boss de quartier) et `arriveAtCity()`. La Sortie de
+  sauvegarde). Le choix est reproposé à chaque retour : `enterRoom()` sur la salle d'un gardien d'escalier
+  vaincu (au lieu de l'« antre silencieuse », gardée pour les boss de quartier). La Sortie de
   l'étage final n'y passe jamais : victoire immédiate (choix de l'utilisateur).
 - **Écran d'escalier** (`triggerFloorTransition()`/`continueFromFloorTransition()`) : affiché à la
   place d'un passage direct à l'étage suivant, au clic sur « Descendre » (voir Choix d'escalier
@@ -568,62 +568,26 @@ Tailwind CDN, **aucun build step**.
   sauvegarde sur le point d'être supprimée, round-trip exact ; `restoreSavesBackup()` le réécrit tel
   quel à ses clés d'origine, restaurable plusieurs fois de suite (le backup n'est effacé qu'en étant
   écrasé par un nettoyage suivant, jamais par une restauration).
-- **Étages urbains** (multiples de 3 — `config.urbanFloors`, `generateUrbanFloorMap()`) : un réseau
-  de villes sûres (`gameState.urbanMap.citiesById`) reliées par des routes dangereuses, en
-  remplacement du donjon classique à 4 quartiers pour cet étage (`floorMap`/`urbanMap` sont
-  mutuellement exclusifs, `nextFloor()` bascule sur `currentFloor % 3 === 0`). `theme` réutilise TEL
-  QUEL le nom d'un quartier existant de `districts.js`/`bestiary.js` comme thématique unique de tout
-  l'étage : `generateMob()`/`generateBoss()` n'ont besoin d'aucune adaptation (`gameState.currentDistrict`
-  y reste aligné en permanence). Déplacement via `travelToCity()` — calqué sur
-  `travelToRoom()` (coût en temps + embuscades proportionnels à `computeCityDistance()`,
-  Dijkstra équivalent à `computeDistance()`) — avec découverte progressive (`city.known`, révélé
-  ville par ville via `revealCityNeighbors()`). Une ville (jamais la ville de départ) porte
-  l'escalier, avec une chance de garde croissante avec la profondeur
-  (`config.urbanFloors.stairsGuardChanceByFloor` : 20/35/50/65 % aux étages 3/6/9/12, 80 % à
-  l'étage 15) ; le combat de gardien réutilise le même bloc UI que `triggerBossEncounter()`
-  (`#boss-choice-zone`), dispatché séparément (`triggerUrbanBossEncounter()`/`fightUrbanBossNow()`/
-  `retreatFromUrbanBoss()`, voir le dispatch dans `fightBossNow()`/`retreatFromBoss()`) car les
-  données sous-jacentes (villes) ne sont pas des pièces de donjon. **Étage final** (18,
-  `config.urbanFloors.finalFloor`) : la ville tirée devient la Sortie (`city.isExit`), **toujours**
-  gardée (100 %, jamais de pourcentage) ; la vaincre (ou la trouver non gardée) déclenche `winGame()`
-  (`gameState.hasWon`) plutôt que `nextFloor()` — écran de victoire calqué sur Game Over, jamais
-  d'étage 19 généré. Côté UI, la Carte Urbaine (`#urban-map-svg`, rempli par `updateUrbanMapUI()`)
-  est un **panneau sous la scène d'exploration** (`#urban-travel-overlay`, dans `#explore-stage`), ouvert
-  ou fermé par le bouton `#btn-toggle-map` (« 🗺️ Carte », `toggleMapPanel()`, ouvert par défaut —
-  `mapPanelOpen` est une variable de module, préférence d'affichage et non état de jeu) ; toucher la
-  scène sur un étage urbain la rouvre au lieu d'explorer (pas d'exploration libre ici). Panneau et
-  bouton sont masqués dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
-  `isActionBlocked()`) : la scène montre alors la situation (toggle dans `updateUI()`). Le même bouton
-  ouvre la carte des étages classiques (`#floor-map-overlay`, voir « Carte + voyage » plus haut). Le déplacement s'y représente comme une **mini carte
-  graphique** (nœuds = villes, arêtes = routes) plutôt qu'une liste, sur une **grille logique** (gx/gy
-  entiers, `URBAN_GRID_CELL` = 70 unités monde par cellule) plutôt qu'un gabarit de points fixes :
-  `generateConnectedCityGrid(cityCount)` fait croître une région CONNEXE par construction (chaque
-  nouvelle cellule tirée adjacente à une cellule déjà choisie, départ toujours en `cells[0]`) —
-  connexité garantie sans réparation après coup, contrairement à l'ancien arbre couvrant. Les routes
-  sont TOUTES les paires de cellules choisies adjacentes 8-directions (`computeGridAdjacencyPairs()`,
-  N/S/E/O + diagonales, jamais de connexion longue distance façon étoile) : presque toujours plus d'un
-  chemin possible entre deux villes, sans étape de bouclage séparée. Position d'AFFICHAGE (`city.x`/
-  `city.y`, dérivée de `gx`/`gy` × `URBAN_GRID_CELL`) passée UNE fois par `computeDeclutterLayout()`
-  (répulsion pure, déterministe — aucun `Math.random()` — déplacement plafonné depuis la position de
-  départ) puis figée pour de bon ; sur une grille pure l'espacement minimal (70) dépasse déjà le
-  `minDist` du déclutter (50), donc cette passe est un no-op ici — conservée telle quelle pour une
-  future disposition plus dense qui en aurait vraiment besoin (voir aussi `computeGraphLayout()`,
-  toujours réservée à un futur layout calculé depuis rien). Un **fond décoratif** "pâtés de maisons +
-  avenues" (`URBAN_MAP_BACKGROUND`, généré une seule fois avec un seed FIXE via `mulberry32()`, jamais
-  `Math.random()`) couvre une étendue MONDE fixe et généreuse (`URBAN_MAP_WORLD_EXTENT`), rigoureusement
-  identique d'une partie à l'autre. La **caméra** est un monde PANNABLE par glissement (souris et
-  tactile) plutôt qu'un simple recentrage automatique : `gameState.urbanMap.camera` (`null` = centrée
-  sur la ville courante par défaut, un `{x,y}` = position choisie par le joueur en glissant la carte,
-  via `onCameraChange` de `renderGraphMiniMap()`) est réinitialisée à `null` à chaque arrivée dans une
-  nouvelle ville (`arriveAtCity()`, "la caméra suit de nouveau le joueur") et par le bouton
-  `#btn-recenter-map` (`recenterUrbanMap()`). Écrêtée aux limites du réseau connu
-  (`computeDefaultWorldBounds()`/`clampCameraToBounds()`, marge ≥ la moitié de la fenêtre affichée —
-  sans quoi une ville de bord de zone connue ne pourrait jamais être parfaitement centrée). Le gardien
-  de l'escalier/Sortie garde sa ville normale (icône générique) mais son icône (👑) est dessinée à
-  part, décalée d'une distance fixe en pixels sur SA route d'accès plutôt que confondue avec le cercle
-  de la ville — "posté sur la route". `buildUrbanMapGraphData()` (seule partie qui connaît la forme des
-  données du jeu) adapte le réseau villes/routes connu au format générique nœuds/arêtes/positions
-  attendu par `renderGraphMiniMap()` — voir la section **Mini carte graphique** ci-dessous.
+- **Étages urbains = villes explorables** (multiples de 3 — `config.urbanFloors`, chantier 12, voir
+  `NOTES_VILLES.md`) : `generateUrbanFloorMap()` habille le générateur PUR `generateMetropolis()` (`floorgen.js`)
+  dans `gameState.floorMap` avec `kind: 'urban'` (`isUrbanFloor()`) — il n'y a plus de `gameState.urbanMap`.
+  6-8 villes sur une grille (région connexe, une route par paire de villes voisines en 8 directions, jamais deux
+  routes croisées), chacune de 3 à 5 salles (zone `city`) : **place** au centre (`cityRole: 'plaza'`, arrivée des
+  routes, départ de l'étage), **auberge** dans chaque ville (`type: 'safe'`, repos existant `restAtSafehouse()`),
+  salle du **marchand** (`shop`) ou du **professeur** (`trainer`) si la ville en a le rôle, **escalier** (`stairs`)
+  au fond de sa ville, ruelles. Routes (zone `road`) découpées en 2-4 tronçons (`seg`), **repaires** (zone `lair`)
+  en impasse sur un tronçon. `floorMap.citiesById` (nom, `role`, `specialty`, `stock`), `lairsById`, `theme`
+  (nom d'un quartier de `districts.js`, aussi `gameState.currentDistrict` pour tout l'étage), `isFinalFloor`,
+  `currentCityId`. Exploration, voyage M1/P1, carte : EXACTEMENT la machinerie des étages classiques ;
+  `enterRoom()` délègue à `enterUrbanRoom()` (place → scène `citySafe`, boutique/professeur →
+  `triggerShopEncounter()`, escalier → `enterUrbanStairs()`, repaire → `enterLair()`) ; auberge, ruelles et
+  tronçons suivent le comportement commun. Tables `config.cityChances` (ville calme : jamais de combat, de piège
+  ni de contretemps ; **pickpocket** 5 %, `computePickpocketLoss()`, `config.pickpocket`) et `config.roadChances`
+  (Combat 40, Piège 14) via `getZoneEventTable()` (`ZONE_EVENT_TABLES`) ; chasseurs de primes ×1,5 sur les
+  routes. Escalier gardé selon `config.urbanFloors.stairsGuardChanceByFloor` (20/35/50/65/80 %) : même choix que
+  les boss de quartier (`triggerBossEncounter()`, vignette `urbanGuardian`). **Étage final** (18) : la salle de
+  l'escalier devient la **Sortie** (`isExit`), toujours gardée ; la vaincre (ou l'atteindre libre) déclenche
+  `winGame()`. Une sauvegarde de l'ancien format (`saved.urbanMap`) voit son étage urbain regénéré.
 - **Système d'argent (PO)** : `gameState.gold`, seule monnaie du jeu. Deux sources : quelques PO
   trouvées en explorant (`config.chances.goldFind`, D100 au même titre que le reste du loot) et
   `sellItem(index)` (`SELL_VALUE_RATIO = 0.4` × `getItemValue(item)`, objet retiré de l'inventaire).
@@ -639,8 +603,8 @@ Tailwind CDN, **aucun build step**.
   probabiliste inchangé pour celles-là). Un marchand vend une catégorie d'objet (`city.specialty` ∈
   armes/armes à distance/armures/parchemins) ; un professeur forme UNE des 4 compétences réelles du
   joueur (`gameState.skills`, pas de "compétence armure" — contrairement aux objets, une compétence
-  n'a que 4 valeurs possibles). `triggerShopEncounter(city)` (dispatché depuis `arriveAtCity()`, avant
-  la résolution générique "ville sûre") ouvre `#shop-zone` et pose `gameState.shopChoicePending`
+  n'a que 4 valeurs possibles). `triggerShopEncounter(city)` (à l'entrée de la salle du marchand / du
+  professeur, `enterUrbanRoom()`) ouvre `#shop-zone` et pose `gameState.shopChoicePending`
   (inclus dans `isActionBlocked()`, comme un choix de boss). `generateShopStock(specialty)` tire 3
   objets une seule fois par partie (`city.stock`, jamais régénéré), prix = `getItemValue(item) ×
   SHOP_MARKUP` (2.5) ; `buyShopItem()`/`sellItem()` sont les deux faces du même
@@ -651,62 +615,15 @@ Tailwind CDN, **aucun build step**.
   `TRAINER_COST_PER_LEVEL` (20) × le niveau ACTUEL de la compétence pour l'amener exactement au niveau
   suivant (`gainSkillXp(specialty, xpToNext - xp)`) — "payer pour s'entraîner" plutôt que le grind
   combat habituel, jamais un raccourci gratuit.
-- **Repaires sur les routes** : `config.urbanFloors.lairRoadsPerFloor` (1, 2 à l'étage final) routes
-  du réseau urbain sont désignées "repaire" à la génération (`generateUrbanFloorMap()`), tirées parmi
-  toutes les paires ville-ville reliées, `isLair`/`lairId` posés sur LES DEUX sens de la route (comme
-  `distance`) pour rester détectables quel que soit le sens du trajet. `gameState.urbanMap.lairsById`
-  garde l'état (`cleared`, `combatsRemaining` 2 ou 3, `bossInstance`). `travelToCity()` détecte un
-  repaire uniquement sur la route DIRECTEMENT empruntée (voisin immédiat) — un trajet à plusieurs
-  sauts vers une ville plus lointaine ne suit aucun chemin réel (`computeCityDistance()` ne fait que
-  sommer des distances par Dijkstra) et ne peut donc pas "passer par" une route précise. Non nettoyé,
-  il déclenche `triggerLairChoice()` (choix plonger/poursuivre, `gameState.lairChoicePending`, inclus
-  dans `isActionBlocked()`) AVANT toute embuscade normale du trajet, qui reste en attente
-  (`pendingUrbanTravel` non consommé) le temps du choix. Poursuivre (`declineLair()`) reprend le
-  trajet normalement, repaire intact, re-proposé à un futur passage. Plonger (`diveIntoLair()`) lance
-  le premier combat forcé ; `winCombat()` enchaîne alors seul les sbires restants puis le boss
-  (`gameState.pendingLairDive.stage`, `'trash'` → `'boss'` — boss généré seulement à ce moment, jamais
-  à l'avance) AVANT de reprendre le trajet interrompu, pour qu'une victoire sur un simple sbire ne
-  soit jamais prise pour l'arrivée à destination ; le butin garanti d'un repaire n'est qu'un combat de
-  boss normal (`winCombat()` garantit déjà du loot à tout `wasBoss`, rien de spécifique à dupliquer).
-  Une fuite réussie en pleine plongée (`attemptFlee()`) annule la plongée SANS marquer le repaire
-  nettoyé ni reprendre automatiquement le trajet interrompu — même comportement passif qu'une fuite
-  d'embuscade urbaine normale. Visualisé sur la Carte Urbaine via `edges[].marker` (voir Mini carte
-  graphique ci-dessous) : 💀 rouge tant qu'actif, 🏆 gris une fois nettoyé — jamais un `goalIcon`,
-  une route reste toujours franchissable (contrairement à un gardien qui bloque le passage).
-- **Mini carte graphique (réutilisable)** : `renderGraphMiniMap(svgEl, {nodes, edges, positions,
-  currentId, onNodeClick, camera, viewSize, worldBounds, onCameraChange, background})` (rendu SVG,
-  aucune connaissance du jeu) est le module générique — `positions` en coordonnées MONDE (unités
-  arbitraires, plus de normalisation 0..1 : le viewBox reflète directement `camera ± viewSize/2`,
-  aucune mise à l'échelle interne). Trois familles de marqueurs, jamais confondues : `node.goalIcon`
-  (décalé sur SA route d'accès, bloque le passage — gardien 👑) vs `node.badge` (fusionné au cercle du
-  nœud, ne bloque rien — marchand 🛒/professeur 🎓) vs `edges[i].marker` (au milieu de l'arête
-  elle-même, n'appartient à AUCUN des deux nœuds — repaire 💀/🏆).
-  **Caméra pannable** : sans `camera` explicite, centrée sur `currentId` puis, à défaut, sur la boîte
-  englobante de tous les nœuds (`computeDefaultWorldBounds()` calcule des bornes par défaut si
-  `worldBounds` est omis) — c'est à l'APPELANT de mémoriser un `camera` explicite d'un rendu à l'autre
-  (ce module ne garde aucun état lui-même). Avec `onCameraChange`, le pan par glissement (souris ET
-  tactile, `pointerdown`/`pointermove`/`pointerup`) s'active sur `svgEl` : le viewBox se déplace EN
-  DIRECT pendant le glissement (mutation d'un seul attribut, jamais un re-rendu complet — coûteux à
-  chaque `pointermove`, vu le volume du fond décoratif), `onCameraChange` n'étant appelé qu'UNE fois à
-  la fin pour que l'appelant persiste la position. Un relâchement sous 5px de mouvement reste un
-  tap/clic, résolu en retrouvant le nœud le plus proche du point relâché par distance MONDE
-  (`clickableRegions`, rempli au fil du rendu) plutôt que via le `click` natif du navigateur — **ce
-  dernier s'est avéré peu fiable une fois qu'un pointeur a été capturé pendant l'interaction** (même
-  relâché ensuite : constaté en conditions réelles avec Playwright, pas qu'en environnement de test —
-  si jamais retenté, bien re-vérifier en navigateur, pas seulement via `tests/test_stub.js`). Sans pan
-  (`onCameraChange` absent), aucun pointeur n'est jamais capturé et le `click` natif classique reste
-  utilisé directement sur chaque nœud, comme avant ce système. `clampCameraToBounds()` (écrêtage pur,
-  testable seule) empêche le pan de sortir des `worldBounds`.
-  `computeGraphLayout(nodeIds, edges, existingPositions)` (disposition par relaxation "force-directed"
-  minimaliste avec ressorts + attraction centrale, sans dépendance externe) reste disponible pour un
-  futur cas qui aurait vraiment besoin d'un layout calculé depuis rien plutôt qu'une grille logique —
-  non utilisée par les étages urbains, mais conservée telle quelle (testée, mobilité 1/0.08 pour
-  rester stable d'un rendu à l'autre) pour un futur système de navigation basé sur un graphe (mini-plan
-  de donjon classique par exemple). `computeDeclutterLayout(basePositions, ids, {minDist, iterations,
-  maxShift})` (répulsion PURE, sans ressort ni attraction, contrairement à `computeGraphLayout()`) est
-  le second module de layout : pas un calcul depuis rien, une petite correction déterministe d'un
-  layout déjà bon (la grille urbaine) pour écarter les points trop proches sans le déformer — voir
-  Étages urbains ci-dessus pour son usage concret.
+- **Repaires** : `config.urbanFloors.lairRoadsPerFloor` (1, 2 à l'étage final) salles en impasse accrochées à
+  un tronçon de route (`generateMetropolis()`), état dans `gameState.floorMap.lairsById` (`cleared`,
+  `combatsRemaining` 2 ou 3, `bossInstance`). Y entrer (`enterLair()`) propose `triggerLairChoice()` (plonger /
+  ressortir, `gameState.lairChoicePending`, inclus dans `isActionBlocked()`) ; ressortir (`declineLair()`) laisse
+  le repaire intact, reproposé au prochain passage. Plonger (`diveIntoLair()`) lance le premier combat forcé ;
+  `winCombat()` enchaîne les sbires restants puis le boss (`gameState.pendingLairDive.stage`, `'trash'` →
+  `'boss'`, boss généré seulement à ce moment) ; sa victoire marque le repaire nettoyé (butin d'un boss, niveau
+  d'objet +1). Une fuite en pleine plongée annule la plongée sans nettoyer le repaire. Carte : 💀 tant qu'actif,
+  🏆 une fois nettoyé.
 
 - **Scène de combat (vue 2D latérale)** : `#combat-zone` (index.html), de haut en bas : barres de vie
   (nom + PV actuels/max, mob à gauche, crawler à droite, badges d'état, dés), bannière de télégraphe,
@@ -851,17 +768,17 @@ Tailwind CDN, **aucun build step**.
   `chalkMarks`, `fallenCrown`, `checkedMap`, `dustPuff`, `darkCafeteria`, `stairsDown`, `pactAltar`).
   `combat-scene.js` lit `app.js` et exige que chaque vignette nommée par un `setSceneHeader()` existe :
   une faute de frappe dans un nom fait échouer les tests au lieu de retomber silencieusement sur l'emoji.
-  **Étages urbains (scènes)** : sur un étage urbain (`gameState.urbanMap` présent), le combat ne se
+  **Étages urbains (scènes)** : sur un étage urbain (`isUrbanFloor()`), le combat ne se
   déroule jamais dans le décor du quartier — `resolveCombatBackdrop()` choisit
-  `URBAN_COMBAT_BACKDROPS.road` (asphalte, glissière, panneau autoroutier, épave : embuscades de trajet
-  et gardiens « postés sur la route ») ou `URBAN_COMBAT_BACKDROPS.lair` (pierre, torches à lueur rouge,
+  `URBAN_COMBAT_BACKDROPS.road` (asphalte, glissière, panneau autoroutier, épave : combats de route et
+  gardien de l'escalier) ou `URBAN_COMBAT_BACKDROPS.lair` (pierre, torches à lueur rouge,
   crochets, crânes) pendant une plongée (`gameState.pendingLairDive`) ; étage classique inchangé.
   Pendant une plongée, `#scene-lair-progress` (haut de la scène) affiche un pion par sbire (plein =
   vaincu, cerclé de rouge = en cours) puis la couronne du boss (`lairProgressState()`/
   `composeLairProgress()`, total = `lair.combatsRemaining`). Vignettes : `urbanGuardian`
   (escalier ou porte « SORTIE » à l'étage final, le boss couronné posté DEVANT, entre elle et le
   crawler), `lairSpotted` (entrée de repaire défoncée, lueur rouge), `citySafe` (panneau au nom de la
-  ville, à chaque arrivée en ville sûre et au début d'un étage urbain).
+  ville, sur sa place et au début d'un étage urbain), `pickpocket` (crawler louche qui file).
   **Écran Game Over** (`renderScene('gameOver', { cause })`, appelé par `gameOver()`, remplace l'ancien
   emoji 💀) : seule scène VUE DE DESSUS — sol du quartier de la mort (même motif de sol que son décor),
   cadavre `SCENE_CORPSE_TOPDOWN_SVG` (sprites/crawler.js, face contre terre, sac encore sur le dos) dans
@@ -921,7 +838,9 @@ Tailwind CDN, **aucun build step**.
   `npm run test:all` (les deux à la suite, s'arrête au premier échec) — voir `package.json`.
 - `npm run sim:floors [n] [labyrinthe]` (`tests/tools/floor-sim.js`, outil de calibrage, jamais lancé par la
   CI) : génère n étages avec `floorgen.js` et affiche salles/bloc, culs-de-sac, profondeur du boss, portes,
-  croisements, temps — à relancer avant toute retouche de `FLOOR_LAYOUT`.
+  croisements, temps — à relancer avant toute retouche de `FLOOR_LAYOUT` ; `npm run sim:floors [n] urbain`
+  mesure les étages urbains (salles par ville, tronçons par route, départ → escalier) avant toute retouche de
+  `METRO_LAYOUT`.
 - `npm run sim:items` (`tests/tools/item-curve.js`, outil de calibrage, jamais lancé par la CI) :
   répartition des raretés par étage et source, courbe de puissance selon l'équipement, valeur marchande
   — à relancer avant toute retouche de `itemBalance`/`itemRarities`.

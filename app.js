@@ -745,6 +745,7 @@ const ui = {
     combatZone: document.getElementById('combat-zone'),
     floorMapOverlay: document.getElementById('floor-map-overlay'),
     floorMapSvg: document.getElementById('floor-map-svg'),
+    floorMapLegend: document.getElementById('floor-map-legend'),
     floorMapBubble: document.getElementById('floor-map-bubble'),
     floorMapBubbleTitle: document.getElementById('floor-map-bubble-title'),
     floorMapBubbleText: document.getElementById('floor-map-bubble-text'),
@@ -4937,9 +4938,16 @@ function describeFloorMapTravel(roomId) {
     return { title: `Aller : ${plan.label}`, text: `Trajet par le chemin connu : -${plan.timeCost} H${risk}.` };
 }
 
+// Légende sous la carte, selon le type d'étage.
+const FLOOR_MAP_LEGENDS = {
+    classic: "Plein = visité · pointillé « ? » = aperçu · 👑 boss · 🪜 escalier · 🟡 vous · avenues : trajets deux fois plus rapides et plus sûrs",
+    urban: "Plein = visité · pointillé « ? » = aperçu · villes calmes, routes dangereuses · 🛒 marchand · 🎓 professeur · 👑 gardien · 🪜 escalier · 💀 repaire · 🟡 vous"
+};
+
 function updateFloorMapUI() {
     if (!ui.floorMapSvg) return;
     const fm = gameState.floorMap;
+    if (ui.floorMapLegend) ui.floorMapLegend.innerText = FLOOR_MAP_LEGENDS[isUrbanFloor() ? 'urban' : 'classic'];
     if (!fm || !fm.geometry) {
         ui.floorMapSvg.innerHTML = "";
         floorMapSelectedRoomId = null;

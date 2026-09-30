@@ -79,5 +79,5 @@ Registre : `CHANTIERS.md` (tours de suggestions 1 à 5, décisions, plan final r
 - Avenues : la table (plus de crawlers et de cadeaux) peut rendre les avenues trop attractives pour
   « farmer » ; à surveiller.
 - Densité visuelle des blocs (21 × 15) et taille des salles sur petit écran.
-- Dette signalée (non corrigée ici) : `renderGraphMiniMap()` (Carte Urbaine) ré-attache ses écouteurs de
-  glissement à chaque rendu ; la carte des étages classiques les attache une seule fois.
+- Dette signalée ici (`renderGraphMiniMap()` de la Carte Urbaine) : résolue au chantier 12, qui a retiré ce
+  module — les étages urbains utilisent désormais cette même carte (voir `NOTES_VILLES.md`).
