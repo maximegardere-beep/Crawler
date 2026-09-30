@@ -24,8 +24,14 @@ quel**, **un seul présentateur** pour la V1.
   trop facile, pièges, sorts ratés, objet ridicule porté, compagnon (présent, à terre, parti), prime,
   argent, succès, niveau, mains nues — plus 5 génériques de repli. `pickShowTaunt()` préfère une pique
   dont le déclencheur correspond à la partie. Contexte construit par `buildShowContext()` (app.js).
-- 5 répliques par ton (`SHOW_REPLIES`, une tirée par émission et affichée sur le bouton) et les réactions
-  du présentateur par issue (`SHOW_REACTIONS`).
+- Répliques **liées à la pique** (retour utilisateur après la V1, où elles étaient tirées dans une liste
+  générique par ton, sans rapport avec ce que venait de dire Chip) : chaque pique porte un `theme` (21
+  thèmes : fuites, gros dégâts, PV bas, étage facile, pièges, sorts, objet ridicule, compagnon présent / à
+  terre / parti, prime, riche, fauché, succès, sous-niveau, mains nues, et un thème par pique générique).
+  `SHOW_REPLIES[theme][ton]` = 2 répliques par ton, avec les mêmes trous que les piques (« {{fuites}}
+  fuites, et je suis toujours là… ») ; `getShowReplyLines(taunt, ton)` (pure, repli sur un thème générique).
+  Refus communs (`SHOW_REFUSALS`). Réactions du présentateur par issue (`SHOW_REACTIONS`), neutres vis-à-vis
+  de la réplique choisie.
 
 ## Réponses (`config.show`, chiffres validés)
 Jet **d20 + popularité** (+1 par tranche de 5 succès débloqués) contre le seuil du ton :

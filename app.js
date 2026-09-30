@@ -3439,7 +3439,8 @@ function triggerShow(lastFloor = {}) {
     const ctx = buildShowContext(lastFloor);
     const taunt = pickShowTaunt(ctx);
     const replies = {};
-    SHOW_TONES.forEach(t => { replies[t.key] = pickShowLine(SHOW_REPLIES[t.key]); });
+    // Répliques tirées dans le thème de la pique : la réponse rebondit sur ce que Chip vient de dire.
+    SHOW_TONES.forEach(t => { replies[t.key] = fillShowTemplate(pickShowLine(getShowReplyLines(taunt, t.key)), ctx); });
     gameState.pendingShow = { tauntId: taunt.id, text: fillShowTemplate(taunt.text, ctx), replies };
     gameState.showChoicePending = true;
     setSceneHeader('📺', SHOW_HOST.show, 'Émission', 'showStudio');
@@ -3486,7 +3487,7 @@ function answerShow(toneKey) {
     const s = gameState.runStats;
 
     if (toneKey === 'refuse') {
-        logEvent(`Vous : ${pickShowLine(SHOW_REPLIES.refuse)} — ${pickShowLine(SHOW_REACTIONS.refuse)}`, "info");
+        logEvent(`Vous : ${pickShowLine(SHOW_REFUSALS)} — ${pickShowLine(SHOW_REACTIONS.refuse)}`, "info");
         s.showRefusals = (s.showRefusals || 0) + 1;
         recordRunEvent('show', { tone: 'refuse' });
         updateUI();

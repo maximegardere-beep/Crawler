@@ -27,7 +27,12 @@ function openShow(lastFloor = {}) {
     const ids = new Set(SHOW_TAUNTS.map(t => t.id));
     assert(SHOW_TAUNTS.length >= 30 && ids.size === SHOW_TAUNTS.length, "Au moins 30 piques, identifiants uniques");
     assert(SHOW_TAUNTS.filter(t => !t.when).length >= 5, "Au moins 5 piques génériques de repli");
-    assert(SHOW_TONES.every(t => (SHOW_REPLIES[t.key] || []).length >= 5), "5 répliques par ton de réponse");
+    assert(SHOW_TAUNTS.every(t => t.theme && SHOW_REPLIES[t.theme]), "Chaque pique a un thème de répliques existant");
+    assert(Object.keys(SHOW_REPLIES).every(th => SHOW_TONES.every(t => (SHOW_REPLIES[th][t.key] || []).length >= 2)),
+        "Chaque thème couvre les 4 tons (au moins 2 répliques chacun)");
+    assert(Object.keys(SHOW_REPLIES).every(th => SHOW_TAUNTS.some(t => t.theme === th)), "Aucun thème de répliques orphelin");
+    assert(SHOW_REFUSALS.length >= 2, "Des répliques de refus");
+    assert(getShowReplyLines({ theme: 'inconnu' }, 'insult').length > 0 && getShowReplyLines(null, 'polite').length > 0, "Pique sans thème connu : répliques de repli");
     assert(['retort', 'provoke', 'insult'].every(k => SHOW_REACTIONS.success[k].length && SHOW_REACTIONS.failure[k].length) && SHOW_REACTIONS.polite.length && SHOW_REACTIONS.refuse.length,
         "Une réaction du présentateur pour chaque issue");
     assert(fillShowTemplate("{{crawler}} à l'étage {{etage}} ({{inconnu}})", { crawler: 'Carl', etage: 4 }) === "Carl à l'étage 4 ({{inconnu}})", "Gabarit : trous remplis, trou inconnu laissé tel quel");
@@ -37,6 +42,11 @@ function openShow(lastFloor = {}) {
     assert(pickShowTaunt({ ...base, objet: 'Rideau de Douche' }, () => 0).id === 'joke1', "Objet ridicule porté : pique dédiée");
     const everyTauntFills = SHOW_TAUNTS.every(t => !/\{\{/.test(fillShowTemplate(t.text, { ...base, crawler: 'Carl', objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6 })));
     assert(everyTauntFills, "Chaque pique n'utilise que des trous fournis par le contexte");
+    const fullCtx = { ...base, crawler: 'Carl', objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6 };
+    const everyReplyFills = Object.values(SHOW_REPLIES).every(byTone => Object.values(byTone).every(lines => lines.every(l => !/\{\{/.test(fillShowTemplate(l, fullCtx)))));
+    assert(everyReplyFills, "Chaque réplique n'utilise que des trous fournis par le contexte");
+    // Un thème sans compagnon (parti) ne doit jamais citer {{compagnon}}, absent du contexte à ce moment-là.
+    assert(Object.values(SHOW_REPLIES.palGone).every(lines => lines.every(l => !l.includes('{{compagnon}}'))), "Compagnon parti : répliques sans son nom");
 }
 
 // --- Contexte de la partie ---
@@ -146,6 +156,22 @@ function openShow(lastFloor = {}) {
     openShow();
     updateShowZone();
     assert(ui.showTaunt.innerText === gameState.pendingShow.text, "Zone : la pique du présentateur");
+    {
+        // Les répliques proposées rebondissent sur la pique : 5 fuites → pique « fuites » → répliques « fuites », trous remplis.
+        resetTransientState();
+        gameState.fleesThisRun = 5;
+        gameState.equipment.weapon = null; gameState.equipment.ranged = null; gameState.equipment.armor = null;
+        gameState.companion = null;
+        withRandom(0, () => triggerShow({}));
+        const taunt = SHOW_TAUNTS.find(t => t.id === gameState.pendingShow.tauntId);
+        assert(taunt.theme === 'flee', "5 fuites : pique du thème fuites");
+        const ctx = buildShowContext({});
+        assert(SHOW_TONES.every(t => SHOW_REPLIES.flee[t.key].map(l => fillShowTemplate(l, ctx)).includes(gameState.pendingShow.replies[t.key])),
+            "Chaque bouton propose une réplique du thème de la pique");
+        assert(SHOW_TONES.every(t => !/\{\{/.test(gameState.pendingShow.replies[t.key])), "Répliques affichées sans trou non rempli");
+        closeShow();
+    }
+    openShow();
     assert(ui.showButtons.provoke.innerHTML.includes('Jet ≥ 12') && ui.showButtons.provoke.innerHTML.includes(gameState.pendingShow.replies.provoke), "Bouton : réplique + enjeu (seuil, gain, risque)");
     assert(describeShowStake('polite') === "Sans jet · petit cadeau" && describeShowStake('insult').includes('chasseur de primes'), "Enjeux lisibles");
     closeShow();
