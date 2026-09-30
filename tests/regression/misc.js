@@ -4,21 +4,22 @@ const { assert, resetTransientState } = require('./_helpers.js');
 // Compagnons : voir tests/regression/companions.js (chantier "rework des compagnons").
 
 // ===================================================================
-// Salles sécurisées : 1 à 2 par quartier (jamais 0, jamais plus de 2) — voir generateQuadrant().
+// Salles sécurisées : 1 à 2 par quartier (jamais 0, jamais plus de 2) — voir generateBorough() (floorgen.js).
 // ===================================================================
 {
     let sawZero = false, sawMoreThanTwo = false, sawTwo = false;
-    for (let i = 0; i < 60; i++) {
-        const roomsById = {};
-        generateQuadrant(0, "Quartier de Test", roomsById);
-        const safeCount = Object.values(roomsById).filter(r => r.type === 'safe').length;
-        if (safeCount === 0) sawZero = true;
-        if (safeCount > 2) sawMoreThanTwo = true;
-        if (safeCount === 2) sawTwo = true;
+    for (let i = 0; i < 15; i++) {
+        const floor = generateBorough({ rng: createFloorRng(500 + i) });
+        floor.quadrants.forEach(q => {
+            const safeCount = q.roomIds.filter(id => floor.roomsById[id].type === 'safe').length;
+            if (safeCount === 0) sawZero = true;
+            if (safeCount > 2) sawMoreThanTwo = true;
+            if (safeCount === 2) sawTwo = true;
+        });
     }
-    assert(!sawZero, "generateQuadrant() : au moins 1 salle sécurisée par quartier (jamais 0), sur 60 générations");
-    assert(!sawMoreThanTwo, "generateQuadrant() : jamais plus de 2 salles sécurisées par quartier");
-    assert(sawTwo, "generateQuadrant() : 2 salles sécurisées effectivement possibles (60 générations)");
+    assert(!sawZero, "generateBorough() : au moins 1 salle sécurisée par quartier (jamais 0), sur 60 blocs");
+    assert(!sawMoreThanTwo, "generateBorough() : jamais plus de 2 salles sécurisées par quartier");
+    assert(sawTwo, "generateBorough() : 2 salles sécurisées effectivement possibles (60 blocs)");
 }
 
 // ===================================================================
