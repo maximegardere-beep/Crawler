@@ -27,7 +27,7 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 2 | Chronique de run + Succès sarcastiques | M | **Codé** — à playtester | — |
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | **Codé** — à playtester | 2 (fait) |
 | 4 | Émission de changement d'étage (DeathWatch) | L | **Codé** — à playtester | 2, 1, 3 (faits) |
-| 5 | Rework de la carte + génération des étages | XL | **Plan final proposé** (à valider) | — |
+| 5 | Rework de la carte + génération des étages | XL | **Plan final révisé** (à valider) | — |
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
 | 8 | Sons | M | Idée (ancien backlog) | hébergement des fichiers non tranché |
@@ -414,7 +414,7 @@ Les 5 lots sont livrés (détail et points à surveiller : `NOTES_DEATHWATCH.md`
 codant : l'émission n'a lieu que dans une vraie partie (nom confirmé), comme les succès ; l'échec « −2 H »
 ne peut jamais tuer (au moins 1 H reste).
 
-## 5. Rework de la carte + génération des étages — XL — Plan final proposé
+## 5. Rework de la carte + génération des étages — XL — Plan final révisé proposé
 
 **Demande** : zoom, réseau plus complexe et logique, bouton carte pour les étages non urbains ; **revoir
 la génération des couloirs et des salles, de mauvaise qualité**. Méthode demandée : prendre le temps,
@@ -637,8 +637,54 @@ Validation visuelle dans Chromium à chaque lot qui touche l'écran (4 et 5). Po
 d'avance : les tests qui s'appuient sur l'ancienne structure (`generateQuadrant()`, lieux connus) seront
 réécrits, pas contournés ; la simulation longue devra connaître les nouveaux états (bulle de trajet).
 
+### Retour sur le plan final (utilisateur)
+- **M2 abandonné** : pas de portes Nord / Sud / Est / Ouest dans la scène. Nouvelles propositions demandées pour
+  l'« entre-deux » entre exploration au hasard et déplacement libre.
+
+### Suggestions — tour 5 (remplacer M2, sans portes dans la scène)
+Principe commun : la scène reste un simple bouton « Explorer » (un toucher = −1 H, au hasard). Le choix de
+direction, quand il existe, passe ailleurs.
+- **P1 — Explorer depuis la carte** : sur la carte, les salles *aperçues* (voisines d'une salle visitée,
+  encore inconnues) sont touchables comme les salles visitées ; toucher une salle aperçue voisine = y entrer
+  (même coût qu'un pas d'exploration, événement tiré à l'entrée). Plus loin, le trajet passe par M1 puis fait
+  le dernier pas dans l'inconnu. Aucun nouvel écran : la carte devient la manette.
+- **P2 — Cap** (ancien M3, avancé en V1) : poser un cap sur la carte (un quartier, une porte d'avenue, un coin
+  non exploré). Chaque toucher de la scène choisit alors, parmi les sorties inconnues, celle qui rapproche du
+  cap (sinon au hasard). Rappel discret dans la scène (petite boussole ➜ nom du cap), annulable.
+- **P3 — Humeur d'exploration** : un réglage à 3 crans près du bouton Explorer, qui biaise le hasard sans rien
+  imposer — *Prudent* (préfère les salles déjà aperçues sans danger, s'éloigne des boss repérés),
+  *Curieux* (préfère les grandes salles et l'inconnu), *Pressé* (préfère les avenues et le quartier de
+  l'escalier). Zéro choix par pas, juste une tendance.
+- **P4 — Flair** (ancien M4, plus tard) : avec la Furtivité ou un Éclaireur, les salles aperçues affichent
+  parfois un indice sur la carte (❗ danger, ✨ butin, 💤 calme), pour choisir en connaissance de cause.
+- **Recommandation** : **P1 + P2** pour la V1 (tout passe par la carte, qui est déjà au programme : peu de code
+  en plus et une seule logique), P3 en option si le hasard reste trop frustrant au playtest, P4 plus tard.
+- Impact sur le plan : le lot 5 (portes) est remplacé par « P1 + P2 sur la carte » ; les lots 1 à 4 et 6
+  sont inchangés.
+
+### Questions pour le tour 6
+1. P1 + P2 en V1 ? P3 tout de suite ou seulement si besoin ? P4 plus tard ?
+2. P1 : toucher une salle aperçue lointaine = voyage (M1) jusqu'à la dernière salle connue puis le pas dans
+   l'inconnu, en un seul geste — ok ?
+3. P2 : cap effacé automatiquement une fois atteint (quartier atteint, zone explorée) — ok ?
+
+### Réponses au tour 5 (utilisateur)
+- **P1 seul** (explorer depuis la carte). Pas de cap (P2), pas d'humeur (P3) ; flair (P4) éventuellement plus tard.
+- Par défaut (question 2 sans réponse explicite) : toucher une salle aperçue lointaine = voyage M1 jusqu'à la
+  dernière salle connue puis le pas dans l'inconnu, en un seul geste (une seule bulle « Y aller / Annuler »).
+
+### Plan final révisé (à valider avant de coder)
+Identique au plan final ci-dessus, sauf le lot 5 :
+5. **P1 — explorer depuis la carte** (remplace les portes N/S/E/O) : les salles aperçues deviennent touchables
+   sur la carte ; la bulle indique « Explorer : <quartier / avenue> — temps, risque » ; voisine directe = un pas
+   d'exploration normal (−1 H, événement de la zone) ; plus loin = trajet M1 (temps et embuscades selon la
+   longueur réelle, avenues ×0,5) jusqu'à la salle connue la plus proche, puis ce pas. Toucher la scène
+   reste l'exploration au hasard. Marquage visuel des salles aperçues (pointillé + « ? »).
+Lot 3 (M1) et lot 5 partagent la même bulle et la même fonction de trajet (`travelToRoom()`), ce qui justifie
+de les livrer à la suite.
+
 ### Décisions
-- (plan final en attente de validation)
+- M2 (portes dans la scène) abandonné ; **P1** retenu. Plan final révisé en attente de validation.
 
 ## 6. Mini-jeux d'exploration — ? — En attente
 
