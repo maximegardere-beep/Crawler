@@ -512,13 +512,42 @@
             </div>
             <div class="flex items-center justify-between gap-2 px-0.5">
                 <h2 id="explore-title" class="min-w-0 text-sm font-black uppercase tracking-wide text-gray-100 leading-tight truncate">En Exploration</h2>
-                <!-- Ouvre/ferme la carte de l'étage (aujourd'hui : Carte Urbaine des étages urbains). -->
+                <!-- Ouvre/ferme la carte de l'étage (#floor-map-overlay sur un étage classique, Carte Urbaine sur un étage urbain). -->
                 <button id="btn-toggle-map" class="hidden shrink-0 min-h-[44px] px-3 bg-gray-900 border border-blue-800/60 hover:border-blue-400 rounded text-[10px] text-blue-300 uppercase tracking-wider transition-all" aria-expanded="true">🗺️ Carte</button>
             </div>
             <p id="explore-last-line" class="min-h-[2.6em] px-0.5 text-[11px] leading-snug text-gray-400 italic line-clamp-2" aria-live="polite"></p>
             <p id="advance-hint" class="text-[10px] text-blue-400 uppercase tracking-widest text-center animate-pulse">
                 👆 Touchez la scène pour explorer (-1H)
             </p>
+
+            <!-- Carte de l'étage (étages classiques, chantier 5 — voir NOTES_CARTE.md) : blocs de quartier,
+                 avenues, salles connues, brouillard et repères, rendus par buildFloorMapSvg() (floormap.js).
+                 Toucher une salle visitée ou aperçue ouvre la bulle « Y aller / Annuler » (travelToRoom(),
+                 app.js) ; glisser déplace la vue ; ＋/－ zooment, ◎ recentre sur le crawler. Ouverte/fermée par
+                 #btn-toggle-map, masquée pendant une situation (isActionBlocked()) comme la Carte Urbaine. -->
+            <div id="floor-map-overlay" class="hidden flex flex-col p-2 gap-1 rounded-lg bg-gray-950 border border-blue-800/60">
+                <div class="flex justify-between items-center gap-2 text-[9px] uppercase tracking-widest text-blue-400 font-bold">
+                    <span>🗺️ Carte de l'étage</span>
+                    <span class="normal-case tracking-normal font-normal text-gray-500">Touchez une salle pour y aller</span>
+                </div>
+                <div class="relative">
+                    <svg id="floor-map-svg" viewBox="0 0 320 230" preserveAspectRatio="xMidYMid meet" class="block w-full rounded bg-black select-none" style="aspect-ratio: 25 / 18; touch-action: none;" role="img" aria-label="Carte de l'étage"></svg>
+                    <div class="absolute top-1.5 right-1.5 flex flex-col gap-1">
+                        <button id="btn-floor-map-zoom-in" class="w-9 h-9 bg-gray-900/90 border border-blue-800/60 hover:border-blue-400 rounded text-base text-blue-200 leading-none" aria-label="Zoomer">＋</button>
+                        <button id="btn-floor-map-zoom-out" class="w-9 h-9 bg-gray-900/90 border border-blue-800/60 hover:border-blue-400 rounded text-base text-blue-200 leading-none" aria-label="Dézoomer">－</button>
+                        <button id="btn-floor-map-recenter" class="w-9 h-9 bg-gray-900/90 border border-blue-800/60 hover:border-blue-400 rounded text-base text-blue-200 leading-none" aria-label="Recentrer sur le crawler">◎</button>
+                    </div>
+                </div>
+                <div id="floor-map-bubble" class="hidden flex items-center gap-2 p-1.5 rounded bg-gray-900 border border-yellow-600/70">
+                    <div class="min-w-0 flex-1">
+                        <p id="floor-map-bubble-title" class="text-[11px] font-bold text-yellow-200 leading-tight"></p>
+                        <p id="floor-map-bubble-text" class="text-[10px] text-gray-300 leading-snug"></p>
+                    </div>
+                    <button id="btn-floor-map-go" class="shrink-0 min-h-[44px] px-3 bg-yellow-700/80 hover:bg-yellow-600 border border-yellow-500 rounded text-[11px] font-bold text-white uppercase tracking-wide">Y aller</button>
+                    <button id="btn-floor-map-cancel" class="shrink-0 min-h-[44px] px-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded text-[11px] text-gray-200" aria-label="Annuler">✕</button>
+                </div>
+                <p class="text-[9px] text-gray-500 leading-snug">Plein = visité · pointillé « ? » = aperçu · 👑 boss · 🪜 escalier · 🟡 vous · avenues : trajets deux fois plus rapides et plus sûrs</p>
+            </div>
 
             <!-- Carte Urbaine (étage urbain uniquement) : déplacement entre villes, ouverte/fermée par
                  #btn-toggle-map (ouverte par défaut). Masquée dès qu'une "situation" est en cours
@@ -1194,6 +1223,7 @@
     <script src="achievements.js?v=36"></script>
     <script src="deathwatch.js?v=36"></script>
     <script src="floorgen.js?v=36"></script>
+    <script src="floormap.js?v=36"></script>
     <script src="sprites/crawler.js?v=36"></script>
     <script src="sprites/npcs.js?v=36"></script>
     <script src="sprites/mobs.js?v=36"></script>

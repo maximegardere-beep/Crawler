@@ -730,6 +730,16 @@ const ui = {
     urbanTravelOverlay: document.getElementById('urban-travel-overlay'),
     urbanMapSvg: document.getElementById('urban-map-svg'),
     btnRecenterMap: document.getElementById('btn-recenter-map'),
+    floorMapOverlay: document.getElementById('floor-map-overlay'),
+    floorMapSvg: document.getElementById('floor-map-svg'),
+    floorMapBubble: document.getElementById('floor-map-bubble'),
+    floorMapBubbleTitle: document.getElementById('floor-map-bubble-title'),
+    floorMapBubbleText: document.getElementById('floor-map-bubble-text'),
+    btnFloorMapGo: document.getElementById('btn-floor-map-go'),
+    btnFloorMapCancel: document.getElementById('btn-floor-map-cancel'),
+    btnFloorMapZoomIn: document.getElementById('btn-floor-map-zoom-in'),
+    btnFloorMapZoomOut: document.getElementById('btn-floor-map-zoom-out'),
+    btnFloorMapRecenter: document.getElementById('btn-floor-map-recenter'),
     companionChoiceFriendly: document.getElementById('companion-choice-friendly'),
     companionChoiceHostile: document.getElementById('companion-choice-hostile'),
     btnRecruitFriendly: document.getElementById('btn-recruit-friendly'),
@@ -1420,21 +1430,22 @@ function updateUI() {
     renderScene('combat');
     renderScene('crawlers'); // posture/équipement du crawler dans les scènes hors combat
 
-    // "Lieux connus" (donjon classique) reste un panneau séparé ; la "Carte Urbaine" (étage urbain) est
-    // un panneau sous la scène, ouvert/fermé par #btn-toggle-map (ouvert par défaut, mapPanelOpen). Elle
-    // se masque, avec son bouton, dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon,
-    // voir isActionBlocked()) : la scène montre alors la situation.
-    const mapAvailable = !!gameState.urbanMap && !isActionBlocked();
-    if (ui.urbanTravelOverlay) ui.urbanTravelOverlay.classList.toggle('hidden', !mapAvailable || !mapPanelOpen);
+    // La carte de l'étage est un panneau sous la scène, ouvert/fermé par #btn-toggle-map (ouvert par défaut,
+    // mapPanelOpen) : Carte Urbaine sur un étage urbain, carte stylisée (#floor-map-overlay, chantier 5) sur
+    // un étage classique. Elle se masque, avec son bouton, dès qu'une "situation" est en cours
+    // (combat/boss/furtivité/compagnon, voir isActionBlocked()) : la scène montre alors la situation.
+    const mapAvailable = !!(gameState.urbanMap || gameState.floorMap) && !isActionBlocked();
+    if (ui.urbanTravelOverlay) ui.urbanTravelOverlay.classList.toggle('hidden', !mapAvailable || !gameState.urbanMap || !mapPanelOpen);
+    if (ui.floorMapOverlay) ui.floorMapOverlay.classList.toggle('hidden', !mapAvailable || !gameState.floorMap || !mapPanelOpen);
     if (ui.btnToggleMap) {
         ui.btnToggleMap.classList.toggle('hidden', !mapAvailable);
         ui.btnToggleMap.innerText = mapPanelOpen ? "✕ Fermer la carte" : "🗺️ Carte";
         ui.btnToggleMap.setAttribute('aria-expanded', mapPanelOpen ? 'true' : 'false');
     }
 
-    // Les distances affichées dans "Lieux connus" dépendent de la position actuelle : on les
-    // rafraîchit à chaque rendu pour qu'elles restent toujours à jour sans action explicite.
+    // Les cartes suivent la position courante : rafraîchies à chaque rendu.
     updateUrbanMapUI();
+    updateFloorMapUI();
 
     // Autosauvegarde (no-op tant que gameState.saveEnabled est faux, voir confirmPlayerName() /
     // restoreSaveForName()) : updateUI() est déjà appelée après quasiment toute action modifiant
@@ -5678,8 +5689,134 @@ function recenterUrbanMap() {
     updateUrbanMapUI();
 }
 
+// ---------- Carte stylisée des étages classiques (chantier 5, voir NOTES_CARTE.md) ----------
+// Rendu pur dans floormap.js (buildFloorMapSvg()) ; ici, le panneau : vue (zoom + caméra, préférences
+// d'affichage — variables de module comme mapPanelOpen, jamais sauvegardées), salle sélectionnée et bulle
+// « Y aller / Annuler » (travelToRoom()), glissement et toucher (attachés UNE fois, voir plus bas).
+let floorMapZoom = FLOOR_MAP_DEFAULT_ZOOM;
+let floorMapCamera = null;      // null = centrée sur le crawler ; {x, y} = centre choisi en glissant
+let floorMapSelectedRoomId = null;
+let floorMapLiveView = null;    // fenêtre affichée au dernier rendu (monde), pour le glissement et le toucher
+
+// Contenu de la bulle pour une salle (pure vis-à-vis du DOM) : { title, text } ou null si hors d'atteinte.
+function describeFloorMapTravel(roomId) {
+    const plan = planTravelToRoom(roomId);
+    if (!plan) return null;
+    const risk = plan.ambushChance > 0 ? `, risque d'embuscade ${Math.round(plan.ambushChance)} %` : "";
+    if (plan.exploreStep && plan.timeCost === 0) {
+        return { title: `Explorer : ${plan.label}`, text: "Un pas dans l'inconnu (-1 H), comme en touchant la scène, mais par là." };
+    }
+    if (plan.exploreStep) {
+        return { title: `Explorer : ${plan.label}`, text: `Trajet par le chemin connu (-${plan.timeCost} H${risk}), puis un pas dans l'inconnu (-1 H).` };
+    }
+    return { title: `Aller : ${plan.label}`, text: `Trajet par le chemin connu : -${plan.timeCost} H${risk}.` };
+}
+
+function updateFloorMapUI() {
+    if (!ui.floorMapSvg) return;
+    const fm = gameState.floorMap;
+    if (!fm || !fm.geometry) {
+        ui.floorMapSvg.innerHTML = "";
+        floorMapSelectedRoomId = null;
+        if (ui.floorMapBubble) ui.floorMapBubble.classList.add('hidden');
+        return;
+    }
+    const view = floorMapDefaultView(fm, floorMapZoom, floorMapCamera);
+    floorMapLiveView = view;
+    ui.floorMapSvg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
+    if (floorMapSelectedRoomId && (floorMapSelectedRoomId === fm.currentRoomId || !planTravelToRoom(floorMapSelectedRoomId))) floorMapSelectedRoomId = null;
+    ui.floorMapSvg.innerHTML = buildFloorMapSvg(fm, { landmarks: listFloorLandmarks(), selectedRoomId: floorMapSelectedRoomId });
+
+    const info = floorMapSelectedRoomId ? describeFloorMapTravel(floorMapSelectedRoomId) : null;
+    if (ui.floorMapBubble) ui.floorMapBubble.classList.toggle('hidden', !info);
+    if (info) {
+        if (ui.floorMapBubbleTitle) ui.floorMapBubbleTitle.innerText = info.title;
+        if (ui.floorMapBubbleText) ui.floorMapBubbleText.innerText = info.text;
+    }
+}
+
+// Toucher la carte au point (monde) : sélectionne la salle connue la plus proche (bulle), ou referme la bulle.
+function selectFloorMapRoomAt(x, y) {
+    const fm = gameState.floorMap;
+    if (!fm) return null;
+    const id = floorMapHitTest(fm, x, y);
+    floorMapSelectedRoomId = id && id !== fm.currentRoomId && planTravelToRoom(id) ? id : null;
+    updateFloorMapUI();
+    return floorMapSelectedRoomId;
+}
+
+// Bouton « Y aller » de la bulle.
+function confirmFloorMapTravel() {
+    const id = floorMapSelectedRoomId;
+    floorMapSelectedRoomId = null;
+    if (!id) { updateFloorMapUI(); return null; }
+    const plan = travelToRoom(id);
+    updateFloorMapUI();
+    return plan;
+}
+
+function cancelFloorMapTravel() {
+    floorMapSelectedRoomId = null;
+    updateFloorMapUI();
+}
+
+// ＋ / － (index de FLOOR_MAP_ZOOMS : 0 = vue d'ensemble) et ◎ (retour sur le crawler).
+function zoomFloorMap(delta) {
+    floorMapZoom = Math.max(0, Math.min(FLOOR_MAP_ZOOMS.length - 1, floorMapZoom + delta));
+    updateFloorMapUI();
+}
+
+function recenterFloorMap() {
+    floorMapCamera = null;
+    updateFloorMapUI();
+}
+
+// Glissement (souris et tactile) et toucher sur la carte : attachés UNE seule fois au <svg> (jamais à
+// chaque rendu). Pendant le glissement, seul le viewBox bouge ; à la fin, la caméra est mémorisée. Un
+// relâchement sous 6 px de mouvement est un toucher, résolu par position MONDE (floorMapHitTest()) —
+// pas par le `click` natif, peu fiable après une capture de pointeur (voir renderGraphMiniMap()).
+function attachFloorMapPointerHandlers(svg) {
+    if (!svg || !svg.addEventListener) return;
+    let drag = null;
+    const toWorld = (e, view) => {
+        const rect = svg.getBoundingClientRect ? svg.getBoundingClientRect() : { left: 0, top: 0, width: view.w, height: view.h };
+        // preserveAspectRatio « meet » : même échelle sur les deux axes, fenêtre centrée.
+        const scale = Math.max(view.w / (rect.width || view.w), view.h / (rect.height || view.h));
+        const offX = (rect.width * scale - view.w) / 2, offY = (rect.height * scale - view.h) / 2;
+        return { x: view.x + (e.clientX - rect.left) * scale - offX, y: view.y + (e.clientY - rect.top) * scale - offY, scale };
+    };
+    svg.addEventListener('pointerdown', (e) => {
+        if (!floorMapLiveView) return;
+        const w = toWorld(e, floorMapLiveView);
+        drag = { startX: e.clientX, startY: e.clientY, view: { ...floorMapLiveView }, scale: w.scale, moved: false, pointerId: e.pointerId };
+        if (svg.setPointerCapture) { try { svg.setPointerCapture(e.pointerId); } catch (err) { /* déjà relâché */ } }
+    });
+    svg.addEventListener('pointermove', (e) => {
+        if (!drag || !gameState.floorMap) return;
+        const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+        if (!drag.moved && Math.hypot(dx, dy) <= 6) return;
+        drag.moved = true;
+        const moved = clampFloorMapView({ ...drag.view, x: drag.view.x - dx * drag.scale, y: drag.view.y - dy * drag.scale }, gameState.floorMap);
+        floorMapLiveView = moved;
+        svg.setAttribute('viewBox', `${moved.x} ${moved.y} ${moved.w} ${moved.h}`);
+    });
+    const end = (e) => {
+        if (!drag) return;
+        if (svg.releasePointerCapture && drag.pointerId !== undefined) { try { svg.releasePointerCapture(drag.pointerId); } catch (err) { /* déjà relâché */ } }
+        if (drag.moved) {
+            floorMapCamera = { x: floorMapLiveView.x + floorMapLiveView.w / 2, y: floorMapLiveView.y + floorMapLiveView.h / 2 };
+        } else if (e && e.type === 'pointerup' && !isActionBlocked()) {
+            const w = toWorld(e, drag.view);
+            selectFloorMapRoomAt(w.x, w.y);
+        }
+        drag = null;
+    };
+    svg.addEventListener('pointerup', end);
+    svg.addEventListener('pointercancel', end);
+}
+
 // Point d'entrée unique pour "arriver" dans une pièce, que ce soit en explorant normalement ou en
-// y retournant via un lieu connu (voir arriveAtDestination) : le comportement est donc identique
+// y voyageant depuis la carte (voir arriveAtDestination) : le comportement est donc identique
 // dans les deux cas.
 function enterRoom(room) {
     const firstVisit = !room.visited;
@@ -8324,6 +8461,12 @@ ui.btnDeclineLair.addEventListener('click', declineLair);
 
 // Bouton "Recentrer" de la Carte Urbaine (voir recenterUrbanMap())
 if (ui.btnRecenterMap) ui.btnRecenterMap.addEventListener('click', recenterUrbanMap);
+attachFloorMapPointerHandlers(ui.floorMapSvg);
+if (ui.btnFloorMapGo) ui.btnFloorMapGo.addEventListener('click', confirmFloorMapTravel);
+if (ui.btnFloorMapCancel) ui.btnFloorMapCancel.addEventListener('click', cancelFloorMapTravel);
+if (ui.btnFloorMapZoomIn) ui.btnFloorMapZoomIn.addEventListener('click', () => zoomFloorMap(1));
+if (ui.btnFloorMapZoomOut) ui.btnFloorMapZoomOut.addEventListener('click', () => zoomFloorMap(-1));
+if (ui.btnFloorMapRecenter) ui.btnFloorMapRecenter.addEventListener('click', recenterFloorMap);
 
 // Clic sur le kit de test (bouton discret)
 ui.btnDevTestKit.addEventListener('click', giveTestKit);

@@ -150,7 +150,10 @@ function freshFloor() {
     assert(gameState.pendingTravel === null, "M1 : trajet terminé");
 
     // Salle aperçue loin de soi : trajet jusqu'à la salle visitée voisine, puis le pas dans l'inconnu.
-    const beyond = seenNeighbor.neighbors.map(e => gameState.floorMap.roomsById[e.to]).find(r => !r.visited && r.type !== 'boss' && r.type !== 'safe');
+    // (une salle dont la SEULE voisine visitée est seenNeighbor, pour que le passage par elle soit obligé)
+    const rbi = gameState.floorMap.roomsById;
+    const beyond = seenNeighbor.neighbors.map(e => rbi[e.to]).find(r => !r.visited && r.type === 'normal'
+        && r.neighbors.filter(e => rbi[e.to].visited).every(e => e.to === seenNeighbor.id));
     if (beyond) {
         const planFar = planTravelToRoom(beyond.id);
         assert(planFar.exploreStep && planFar.viaRoomId === seenNeighbor.id && planFar.timeCost >= 1, "P1 lointain : trajet jusqu'à la salle voisine connue");
@@ -221,4 +224,70 @@ function freshFloor() {
     assert(gameState.floorMap.version === FLOOR_MAP_VERSION && gameState.currentFloor === 4, "Ancienne carte : étage regénéré au nouveau format, même numéro d'étage");
     gameState.saveEnabled = false;
     localStorage.clear();
+}
+
+// --- Carte stylisée (floormap.js) et panneau (updateFloorMapUI()) ---
+{
+    const fm = freshFloor();
+    const start = fm.roomsById[fm.currentRoomId];
+    const seen = Object.values(fm.roomsById).filter(r => isRoomSeen(r));
+    const unknown = Object.values(fm.roomsById).find(r => floorMapRoomState(fm, r) === 'unknown' && r.zone === 'block');
+    const svg = buildFloorMapSvg(fm, { landmarks: listFloorLandmarks() });
+    assert(svg.includes(`data-room-id="${start.id}"`) || start.zone === 'avenue', "Carte : la salle de départ est dessinée");
+    assert(seen.every(r => svg.includes(`data-room-id="${r.id}"`)), "Carte : les salles aperçues sont dessinées (pointillé)");
+    assert(!svg.includes(`data-room-id="${unknown.id}"`), "Carte : une salle inconnue n'est pas dessinée (brouillard)");
+    assert(fm.geometry.segments.every(seg => svg.includes(`data-room-id="${seg.id}"`)), "Carte : les avenues sont toujours visibles (plan de la ville)");
+    assert(svg.includes('???'), "Carte : quartier jamais visité anonyme");
+    assert(svg.includes('floor-map-pawn'), "Carte : pion du crawler");
+    const boss = Object.values(fm.roomsById).find(r => r.type === 'boss');
+    boss.visited = true;
+    assert(buildFloorMapSvg(fm, { landmarks: listFloorLandmarks() }).includes('👑'), "Carte : boss repéré marqué 👑");
+    boss.visited = false;
+
+    // Toucher : la salle aperçue sous le doigt, rien sur une salle inconnue.
+    const target = seen.find(r => r.zone === 'block') || seen[0];
+    const cx = (target.x + target.w / 2) * FLOOR_MAP_CELL, cy = (target.y + target.h / 2) * FLOOR_MAP_CELL;
+    assert(floorMapHitTest(fm, cx, cy) === target.id, "Toucher une salle aperçue la sélectionne");
+    const ux = (unknown.x + unknown.w / 2) * FLOOR_MAP_CELL, uy = (unknown.y + unknown.h / 2) * FLOOR_MAP_CELL;
+    assert(floorMapHitTest(fm, ux, uy) !== unknown.id, "Une salle inconnue n'est jamais sélectionnable");
+
+    // Vue : centrée sur le crawler, écrêtée à l'étage, zooms.
+    const v1 = floorMapDefaultView(fm, 1, null);
+    const v0 = floorMapDefaultView(fm, 0, null);
+    assert(v1.w === FLOOR_MAP_ZOOMS[1] && Math.abs(v1.h / v1.w - FLOOR_MAP_ASPECT) < 1e-9, "Vue : largeur du niveau de zoom, proportions fixes");
+    assert(v0.w > v1.w, "Zoom 0 : vue d'ensemble plus large");
+    const far = clampFloorMapView({ x: 99999, y: 99999, w: 190, h: 190 * FLOOR_MAP_ASPECT }, fm);
+    assert(far.x + far.w <= fm.geometry.width * FLOOR_MAP_CELL + FLOOR_MAP_CELL * 2 + 1e-9, "Glissement écrêté aux limites de l'étage");
+
+    // Panneau : bouton Carte, bulle, Y aller.
+    mapPanelOpen = true;
+    updateUI();
+    assert(!ui.floorMapOverlay.classList.contains('hidden') && !ui.btnToggleMap.classList.contains('hidden'), "Étage classique : carte et bouton visibles");
+    assert(ui.floorMapSvg.innerHTML.includes('floor-map-pawn'), "Panneau : carte rendue");
+    const selected = selectFloorMapRoomAt(cx, cy);
+    assert(selected === target.id && !ui.floorMapBubble.classList.contains('hidden'), "Toucher une salle ouvre la bulle");
+    assert(ui.floorMapBubbleTitle.innerText.startsWith('Explorer'), "Bulle : « Explorer » pour une salle aperçue");
+    cancelFloorMapTravel();
+    assert(ui.floorMapBubble.classList.contains('hidden') && floorMapSelectedRoomId === null, "Annuler referme la bulle");
+    selectFloorMapRoomAt(cx, cy);
+    const t0 = gameState.timeLeft;
+    withRandom(0.01, () => confirmFloorMapTravel());
+    assert(gameState.floorMap.currentRoomId === target.id && gameState.timeLeft < t0, "Y aller : le voyage part de la bulle");
+    selectFloorMapRoomAt((start.x + start.w / 2) * FLOOR_MAP_CELL, (start.y + start.h / 2) * FLOOR_MAP_CELL);
+    if (!isActionBlocked()) assert(ui.floorMapBubbleTitle.innerText.startsWith('Aller'), "Bulle : « Aller » pour une salle visitée");
+    cancelFloorMapTravel();
+
+    zoomFloorMap(-5);
+    assert(floorMapZoom === 0, "－ : jamais sous la vue d'ensemble");
+    zoomFloorMap(9);
+    assert(floorMapZoom === FLOOR_MAP_ZOOMS.length - 1, "＋ : jamais au-delà du zoom maximal");
+    floorMapCamera = { x: 0, y: 0 };
+    recenterFloorMap();
+    assert(floorMapCamera === null, "◎ : recentre sur le crawler");
+    floorMapZoom = FLOOR_MAP_DEFAULT_ZOOM;
+
+    gameState.inCombat = true;
+    updateUI();
+    assert(ui.floorMapOverlay.classList.contains('hidden'), "Carte masquée pendant une situation (combat)");
+    gameState.inCombat = false;
 }

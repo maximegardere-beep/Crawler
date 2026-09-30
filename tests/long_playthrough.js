@@ -13,7 +13,7 @@ function assert(cond, msg) { if (!cond) { failures++; console.error("FAIL:", msg
 
 let steps = 0, floorsCleared = 0, combatsWon = 0, bossesEncountered = 0;
 let stealthEncounters = 0, companionEncounters = 0, companionGifts = 0, eliteMobsSeen = 0, armorMechanicProcs = 0;
-let urbanFloorsSeen = 0, cityTravels = 0, winTriggered = false;
+let urbanFloorsSeen = 0, cityTravels = 0, mapTravels = 0, winTriggered = false;
 let shopEncounters = 0, lairEncounters = 0, floorTransitionsSeen = 0, pactChoicesSeen = 0, safehouseEncounters = 0, stairsChoices = 0;
 const seenErrors = [];
 const huntersSeen = new Set(); // Chasseurs de primes rencontrés (chantier 3)
@@ -134,6 +134,17 @@ try {
                 travelToCity(target.id);
                 cityTravels++;
             }
+        } else if (gameState.floorMap && steps % 4 === 0) {
+            // Étage classique (chantier 5) : un pas sur quatre passe par la carte — voyage vers une salle
+            // visitée ou aperçue au hasard (travelToRoom(), M1 + P1), en priorité l'escalier libre ou gardé
+            // une fois repéré, pour exercer trajets, embuscades et pas dans l'inconnu.
+            const fm = gameState.floorMap;
+            const stairs = listFloorLandmarks().find(m => m.kind === 'stairs' || m.kind === 'stairsGuarded');
+            const options = Object.values(fm.roomsById).filter(r => r.id !== fm.currentRoomId && (r.visited || isRoomSeen(r)));
+            const target = stairs && stairs.roomId !== fm.currentRoomId ? stairs.roomId : (options.length > 0 ? options[Math.floor(Math.random() * options.length)].id : null);
+            if (target && travelToRoom(target)) mapTravels++;
+            else explore();
+            assert(!!fm.roomsById[gameState.floorMap ? gameState.floorMap.currentRoomId : fm.currentRoomId], `salle courante invalide après un voyage sur carte à l'étape ${steps}`);
         } else {
             explore();
         }
@@ -272,7 +283,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), ${showsSeen} émissions DeathWatch, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${mapTravels} voyages sur carte, ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), ${showsSeen} émissions DeathWatch, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");
