@@ -42,7 +42,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 
 | # | Chantier | Ampleur | Statut | Bloqué par |
 |---|----------|---------|--------|------------|
-| 6 | Mini-jeux (adresse + glyphes de sorts) | L | Exploré (cadrage) | — (en cours : round 3) |
+| 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Exploré (cadrage) | — (en cours : round 3) |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
 | 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage, en pause) | liste chiffrée à valider |
@@ -194,6 +194,18 @@ déclenche, butin réduit — jamais mortel à lui seul) ; accroche = **événem
 (`resolveCardEvent()`), pas de nouvelle salle ; accessibilité = option **« jet automatique »** (réglage + bouton
 Passer, aussi utilisé par la simulation longue et les tests) ; glyphe = **relier des points dans l'ordre**, propre
 à chaque sort.
+
+**Décidé (round 4 — mini-jeux de combat et compléments)** : en plus du crochetage, du désamorçage et du glyphe :
+- **Mains nues** : **Immobiliser** (prise, mob immobilisé 1-2 tours, 1 tour pour un boss) puis **Étrangler**
+  (finisseur sur mob immobilisé/étourdi, dégâts ×3, jamais sur un boss).
+- **Tir** : **Cible de précision** (cible plus petite quand l'écart est grand) et **Points faibles** (tête = dégâts,
+  bras = −ATQ du mob, jambe = recul d'un cran).
+- **Compléments** : **Parade au télégraphe** (armes de mêlée, attaque lourde annoncée d'un boss) et **stand de tir /
+  ring en ville** (paris de PO, nouveau puits à PO — à cadrer à part, lié au chantier 7).
+- **Déclenchement en combat** : action spéciale **proposée de manière aléatoire** au début (pas de bouton
+  permanent ni de temps de recharge) ; chance et affichage à valider.
+- Ampleur revue à **XL** : à livrer en trois temps — V1 (crochetage, désamorçage, glyphe), V2 (mains nues, tir,
+  parade), V3 (stand / ring).
 
 **Plan proposé** : en attente de validation des chiffres (liste soumise à l'utilisateur).
 
