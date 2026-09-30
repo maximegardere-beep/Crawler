@@ -902,6 +902,43 @@ function hasSaveForName(name) {
     }
 }
 
+// Rogue-like : un crawler mort ne se restaure jamais. Une sauvegarde à 0 PV (mort pendant une partie, ou
+// sauvegarde écrite avant ce correctif, qui se restaurait vivante à 0 PV) est simplement effacée — sans
+// copie dans le slot de secours (SAVE_BACKUP_KEY) : une copie d'un crawler mort ne serait jamais jouable,
+// et elle écraserait le backup d'un nettoyage manuel.
+function isDeadSave(saved) {
+    return !!saved && typeof saved.hp === 'number' && saved.hp <= 0;
+}
+
+// Efface la sauvegarde de `name` si c'est celle d'un crawler mort ; renvoie true si elle a été effacée.
+function eraseDeadSaveForName(name) {
+    if (!name || !name.trim()) return false;
+    try {
+        const key = saveKeyForName(name);
+        const raw = localStorage.getItem(key);
+        if (raw === null) return false;
+        let saved = null;
+        try { saved = JSON.parse(raw); } catch (e) { return false; }
+        if (!isDeadSave(saved)) return false;
+        localStorage.removeItem(key);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+// À la mort (gameOver()) : la sauvegarde du crawler est effacée et l'autosauvegarde coupée, pour que
+// retaper son nom lance un nouveau crawler plutôt qu'un cadavre à 0 PV.
+function eraseSaveOnDeath() {
+    if (!gameState.saveEnabled || !gameState.playerName) return;
+    gameState.saveEnabled = false;
+    try {
+        localStorage.removeItem(saveKeyForName(gameState.playerName));
+    } catch (e) {
+        // Stockage indisponible : rien à effacer
+    }
+}
+
 // Restaure une sauvegarde par-dessus le gameState courant (Object.assign, pas un remplacement pur :
 // un champ absent d'une ancienne sauvegarde garde sa valeur par défaut plutôt que de devenir
 // undefined). Atterrit TOUJOURS sur l'écran d'exploration normal, jamais en plein combat ni sur un
@@ -921,6 +958,7 @@ function restoreSaveForName(name) {
     } catch (e) {
         return false; // Sauvegarde corrompue : on ignore plutôt que de planter
     }
+    if (isDeadSave(saved)) return false; // Crawler mort : jamais restauré (voir eraseDeadSaveForName())
 
     // Migration douce : une sauvegarde antérieure au système d'anomalies (Tâche 4) n'a pas
     // baseMaxHp — son maxHp EST alors la vraie base (aucun multiplicateur d'anomalie n'a jamais pu
@@ -995,7 +1033,7 @@ function listSavedCrawlerNames() {
             if (!key || !key.startsWith(SAVE_KEY_PREFIX)) continue;
             try {
                 const saved = JSON.parse(localStorage.getItem(key));
-                if (saved && saved.playerName) names.push(saved.playerName);
+                if (saved && saved.playerName && !isDeadSave(saved)) names.push(saved.playerName);
             } catch (e) {
                 // Entrée corrompue : ignorée plutôt que de faire échouer toute la liste
             }
@@ -8328,9 +8366,10 @@ function rollWelcomeGiftType() {
 // en arrière-plan (voir le lancement du jeu en bas de ce fichier) dans les deux cas.
 function confirmPlayerName() {
     const raw = ui.startNameInput ? ui.startNameInput.value.trim() : "";
+    // Un crawler mort (sauvegarde à 0 PV) ne revient pas : son nom repart sur un nouveau crawler.
+    const buried = eraseDeadSaveForName(raw);
 
-    if (raw && hasSaveForName(raw)) {
-        restoreSaveForName(raw);
+    if (raw && hasSaveForName(raw) && restoreSaveForName(raw)) {
         if (ui.startScreenOverlay) ui.startScreenOverlay.classList.add('hidden');
         showFloorArrivalScene();
         logEvent(`Sauvegarde de [${gameState.playerName}] restaurée. Bon retour dans le Donjon.`, "success");
@@ -8343,6 +8382,7 @@ function confirmPlayerName() {
     gameState.playerName = raw || gameState.playerName || "CRAWLER_01";
     if (ui.startScreenOverlay) ui.startScreenOverlay.classList.add('hidden');
     gameState.saveEnabled = true;
+    if (buried) logEvent(`⚰️ L'ancien [${gameState.playerName}] est mort pour de bon. Un nouveau crawler reprend son nom.`, "info");
     updateUI();
     revealWelcomeGift();
 }
@@ -8483,6 +8523,7 @@ function gameOver(timeout = false, killer = null) {
     ui.gameOverOverlay.classList.remove('hidden');
 
     updateUI();
+    eraseSaveOnDeath(); // Après updateUI() (qui autosauvegarde) : le crawler mort ne sera jamais restauré
 }
 
 // Écran de victoire : déclenché en franchissant la Sortie de l'étage final (config.urbanFloors.finalFloor),
