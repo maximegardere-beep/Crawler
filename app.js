@@ -191,7 +191,7 @@ gameState.anomalyEffects = createNeutralAnomalyEffects();
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 28, label: "Compagnons, succès sarcastiques, chasseurs de primes et émission DeathWatch" };
+const APP_VERSION = { pr: 31, label: "Nouveaux étages (quartiers + avenues) et carte de l'étage ; répliques de l'émission liées à la pique" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
