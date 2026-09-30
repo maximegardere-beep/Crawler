@@ -7,6 +7,7 @@
     "test": "node tests/regression.test.js",
     "test:long": "node tests/long_playthrough.js",
     "test:all": "npm test && npm run test:long",
-    "sim:items": "node tests/tools/item-curve.js"
+    "sim:items": "node tests/tools/item-curve.js",
+    "sim:floors": "node tests/tools/floor-sim.js"
   }
 }
