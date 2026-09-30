@@ -32,8 +32,9 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 - **Tous les chantiers codés restent « à playtester »** : les chiffres sont des valeurs de départ,
   calibrées au mieux par simulation. Les points à vérifier sont regroupés plus bas (« À playtester »).
 - **PR #32 mergée** (chantiers 9, 10 et 11) : tag `v32` et release à créer (convention 6 de `CLAUDE.md`).
-- **Cadrage lancé** (stade précoce) : 6 (mini-jeux), 12 (villes explorables), 13 (race et classe à l'étage 3).
-  **Avant eux : un correctif de bug** (demandé par l'utilisateur).
+- **Chantier en cours : 12 (villes explorables)**, planifié ; ensuite 13 (race et classe à l'étage 3) et 6
+  (mini-jeux), cadrés. Correctifs déjà sur la branche (prochaine PR) : crawler mort non restaurable, barre du
+  bas agrandie.
 
 ## Vue d'ensemble
 
@@ -44,7 +45,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 6 | Mini-jeux (adresse + glyphes de sorts) | L | Exploré (cadrage) | correctif de bug d'abord |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
-| 12 | Villes explorables (carte des étages urbains sur le modèle du chantier 5) | XL | Exploré (cadrage) | correctif de bug d'abord |
+| 12 | Villes explorables (carte des étages urbains sur le modèle du chantier 5) | XL | **Planifié** — tables d'événements à valider | — |
 | 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage) | correctif de bug d'abord |
 
 ### Codés (à playtester)
@@ -183,11 +184,14 @@ sort). Épreuves à compétences (→ chantier 7), paris et défis de l'émissio
 - Contraintes communes : jouable au doigt sur iPhone (≥ 44 px), `prefers-reduced-motion`, testable sous Node
   (résolution pure séparée du rendu, comme `fx.js`), jamais bloquant pour la simulation longue.
 
-**À trancher (prochain round)** : glyphe à chaque sort ou seulement pour un bonus/sort puissant ; échec d'un
+**Décidé (round 2)** : glyphe **optionnel, pour renforcer** un sort (réussi = bonus, raté = sort normal ou
+petit risque de backfire).
+
+**À trancher (prochain round)** : échec d'un
 jeu d'adresse = dégâts, temps ou perte du butin ; fréquence ; option d'accessibilité (résolution automatique
 par un jet, comme avant).
 
-## 12. Villes explorables (étages urbains sur le modèle de la carte) — XL — Exploré (cadrage)
+## 12. Villes explorables (étages urbains sur le modèle de la carte) — XL — Planifié
 
 **Demande** : poursuivre la refonte de la carte (chantier 5) en l'intégrant aux étages urbains.
 
@@ -205,9 +209,67 @@ professeur, salle sûre y sont des salles), les routes des tronçons dangereux e
 - À reprendre : repaires (tronçon de route), gardien, Sortie de l'étage 18, scènes urbaines (route/repaire,
   `resolveCombatBackdrop()`), sauvegardes (`FLOOR_MAP_VERSION`), ~150 assertions de `urban-*.js`.
 
-**À trancher (prochain round)** : taille d'une ville (3-5 salles ?) et nombre de villes ; routes = une salle
-par tronçon ou couloirs longs ; sort de la Carte Urbaine et de `renderGraphMiniMap()` (retirée ou gardée) ;
-villes toujours 100 % sûres.
+**Décisions (rounds 2 et 3)** : chantier mené **en premier**. Villes de **3 à 5 salles** ; routes de **2 à 4
+tronçons** explorés pas à pas ; villes **calmes** (jamais de combat ni de piège, parfois un pickpocket) ;
+**auberge dans chaque ville** (repos Sieste / Sommeil, comme une salle sûre) ; **gardien dans une salle au
+fond de la ville de l'escalier**, **repaire en impasse** partant d'un tronçon de route ; l'ancienne Carte
+Urbaine est **remplacée** par la carte stylisée (module `renderGraphMiniMap()` retiré) ; villes dessinées
+en **bloc clair + nom** (« ??? » tant qu'inconnue), routes en bandes d'asphalte ; **une seule PR à la fin**
+(avec le correctif « crawler mort » et la barre du bas agrandie).
+
+### Suggéré — proposition détaillée
+- **Réseau** : 6-8 villes sur la grille actuelle (même `generateConnectedCityGrid()`, rendue pure et à hasard
+  injectable), une route par paire de villes voisines (8 directions).
+- **Ville** (zone `city`) : une **place** (arrivée des routes, départ de l'étage dans la ville de départ), une
+  **auberge** (`safe`, repos existant `restAtSafehouse()`), la salle du **marchand** ou du **professeur** si la
+  ville en a un, 0-2 **ruelles** ; ville de l'escalier (ou de la Sortie) : + salle de l'escalier au fond,
+  gardée comme une salle de boss (même chance de garde qu'aujourd'hui). Mêmes rôles garantis qu'aujourd'hui
+  (un marchand, un professeur par étage).
+- **Route** (zone `road`) : 2-3 tronçons entre deux villes voisines en ligne droite, 3-4 en diagonale. Un
+  tronçon inconnu = un pas d'exploration (−1 H, événement tiré dans la table route) ; une route connue se
+  reprend d'un geste depuis la carte (voyage M1, embuscades selon la distance, comme aux étages classiques).
+- **Repaire** (zone `lair`) : une salle en impasse accrochée à un tronçon ; y entrer propose plonger / partir
+  (même enchaînement sbires puis boss, même butin) ; 1 par étage, 2 à l'étage final (inchangé).
+- **Moteur** : l'étage urbain passe par `gameState.floorMap` comme un étage classique (`travelToRoom()`,
+  `performExploreStep()`, `enterRoom()`, carte `floormap.js`) ; `gameState.urbanMap`, `travelToCity()`,
+  `arriveAtCity()` et la Carte Urbaine disparaissent. `FLOOR_MAP_VERSION` 3 : une sauvegarde en plein étage
+  urbain voit cet étage regénéré (comme au chantier 5).
+
+**Tables d'événements proposées (à valider, convention 5)** — mêmes clés que `config.chances` :
+
+| Événement | Quartier (actuel) | Avenue (actuel) | **Ville** | **Route** |
+|---|---|---|---|---|
+| Rien | 37 | 40 | 40 | 22 |
+| Combat | 25 | 12 | 0 | 33 |
+| Butin | 4 | 4 | 0 | 5 |
+| Piège | 10 | 3 | 0 | 12 |
+| Contretemps | 8 | 5 | 0 | 10 |
+| Petite trouvaille | 3 | 5 | 6 | 3 |
+| PO | 3 | 6 | 12 | 4 |
+| Cadeau du public | 4 | 8 | 10 | 3 |
+| Rencontre de crawler | 3 | 12 | 14 | 5 |
+| Ambiance | 3 | 5 | 13 | 3 |
+| **Pickpocket** (nouveau) | — | — | 5 | — |
+
+Pickpocket : perte de 10 % des PO (5 PO minimum si on en a, jamais plus de 50 PO). Trajet sur route connue :
+risque d'embuscade de la formule actuelle (distance × 9 %, plafond 80 %), ×1 sur une route (pas de
+réduction comme les avenues), chasseurs de primes ×1,5 sur les routes.
+
+### Planifié — lots (poussés au fil de l'eau, une PR à la fin)
+1. **Générateur pur** (`floorgen.js`) : `generateMetropolis()` (villes, routes découpées en tronçons, repaires en
+   impasse, salles typées), zones `city`/`road`/`lair` et types de salles `plaza`/`inn`/`shop`/`trainer`/
+   `stairs`/`lair` dans `ROOM_TYPES`/`ZONE_TYPES` ; `npm run sim:floors` mesure aussi les étages urbains
+   (connexité, tronçons par route, temps pour traverser) ; tests purs.
+2. **Branchement moteur** : `generateUrbanFloorMap()` → `gameState.floorMap` ; `enterRoom()` pour les nouveaux
+   types (boutique, professeur, auberge, escalier gardé ou libre, Sortie, repaire), tables `ville`/`route`,
+   pickpocket, gardien et plongée de repaire, sauvegarde `FLOOR_MAP_VERSION` 3.
+3. **Carte** : rendu des villes (bloc clair + nom), des routes (asphalte, tronçons) et des repères
+   (🛒 🎓 🛏️ 👑 🪜 💀/🏆) dans `floormap.js` ; retrait de `#urban-travel-overlay`, `renderGraphMiniMap()`, du fond
+   de pâtés de maisons et de leurs tests.
+4. **Scènes** : décor de combat selon la zone (route / repaire / ville), vignettes existantes (`citySafe`,
+   `urbanGuardian`, `lairSpotted`) branchées sur les salles, vignette pickpocket.
+5. **Tests et docs** : réécriture des tests `urban-*.js`, simulation longue (le résolveur passe par la carte),
+   `NOTES_VILLES.md`, `CLAUDE.md`, registre.
 
 ## 13. Race et classe à l'étage 3 — L — Exploré (cadrage)
 
@@ -226,6 +288,9 @@ premier étage urbain.
 - Leviers existants pour des bonus : `recomputeMaxHp()`, `getEffectiveDef()`, `performPlayerAttack()`,
   compétences (`gainSkillXp()`), qualificatifs passifs (`sumEquippedQualifier()`), sprite en couches du crawler
   (`composeCrawler()` : une race pourrait changer la silhouette).
+
+**Décidé (round 2)** : race = bonus passifs, classe = **capacité active** en combat + bonus de style ; menu
+**selon la partie, façon DCC** (choix débloqués par la façon de jouer + quelques choix de base).
 
 **À trancher (prochain round)** : nombre de races/classes et leur esprit (DCC : races loufoques, classes
 parfois absurdes) ; bonus de stats seulement ou aussi une capacité active ; choix libre ou tiré parmi 3
