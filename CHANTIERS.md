@@ -42,10 +42,10 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 
 | # | Chantier | Ampleur | Statut | Bloqué par |
 |---|----------|---------|--------|------------|
-| 6 | Mini-jeux (adresse + glyphes de sorts) | L | Exploré (cadrage) | correctif de bug d'abord |
+| 6 | Mini-jeux (adresse + glyphes de sorts) | L | Exploré (cadrage) | — (en cours : round 3) |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
-| 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage) | correctif de bug d'abord |
+| 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage, en pause) | liste chiffrée à valider |
 
 ### Codés (à playtester)
 
@@ -189,9 +189,13 @@ sort). Épreuves à compétences (→ chantier 7), paris et défis de l'émissio
 **Décidé (round 2)** : glyphe **optionnel, pour renforcer** un sort (réussi = bonus, raté = sort normal ou
 petit risque de backfire).
 
-**À trancher (prochain round)** : échec d'un
-jeu d'adresse = dégâts, temps ou perte du butin ; fréquence ; option d'accessibilité (résolution automatique
-par un jet, comme avant).
+**Décidé (round 3)** : échec d'un jeu d'adresse = **conséquence normale de l'événement** (piège qui se
+déclenche, butin réduit — jamais mortel à lui seul) ; accroche = **événements piège + coffre** existants
+(`resolveCardEvent()`), pas de nouvelle salle ; accessibilité = option **« jet automatique »** (réglage + bouton
+Passer, aussi utilisé par la simulation longue et les tests) ; glyphe = **relier des points dans l'ordre**, propre
+à chaque sort.
+
+**Plan proposé** : en attente de validation des chiffres (liste soumise à l'utilisateur).
 
 ## 12. Villes explorables (étages urbains sur le modèle de la carte) — XL — Codé (à playtester)
 
@@ -230,9 +234,12 @@ premier étage urbain.
 **Décidé (round 2)** : race = bonus passifs, classe = **capacité active** en combat + bonus de style ; menu
 **selon la partie, façon DCC** (choix débloqués par la façon de jouer + quelques choix de base).
 
-**À trancher (prochain round)** : nombre de races/classes et leur esprit (DCC : races loufoques, classes
-parfois absurdes) ; bonus de stats seulement ou aussi une capacité active ; choix libre ou tiré parmi 3
-propositions ; effet sur le sprite.
+**Décidé (round 3)** : **6 races + 6 classes**, ton **loufoque façon DCC**, choix **tiré parmi 3 propositions**
+(menu débloqué par la façon de jouer), **silhouettes dédiées par race** (dessins à part, prompts Gemini comme
+le bestiaire).
+
+**⏸ En pause** (à la demande de l'utilisateur, on avance sur le chantier 6). Reste à faire : liste chiffrée des
+6 races / 6 classes (bonus, capacités actives, conditions de déblocage) à valider, puis plan en lots.
 
 ## 7. Salles spéciales à choix narratif — M — Idée (ancien backlog de `CLAUDE.md`)
 
