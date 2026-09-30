@@ -95,3 +95,20 @@ Cadeau : Arme 38 / Tir 25 / Armure 17 / Magie 15 / Rien 5, toujours en Camelote,
 - Étage 1 sans arme (5 % des départs, ou cadeau Magie/Armure) : le plus lent de la partie (~8 tours par
   mob moyen dans le modèle).
 - Taux de proc (20-40 %) : à ressentir en jeu, en particulier Lourd (étourdissement) et Vibrant.
+
+## Chantier 10 — expansion de la banque d'objets (voir CHANTIERS.md)
+- **Familles** (`ITEM_FAMILIES`, `items.js`) : Bricolage 10 · Standard 6 · Militaire 3 · Arsenal 1 — poids du
+  tirage de l'objet de BASE (`pickBaseItem()`), indépendant de la rareté. Objets blagues à demi-poids
+  (`itemBalance.jokeWeightMult`), boutiques ×2 Militaire / ×3 Arsenal (`itemBalance.shopFamilyBoost`).
+- **13 nouveaux objets** : Masse d'Armes (10, ét. 4), Épée Longue (12, ét. 5), Katana de Collection (12, ét. 6),
+  Tronçonneuse (14, ét. 7, Grinçante), Marteau de Guerre (15, ét. 9, Bancal) ; Arc Long de Compétition (12, ét. 5),
+  Lance-Harpon (13, ét. 7), Arbalète Lourde (14, ét. 8, Bancale), Fusil à Pompe (15, ét. 10, Grinçant) ; Armure
+  Anti-Émeute (9, ét. 5), Cotte de Mailles (10, ét. 6), Tenue de Démineur (12, ét. 8, Grinçante), Armure de Plates
+  (13, ét. 9, Grinçante).
+- **Objets blagues** ajoutés : Nouille de Piscine, Tapette à Mouches, Pistolet à Bulles, Poncho en Sac-Poubelle.
+- **Rééquilibrage** : Antivol de Voiture 7 → 4 dégâts, dès l'étage 1 (Bricolage) ; Bâton de Dynamite, Lance à
+  Feu, Fusil de Chasse Rouillé et Manteau en Skaï Renforcé en Militaire.
+- **Traits fixes** (`base.trait`) : qualificatif toujours porté, hors emplacements (`withFixedTrait()`).
+- **Rareté** : refonte proposée (tables, plafond des montées, boss, objet signature), pas encore appliquée —
+  voir CHANTIERS.md, chantier 10.
+

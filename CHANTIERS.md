@@ -31,9 +31,9 @@ systèmes, nouvel écran) · **XL** (refonte, à découper en lots livrables sé
 | 6 | Mini-jeux d'exploration | ? | En attente (résumé de Vibe) | — |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée (ancien backlog) | à rapprocher de 6 |
 | 8 | Sons | M | Idée (ancien backlog) | hébergement des fichiers non tranché |
-| 9 | Interface inventaire allégée (stats sous le nom, icônes Équipement / Sac / Grimoire) | M | **Validé** — en cours | — |
-| 10 | Expansion de la banque d'objets (objets rares et puissants + rééquilibrage) | L | **Validé** (objets) — rareté : chiffres à proposer | 9 conseillé avant |
-| 11 | Nouveaux sorts (avec effets, pas seulement des dégâts) | M | **Validé** — en cours | 9 conseillé avant |
+| 9 | Interface inventaire allégée (stats sous le nom, icônes Équipement / Sac / Grimoire) | M | **Codé** (à playtester) | — |
+| 10 | Expansion de la banque d'objets (objets rares et puissants + rééquilibrage) | L | **Objets codés** — refonte de la rareté **proposée** (à valider) | — |
+| 11 | Nouveaux sorts (avec effets, pas seulement des dégâts) | M | **Codé** (à playtester) | — |
 
 **Pourquoi cet ordre** :
 - **1 d'abord** : c'est le seul système DÉJÀ en jeu qui est cassé (voir diagnostic plus bas). Ajouter du
@@ -703,7 +703,7 @@ Voir `NOTES_CARTE.md` (détail, chiffres, points à surveiller) :
 5. P1 : salle aperçue touchable, trajet + pas dans l'inconnu en un geste.
 6. Tests `tests/regression/floor-map.js`, simulation longue (voyages sur carte), documentation.
 
-## 9. Interface inventaire allégée — M — Suggéré
+## 9. Interface inventaire allégée — M — Codé (à playtester)
 
 **Demande** : passer les PV et les barres de stats sous le nom du crawler ; une icône pour les objets
 équipés, une autre pour l'inventaire — alléger l'interface sans perdre d'information.
@@ -740,7 +740,7 @@ Voir `NOTES_CARTE.md` (détail, chiffres, points à surveiller) :
 ### Décisions (utilisateur)
 1. Barre d'icônes **fixée en bas de l'écran**. 2. **Masquée en combat**. 3. **Pastilles** : oui.
 
-## 10. Expansion de la banque d'objets — L — Suggéré (chiffres à valider)
+## 10. Expansion de la banque d'objets — L — Objets codés, rareté proposée
 
 **Demande** : des objets puissants mais rares (armure de plates, épée longue…), un rééquilibrage pour les
 intégrer : fréquent de trouver un objet médiocre (antivol de voiture), rare de trouver du vrai matériel.
@@ -802,7 +802,41 @@ intégrer : fréquent de trouver un objet médiocre (antivol de voiture), rare d
   événement incroyable — normale vers l'étage 15, miraculeuse à l'étage 1. → Nouvelles tables de rareté
   (salles, élites, boss, trésors, boîtes, boutiques) à proposer en liste, calibrées par `npm run sim:items`.
 
-## 11. Nouveaux sorts — M — Suggéré (chiffres à valider)
+### Proposition de rareté (à valider — rien n'est appliqué)
+Simulée sur 100 000 tirages par case (outil jetable, même logique que `rollLootRarity()`).
+1. **Tables de base** (butin d'exploration et de mob) — Camelote / Commun / Rare / Épique / Légendaire :
+
+| Étages | Actuel | Proposé |
+|---|---|---|
+| 1-2 | 12 / 65 / 20 / 3 / 0 | **30 / 60 / 9,5 / 0,5 / 0,02** (le Légendaire devient un « miracle », 1 butin sur 5 000) |
+| 3-5 | 8 / 55 / 28 / 8 / 1 | **20 / 58 / 18 / 3,8 / 0,2** |
+| 6-9 | 5 / 42 / 34 / 15 / 4 | **12 / 50 / 28 / 9 / 1** |
+| 10-14 | 3 / 33 / 34 / 22 / 8 | **6 / 40 / 34 / 16 / 4** |
+| 15+ | 2 / 24 / 34 / 28 / 12 | **3 / 28 / 36 / 24 / 9** |
+
+2. **Plafond des montées de palier** (élite, boss, trésor, Chanceux) : jusqu'à l'étage 4, une montée ne peut pas
+   dépasser **Épique** ; le Légendaire n'arrive plus que par le tirage de base (le « miracle ») avant l'étage 5.
+3. **Boss** : toujours +1 palier, mais le plancher monte avec la profondeur — **aucun plancher aux étages 1-3**,
+   Rare dès l'étage 4, Épique dès l'étage 12 (actuel : plancher Rare partout).
+   Boss étage 1 : 30 % Commun, 60 % Rare, 10 % Épique (actuel : 77 % Rare, 20 % Épique, 3 % Légendaire) ;
+   étage 8 : 62 / 28 / 10 % Rare / Épique / Légendaire ; étage 15 : 67 % Épique, 33 % Légendaire.
+4. **Élites** : chance de monter d'un palier 25 % → **20 %** (et plafond ci-dessus).
+5. **Objet signature de boss** (aujourd'hui Légendaire garanti dès la 1re victoire, même à l'étage 1) : sa rareté
+   suit l'étage — **Rare aux étages 1-4, Épique aux étages 5-9, Légendaire dès l'étage 10** (qualificatif de
+   rang I / II / III) ; toujours garanti à la 1re victoire, puis 20 %.
+6. Boîtes de succès et boutiques : inchangées (la boîte Or garde « Rare+ garanti », sous le plafond du point 2).
+
+**Effet mesuré** — probabilité d'avoir vu au moins une arme de mêlée légendaire (hors objet signature) à la fin
+de l'étage, sur une partie type (12 butins de mob, 1-2 élites et 2 boss par étage) :
+
+| Étage | 1 | 2 | 3 | 5 | 8 | 10 | 12 | 15 | 18 |
+|---|---|---|---|---|---|---|---|---|---|
+| Actuel | 1,2 % | 2,7 % | 9,2 % | 21 % | 57 % | 75 % | 88 % | 96 % | 99 % |
+| Proposé | 0,1 % | 0,2 % | 0,8 % | 3,8 % | 23 % | 42 % | 61 % | 82 % | 95 % |
+
+Et une **Épée Longue** légendaire précisément (famille Militaire, dès l'étage 5) reste nettement plus rare encore.
+
+## 11. Nouveaux sorts — M — Codé (à playtester)
 
 **Demande** : de nouveaux sorts.
 

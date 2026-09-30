@@ -33,8 +33,8 @@ Tailwind CDN, **aucun build step**.
   `items-generic.js` (registre
   `ITEM_SPRITES` des sprites d'équipement, dessins génériques de repli par catégorie, cadrages d'icône
   `ITEM_ICON_TRANSFORMS`, couleurs d'enchantement `ENCHANT_COLORS`), puis un dessin par objet, clé = nom
-  exact, ajoutés au registre par `Object.assign` : `items-melee.js` (11 armes de mêlée), `items-ranged.js`
-  (8 armes à distance), `items-armor.js` (12 armures), `items-signature.js` (13 objets signature de boss),
+  exact, ajoutés au registre par `Object.assign` : `items-melee.js` (18 armes de mêlée), `items-ranged.js`
+  (13 armes à distance), `items-armor.js` (17 armures), `items-signature.js` (13 objets signature de boss),
   et `fx.js` (catalogue des effets d'attaque : style de coup par arme, projectiles, sorts, attaques de mob,
   éclats d'impact). Tous chargés avant `backdrops.js`/`scene.js`,
   même ordre dans `index.html` et `tests/load_game.js` (`GAME_FILES`) — un nouveau fichier doit être ajouté
@@ -182,7 +182,14 @@ Tailwind CDN, **aucun build step**.
   priceLine })`, HTML pur `buildItemInspectHtml()`, `#item-inspect-overlay`) : ouvert depuis les cartes
   d'inventaire, l'équipement porté, le grimoire et la boutique (achat/vente uniquement par ce panneau).
   `jokeItem: true` (`items.js`) marque un objet volontairement dérisoire (blague DCC), qui ne tombe
-  qu'au palier Camelote. Réserve d'équipement (armes/armures/armes à distance,
+  qu'au palier Camelote. **Familles d'objets** (chantier 10, `ITEM_FAMILIES` : Bricolage 10 / Standard 6 /
+  Militaire 3 / Arsenal 1) : `base.family` fixe la FRÉQUENCE d'un objet de base, indépendante de sa rareté —
+  `pickBaseItem()` tire au poids (`baseItemWeight()`, objets blagues à `itemBalance.jokeWeightMult`, boutiques
+  à `itemBalance.shopFamilyBoost` via l'option `familyMult` de `generateItem()`) ; le cadeau de départ passe par
+  le même tirage. **Trait fixe** (`base.trait`, clé d'`itemQualifiers`) : compromis permanent d'un gros objet
+  (Grinçant pour les objets bruyants, Bancal pour les lourds), ajouté par `withFixedTrait()` en plus des
+  qualificatifs tirés (`{ fixed: true }`, n'occupe aucun emplacement). Proposition de refonte de la rareté
+  (tables, plafond des montées, boss, objet signature) en attente de validation : voir `CHANTIERS.md`, chantier 10. Réserve d'équipement (armes/armures/armes à distance,
   consommables et parchemins jamais comptés, voir `addLoot()`) : `config.inventory.maxEquipment` (8,
   chantier "QoL/équilibrage", Chantier B — voir `NOTES_QOL_EQUILIBRAGE.md`) — `gameState.maxInventory`
   en est un simple alias, posé juste après la déclaration de `config` (`gameState` est déclaré avant
@@ -499,6 +506,17 @@ Tailwind CDN, **aucun build step**.
   1.0 pour une arme, `spellCatalog` réajusté en conséquence — voir
   `tests/regression/magic-balance.js`). Le plancher de backfire est ABAISSÉ (8% → 3%) : plus punitif
   à haut niveau de compétence Magie, pour que le risque reste réel même une fois la compétence montée.
+  **Sorts à effet et utilitaires** (chantier 11) : `spellEffect` (catalogue `SPELL_EFFECTS` de `spells.js`,
+  phrase d'inspection `describeSpellEffect()`) — après un coup porté, `castSpellEffect()` réutilise les états
+  existants (`resolveQualifierEffect()` : vol de vie, étourdi, corrodé, saignement, terreur ; aveuglé = 
+  `status.distracted`) ; la Chaîne d'Éclairs ajoute son second éclair AU coup (`options.chainPct` de
+  `performPlayerAttack()`). Catégorie `any` (« Partout », `spellRangeLabel()`) : sorts utilitaires sans
+  dégâts, utilisables à toute distance, qui consomment le tour (`castUtilitySpell()` puis
+  `resolveEnemyReaction()`) — Soin Express (part des PV max, suit la rareté), Bouclier de Mana
+  (`gameState.status.manaShield`, appliqué dans `companionInterceptHit()`, décompté par `tryPlayerAction()`),
+  Pas de l'Ombre (+2 d'écart sans jet). Effets visuels `FX_SPELLS` (style `self` pour les utilitaires,
+  `fxPlayerSelfSpell()`). Le cadeau de départ, le kit de test et les compagnons n'utilisent que des sorts
+  offensifs.
 - **Régénération passive (PV/mana)** : `applyTimeElapsedRegen(hours)` — PV **dégressif** selon le %
   de PV déjà restants (`HP_REGEN_TIERS` : 10/h sous 50%, 4/h entre 50-80%, 1/h au-delà — un vrai filet
   de sécurité en dessous, un simple filet d'eau au-delà), mana à **12/h** (seulement si un sort est
@@ -507,6 +525,14 @@ Tailwind CDN, **aucun build step**.
   à chaque fois que `gameState.timeLeft` diminue pour une raison "normale" (`performExploreStep()`,
   `travelToRoom()`, `autoTravelToNearestFrontier()`) — jamais sur la perte de temps punitive du piège "Contretemps", qui
   perdrait sinon son sens.
+- **Interface allégée** (chantier 9) : sous le nom, la fiche du crawler `#player-sheet` (barre de PV
+  `setHpBar()`, mana si un sort est équipé, XP, ATQ/DEF/PO/états). **Barre d'icônes** `#bottom-nav`, fixée en
+  bas de l'écran et **masquée en combat** (`updateBottomNav()`, appelée par `updateUI()`/`updateInventoryUI()`/
+  `updateSpellbookUI()`) : 🛡️ Équipement / 🎒 Sac / 📖 Grimoire ouvrent chacun un panneau
+  (`openInventorySheet()`/`closeInventorySheets()`, `#equipment-sheet`/`#bag-sheet`/`#spellbook-sheet`, un seul
+  à la fois, refermés en combat), 🏆 les succès. Pastilles « nouveau » : `item.isNew` posé par
+  `storeLootItem()` (jamais sur un consommable), retiré à l'ouverture du Sac / du Grimoire. La barre de
+  consommables (`#consumable-quickbar`) reste visible dans la page.
 - **Écran de départ** : `#start-screen-overlay` (saisie du nom, `confirmPlayerName()`) puis
   `#gift-reveal-overlay` (`revealWelcomeGift()`) recouvrent l'UI de jeu au chargement — celle-ci est
   déjà entièrement initialisée en arrière-plan (aucun état de jeu propre à ces deux écrans). Le
@@ -899,7 +925,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests
