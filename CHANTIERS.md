@@ -45,7 +45,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 6 | Mini-jeux (adresse + glyphes de sorts) | L | Exploré (cadrage) | correctif de bug d'abord |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
-| 12 | Villes explorables (carte des étages urbains sur le modèle du chantier 5) | XL | **Planifié** — tables d'événements à valider | — |
+| 12 | Villes explorables (carte des étages urbains sur le modèle du chantier 5) | XL | **En cours** (lots 1-5, une PR à la fin) | — |
 | 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage) | correctif de bug d'abord |
 
 ### Codés (à playtester)
@@ -191,7 +191,7 @@ petit risque de backfire).
 jeu d'adresse = dégâts, temps ou perte du butin ; fréquence ; option d'accessibilité (résolution automatique
 par un jet, comme avant).
 
-## 12. Villes explorables (étages urbains sur le modèle de la carte) — XL — Planifié
+## 12. Villes explorables (étages urbains sur le modèle de la carte) — XL — En cours
 
 **Demande** : poursuivre la refonte de la carte (chantier 5) en l'intégrant aux étages urbains.
 
@@ -235,14 +235,15 @@ en **bloc clair + nom** (« ??? » tant qu'inconnue), routes en bandes d'asphalt
   `arriveAtCity()` et la Carte Urbaine disparaissent. `FLOOR_MAP_VERSION` 3 : une sauvegarde en plein étage
   urbain voit cet étage regénéré (comme au chantier 5).
 
-**Tables d'événements proposées (à valider, convention 5)** — mêmes clés que `config.chances` :
+**Tables d'événements validées** (variante « routes plus dures » choisie par l'utilisateur) — mêmes clés que
+`config.chances` :
 
 | Événement | Quartier (actuel) | Avenue (actuel) | **Ville** | **Route** |
 |---|---|---|---|---|
-| Rien | 37 | 40 | 40 | 22 |
-| Combat | 25 | 12 | 0 | 33 |
+| Rien | 37 | 40 | 40 | 13 |
+| Combat | 25 | 12 | 0 | 40 |
 | Butin | 4 | 4 | 0 | 5 |
-| Piège | 10 | 3 | 0 | 12 |
+| Piège | 10 | 3 | 0 | 14 |
 | Contretemps | 8 | 5 | 0 | 10 |
 | Petite trouvaille | 3 | 5 | 6 | 3 |
 | PO | 3 | 6 | 12 | 4 |
