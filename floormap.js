@@ -6,6 +6,9 @@
 // connus, brouillard (plein = visité, pointillé = aperçu, rien = inconnu), repères (👑 boss, 🪜 escalier,
 // salle sûre) et pion du crawler. Le panneau, le zoom, le glissement et la bulle « Y aller » vivent dans
 // app.js (updateFloorMapUI()). Chargé après floorgen.js, avant app.js.
+// Étages urbains (chantier 12, floorMap.kind === 'urban') : villes en blocs clairs avec leur nom (« ??? » tant
+// qu'aucune de leurs salles n'est visitée), routes en bandes d'asphalte découpées en tronçons, repaires en
+// impasse — même brouillard, mêmes repères, même pion (buildUrbanMapSvg()).
 
 const FLOOR_MAP_CELL = 10; // Unités monde par case (coordonnées du SVG)
 
@@ -75,6 +78,16 @@ function floorMapHitTest(floorMap, x, y, slack = 6) {
     let best = null, bestDist = Infinity;
     Object.values(floorMap.roomsById).forEach(room => {
         if (floorMapRoomState(floorMap, room) === 'unknown') return;
+        // Tronçon de route (étage urbain) : distance au segment, moins la demi-largeur de la bande.
+        if (room.seg) {
+            const S = FLOOR_MAP_CELL;
+            const a = { x: room.seg.x1 * S, y: room.seg.y1 * S }, b = { x: room.seg.x2 * S, y: room.seg.y2 * S };
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+            const d = Math.max(0, Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy)) - S);
+            if (d <= slack && d < bestDist) { best = room.id; bestDist = d; }
+            return;
+        }
         const rx = room.x * FLOOR_MAP_CELL, ry = room.y * FLOOR_MAP_CELL, rw = room.w * FLOOR_MAP_CELL, rh = room.h * FLOOR_MAP_CELL;
         const dx = Math.max(rx - x, 0, x - (rx + rw)), dy = Math.max(ry - y, 0, y - (ry + rh));
         const d = Math.hypot(dx, dy);
@@ -85,6 +98,7 @@ function floorMapHitTest(floorMap, x, y, slack = 6) {
 
 // Contenu SVG de la carte. `options` : { landmarks: [{ roomId, icon }], selectedRoomId }.
 function buildFloorMapSvg(floorMap, options = {}) {
+    if (floorMap.kind === 'urban') return buildUrbanMapSvg(floorMap, options);
     const S = FLOOR_MAP_CELL;
     const g = floorMap.geometry;
     const rooms = Object.values(floorMap.roomsById);
@@ -176,9 +190,117 @@ function buildFloorMapSvg(floorMap, options = {}) {
     return out.join('');
 }
 
+// Couleurs des étages urbains : villes en « plâtre » clair, salles selon leur rôle, routes en asphalte.
+const URBAN_MAP_COLORS = {
+    city: '#e7dcc0', cityEdge: '#f5ecd6',
+    rooms: { plaza: '#8a7a55', alley: '#6b6150', inn: '#2f6b4a', merchant: '#7a5a2a', trainer: '#4a4f8a', stairs: '#7f1d1d' },
+    asphalt: '#3a414d', asphaltDim: '#23282f', lair: '#5a1f1f', lairCleared: '#4b4b4b'
+};
+
+// Contenu SVG d'un étage urbain (même options que buildFloorMapSvg()).
+function buildUrbanMapSvg(floorMap, options = {}) {
+    const S = FLOOR_MAP_CELL;
+    const g = floorMap.geometry;
+    const rooms = Object.values(floorMap.roomsById);
+    const state = {};
+    rooms.forEach(r => { state[r.id] = floorMapRoomState(floorMap, r); });
+    const current = floorMap.roomsById[floorMap.currentRoomId];
+    const known = id => state[id] && state[id] !== 'unknown';
+    const dash = (a, b) => (state[a] !== 'visited' || state[b] !== 'visited');
+    const out = [];
+
+    out.push(`<rect x="${-S * 4}" y="${-S * 4}" width="${(g.width + 8) * S}" height="${(g.height + 8) * S}" fill="#07090d"/>`);
+
+    // Villes : bloc clair dès qu'une de leurs salles est connue ; nom une fois visitée.
+    Object.values(floorMap.citiesById || {}).forEach(city => {
+        const ids = (city.roomIds || []).filter(id => floorMap.roomsById[id]);
+        if (!ids.some(known)) return;
+        const visited = ids.some(id => floorMap.roomsById[id].visited);
+        out.push(`<rect x="${city.x * S}" y="${city.y * S}" width="${city.w * S}" height="${city.h * S}" rx="${S * 1.5}" fill="${URBAN_MAP_COLORS.city}" opacity="${visited ? 0.16 : 0.07}" stroke="${URBAN_MAP_COLORS.cityEdge}" stroke-opacity="${visited ? 0.35 : 0.15}"/>`);
+        out.push(`<text x="${(city.x + city.w / 2) * S}" y="${(city.y - 1) * S}" text-anchor="middle" font-size="${S * 1.5}" font-weight="bold" fill="${URBAN_MAP_COLORS.cityEdge}" opacity="${visited ? 0.75 : 0.35}">${fmEsc(visited ? city.name : '???')}</text>`);
+    });
+
+    // Routes : bande d'asphalte par tronçon connu (plus claire si visité, pointillée si aperçu), bout de rue
+    // jusqu'à la place.
+    (g.roads || []).forEach(road => {
+        road.segmentIds.forEach(id => {
+            const room = floorMap.roomsById[id];
+            if (!room || !known(id)) return;
+            const { x1, y1, x2, y2 } = room.seg;
+            const visited = state[id] === 'visited';
+            out.push(`<line x1="${x1 * S}" y1="${y1 * S}" x2="${x2 * S}" y2="${y2 * S}" stroke="${visited ? URBAN_MAP_COLORS.asphalt : URBAN_MAP_COLORS.asphaltDim}" stroke-width="${S * 2}" stroke-linecap="butt" data-room-id="${id}"/>`);
+            out.push(`<line x1="${x1 * S}" y1="${y1 * S}" x2="${x2 * S}" y2="${y2 * S}" stroke="${visited ? '#9ca3af' : '#6b7280'}" stroke-width="1" stroke-dasharray="6 6" opacity="${visited ? 0.7 : 0.35}"/>`);
+            if (!visited) out.push(`<text x="${(x1 + x2) / 2 * S}" y="${(y1 + y2) / 2 * S}" text-anchor="middle" dominant-baseline="central" font-size="${S * 1.3}" fill="#9ca3af">?</text>`);
+        });
+    });
+    rooms.forEach(room => {
+        room.neighbors.forEach(e => {
+            const other = floorMap.roomsById[e.to];
+            if (!other || room.id > other.id) return;
+            if (!known(room.id) || !known(other.id) || (state[room.id] !== 'visited' && state[other.id] !== 'visited')) return;
+            const cityRoom = room.zone === 'city' ? room : other.zone === 'city' ? other : null;
+            const style = dash(room.id, other.id) ? ' stroke-dasharray="3 3" opacity="0.6"' : ' opacity="0.85"';
+            if (e.kind === 'corridor') {
+                const p = fmCenter(room), q = fmCenter(other);
+                out.push(`<line x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}" stroke="#cbbf9f" stroke-width="2" stroke-linecap="round"${style}/>`);
+            } else if (e.kind === 'door' && cityRoom) {
+                // Place -> début de la route : du centre de la place au bout du tronçon côté ville.
+                const seg = (cityRoom === room ? other : room).seg;
+                const p = fmCenter(cityRoom);
+                const d1 = Math.hypot(seg.x1 * S - p.x, seg.y1 * S - p.y), d2 = Math.hypot(seg.x2 * S - p.x, seg.y2 * S - p.y);
+                const q = d1 < d2 ? { x: seg.x1 * S, y: seg.y1 * S } : { x: seg.x2 * S, y: seg.y2 * S };
+                out.push(`<line x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}" stroke="${URBAN_MAP_COLORS.asphalt}" stroke-width="${S * 1.2}" stroke-linecap="round"${style}/>`);
+            } else if (e.kind === 'door') {
+                // Tronçon -> repaire (impasse).
+                const p = fmCenter(room), q = fmCenter(other);
+                out.push(`<line x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}" stroke="#f87171" stroke-width="2" stroke-linecap="round"${style}/>`);
+            }
+        });
+    });
+
+    // Salles des villes et repaires : pleines si visitées, en pointillé avec « ? » si aperçues.
+    rooms.forEach(room => {
+        if (room.zone === 'road') return;
+        const st = state[room.id];
+        if (st === 'unknown') return;
+        const x = room.x * S, y = room.y * S, w = room.w * S, h = room.h * S;
+        const selected = options.selectedRoomId === room.id;
+        if (st === 'visited') {
+            let fill = URBAN_MAP_COLORS.rooms[room.cityRole] || URBAN_MAP_COLORS.rooms.alley;
+            if (room.type === 'stairs' && (!room.guarded || room.defeated)) fill = '#4b3a3a';
+            if (room.type === 'lair') {
+                const lair = floorMap.lairsById && floorMap.lairsById[room.lairId];
+                fill = lair && lair.cleared ? URBAN_MAP_COLORS.lairCleared : URBAN_MAP_COLORS.lair;
+            }
+            out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="${fill}" stroke="${selected ? '#facc15' : URBAN_MAP_COLORS.cityEdge}" stroke-opacity="${selected ? 1 : 0.6}" stroke-width="${selected ? 2.5 : 1}" data-room-id="${room.id}"/>`);
+        } else {
+            out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="#0b0e13" stroke="${selected ? '#facc15' : '#9ca3af'}" stroke-width="${selected ? 2.5 : 1.2}" stroke-dasharray="4 3" data-room-id="${room.id}"/>`);
+            out.push(`<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(w, h) * 0.6 + 2}" fill="#9ca3af">?</text>`);
+        }
+    });
+    // Tronçon de route sélectionné.
+    const sel = options.selectedRoomId && floorMap.roomsById[options.selectedRoomId];
+    if (sel && sel.seg) {
+        out.push(`<line x1="${sel.seg.x1 * S}" y1="${sel.seg.y1 * S}" x2="${sel.seg.x2 * S}" y2="${sel.seg.y2 * S}" stroke="#facc15" stroke-width="${S * 2.2}" stroke-opacity="0.35"/>`);
+    }
+
+    (options.landmarks || []).forEach(m => {
+        const room = floorMap.roomsById[m.roomId];
+        if (!room) return;
+        const c = fmCenter(room);
+        out.push(`<text x="${c.x}" y="${c.y}" text-anchor="middle" dominant-baseline="central" font-size="${S * 1.4}">${fmEsc(m.icon)}</text>`);
+    });
+
+    if (current) {
+        const c = fmCenter(current);
+        out.push(`<circle cx="${c.x}" cy="${c.y}" r="${S * 0.9}" fill="#facc15" stroke="#1f2937" stroke-width="2" class="floor-map-pawn"/>`);
+    }
+    return out.join('');
+}
+
 if (typeof module !== 'undefined') {
     module.exports = {
         FLOOR_MAP_CELL, FLOOR_MAP_ZOOMS, FLOOR_MAP_DEFAULT_ZOOM, FLOOR_MAP_ASPECT, floorMapRoomState, buildFloorMapSvg,
-        floorMapHitTest, floorMapDefaultView, clampFloorMapView
+        floorMapHitTest, floorMapDefaultView, clampFloorMapView, buildUrbanMapSvg
     };
 }

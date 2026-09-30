@@ -558,10 +558,11 @@ function renderSceneCompanion() {
 // Rendu de la scène de combat, appelé via renderScene('combat') en fin d'updateUI() (app.js) après
 // chaque action (et au moment de l'impact d'un coup, voir animateDieHit()). Ne fait rien hors
 // combat : la scène vit dans #combat-zone, que updateUI() masque déjà dans ce cas.
-// Décor du combat en cours : celui du quartier sur un étage classique ; sur un étage urbain, la route
-// (embuscade, gardien posté sur la route) ou le repaire pendant une plongée (URBAN_COMBAT_BACKDROPS).
+// Décor du combat en cours : celui du quartier sur un étage classique ; sur un étage urbain (villes
+// explorables, chantier 12), la route (embuscade, tronçon, gardien de l'escalier) ou le repaire pendant une
+// plongée (URBAN_COMBAT_BACKDROPS).
 function resolveCombatBackdrop() {
-    if (gameState.urbanMap) {
+    if (typeof isUrbanFloor === 'function' && isUrbanFloor()) {
         const kind = gameState.pendingLairDive ? 'lair' : 'road';
         return { key: `urban:${kind}`, def: URBAN_COMBAT_BACKDROPS[kind] };
     }
@@ -573,7 +574,8 @@ function resolveCombatBackdrop() {
 // cerclé = en cours) puis la couronne du boss. Vide hors plongée ; redessinée seulement si elle change.
 function lairProgressState() {
     const dive = gameState.pendingLairDive;
-    const lair = dive && gameState.urbanMap && gameState.urbanMap.lairsById[dive.lairId];
+    const fm = gameState.floorMap;
+    const lair = dive && fm && fm.lairsById && fm.lairsById[dive.lairId];
     if (!lair) return null;
     const total = Math.max(1, lair.combatsRemaining);
     const done = dive.stage === 'boss' ? total : Math.max(0, total - dive.combatsLeft);
@@ -690,8 +692,8 @@ function ensureShopSceneBuilt() {
 }
 
 function renderShopScene(mode) {
-    if (!gameState.pendingShopCityId || !gameState.urbanMap) return;
-    const city = gameState.urbanMap.citiesById[gameState.pendingShopCityId];
+    if (!gameState.pendingShopCityId) return;
+    const city = typeof urbanCityById === 'function' ? urbanCityById(gameState.pendingShopCityId) : null;
     if (!city) return;
     ensureShopSceneBuilt();
     renderCrawlerInto(shopSceneUi.crawler);
@@ -821,6 +823,8 @@ const EXPLORE_VIGNETTES = {
     citySafe: (ctx) => propAt('citySign', 222, 124, { text: ctx.cityName }) + crawlerAt(CRAWLER_X),
     urbanGuardian: (ctx) => propAt(ctx.isExit ? 'exitDoor' : 'stairsDown', 184, 124) + mobAt(ctx.enemy, 236, 'stand') + crawlerAt(CRAWLER_X),
     lairSpotted: () => propAt('lairEntrance', 212, 124) + crawlerAt(CRAWLER_X),
+    // Pickpocket (villes des étages urbains, chantier 12) : un crawler louche file dans un nuage de poussière.
+    pickpocket: () => propAt('dustPuff', 222, 124) + npcCrawlerAt(176, 'hostile') + crawlerAt(CRAWLER_X, { cls: 'scene-recoil' }),
     // Émission DeathWatch (chantier 4) : le plateau vient à vous — enseigne EN DIRECT, applaudimètre,
     // drone caméra, et le présentateur qui vous tend son micro.
     showStudio: () => propAt('onAirSign', 120, 42) + propAt('applauseMeter', 60, 124) + propAt('cameraDrone', 250, 30)

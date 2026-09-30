@@ -296,3 +296,36 @@ function freshFloor() {
     assert(ui.floorMapOverlay.classList.contains('hidden'), "Carte masquée pendant une situation (combat)");
     gameState.inCombat = false;
 }
+
+
+// Étages urbains (chantier 12) : générateur pur generateMetropolis() — villes de 3 à 5 salles (place, auberge,
+// boutique/professeur, escalier, ruelles), routes découpées en tronçons, repaires en impasse.
+{
+    const { generateMetropolis, measureMetropolis, createFloorRng, METRO_LAYOUT } = require('../../floorgen.js');
+    let problems = [];
+    for (let seed = 1; seed <= 40; seed++) {
+        const floor = generateMetropolis({ rng: createFloorRng(seed), cityCount: 6 + (seed % 3), lairCount: seed % 4 === 0 ? 2 : 1, specializedChance: 18 });
+        const m = measureMetropolis(floor);
+        const rooms = Object.values(floor.roomsById);
+        if (!m.connected) problems.push(`${seed}: non connexe`);
+        if (m.overlaps || m.roadCrossings) problems.push(`${seed}: chevauchement ou routes croisées`);
+        if (m.roomsPerCity.some(n => n < METRO_LAYOUT.roomsPerCity[0] || n > METRO_LAYOUT.roomsPerCity[1])) problems.push(`${seed}: taille de ville ${m.roomsPerCity}`);
+        if (!floor.cities.every(c => c.roomIds.some(id => floor.roomsById[id].type === 'safe'))) problems.push(`${seed}: ville sans auberge`);
+        if (!floor.cities.some(c => c.role === 'merchant') || !floor.cities.some(c => c.role === 'trainer')) problems.push(`${seed}: marchand ou professeur manquant`);
+        if (floor.cities.filter(c => c.isStairs).length !== 1 || floor.cities[0].isStairs) problems.push(`${seed}: escalier`);
+        if (floor.cities.some(c => (c.role || c.isStairs) && floor.cities.indexOf(c) === 0)) problems.push(`${seed}: la ville de départ a un rôle`);
+        if (floor.geometry.roads.some(r => r.segmentIds.length < 2 || r.segmentIds.length > 4)) problems.push(`${seed}: tronçons par route`);
+        if (m.lairs !== (seed % 4 === 0 ? 2 : 1)) problems.push(`${seed}: repaires ${m.lairs}`);
+        if (rooms.some(r => r.zone === 'lair' && r.neighbors.length !== 1)) problems.push(`${seed}: repaire pas en impasse`);
+        if (rooms.some(r => r.zone === 'city' && r.neighbors.some(n => floor.roomsById[n.to].zone === 'city') && r.cityRole !== 'plaza' && r.neighbors.length !== 1)) problems.push(`${seed}: salle de ville hors de l'étoile autour de la place`);
+        if (rooms.some(r => r.zone === 'road' && !r.seg)) problems.push(`${seed}: tronçon sans segment`);
+        if (floor.roomsById[floor.startRoomId].cityRole !== 'plaza') problems.push(`${seed}: départ hors de la place`);
+    }
+    assert(problems.length === 0, `generateMetropolis() : 40 étages valides (${problems.slice(0, 4).join(' ; ')})`);
+    const a = generateMetropolis({ rng: createFloorRng(99), cityCount: 7, lairCount: 1 });
+    const b = generateMetropolis({ rng: createFloorRng(99), cityCount: 7, lairCount: 1 });
+    assert(JSON.stringify(a) === JSON.stringify(b), "generateMetropolis() : même graine, même étage (hasard injectable)");
+    const road = a.geometry.roads[0];
+    const plazaLinks = a.roomsById[a.cities.find(c => c.id === road.a).plazaRoomId].neighbors.filter(n => n.to === road.segmentIds[0]);
+    assert(plazaLinks.length === 1 && plazaLinks[0].kind === 'door', "generateMetropolis() : la place d'une ville donne sur le premier tronçon de chacune de ses routes");
+}

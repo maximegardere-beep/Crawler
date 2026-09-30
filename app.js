@@ -92,24 +92,16 @@ const gameState = {
     // un seul graphe (les jonctions inter-quartiers sont des arêtes comme les autres), ce qui
     // simplifie le calcul de distance (computeDistance()). Rien de tout ceci n'est affiché.
     floorMap: null,
-    // Étage urbain (multiples de 3 — voir generateUrbanFloorMap()) : réseau de villes sûres reliées
-    // par des routes dangereuses, exclusif de floorMap (l'un des deux vaut toujours null). Une seule
-    // ville porte l'escalier (ou la Sortie à l'étage final), potentiellement gardée par un boss
-    // généré depuis le thème unique de l'étage (theme, réutilise un quartier existant de districts.js
-    // au même titre qu'un quartier classique — voir gameState.currentDistrict).
-    urbanMap: null,
-    pendingUrbanTravel: null, // { destinationCityId, ambushesRemaining } pendant un trajet entre villes
-    pendingUrbanBossEncounter: null, // { cityId, isExit } pendant un choix combattre/repérer urbain
-    pendingUrbanBossCityId: null, // Ville dont le combat de boss est en cours, pour la marquer vaincue à la victoire
-    pendingUrbanAdvanceAfterCombat: null, // 'nextFloor' | 'win' | null : ce que la victoire du combat en cours déclenche
+    // Étage urbain (multiples de 3, chantier 12 « villes explorables ») : il passe par gameState.floorMap
+    // comme un étage classique (floorMap.kind === 'urban', voir generateUrbanFloorMap()).
     shopChoicePending: false, // Un écran marchand/professeur (ville spécialisée) est ouvert
     pendingShopCityId: null, // Ville dont l'écran marchand/professeur est actuellement affiché
-    lairChoicePending: false, // Un repaire vient d'être repéré sur la route empruntée : choix plonger/poursuivre
-    pendingLairId: null, // Repaire (gameState.urbanMap.lairsById) dont le choix est actuellement affiché
+    lairChoicePending: false, // On vient d'entrer dans un repaire (impasse d'une route) : choix plonger/ressortir
+    pendingLairId: null, // Repaire (gameState.floorMap.lairsById) dont le choix est actuellement affiché
     pendingLairDive: null, // { lairId, combatsLeft, stage: 'trash'|'boss' } pendant une plongée en cours (voir winCombat())
     floorTransitionPending: false, // L'écran d'escalier (félicitations) est affiché, voir triggerFloorTransition()
     stairsChoicePending: false, // Choix « Descendre / Rester sur l'étage » affiché, voir offerStairsChoice()
-    pendingStairsChoice: null, // Escalier concerné : { kind: 'room', roomId } ou { kind: 'city', cityId }
+    pendingStairsChoice: null, // Escalier concerné : { kind: 'room', roomId }
     hasWon: false, // Vrai une fois la Sortie de l'étage final franchie (voir winGame())
     companion: null, // Compagnon actuellement recruté (ou null)
     pendingCompanionCandidate: null, // Candidat en attente de décision (recruter/laisser/fuir/attaquer)
@@ -191,7 +183,7 @@ gameState.anomalyEffects = createNeutralAnomalyEffects();
 // le numéro de la dernière PR mergée sur main sert d'identifiant, à incrémenter manuellement à
 // chaque nouvelle PR (voir CLAUDE.md, Conventions de travail) — pas de build step, donc pas de
 // numéro de version généré automatiquement.
-const APP_VERSION = { pr: 32, label: "Interface allégée (barre d'icônes), objets rares et puissants, nouveaux sorts à effet" };
+const APP_VERSION = { pr: 33, label: "Villes explorables (étages urbains), crawler mort définitif, barre du bas agrandie" };
 
 // ==========================================
 // CONFIGURATION ET BASES DE DONNÉES
@@ -227,6 +219,18 @@ const config = {
         nothing: 40, combat: 12, loot: 4, trap: 3, timeLoss: 5, minorFind: 5, goldFind: 6,
         audienceGift: 8, companionEncounter: 12, flavorOnly: 5
     },
+    // Étages urbains (chantier 12, tables validées par l'utilisateur, variante « routes plus dures ») : une
+    // ville est calme (jamais de combat ni de piège, parfois un pickpocket), une route est dangereuse.
+    cityChances: {
+        nothing: 40, combat: 0, loot: 0, trap: 0, timeLoss: 0, minorFind: 6, goldFind: 12,
+        audienceGift: 10, companionEncounter: 14, pickpocket: 5, flavorOnly: 13
+    },
+    roadChances: {
+        nothing: 13, combat: 40, loot: 5, trap: 14, timeLoss: 10, minorFind: 3, goldFind: 4,
+        audienceGift: 3, companionEncounter: 5, flavorOnly: 3
+    },
+    // Pickpocket (table des villes) : perte de `pct` % des PO, au moins `min` (si on les a), jamais plus de `max`.
+    pickpocket: { pct: 10, min: 5, max: 50 },
     // "stairGuardedChance" a été retiré : l'escalier est désormais TOUJOURS gardé par le boss de
     // son quartier (placement déterministe, voir generateFloorMap()), plus un tirage au hasard.
 
@@ -739,11 +743,9 @@ const ui = {
     btnPactAtk: document.getElementById('btn-pact-atk'),
     btnPactHp: document.getElementById('btn-pact-hp'),
     combatZone: document.getElementById('combat-zone'),
-    urbanTravelOverlay: document.getElementById('urban-travel-overlay'),
-    urbanMapSvg: document.getElementById('urban-map-svg'),
-    btnRecenterMap: document.getElementById('btn-recenter-map'),
     floorMapOverlay: document.getElementById('floor-map-overlay'),
     floorMapSvg: document.getElementById('floor-map-svg'),
+    floorMapLegend: document.getElementById('floor-map-legend'),
     floorMapBubble: document.getElementById('floor-map-bubble'),
     floorMapBubbleTitle: document.getElementById('floor-map-bubble-title'),
     floorMapBubbleText: document.getElementById('floor-map-bubble-text'),
@@ -902,6 +904,43 @@ function hasSaveForName(name) {
     }
 }
 
+// Rogue-like : un crawler mort ne se restaure jamais. Une sauvegarde à 0 PV (mort pendant une partie, ou
+// sauvegarde écrite avant ce correctif, qui se restaurait vivante à 0 PV) est simplement effacée — sans
+// copie dans le slot de secours (SAVE_BACKUP_KEY) : une copie d'un crawler mort ne serait jamais jouable,
+// et elle écraserait le backup d'un nettoyage manuel.
+function isDeadSave(saved) {
+    return !!saved && typeof saved.hp === 'number' && saved.hp <= 0;
+}
+
+// Efface la sauvegarde de `name` si c'est celle d'un crawler mort ; renvoie true si elle a été effacée.
+function eraseDeadSaveForName(name) {
+    if (!name || !name.trim()) return false;
+    try {
+        const key = saveKeyForName(name);
+        const raw = localStorage.getItem(key);
+        if (raw === null) return false;
+        let saved = null;
+        try { saved = JSON.parse(raw); } catch (e) { return false; }
+        if (!isDeadSave(saved)) return false;
+        localStorage.removeItem(key);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+// À la mort (gameOver()) : la sauvegarde du crawler est effacée et l'autosauvegarde coupée, pour que
+// retaper son nom lance un nouveau crawler plutôt qu'un cadavre à 0 PV.
+function eraseSaveOnDeath() {
+    if (!gameState.saveEnabled || !gameState.playerName) return;
+    gameState.saveEnabled = false;
+    try {
+        localStorage.removeItem(saveKeyForName(gameState.playerName));
+    } catch (e) {
+        // Stockage indisponible : rien à effacer
+    }
+}
+
 // Restaure une sauvegarde par-dessus le gameState courant (Object.assign, pas un remplacement pur :
 // un champ absent d'une ancienne sauvegarde garde sa valeur par défaut plutôt que de devenir
 // undefined). Atterrit TOUJOURS sur l'écran d'exploration normal, jamais en plein combat ni sur un
@@ -921,6 +960,7 @@ function restoreSaveForName(name) {
     } catch (e) {
         return false; // Sauvegarde corrompue : on ignore plutôt que de planter
     }
+    if (isDeadSave(saved)) return false; // Crawler mort : jamais restauré (voir eraseDeadSaveForName())
 
     // Migration douce : une sauvegarde antérieure au système d'anomalies (Tâche 4) n'a pas
     // baseMaxHp — son maxHp EST alors la vraie base (aucun multiplicateur d'anomalie n'a jamais pu
@@ -928,8 +968,14 @@ function restoreSaveForName(name) {
     // ne touche pas les clés absentes de `saved`, qui gardent donc leurs valeurs neutres déjà posées à
     // l'initialisation de gameState.
     const needsBaseMaxHpMigration = saved.baseMaxHp === undefined;
+    // Sauvegarde en plein étage urbain d'avant les villes explorables (chantier 12) : ancien réseau
+    // gameState.urbanMap, regénéré plus bas au nouveau format (même numéro d'étage).
+    const legacyUrbanFloor = !!saved.urbanMap;
 
     Object.assign(gameState, saved);
+    // Champs de l'ancien réseau urbain (chantier 12) : n'existent plus.
+    ['urbanMap', 'pendingUrbanTravel', 'pendingUrbanBossEncounter', 'pendingUrbanBossCityId', 'pendingUrbanAdvanceAfterCombat']
+        .forEach(key => { delete gameState[key]; });
     if (needsBaseMaxHpMigration) gameState.baseMaxHp = saved.maxHp || gameState.maxHp;
     // Compagnon d'une sauvegarde antérieure au rework (leaveChance, pas de loyauté ni d'équipement).
     if (gameState.companion) gameState.companion = normalizeCompanion(gameState.companion);
@@ -975,7 +1021,10 @@ function restoreSaveForName(name) {
 
     // Carte d'un format antérieur (chantier 5, FLOOR_MAP_VERSION) : l'étage en cours est regénéré au nouveau
     // format (même numéro d'étage, mêmes anomalies) ; le crawler garde tout le reste.
-    if (gameState.floorMap && gameState.floorMap.version !== FLOOR_MAP_VERSION) {
+    if (legacyUrbanFloor) {
+        generateUrbanFloorMap();
+        logEvent("La ville s'est réaménagée pendant votre absence : cet étage a été entièrement redessiné.", "info");
+    } else if (gameState.floorMap && gameState.floorMap.version !== FLOOR_MAP_VERSION) {
         generateFloorMap();
         logEvent("Le Donjon s'est réaménagé pendant votre absence : cet étage a été entièrement redessiné.", "info");
     }
@@ -995,7 +1044,7 @@ function listSavedCrawlerNames() {
             if (!key || !key.startsWith(SAVE_KEY_PREFIX)) continue;
             try {
                 const saved = JSON.parse(localStorage.getItem(key));
-                if (saved && saved.playerName) names.push(saved.playerName);
+                if (saved && saved.playerName && !isDeadSave(saved)) names.push(saved.playerName);
             } catch (e) {
                 // Entrée corrompue : ignorée plutôt que de faire échouer toute la liste
             }
@@ -1427,12 +1476,10 @@ function updateUI() {
             ui.btnFlee.classList.toggle('pointer-events-none', !fleeUsable);
         }
     } else {
-        // Consigne sous la scène : explorer (étage classique) ou ouvrir la carte (étage urbain, carte
-        // fermée) ; inutile pendant un choix en attente ou quand la Carte Urbaine est déjà ouverte.
-        const urbanMapShown = !!gameState.urbanMap && mapPanelOpen;
-        ui.advanceHint.classList.toggle('hidden', isActionBlocked() || urbanMapShown);
-        ui.advanceHint.innerText = gameState.urbanMap ? "👆 Touchez la scène pour ouvrir la carte" : "👆 Touchez la scène pour explorer (-1H)";
-        if (ui.exploreScene) ui.exploreScene.setAttribute('aria-label', gameState.urbanMap ? "Ouvrir la carte" : "Explorer (-1H)");
+        // Consigne sous la scène (explorer), inutile pendant un choix en attente.
+        ui.advanceHint.classList.toggle('hidden', isActionBlocked());
+        ui.advanceHint.innerText = "👆 Touchez la scène pour explorer (-1H)";
+        if (ui.exploreScene) ui.exploreScene.setAttribute('aria-label', "Explorer (-1H)");
         ui.combatZone.classList.add('hidden');
         ui.exploreStage.classList.remove('hidden');
         // Salle sécurisée et ville spécialisée ont leur propre scène (au-dessus de leurs boutons) : la
@@ -1445,12 +1492,11 @@ function updateUI() {
     renderScene('combat');
     renderScene('crawlers'); // posture/équipement du crawler dans les scènes hors combat
 
-    // La carte de l'étage est un panneau sous la scène, ouvert/fermé par #btn-toggle-map (ouvert par défaut,
-    // mapPanelOpen) : Carte Urbaine sur un étage urbain, carte stylisée (#floor-map-overlay, chantier 5) sur
-    // un étage classique. Elle se masque, avec son bouton, dès qu'une "situation" est en cours
-    // (combat/boss/furtivité/compagnon, voir isActionBlocked()) : la scène montre alors la situation.
-    const mapAvailable = !!(gameState.urbanMap || gameState.floorMap) && !isActionBlocked();
-    if (ui.urbanTravelOverlay) ui.urbanTravelOverlay.classList.toggle('hidden', !mapAvailable || !gameState.urbanMap || !mapPanelOpen);
+    // La carte de l'étage (carte stylisée #floor-map-overlay, chantier 5, étages classiques ET urbains) est un
+    // panneau sous la scène, ouvert/fermé par #btn-toggle-map (ouvert par défaut, mapPanelOpen). Elle se masque,
+    // avec son bouton, dès qu'une "situation" est en cours (combat/boss/furtivité/compagnon, voir
+    // isActionBlocked()) : la scène montre alors la situation.
+    const mapAvailable = !!gameState.floorMap && !isActionBlocked();
     if (ui.floorMapOverlay) ui.floorMapOverlay.classList.toggle('hidden', !mapAvailable || !gameState.floorMap || !mapPanelOpen);
     if (ui.btnToggleMap) {
         ui.btnToggleMap.classList.toggle('hidden', !mapAvailable);
@@ -1458,8 +1504,7 @@ function updateUI() {
         ui.btnToggleMap.setAttribute('aria-expanded', mapPanelOpen ? 'true' : 'false');
     }
 
-    // Les cartes suivent la position courante : rafraîchies à chaque rendu.
-    updateUrbanMapUI();
+    // La carte suit la position courante : rafraîchie à chaque rendu.
     updateFloorMapUI();
 
     // Autosauvegarde (no-op tant que gameState.saveEnabled est faux, voir confirmPlayerName() /
@@ -1691,8 +1736,7 @@ function playSceneDrawAnimation() {
 // Scène d'arrivée sur un étage (nouvelle partie, changement d'étage, sauvegarde restaurée) : la ville
 // de départ sur un étage urbain, le quartier courant sinon — jamais la vignette de l'étage précédent.
 function showFloorArrivalScene() {
-    const urbanMap = gameState.urbanMap;
-    const city = urbanMap && urbanMap.citiesById[urbanMap.currentCityId];
+    const city = isUrbanFloor() ? urbanCityById(gameState.floorMap.currentCityId) : null;
     if (city) {
         setSceneHeader('🏙️', city.name, 'Ville sûre', { key: 'citySafe', cityName: city.name });
     } else {
@@ -2309,11 +2353,13 @@ function applyTimeElapsedRegen(hours) {
     }
 }
 
-// Table d'événements de la zone courante : config.chances dans un bloc de quartier, config.avenueChances
-// sur une avenue (ZONE_TYPES[zone].eventTable, floorgen.js). Hors étage classique : table des salles.
+// Table d'événements de la zone courante (ZONE_TYPES[zone].eventTable, floorgen.js) : config.chances dans un
+// bloc de quartier, config.avenueChances sur une avenue, config.cityChances dans une ville et
+// config.roadChances sur une route (étages urbains, chantier 12).
+const ZONE_EVENT_TABLES = { room: 'chances', avenue: 'avenueChances', city: 'cityChances', road: 'roadChances' };
 function getZoneEventTable() {
     const zone = ZONE_TYPES[roomZone(currentFloorRoom())] || ZONE_TYPES.block;
-    return zone.eventTable === 'avenue' ? config.avenueChances : config.chances;
+    return config[ZONE_EVENT_TABLES[zone.eventTable] || 'chances'];
 }
 
 function resolveCardEvent() {
@@ -2449,6 +2495,18 @@ function resolveCardEvent() {
         return;
     }
 
+    // Pickpocket (villes des étages urbains seulement, chantier 12) : quelques PO envolées.
+    cumulative += table.pickpocket || 0;
+    if (d100 < cumulative) {
+        const stolen = computePickpocketLoss(gameState.gold);
+        gameState.gold -= stolen;
+        setSceneHeader('🫳', 'Pickpocket', 'Ville', 'pickpocket');
+        logEvent(stolen > 0
+            ? `Quelqu'un vous bouscule dans la foule... Votre bourse est plus légère. (-${stolen} PO)`
+            : "Un pickpocket fouille vos poches, n'y trouve rien, et repart vexé.", stolen > 0 ? "danger" : "normal");
+        return;
+    }
+
     // Reste : moment purement narratif, sans effet mécanique
     setSceneHeader('🎬', 'Ambiance', 'Exploration', 'ambiance');
     logEvent(pick(flavorText.flavorOnly), "normal");
@@ -2570,12 +2628,30 @@ function listFloorLandmarks() {
     if (!fm) return [];
     const marks = [];
     Object.values(fm.roomsById).forEach(room => {
+        // Étage urbain (chantier 12) : escalier / Sortie, boutique, professeur, repaire.
+        const city = roomCity(room);
+        const inCity = city ? ` (${city.name})` : '';
+        if (room.type === 'stairs') {
+            if (!room.visited) return;
+            if (room.guarded && !room.defeated) marks.push({ roomId: room.id, kind: 'stairsGuarded', icon: '👑', label: `${room.isExit ? "Sortie gardée" : "Escalier gardé"}${inCity}` });
+            else marks.push({ roomId: room.id, kind: room.isExit ? 'exit' : 'stairs', icon: room.isExit ? '🚪' : '🪜', label: `${room.isExit ? "Sortie" : "Escalier libre"}${inCity}` });
+            return;
+        }
+        if (room.type === 'shop' || room.type === 'trainer') {
+            if (room.visited) marks.push({ roomId: room.id, kind: room.type, icon: room.type === 'shop' ? '🛒' : '🎓', label: `${room.type === 'shop' ? "Marchand" : "Professeur"}${inCity}` });
+            return;
+        }
+        if (room.type === 'lair') {
+            const lair = fm.lairsById && fm.lairsById[room.lairId];
+            if (room.visited || isRoomSeen(room)) marks.push({ roomId: room.id, kind: 'lair', icon: lair && lair.cleared ? '🏆' : '💀', label: lair && lair.cleared ? "Repaire nettoyé" : "Repaire" });
+            return;
+        }
         if (room.type === 'boss' && (room.visited || room.defeated)) {
             if (room.defeated && room.guardsStairs) marks.push({ roomId: room.id, kind: 'stairs', icon: '🪜', label: `Escalier libre (${roomDistrict(room)})` });
             else if (!room.defeated) marks.push({ roomId: room.id, kind: room.guardsStairs ? 'stairsGuarded' : 'boss', icon: '👑', label: `${room.guardsStairs ? "Escalier gardé" : "Boss"} (${roomDistrict(room)})` });
         } else if (room.type === 'safe' && room.visited) {
             const sh = room.safehouse || { name: "Salle sûre", icon: '🛏️' };
-            marks.push({ roomId: room.id, kind: 'safe', icon: sh.icon, label: sh.name });
+            marks.push({ roomId: room.id, kind: 'safe', icon: sh.icon, label: city ? `Auberge${inCity}` : sh.name });
         }
     });
     return marks;
@@ -2584,11 +2660,29 @@ function listFloorLandmarks() {
 // Libellé court d'une salle (bulle de la carte, journal de trajet).
 function floorRoomLabel(room) {
     if (!room) return "Salle";
+    if (isUrbanFloor()) return urbanRoomLabel(room);
     if (!room.visited) return roomZone(room) === 'avenue' ? "Avenue inexplorée" : `Salle inconnue (${roomDistrict(room)})`;
     const mark = listFloorLandmarks().find(m => m.roomId === room.id);
     if (mark) return mark.label;
     if (roomZone(room) === 'avenue') return "Avenue";
     return `Salle (${roomDistrict(room)})`;
+}
+
+// Libellé court d'une salle d'étage urbain : place, ruelle, auberge… de sa ville, route, repaire.
+const URBAN_ROOM_ROLE_LABELS = { plaza: "Place", alley: "Ruelle", inn: "Auberge", merchant: "Marchand", trainer: "Professeur", stairs: "Escalier" };
+function urbanRoomLabel(room) {
+    const city = roomCity(room);
+    const zone = roomZone(room);
+    if (!room.visited) {
+        if (zone === 'road') return "Route inexplorée";
+        if (zone === 'lair') return "Recoin au bord de la route";
+        return city && city.visited ? `Rue inconnue (${city.name})` : "Ville inconnue";
+    }
+    const mark = listFloorLandmarks().find(m => m.roomId === room.id);
+    if (mark) return mark.label;
+    if (zone === 'road') return "Route";
+    if (zone === 'lair') return "Repaire";
+    return `${URBAN_ROOM_ROLE_LABELS[room.cityRole] || "Rue"}${city ? ` (${city.name})` : ''}`;
 }
 
 // Prépare un voyage vers `roomId` (pure vis-à-vis de gameState : ne modifie rien). Destination : une salle
@@ -3704,7 +3798,6 @@ function advanceToNextFloor() {
     gameState.maxTime = config.floorTimeBudget.base + config.floorTimeBudget.perFloor * (gameState.currentFloor - 1);
     gameState.timeLeft = gameState.maxTime; // Réinitialisation du temps
     gameState.floorMap = null;
-    gameState.urbanMap = null;
     // Tally du nouvel étage repart à zéro — celui qui vient de se terminer a déjà été affiché sur
     // l'écran d'escalier (voir triggerFloorTransition()) avant cet appel.
     // Bilan de l'étage qui vient de finir, pour les piques de l'émission DeathWatch (chantier 4).
@@ -3724,8 +3817,8 @@ function advanceToNextFloor() {
     rollAndApplyFloorAnomalies(gameState.currentFloor);
     recomputeMaxHp(); // Applique l'éventuel playerMaxHpMult du nouvel étage (PEAU_DE_VERRE)
 
-    // Multiple de 3 (voir config.urbanFloors) : étage urbain (réseau villes/routes) plutôt que le
-    // donjon classique à 4 quartiers.
+    // Multiple de 3 (voir config.urbanFloors) : étage urbain (villes explorables reliées par des routes,
+    // chantier 12) plutôt que le donjon classique à 4 quartiers.
     if (gameState.currentFloor % 3 === 0) {
         generateUrbanFloorMap();
     } else {
@@ -3739,7 +3832,6 @@ function advanceToNextFloor() {
     if (gameState.activeAnomalies.length > 0) {
         logEvent(`⚠️ Anomalie(s) active(s) : ${gameState.activeAnomalies.map(a => `${a.icon} ${a.name}`).join(', ')}.`, "danger");
     }
-    updateUrbanMapUI();
     updateAnomalyStatusUI();
 
     // PACTE_DU_CRAWLER : choix forcé à l'entrée de l'étage, résolu AVANT de rendre la main au joueur
@@ -3835,11 +3927,10 @@ function continueFromFloorTransition() {
 // Escalier libre (gardien vaincu, ou ville-escalier sans gardien) : au lieu de passer tout de suite à
 // l'étage suivant, propose « Descendre » (écran d'escalier, voir triggerFloorTransition()) ou « Rester
 // sur l'étage » (finir d'explorer, se soigner…). Bloque via gameState.stairsChoicePending (inclus dans
-// isActionBlocked()), comme un choix de boss. `context` : { kind: 'room', roomId } (étage classique —
-// la salle vaincue est marquée 🪜 sur la carte, pour pouvoir y revenir quoi qu'il arrive) ou
-// { kind: 'city', cityId } (étage urbain — la ville reste sur la Carte Urbaine). Le choix est reproposé
-// à chaque retour (enterRoom()/arriveAtCity()). La Sortie de l'étage final n'y passe jamais (victoire
-// immédiate, choix de l'utilisateur).
+// isActionBlocked()), comme un choix de boss. `context` : { kind: 'room', roomId } — la salle de l'escalier
+// (gardien vaincu ou escalier libre d'un étage urbain) est marquée 🪜 sur la carte, pour pouvoir y revenir
+// quoi qu'il arrive. Le choix est reproposé à chaque retour (enterRoom()). La Sortie de l'étage final n'y
+// passe jamais (victoire immédiate, choix de l'utilisateur).
 function offerStairsChoice(context) {
     gameState.stairsChoicePending = true;
     gameState.pendingStairsChoice = context;
@@ -3866,20 +3957,12 @@ function descendStairs() {
     triggerFloorTransition(); // triggerFloorTransition() appelle déjà updateUI()
 }
 
-// Bouton « Rester sur l'étage » : aucun effet, on reprend l'exploration (le temps continue de s'écouler).
-// Étage classique : l'escalier reste dans les lieux connus ; étage urbain : on reste dans la ville, qui
-// redevient une simple ville sûre jusqu'au prochain passage.
+// Bouton « Rester sur l'étage » : aucun effet, on reprend l'exploration (le temps continue de s'écouler) ;
+// l'escalier reste marqué 🪜 sur la carte.
 function stayOnFloor() {
     if (!gameState.stairsChoicePending) return;
-    const context = closeStairsChoice();
-    if (context && context.kind === 'city' && gameState.urbanMap) {
-        const city = gameState.urbanMap.citiesById[context.cityId];
-        setSceneHeader('🏙️', city ? city.name : 'Ville', 'Ville sûre', { key: 'citySafe', cityName: city ? city.name : '' });
-        logEvent("Vous laissez l'escalier pour plus tard. Il vous attendra ici.", "info");
-        updateUrbanMapUI();
-    } else {
-        logEvent("Vous laissez l'escalier pour plus tard : il reste dans vos lieux connus.", "info");
-    }
+    closeStairsChoice();
+    logEvent("Vous laissez l'escalier pour plus tard : il reste marqué sur votre carte.", "info");
     updateUI();
 }
 
@@ -4300,6 +4383,7 @@ function roomZone(room) {
 // Quartier d'une salle : celui de son bloc ; une avenue n'appartient à aucun quartier.
 function roomDistrict(room) {
     const fm = gameState.floorMap;
+    if (fm && fm.kind === 'urban') return fm.theme; // Étage urbain : un seul thème pour tout l'étage
     if (!fm || !room || room.quadrant === null || room.quadrant === undefined) return null;
     return fm.quadrants[room.quadrant] ? fm.quadrants[room.quadrant].district : null;
 }
@@ -4309,6 +4393,7 @@ function roomDistrict(room) {
 function moveToFloorRoom(room) {
     const fm = gameState.floorMap;
     fm.currentRoomId = room.id;
+    if (room.cityId) fm.currentCityId = room.cityId; // Étage urbain : dernière ville traversée
     if (room.quadrant === null || room.quadrant === undefined || room.quadrant === fm.currentQuadrant) return false;
     fm.currentQuadrant = room.quadrant;
     gameState.currentDistrict = fm.quadrants[room.quadrant].district;
@@ -4421,1038 +4506,179 @@ function computeFloorPath(fromRoomId, toRoomId, canPass = null) {
 }
 
 // ==========================================
-// MINI CARTE GRAPHIQUE (réutilisable) — disposition + rendu SVG d'un graphe générique de
-// nœuds/arêtes, sans AUCUNE connaissance du jeu : pensée pour être réutilisée telle quelle par
-// n'importe quel système de navigation basé sur un graphe. Les étages urbains (ci-dessous) sont le
-// premier appelant ; un futur mini-plan de donjon classique (pièces/couloirs de generateFloorMap())
-// pourrait s'y brancher de la même façon, via son propre adaptateur nœuds/arêtes.
+// ÉTAGES URBAINS : VILLES EXPLORABLES (multiples de 3 — chantier 12, voir NOTES_VILLES.md)
 // ==========================================
+// Géométrie PURE dans floorgen.js (generateMetropolis()) : villes de 3 à 5 salles (place, auberge, boutique
+// ou professeur, escalier, ruelles), routes découpées en tronçons explorés pas à pas, repaires en impasse.
+// L'étage passe ensuite par EXACTEMENT la même machinerie qu'un étage classique : gameState.floorMap
+// (kind 'urban'), travelToRoom()/performExploreStep()/enterRoom(), carte stylisée floormap.js.
 
-// Calcule/actualise une disposition 2D (coordonnées normalisées 0..1) pour un ensemble de nœuds
-// reliés par des arêtes, par relaxation "force-directed" minimaliste (répulsion entre tous les
-// nœuds + ressort sur les arêtes vers une longueur cible + légère attraction vers le centre), sans
-// dépendance externe (aucun build step, voir CLAUDE.md). `existingPositions` (optionnel, {id:{x,y}})
-// sert de point de départ : les nœuds déjà positionnés convergent quasiment sur place (équilibre
-// déjà proche) tandis qu'un nœud nouvellement révélé démarre sur un cercle et rejoint sa place —
-// jamais de réarrangement brutal de tout le graphe à chaque nouvel appel.
-function computeGraphLayout(nodeIds, edges, existingPositions = {}) {
-    const positions = {};
-    // Mobilité par nœud : un nœud déjà positionné lors d'un appel précédent reste (quasi) ancré —
-    // seule une petite fraction des forces qu'il subit s'applique réellement — pendant qu'un nœud
-    // tout juste révélé, lui, est pleinement mobile pour rejoindre sa place. Sans ça, la relaxation
-    // complète (ITERATIONS élevé, nécessaire pour bien placer le nouveau nœud) réorganiserait tout
-    // le graphe à chaque révélation, au lieu de se contenter d'y intégrer le nouveau venu.
-    const mobility = {};
-    nodeIds.forEach((id, i) => {
-        if (existingPositions[id]) {
-            positions[id] = { x: existingPositions[id].x, y: existingPositions[id].y };
-            mobility[id] = 0.08;
-        } else {
-            const angle = (i / Math.max(1, nodeIds.length)) * Math.PI * 2 + Math.random() * 0.5;
-            const radius = 0.28 + Math.random() * 0.12;
-            positions[id] = { x: 0.5 + Math.cos(angle) * radius, y: 0.5 + Math.sin(angle) * radius };
-            mobility[id] = 1;
-        }
-    });
-    if (nodeIds.length <= 1) return positions;
-
-    const relevantEdges = edges.filter(e => positions[e.from] && positions[e.to]);
-    const ITERATIONS = 120;
-    const REPULSION = 0.010;
-    const SPRING = 0.06;
-    const SPRING_LENGTH = 0.30;
-    const CENTER_PULL = 0.02;
-
-    for (let iter = 0; iter < ITERATIONS; iter++) {
-        const forces = {};
-        nodeIds.forEach(id => { forces[id] = { x: 0, y: 0 }; });
-
-        // Répulsion entre toutes les paires (petit graphe, O(n²) largement suffisant ici)
-        for (let i = 0; i < nodeIds.length; i++) {
-            for (let j = i + 1; j < nodeIds.length; j++) {
-                const a = nodeIds[i], b = nodeIds[j];
-                let dx = positions[a].x - positions[b].x;
-                let dy = positions[a].y - positions[b].y;
-                const distSq = dx * dx + dy * dy || 0.0001;
-                const dist = Math.sqrt(distSq);
-                const force = REPULSION / distSq;
-                dx /= dist; dy /= dist;
-                forces[a].x += dx * force; forces[a].y += dy * force;
-                forces[b].x -= dx * force; forces[b].y -= dy * force;
-            }
-        }
-
-        // Ressort sur les arêtes : rapproche/éloigne les voisins reliés vers SPRING_LENGTH
-        relevantEdges.forEach(e => {
-            let dx = positions[e.to].x - positions[e.from].x;
-            let dy = positions[e.to].y - positions[e.from].y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
-            const diff = (dist - SPRING_LENGTH) * SPRING;
-            dx /= dist; dy /= dist;
-            forces[e.from].x += dx * diff; forces[e.from].y += dy * diff;
-            forces[e.to].x -= dx * diff; forces[e.to].y -= dy * diff;
-        });
-
-        // Légère attraction vers le centre pour ne pas dériver hors du cadre normalisé
-        nodeIds.forEach(id => {
-            forces[id].x += (0.5 - positions[id].x) * CENTER_PULL;
-            forces[id].y += (0.5 - positions[id].y) * CENTER_PULL;
-        });
-
-        // Écrête la force totale par nœud avant application : la répulsion en 1/distSq peut devenir
-        // énorme quand deux nœuds démarrent quasiment au même point (un nouveau nœud tombe par hasard
-        // tout près d'un existant), provoquant sinon un "saut" d'un bord à l'autre du cadre en une
-        // seule itération plutôt qu'une relaxation progressive.
-        const MAX_STEP = 0.05;
-        nodeIds.forEach(id => {
-            const f = forces[id];
-            const mag = Math.sqrt(f.x * f.x + f.y * f.y);
-            if (mag > MAX_STEP) {
-                f.x = (f.x / mag) * MAX_STEP;
-                f.y = (f.y / mag) * MAX_STEP;
-            }
-            positions[id].x = Math.min(0.94, Math.max(0.06, positions[id].x + f.x * mobility[id]));
-            positions[id].y = Math.min(0.94, Math.max(0.06, positions[id].y + f.y * mobility[id]));
-        });
-    }
-
-    return positions;
-}
-
-// Calcule/écrête les bornes par défaut du monde pannable à partir des positions fournies, quand
-// l'appelant n'en fournit pas lui-même (voir `worldBounds` de renderGraphMiniMap()) — une marge
-// généreuse autour de la boîte englobante de tous les nœuds plutôt qu'un cadre pile ajusté.
-function computeDefaultWorldBounds(positions, margin) {
-    const pts = Object.values(positions);
-    if (pts.length === 0) return { minX: -margin, maxX: margin, minY: -margin, maxY: margin };
-    const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
-    return {
-        minX: Math.min(...xs) - margin, maxX: Math.max(...xs) + margin,
-        minY: Math.min(...ys) - margin, maxY: Math.max(...ys) + margin,
-    };
-}
-
-// Écrête un centre de caméra pour que la fenêtre affichée (viewSize, centrée sur ce point) ne sorte
-// jamais des bornes du monde (worldBounds) — fonction pure, testable indépendamment de tout DOM/
-// événement pointeur. Si le monde est plus petit que la fenêtre (peu de nœuds connus), centre le
-// monde plutôt que d'écrêter sur un intervalle vide/inversé.
-function clampCameraToBounds(camera, viewSize, worldBounds) {
-    const halfW = viewSize.w / 2, halfH = viewSize.h / 2;
-    const minCx = worldBounds.minX + halfW, maxCx = worldBounds.maxX - halfW;
-    const minCy = worldBounds.minY + halfH, maxCy = worldBounds.maxY - halfH;
-    const x = minCx <= maxCx ? Math.min(maxCx, Math.max(minCx, camera.x)) : (worldBounds.minX + worldBounds.maxX) / 2;
-    const y = minCy <= maxCy ? Math.min(maxCy, Math.max(minCy, camera.y)) : (worldBounds.minY + worldBounds.maxY) / 2;
-    return { x, y };
-}
-
-// Rendu SVG générique d'un graphe déjà disposé dans un <svg> existant : `nodes` = [{id, label, icon,
-// variant}], `edges` = [{from, to, distance}] (distance optionnelle, affichée seulement sur les
-// arêtes reliées au nœud courant pour ne pas surcharger l'affichage), `positions` = {id:{x,y}} en
-// coordonnées MONDE (unités arbitraires, pas de normalisation 0..1 — voir computeGraphLayout() ou
-// une grille logique comme pour les étages urbains), `currentId` = nœud où l'on se trouve (mis en
-// évidence, jamais cliquable). `variant` ('guarded'/'goal'/'default') pilote la couleur des nœuds
-// autres que le courant. Trois familles de petits marqueurs, pour trois usages distincts :
-//   - `goalIcon` (sur un NŒUD) : décalé sur l'arête d'accès de ce nœud plutôt que dans son propre
-//     cercle (ex : un gardien "posté sur la route" plutôt que confondu avec la ville qu'il garde).
-//   - `badge` (sur un NŒUD) : petite icône accolée au cercle du nœud lui-même, pour un rôle qui ne
-//     bloque rien (ex : marchand/professeur) — contrairement à goalIcon, jamais décalée sur une arête.
-//   - `marker` (sur une ARÊTE, `edges[i].marker = {icon, variant}`) : rendu au milieu de l'arête
-//     elle-même, pour un élément qui n'appartient à AUCUN des deux nœuds qu'elle relie (ex : un
-//     repaire sur une route).
-// `onNodeClick(id)` est appelé au clic sur n'importe quel autre nœud (y compris son propre goalIcon).
-//
-// Caméra (monde pannable) : `camera` ({x,y}, optionnel) fixe le centre de la fenêtre affichée ; sans
-// lui, retombe sur la position de `currentId` puis, à défaut, sur le centre de la boîte englobante de
-// tous les nœuds — c'est à l'APPELANT de mémoriser un `camera` explicite d'un rendu à l'autre (ce
-// module ne garde aucun état), typiquement seulement après que le joueur a fait glisser la carte
-// (`onCameraChange`, voir plus bas). `viewSize` ({w,h}, monde, défaut 200×240) fixe la taille de
-// cette fenêtre. `worldBounds` ({minX,maxX,minY,maxY}, optionnel) écrête le pan aux limites du monde
-// (voir clampCameraToBounds()) ; à défaut, calculé depuis l'étendue des nœuds (computeDefaultWorldBounds()).
-// `onCameraChange(newCamera)` (optionnel) : si fourni, le pan par glissement (souris ET tactile,
-// `pointerdown`/`pointermove`/`pointerup`) est activé sur `svgEl` — le viewBox est déplacé EN DIRECT
-// pendant le glissement (mutation légère d'un seul attribut, jamais un re-rendu complet du graphe/
-// fond, qui serait coûteux à chaque pointermove), et `onCameraChange` n'est appelé qu'UNE fois à la
-// fin du glissement, pour que l'appelant persiste la nouvelle position (elle serait sinon perdue au
-// prochain rendu complet, qui repart de `camera`/`currentId`). Un déplacement de moins de 5px au
-// relâchement reste un simple tap/clic : le nœud le plus proche du point relâché (par distance en
-// coordonnées MONDE, voir `clickableRegions`) navigue normalement — PAS via le `click` natif du
-// navigateur, constaté peu fiable une fois qu'un pointeur a été capturé pendant l'interaction (même
-// relâché ensuite) ; sans pan (`onCameraChange` absent), aucun pointeur n'est jamais capturé et le
-// `click` natif classique reste utilisé directement sur chaque nœud.
-// `background` (optionnel, {rects, lines} en coordonnées MONDE, lines avec cx/cy optionnel pour une
-// courbe) dessine une texture décorative sous les arêtes/nœuds — aucune connaissance du jeu non plus,
-// l'appelant fournit le motif.
-const GRAPH_MINIMAP_VARIANT_COLORS = {
-    current: { fill: "#1d4ed8", stroke: "#93c5fd" },
-    guarded: { fill: "#7f1d1d", stroke: "#f87171" },
-    goal: { fill: "#78350f", stroke: "#fbbf24" },
-    default: { fill: "#111827", stroke: "#4b5563" },
-};
-function renderGraphMiniMap(svgEl, { nodes, edges, positions, currentId, onNodeClick, camera, viewSize, worldBounds, onCameraChange, background }) {
-    if (!svgEl) return;
-    svgEl.innerHTML = "";
-    const svgNS = "http://www.w3.org/2000/svg";
-    const view = viewSize || { w: 200, h: 240 };
-
-    // Centre de caméra : explicite (`camera`) > centré sur `currentId` > centre de la boîte
-    // englobante de tous les nœuds positionnés > origine si aucun nœud.
-    let cx, cy;
-    if (camera) {
-        cx = camera.x; cy = camera.y;
-    } else if (currentId && positions[currentId]) {
-        cx = positions[currentId].x; cy = positions[currentId].y;
-    } else {
-        const pts = Object.values(positions);
-        cx = pts.length ? pts.reduce((s, p) => s + p.x, 0) / pts.length : 0;
-        cy = pts.length ? pts.reduce((s, p) => s + p.y, 0) / pts.length : 0;
-    }
-    const bounds = worldBounds || computeDefaultWorldBounds(positions, Math.max(view.w, view.h) * 0.5);
-    const clamped = clampCameraToBounds({ x: cx, y: cy }, view, bounds);
-    cx = clamped.x; cy = clamped.y;
-    svgEl.setAttribute("viewBox", `${cx - view.w / 2} ${cy - view.h / 2} ${view.w} ${view.h}`);
-
-    if (background) {
-        const bgGroup = document.createElementNS(svgNS, "g");
-        (background.rects || []).forEach(r => {
-            const rect = document.createElementNS(svgNS, "rect");
-            rect.setAttribute("x", r.x); rect.setAttribute("y", r.y);
-            rect.setAttribute("width", r.w); rect.setAttribute("height", r.h);
-            rect.setAttribute("fill", "#1f2937");
-            rect.setAttribute("opacity", r.opacity ?? 0.3);
-            bgGroup.appendChild(rect);
-        });
-        (background.lines || []).forEach(l => {
-            // Point de contrôle (cx/cy) optionnel : légèrement courbée façon avenue dessinée à la
-            // main plutôt qu'un trait parfaitement rectiligne. Sans lui, reste une simple droite
-            // (rétrocompatible avec un appelant générique qui ne fournirait pas de courbure).
-            const hasCurve = l.cx !== undefined && l.cy !== undefined;
-            const el = document.createElementNS(svgNS, hasCurve ? "path" : "line");
-            if (hasCurve) {
-                el.setAttribute("d", `M ${l.x1} ${l.y1} Q ${l.cx} ${l.cy} ${l.x2} ${l.y2}`);
-                el.setAttribute("fill", "none");
-            } else {
-                el.setAttribute("x1", l.x1); el.setAttribute("y1", l.y1);
-                el.setAttribute("x2", l.x2); el.setAttribute("y2", l.y2);
-            }
-            el.setAttribute("stroke", "#1f2937");
-            el.setAttribute("stroke-width", "3");
-            el.setAttribute("opacity", "0.5");
-            bgGroup.appendChild(el);
-        });
-        svgEl.appendChild(bgGroup);
-    }
-
-    // Zones cliquables (cercle du nœud + éventuel marqueur de gardien décalé), remplies au fil du
-    // rendu ci-dessous : { id, x, y, r } en coordonnées MONDE. En mode pan (onCameraChange fourni),
-    // le tap/clic est résolu par distance MONDE à la fin du glissement (voir endDrag()) plutôt que
-    // par le `click` natif du navigateur — constaté PEU FIABLE une fois qu'un pointeur a été capturé
-    // pendant l'interaction (même relâché ensuite), pas seulement en environnement de test. Sans pan,
-    // aucun pointeur n'est jamais capturé : le `click` natif classique reste utilisé directement.
-    const clickableRegions = [];
-    const handleNodeClick = (id) => { if (onNodeClick) onNodeClick(id); };
-
-    if (onCameraChange) {
-        const DRAG_THRESHOLD_PX = 5;
-        const HIT_SLACK_PX = 4; // tolérance au-delà du rayon visuel du cercle, confort tactile
-        // Caméra "vécue" : `cx`/`cy` restent figés à la position du rendu initial, mais RIEN ne
-        // garantit que l'appelant re-rendra entre deux glissements/taps successifs (onCameraChange ne
-        // force aucun re-rendu, volontairement — voir plus haut). Sans ce suivi mutable, un DEUXIÈME
-        // glissement démarrerait à tort depuis la position du rendu initial plutôt que là où le
-        // premier vient de le laisser visuellement (viewBox déjà déplacé en direct).
-        let liveCamera = { x: cx, y: cy };
-        let drag = null;
-        svgEl.style.touchAction = "none"; // évite le scroll tactile pendant le glissement
-        svgEl.style.cursor = "grab";
-        svgEl.addEventListener('pointerdown', (e) => {
-            const rect = svgEl.getBoundingClientRect ? svgEl.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
-            drag = {
-                startX: e.clientX, startY: e.clientY, camX: liveCamera.x, camY: liveCamera.y, moved: false, lastCam: { ...liveCamera },
-                scaleX: rect.width > 0 ? view.w / rect.width : 1,
-                scaleY: rect.height > 0 ? view.h / rect.height : 1,
-                rectLeft: rect.left, rectTop: rect.top,
-                pointerId: e.pointerId,
-            };
-            if (svgEl.setPointerCapture) { try { svgEl.setPointerCapture(e.pointerId); } catch (err) { /* pointeur déjà relâché, sans conséquence */ } }
-        });
-        svgEl.addEventListener('pointermove', (e) => {
-            if (!drag) return;
-            const dxPx = e.clientX - drag.startX, dyPx = e.clientY - drag.startY;
-            if (!drag.moved && Math.hypot(dxPx, dyPx) <= DRAG_THRESHOLD_PX) return;
-            drag.moved = true;
-            svgEl.style.cursor = "grabbing";
-            const liveCam = clampCameraToBounds(
-                { x: drag.camX - dxPx * drag.scaleX, y: drag.camY - dyPx * drag.scaleY }, view, bounds
-            );
-            drag.lastCam = liveCam;
-            liveCamera = liveCam;
-            svgEl.setAttribute("viewBox", `${liveCam.x - view.w / 2} ${liveCam.y - view.h / 2} ${view.w} ${view.h}`);
-        });
-        const endDrag = (e) => {
-            if (!drag) return;
-            if (svgEl.releasePointerCapture && drag.pointerId !== undefined) {
-                try { svgEl.releasePointerCapture(drag.pointerId); } catch (err) { /* déjà relâché */ }
-            }
-            svgEl.style.cursor = "grab";
-            if (drag.moved) {
-                onCameraChange(drag.lastCam);
-            } else if (e && e.type === 'pointerup') {
-                // Pas un glissement, et un VRAI relâchement (pas une annulation/sortie de zone) :
-                // simple tap/clic — retrouve le nœud le plus proche du point relâché, en coordonnées
-                // MONDE (caméra inchangée puisque non déplacée cette fois).
-                const worldX = (drag.camX - view.w / 2) + (e.clientX - drag.rectLeft) * drag.scaleX;
-                const worldY = (drag.camY - view.h / 2) + (e.clientY - drag.rectTop) * drag.scaleY;
-                let best = null, bestDist = Infinity;
-                clickableRegions.forEach(region => {
-                    const d = Math.hypot(region.x - worldX, region.y - worldY);
-                    if (d <= region.r + HIT_SLACK_PX && d < bestDist) { best = region; bestDist = d; }
-                });
-                if (best) handleNodeClick(best.id);
-            }
-            drag = null;
-        };
-        svgEl.addEventListener('pointerup', endDrag);
-        svgEl.addEventListener('pointercancel', endDrag);
-        svgEl.addEventListener('pointerleave', endDrag);
-    }
-
-    const edgesGroup = document.createElementNS(svgNS, "g");
-    edges.forEach(e => {
-        const from = positions[e.from], to = positions[e.to];
-        if (!from || !to) return;
-        const a = from, b = to;
-        const line = document.createElementNS(svgNS, "line");
-        line.setAttribute("x1", a.x); line.setAttribute("y1", a.y);
-        line.setAttribute("x2", b.x); line.setAttribute("y2", b.y);
-        line.setAttribute("stroke", "#374151");
-        line.setAttribute("stroke-width", "1.5");
-        edgesGroup.appendChild(line);
-
-        if (e.distance !== undefined && (e.from === currentId || e.to === currentId)) {
-            const mid = document.createElementNS(svgNS, "text");
-            mid.setAttribute("x", (a.x + b.x) / 2);
-            mid.setAttribute("y", (a.y + b.y) / 2);
-            mid.setAttribute("text-anchor", "middle");
-            mid.setAttribute("font-size", "7");
-            mid.setAttribute("fill", "#60a5fa");
-            mid.textContent = e.distance;
-            edgesGroup.appendChild(mid);
-        }
-
-        // Marqueur d'arête (ex : repaire) : n'appartient à AUCUN des deux nœuds, rendu au milieu de
-        // la route elle-même — léger décalage vertical pour ne pas chevaucher le chiffre de distance.
-        if (e.marker) {
-            const markerColors = GRAPH_MINIMAP_VARIANT_COLORS[e.marker.variant || 'default'];
-            const markerG = document.createElementNS(svgNS, "g");
-            markerG.setAttribute("transform", `translate(${(a.x + b.x) / 2}, ${(a.y + b.y) / 2 + 11})`);
-            const markerCircle = document.createElementNS(svgNS, "circle");
-            markerCircle.setAttribute("r", "8");
-            markerCircle.setAttribute("fill", "#111827");
-            markerCircle.setAttribute("stroke", markerColors.stroke);
-            markerCircle.setAttribute("stroke-width", "1.5");
-            markerG.appendChild(markerCircle);
-            const markerIcon = document.createElementNS(svgNS, "text");
-            markerIcon.setAttribute("text-anchor", "middle");
-            markerIcon.setAttribute("dominant-baseline", "central");
-            markerIcon.setAttribute("font-size", "9");
-            markerIcon.textContent = e.marker.icon;
-            markerG.appendChild(markerIcon);
-            edgesGroup.appendChild(markerG);
-        }
-    });
-
-    const nodesGroup = document.createElementNS(svgNS, "g");
-    nodes.forEach(node => {
-        const pos = positions[node.id];
-        if (!pos) return;
-        const p = pos;
-        const isCurrent = node.id === currentId;
-        // La ville elle-même reste "normale" (couleur par défaut) même gardée : c'est le marqueur à
-        // part (voir plus bas) qui porte la couleur guarded/goal, posté sur la route plutôt que
-        // confondu avec la ville.
-        const colors = GRAPH_MINIMAP_VARIANT_COLORS[isCurrent ? 'current' : 'default'];
-
-        const g = document.createElementNS(svgNS, "g");
-        g.setAttribute("transform", `translate(${p.x}, ${p.y})`);
-        g.setAttribute("data-node-id", node.id); // Repère fiable pour retrouver ce nœud (tests, debug)
-        if (!isCurrent) {
-            g.style.cursor = "pointer";
-            if (onCameraChange) {
-                clickableRegions.push({ id: node.id, x: p.x, y: p.y, r: 10 });
-            } else {
-                g.addEventListener('click', () => handleNodeClick(node.id));
-            }
-        }
-
-        const circle = document.createElementNS(svgNS, "circle");
-        circle.setAttribute("r", isCurrent ? "13" : "10");
-        circle.setAttribute("fill", colors.fill);
-        circle.setAttribute("stroke", colors.stroke);
-        circle.setAttribute("stroke-width", isCurrent ? "2.5" : "1.5");
-        g.appendChild(circle);
-
-        if (node.icon) {
-            const iconText = document.createElementNS(svgNS, "text");
-            iconText.setAttribute("text-anchor", "middle");
-            iconText.setAttribute("dominant-baseline", "central");
-            iconText.setAttribute("font-size", isCurrent ? "13" : "10");
-            iconText.textContent = node.icon;
-            g.appendChild(iconText);
-        }
-
-        if (node.label) {
-            const label = document.createElementNS(svgNS, "text");
-            label.setAttribute("text-anchor", "middle");
-            label.setAttribute("y", isCurrent ? "24" : "20");
-            label.setAttribute("font-size", "7");
-            label.setAttribute("fill", "#9ca3af");
-            label.textContent = node.label.length > 12 ? node.label.slice(0, 11) + "…" : node.label;
-            g.appendChild(label);
-        }
-
-        // Badge de rôle (marchand/professeur...) : accolé au cercle du nœud lui-même, jamais décalé
-        // sur une arête (contrairement à goalIcon) puisqu'il ne bloque rien.
-        if (node.badge) {
-            const badgeOffset = (isCurrent ? 13 : 10) * 0.75;
-            const badge = document.createElementNS(svgNS, "g");
-            badge.setAttribute("transform", `translate(${badgeOffset}, ${badgeOffset})`);
-            const badgeCircle = document.createElementNS(svgNS, "circle");
-            badgeCircle.setAttribute("r", "6");
-            badgeCircle.setAttribute("fill", "#111827");
-            badgeCircle.setAttribute("stroke", "#fbbf24");
-            badgeCircle.setAttribute("stroke-width", "1.2");
-            badge.appendChild(badgeCircle);
-            const badgeIcon = document.createElementNS(svgNS, "text");
-            badgeIcon.setAttribute("text-anchor", "middle");
-            badgeIcon.setAttribute("dominant-baseline", "central");
-            badgeIcon.setAttribute("font-size", "7");
-            badgeIcon.textContent = node.badge;
-            badge.appendChild(badgeIcon);
-            g.appendChild(badge);
-        }
-
-        nodesGroup.appendChild(g);
-
-        // Marqueur de gardien : décalé d'une distance FIXE en pixels (pas un pourcentage du chemin —
-        // une route courte collerait sinon le marqueur contre le cercle de la ville) en direction
-        // d'un voisin, sur SA route d'accès plutôt que confondu avec le cercle de la ville — "posté
-        // sur la route". Couleur guarded/goal portée ici, jamais par la ville elle-même (voir plus haut).
-        if (node.goalIcon) {
-            const MARKER_OFFSET_PX = 20;
-            const neighborEdge = edges.find(e => e.from === node.id || e.to === node.id);
-            const neighborId = neighborEdge && (neighborEdge.from === node.id ? neighborEdge.to : neighborEdge.from);
-            const neighborPos = neighborId && positions[neighborId];
-            let markerPos = p;
-            if (neighborPos) {
-                const dx = p.x - neighborPos.x, dy = p.y - neighborPos.y;
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                markerPos = { x: p.x - (dx / dist) * MARKER_OFFSET_PX, y: p.y - (dy / dist) * MARKER_OFFSET_PX };
-            }
-            const markerColors = GRAPH_MINIMAP_VARIANT_COLORS[node.variant || 'default'];
-
-            const marker = document.createElementNS(svgNS, "g");
-            marker.setAttribute("transform", `translate(${markerPos.x}, ${markerPos.y})`);
-            if (!isCurrent) {
-                marker.style.cursor = "pointer";
-                if (onCameraChange) {
-                    clickableRegions.push({ id: node.id, x: markerPos.x, y: markerPos.y, r: 8 });
-                } else {
-                    marker.addEventListener('click', () => handleNodeClick(node.id));
-                }
-            }
-            const markerCircle = document.createElementNS(svgNS, "circle");
-            markerCircle.setAttribute("r", "8");
-            markerCircle.setAttribute("fill", "#111827");
-            markerCircle.setAttribute("stroke", markerColors.stroke);
-            markerCircle.setAttribute("stroke-width", "1.5");
-            marker.appendChild(markerCircle);
-            const markerIcon = document.createElementNS(svgNS, "text");
-            markerIcon.setAttribute("text-anchor", "middle");
-            markerIcon.setAttribute("dominant-baseline", "central");
-            markerIcon.setAttribute("font-size", "9");
-            markerIcon.textContent = node.goalIcon;
-            marker.appendChild(markerIcon);
-            nodesGroup.appendChild(marker);
-        }
-    });
-
-    svgEl.appendChild(edgesGroup);
-    svgEl.appendChild(nodesGroup);
-}
-
-// ==========================================
-// ÉTAGES URBAINS (multiples de 3 — voir config.urbanFloors)
-// ==========================================
-// Noms de villes génériques (pas de flavor par ville, contrairement aux quartiers) : piochés sans
-// répétition à chaque génération d'étage urbain.
+// Noms de villes génériques, piochés sans répétition à chaque génération d'étage urbain.
 const URBAN_CITY_NAMES = [
     "Vieille Ville", "Quartier Nord", "Quartier Sud", "Zone Industrielle", "Cité-Dortoir",
     "Centre Commercial Abandonné", "Faubourg", "Le Ghetto", "Quartier des Affaires",
     "Banlieue Résidentielle", "Port Fluvial", "Terminus"
 ];
 
-// Grille logique (gx, gy entiers) : chaque ville occupe une cellule, deux villes ne peuvent être
-// reliées que si elles sont ADJACENTES sur la grille (8 directions : N/S/E/O + diagonales) — plus de
-// connexion longue distance façon étoile. GRID_CELL (unités "monde", voir renderGraphMiniMap()) fixe
-// l'espacement visuel entre deux cellules voisines.
-const URBAN_GRID_CELL = 70;
-const URBAN_GRID_NEIGHBOR_OFFSETS = [
-    [-1, -1], [0, -1], [1, -1],
-    [-1, 0], [1, 0],
-    [-1, 1], [0, 1], [1, 1]
-];
-
-// Choisit `cityCount` cellules de grille formant une région CONNEXE par construction : croissance
-// aléatoire depuis une cellule de départ, chaque nouvelle cellule tirée adjacente à une cellule déjà
-// choisie (jamais de cellule isolée à relier après coup). Remplace l'ancien tirage dans un gabarit de
-// points fixes + arbre couvrant aléatoire — la connexité n'a plus besoin d'être "réparée", elle
-// découle directement de la façon dont la région est construite.
-function generateConnectedCityGrid(cityCount) {
-    const chosen = [{ gx: 0, gy: 0 }];
-    const chosenKeys = new Set(['0,0']);
-
-    while (chosen.length < cityCount) {
-        // Cellules candidates : tout voisin libre d'une cellule déjà choisie. Reconstruit à chaque
-        // itération (petits nombres ici, 6-9 villes) plutôt que maintenu incrémentalement — plus
-        // simple à lire, coût négligeable.
-        const candidates = [];
-        chosen.forEach(cell => {
-            URBAN_GRID_NEIGHBOR_OFFSETS.forEach(([dx, dy]) => {
-                const gx = cell.gx + dx, gy = cell.gy + dy;
-                const key = `${gx},${gy}`;
-                if (!chosenKeys.has(key)) candidates.push({ gx, gy, key });
-            });
-        });
-        // Cas limite en théorie impossible pour ce nombre de villes (une région connexe sur une
-        // grille 8-directions a toujours une cellule libre adjacente), mais on ne boucle jamais à
-        // l'infini si ça arrivait malgré tout.
-        if (candidates.length === 0) break;
-
-        const pickedIndex = Math.floor(Math.random() * candidates.length);
-        const picked = candidates[pickedIndex];
-        chosen.push({ gx: picked.gx, gy: picked.gy });
-        chosenKeys.add(picked.key);
-    }
-    return chosen;
+// Vrai sur un étage urbain (villes et routes).
+function isUrbanFloor() {
+    const fm = gameState.floorMap;
+    return !!(fm && fm.kind === 'urban');
 }
 
-// Toutes les paires de cellules adjacentes (8 directions) parmi celles choisies — devient les routes
-// du réseau. Une région issue de generateConnectedCityGrid() a presque toujours PLUS d'arêtes qu'un
-// arbre couvrant (plusieurs cellules choisies se touchent sans être "parent/enfant" dans la
-// croissance) : plusieurs itinéraires possibles ressortent naturellement, sans étape de bouclage
-// séparée comme l'ancienne génération.
-function computeGridAdjacencyPairs(cells) {
-    const pairs = [];
-    for (let i = 0; i < cells.length; i++) {
-        for (let j = i + 1; j < cells.length; j++) {
-            const dx = Math.abs(cells[i].gx - cells[j].gx);
-            const dy = Math.abs(cells[i].gy - cells[j].gy);
-            if (dx <= 1 && dy <= 1) pairs.push([i, j]);
-        }
-    }
-    return pairs;
+// Ville d'une salle urbaine (null pour une route, un repaire ou hors étage urbain).
+function roomCity(room) {
+    const fm = gameState.floorMap;
+    return fm && fm.citiesById && room && room.cityId ? fm.citiesById[room.cityId] || null : null;
 }
 
-// ==========================================
-// DÉCLUTTER ANTI-CHEVAUCHEMENT (générique, réutilisable comme computeGraphLayout() ci-dessus, mais
-// pour un usage différent : PAS un layout calculé depuis rien, une petite correction déterministe
-// d'un layout déjà bon (ici la grille) pour écarter les points trop proches sans le déformer).
-// ==========================================
-
-// Écarte les points d'un layout déjà posé (ex : positions de grille) qui se retrouveraient trop
-// proches les uns des autres — répulsion PURE (aucun ressort, aucune attraction centrale,
-// contrairement à computeGraphLayout()), déplacement total plafonné à `maxShift` depuis la position
-// de départ de chaque point pour ne jamais dénaturer la disposition logique sous-jacente. Aucun
-// Math.random() : entièrement déterministe, même entrée → même sortie, itérations pures — un rendu
-// répété des mêmes données donne toujours EXACTEMENT le même résultat (calculé une seule fois à la
-// génération, voir generateUrbanFloorMap()).
-function computeDeclutterLayout(basePositions, ids, { minDist = 48, iterations = 50, maxShift = 40 } = {}) {
-    const positions = {};
-    const totalShift = {};
-    ids.forEach(id => {
-        positions[id] = { x: basePositions[id].x, y: basePositions[id].y };
-        totalShift[id] = 0;
-    });
-
-    for (let iter = 0; iter < iterations; iter++) {
-        for (let i = 0; i < ids.length; i++) {
-            for (let j = i + 1; j < ids.length; j++) {
-                const a = ids[i], b = ids[j];
-                let dx = positions[a].x - positions[b].x;
-                let dy = positions[a].y - positions[b].y;
-                const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
-                if (dist >= minDist) continue;
-
-                const overlap = (minDist - dist) / 2;
-                dx /= dist; dy /= dist;
-
-                // Chaque point ne bouge que si son budget maxShift le permet encore — un point déjà
-                // au bout de son budget reste immobile plutôt que de continuer à s'écarter sans fin.
-                if (totalShift[a] < maxShift) {
-                    const move = Math.min(overlap, maxShift - totalShift[a]);
-                    positions[a].x += dx * move; positions[a].y += dy * move;
-                    totalShift[a] += move;
-                }
-                if (totalShift[b] < maxShift) {
-                    const move = Math.min(overlap, maxShift - totalShift[b]);
-                    positions[b].x -= dx * move; positions[b].y -= dy * move;
-                    totalShift[b] += move;
-                }
-            }
-        }
-    }
-    return positions;
+// Ville par identifiant (boutique ou professeur en cours de visite, voir triggerShopEncounter()).
+function urbanCityById(cityId) {
+    const fm = gameState.floorMap;
+    return fm && fm.citiesById && cityId ? fm.citiesById[cityId] || null : null;
 }
 
-// PRNG déterministe minimal (mulberry32) : sert UNIQUEMENT à générer le fond de carte décoratif
-// (voir URBAN_MAP_BACKGROUND) toujours avec le même résultat — jamais Math.random() ici, sans quoi
-// le fond "sauterait" à chaque rafraîchissement au lieu de rester la texture fixe d'une seule et
-// même grande ville.
-function mulberry32(seed) {
-    let a = seed;
-    return function () {
-        a |= 0; a = (a + 0x6D2B79F5) | 0;
-        let t = Math.imul(a ^ (a >>> 15), 1 | a);
-        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-}
-
-// Étendue fixe (unités monde) du fond décoratif — généreuse par rapport à l'étalement réel d'une
-// région de villes (8 cellules maximum, voir cityCount) pour qu'un pan un peu large révèle toujours
-// encore de la ville plutôt que du vide, sans dépendre de la carte effectivement générée cette partie
-// (voir URBAN_MAP_BACKGROUND ci-dessous : toujours la même, quelle que soit la sélection de villes).
-const URBAN_MAP_WORLD_EXTENT = URBAN_GRID_CELL * 6;
-
-// Fond de carte décoratif "grande ville" (pâtés de maisons + quelques avenues), générique en soi
-// (voir renderGraphMiniMap() : un simple bloc de rectangles/lignes en coordonnées MONDE, sans
-// connaissance du jeu) mais calculé UNE FOIS ici avec un seed fixe pour rester rigoureusement
-// identique d'une partie à l'autre — la même ville, seuls les quartiers accessibles diffèrent. En
-// unités monde directement (plus de 0..1 normalisé, voir renderGraphMiniMap()) pour couvrir toute
-// l'étendue pannable, centré sur l'origine (0,0) comme la grille logique des villes.
-const URBAN_MAP_BACKGROUND = (() => {
-    const rand = mulberry32(20260923);
-    const rects = [];
-    // Densité variable plutôt qu'un tirage uniforme : rayon biaisé vers le centre (exposant > 1)
-    // pour un cœur de ville dense qui se clairsème vers la périphérie, plus crédible qu'une
-    // répartition parfaitement homogène des pâtés de maisons.
-    for (let i = 0; i < 320; i++) {
-        const angle = rand() * Math.PI * 2;
-        const radius = Math.pow(rand(), 1.7) * URBAN_MAP_WORLD_EXTENT;
-        const cx = Math.cos(angle) * radius;
-        const cy = Math.sin(angle) * radius;
-        const w = URBAN_GRID_CELL * (0.08 + rand() * 0.14);
-        const h = URBAN_GRID_CELL * (0.08 + rand() * 0.14);
-        rects.push({ x: cx - w / 2, y: cy - h / 2, w, h, opacity: 0.2 + rand() * 0.35 });
-    }
-    // Quelques grandes avenues traversantes, légèrement courbées (point de contrôle décalé
-    // perpendiculairement) pour casser la rigidité de lignes parfaitement droites — voir le rendu
-    // avec point de contrôle dans renderGraphMiniMap().
-    const lines = [];
-    for (let i = 0; i < 8; i++) {
-        const horizontal = i % 2 === 0;
-        const at = (rand() * 2 - 1) * URBAN_MAP_WORLD_EXTENT;
-        const bow = (rand() - 0.5) * URBAN_GRID_CELL * 1.5;
-        lines.push(horizontal
-            ? { x1: -URBAN_MAP_WORLD_EXTENT, y1: at, x2: URBAN_MAP_WORLD_EXTENT, y2: at, cx: 0, cy: at + bow }
-            : { x1: at, y1: -URBAN_MAP_WORLD_EXTENT, x2: at, y2: URBAN_MAP_WORLD_EXTENT, cx: at + bow, cy: 0 });
-    }
-    return { rects, lines };
-})();
-
-// Ajoute une route bidirectionnelle entre deux villes (aucun doublon), avec une distance 1-4 —
-// même échelle que le coût de trajet des trajets d'un étage classique (voir travelToRoom()).
-function addCityRoad(citiesById, aId, bId) {
-    if (aId === bId || citiesById[aId].roads.some(r => r.to === bId)) return;
-    const distance = 1 + Math.floor(Math.random() * 4);
-    citiesById[aId].roads.push({ to: bId, distance });
-    citiesById[bId].roads.push({ to: aId, distance });
-}
-
-// Révèle (known = true) les villes directement reliées à celle donnée — découverte progressive du
-// réseau au fil des trajets, pas de brouillard de guerre sur les routes elles-mêmes (seulement sur
-// quelles villes existent encore au-delà de la frontière déjà atteinte).
-function revealCityNeighbors(citiesById, cityId) {
-    citiesById[cityId].roads.forEach(road => {
-        citiesById[road.to].known = true;
-    });
-}
-
-// Génère le réseau villes/routes d'un étage urbain : une région de grille connexe (voir
-// generateConnectedCityGrid()) — connexité garantie par construction, aucune réparation après coup —
-// avec une route entre chaque paire de cellules adjacentes (8 directions). Une ville (autre que
-// celle de départ) porte l'escalier — ou la Sortie à l'étage final (config.urbanFloors.finalFloor) —
-// potentiellement gardée par un boss du thème unique de l'étage.
+// Génère l'étage urbain : réseau de villes (generateMetropolis(), floorgen.js), puis habillage de jeu — noms
+// des villes, spécialité du marchand / du professeur, thème de chaque auberge, gardien de l'escalier (ou de
+// la Sortie à l'étage final, toujours gardée), état des repaires. Départ sur la place de la première ville.
 function generateUrbanFloorMap() {
     const floor = gameState.currentFloor;
     const isFinal = floor === config.urbanFloors.finalFloor;
     const theme = config.urbanFloors.themes[floor] || config.urbanFloors.themes[3];
-
-    const cityCount = 6 + Math.floor(floor / 9); // Légère croissance avec la profondeur
+    const metro = generateMetropolis({
+        cityCount: 6 + Math.floor(floor / 9), // Légère croissance avec la profondeur
+        lairCount: isFinal ? config.urbanFloors.lairRoadsFinalFloor : config.urbanFloors.lairRoadsPerFloor,
+        specializedChance: config.urbanFloors.specializedCityChance
+    });
     const namePool = [...URBAN_CITY_NAMES];
-
-    // Région de grille CONNEXE par construction (voir generateConnectedCityGrid()) : plus de tirage
-    // dans un gabarit de points fixes + arbre couvrant, la connexité découle directement de la façon
-    // dont les cellules sont choisies. cells[0] devient toujours la ville de départ.
-    const cells = generateConnectedCityGrid(cityCount);
     const citiesById = {};
-    const cityIds = [];
-    const basePositions = {};
-    cells.forEach((cell, i) => {
-        const id = `city-${i}`;
-        const nameIndex = Math.floor(Math.random() * namePool.length);
-        const name = namePool.splice(nameIndex, 1)[0] || `Secteur ${i + 1}`;
-        basePositions[id] = { x: cell.gx * URBAN_GRID_CELL, y: cell.gy * URBAN_GRID_CELL };
-        citiesById[id] = {
-            id, name, gx: cell.gx, gy: cell.gy, x: 0, y: 0, // x/y (affichage) posés après déclutter, voir plus bas
-            visited: false, known: false, roads: [],
-            isStairs: false, isExit: false, guarded: false, bossInstance: null, defeated: false,
-            // Ville spécialisée (marchand/professeur) : voir plus bas dans cette fonction et
-            // triggerShopEncounter(). `stock` (marchand uniquement) est généré une seule fois, à la
-            // première visite, pour rester le même si le joueur repart puis revient.
-            role: null, specialty: null, stock: null
-        };
-        cityIds.push(id);
+    metro.cities.forEach((city, i) => {
+        city.name = namePool.splice(Math.floor(Math.random() * namePool.length), 1)[0] || `Secteur ${i + 1}`;
+        city.specialty = city.role === 'merchant' ? pick(['weapons', 'ranged', 'armors', 'scrolls'])
+            : city.role === 'trainer' ? pick(['weapon', 'unarmed', 'magic', 'stealth']) : null;
+        city.stock = null; // Stock du marchand : généré une seule fois, à la première visite (triggerShopEncounter())
+        city.visited = false;
+        citiesById[city.id] = city;
     });
-
-    // Position d'AFFICHAGE (voir CLAUDE.md, section Carte Urbaine) : la grille logique (gx/gy,
-    // gameplay — adjacence, jamais modifiée) sert de point de départ à computeDeclutterLayout(), qui
-    // écarte les points trop proches une seule fois ici, avant de figer city.x/y pour de bon (jamais
-    // recalculés ensuite). minDist (50) reste sous l'espacement minimal déjà garanti par la grille
-    // (70, une cellule) : sur une pure grille cette passe est un no-op, elle ne sert que si une
-    // future évolution de la génération rapprochait un jour deux villes davantage.
-    const displayPositions = computeDeclutterLayout(basePositions, cityIds, { minDist: 50, iterations: 50, maxShift: 40 });
-    cityIds.forEach(id => {
-        citiesById[id].x = displayPositions[id].x;
-        citiesById[id].y = displayPositions[id].y;
-    });
-
-    // Routes = toutes les paires de cellules ADJACENTES (8 directions) parmi celles choisies — pas
-    // de connexion longue distance façon étoile, et presque toujours plus d'un chemin possible entre
-    // deux villes (plusieurs cellules voisines se touchent sans lien de parenté direct dans la
-    // croissance de la région).
-    computeGridAdjacencyPairs(cells).forEach(([i, j]) => {
-        addCityRoad(citiesById, cityIds[i], cityIds[j]);
-    });
-
-    // Ville de départ : toujours connue et déjà visitée
-    const startId = cityIds[0];
-    citiesById[startId].visited = true;
-    citiesById[startId].known = true;
-    revealCityNeighbors(citiesById, startId);
-
-    // Ville de l'escalier (ou de la Sortie à l'étage final), tirée parmi les autres
-    const candidateIds = cityIds.filter(id => id !== startId);
-    const target = citiesById[candidateIds[Math.floor(Math.random() * candidateIds.length)]];
-    if (isFinal) {
-        target.isExit = true;
-        target.guarded = true; // Toujours gardée : dernier obstacle avant la victoire
-    } else {
-        target.isStairs = true;
-        const guardChance = config.urbanFloors.stairsGuardChanceByFloor[floor] || 50;
-        target.guarded = Math.random() * 100 < guardChance;
-    }
-
-    // Villes spécialisées (marchand/professeur) : GARANTIES (chantier "QoL/équilibrage", Chantier D)
-    // — une ville normale (jamais le départ, jamais l'escalier/la Sortie, pour ne pas cumuler un
-    // gardien ET un PNJ) devient TOUJOURS marchand, une autre TOUJOURS professeur, tirées sans remise
-    // parmi les candidates restantes. Avant ce chantier, les deux étaient purement probabilistes
-    // (specializedCityChance par ville) : un étage urbain pouvait n'avoir ni l'un ni l'autre. Le
-    // marchand vend une catégorie d'objet (voir generateShopStock()) ; le professeur forme UNE des 4
-    // compétences réelles du joueur (gameState.skills) — pas de "compétence armure", contrairement
-    // aux objets.
-    const specialCandidateIds = candidateIds.filter(id => id !== target.id);
-    const shuffledSpecialCandidates = [...specialCandidateIds];
-    for (let i = shuffledSpecialCandidates.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffledSpecialCandidates[i], shuffledSpecialCandidates[j]] = [shuffledSpecialCandidates[j], shuffledSpecialCandidates[i]];
-    }
-    // cityCount (6 + profondeur/9) laisse toujours au moins 2 candidates hors départ/cible en
-    // pratique sur cette plage de valeurs — pas de garde spécifique pour le cas contraire, qui
-    // n'est jamais atteint avec la config actuelle (voir NOTES_QOL_EQUILIBRAGE.md).
-    const guaranteedMerchantId = shuffledSpecialCandidates[0];
-    const guaranteedTrainerId = shuffledSpecialCandidates[1];
-    if (guaranteedMerchantId) {
-        citiesById[guaranteedMerchantId].role = 'merchant';
-        citiesById[guaranteedMerchantId].specialty = pick(['weapons', 'ranged', 'armors', 'scrolls']);
-    }
-    if (guaranteedTrainerId) {
-        citiesById[guaranteedTrainerId].role = 'trainer';
-        citiesById[guaranteedTrainerId].specialty = pick(['weapon', 'unarmed', 'magic', 'stealth']);
-    }
-
-    // Villes spécialisées SUPPLÉMENTAIRES, au-delà de la garantie ci-dessus : chance indépendante par
-    // ville candidate restante, comportement inchangé de ce chantier.
-    specialCandidateIds.filter(id => id !== guaranteedMerchantId && id !== guaranteedTrainerId).forEach(id => {
-        if (Math.random() * 100 >= config.urbanFloors.specializedCityChance) return;
-        const city = citiesById[id];
-        if (Math.random() < 0.5) {
-            city.role = 'merchant';
-            city.specialty = pick(['weapons', 'ranged', 'armors', 'scrolls']);
-        } else {
-            city.role = 'trainer';
-            city.specialty = pick(['weapon', 'unarmed', 'magic', 'stealth']);
+    const roomsById = metro.roomsById;
+    const guardChance = config.urbanFloors.stairsGuardChanceByFloor[floor] || 50;
+    Object.values(roomsById).forEach(room => {
+        if (room.type === 'safe') room.safehouse = pickSafehouseType(); // Auberge : même repos qu'une salle sûre
+        if (room.type === 'stairs') {
+            room.isExit = isFinal;
+            room.guardsStairs = true;
+            room.guarded = isFinal || Math.random() * 100 < guardChance; // La Sortie est toujours gardée
+            room.bossInstance = null;
+            room.defeated = false;
         }
     });
-
-    // Repaires sur les routes : quelques routes (voir config.urbanFloors.lairRoadsPerFloor/
-    // lairRoadsFinalFloor) sont désignées "repaire" — plonger dedans (triggerLairChoice()/
-    // diveIntoLair() dans travelToCity()) enchaîne plusieurs combats forcés puis un boss du thème de
-    // l'étage, contre un butin garanti ; le joueur peut toujours poursuivre sa route sans l'affronter.
-    // isLair/lairId sont posés sur LES DEUX sens de la route (comme distance), pour rester
-    // détectables quel que soit le sens du trajet emprunté.
-    const allRoadPairs = [];
-    const seenRoadPairs = new Set();
-    cityIds.forEach(id => {
-        citiesById[id].roads.forEach(road => {
-            const key = [id, road.to].sort().join('|');
-            if (seenRoadPairs.has(key)) return;
-            seenRoadPairs.add(key);
-            allRoadPairs.push({ aId: id, bId: road.to });
-        });
-    });
-    const lairCount = Math.min(
-        isFinal ? config.urbanFloors.lairRoadsFinalFloor : config.urbanFloors.lairRoadsPerFloor,
-        allRoadPairs.length
-    );
     const lairsById = {};
-    for (let i = 0; i < lairCount; i++) {
-        const pairIndex = Math.floor(Math.random() * allRoadPairs.length);
-        const pair = allRoadPairs.splice(pairIndex, 1)[0];
-        const lairId = `lair-${i}`;
-        lairsById[lairId] = {
-            id: lairId,
-            cityAId: pair.aId,
-            cityBId: pair.bId,
-            cleared: false,
-            combatsRemaining: 2 + Math.floor(Math.random() * 2), // 2 ou 3 combats forcés avant le boss
-            bossInstance: null
-        };
-        const roadAtoB = citiesById[pair.aId].roads.find(r => r.to === pair.bId);
-        const roadBtoA = citiesById[pair.bId].roads.find(r => r.to === pair.aId);
-        if (roadAtoB) { roadAtoB.isLair = true; roadAtoB.lairId = lairId; }
-        if (roadBtoA) { roadBtoA.isLair = true; roadBtoA.lairId = lairId; }
-    }
-
-    // camera : null = caméra auto-centrée sur la ville courante (voir updateUrbanMapUI()) ; posé
-    // explicitement à la génération pour que le tout premier rendu de l'étage parte bien de là.
-    gameState.urbanMap = { theme, isFinalFloor: isFinal, citiesById, currentCityId: startId, lairsById, camera: null };
-    // Thématique unique de l'étage : generateMob()/generateBoss() la reçoivent comme un nom de
-    // quartier classique, sans aucune adaptation nécessaire de leur côté.
+    metro.lairs.forEach(l => {
+        lairsById[l.id] = { ...l, cleared: false, combatsRemaining: 2 + Math.floor(Math.random() * 2), bossInstance: null };
+    });
+    const start = roomsById[metro.startRoomId];
+    gameState.floorMap = {
+        kind: 'urban',
+        version: FLOOR_MAP_VERSION,
+        theme,
+        isFinalFloor: isFinal,
+        geometry: { width: metro.geometry.width, height: metro.geometry.height, roads: metro.geometry.roads },
+        quadrants: [],
+        roomsById,
+        citiesById,
+        lairsById,
+        currentQuadrant: null,
+        currentRoomId: start.id,
+        startRoomId: start.id,
+        currentCityId: start.cityId
+    };
+    start.visited = true;
+    citiesById[start.cityId].visited = true;
+    // Thématique unique de l'étage : generateMob()/generateBoss() la reçoivent comme un nom de quartier.
     gameState.currentDistrict = theme;
 }
 
-// Distance pondérée (Dijkstra) entre deux villes du réseau urbain courant — même principe que
-// computeDistance() pour le graphe de pièces d'un étage classique, mais sur gameState.urbanMap.
-function computeCityDistance(fromCityId, toCityId) {
-    if (fromCityId === toCityId) return 0;
-    const citiesById = gameState.urbanMap.citiesById;
-    const dist = { [fromCityId]: 0 };
-    const visited = new Set();
-
-    while (true) {
-        let currentId = null;
-        let currentCost = Infinity;
-        for (const id in dist) {
-            if (!visited.has(id) && dist[id] < currentCost) {
-                currentCost = dist[id];
-                currentId = id;
-            }
-        }
-        if (currentId === null) break;
-        if (currentId === toCityId) return currentCost;
-
-        visited.add(currentId);
-        const city = citiesById[currentId];
-        if (!city) continue;
-        city.roads.forEach(road => {
-            const newCost = currentCost + road.distance;
-            if (dist[road.to] === undefined || newCost < dist[road.to]) {
-                dist[road.to] = newCost;
-            }
-        });
+// Entrée dans une salle d'un étage urbain (appelée par enterRoom()) : renvoie vrai si la salle a été gérée
+// ici (place, boutique, professeur, escalier, repaire), faux pour l'auberge, les ruelles et les tronçons
+// de route, qui suivent le comportement commun (repos, événement de la zone, chemin connu).
+function enterUrbanRoom(room, firstVisit) {
+    const city = roomCity(room);
+    if (city) {
+        gameState.floorMap.currentCityId = city.id;
+        city.visited = true;
     }
-    return null;
-}
-
-// Voyage vers une ville connue du réseau urbain — calqué sur travelToRoom() (coût en
-// temps + embuscades proportionnels à la distance réelle), mais entre villes plutôt que vers un
-// lieu connu de donjon classique. Les embuscades utilisent le thème unique de l'étage sans aucune
-// adaptation (gameState.currentDistrict y est déjà aligné par generateUrbanFloorMap()).
-function travelToCity(cityId) {
-    if (isActionBlocked()) return;
-    const urbanMap = gameState.urbanMap;
-    if (!urbanMap) return;
-    const city = urbanMap.citiesById[cityId];
-    if (!city || !city.known || cityId === urbanMap.currentCityId) return;
-
-    const distance = computeCityDistance(urbanMap.currentCityId, cityId);
-    if (distance === null || distance === undefined) {
-        logEvent("Cette ville semble hors d'atteinte pour l'instant...", "danger");
-        return;
+    if (room.type === 'stairs') {
+        enterUrbanStairs(room);
+        return true;
     }
-
-    const timeCost = Math.max(1, Math.round(distance / 2));
-    const ambushBaseChance = computeAmbushBaseChance(distance); // Compagnon Garde : moins d'embuscades
-    let ambushCount = 0;
-    if (Math.random() * 100 < ambushBaseChance) {
-        ambushCount = 1;
-        if (Math.random() * 100 < ambushBaseChance * 0.6) ambushCount = 2;
-    }
-
-    gameState.timeLeft = Math.max(0, gameState.timeLeft - timeCost);
-    applyTimeElapsedRegen(timeCost);
-    gameState.pendingUrbanTravel = { destinationCityId: cityId, ambushesRemaining: ambushCount };
-    logEvent(`Vous prenez la route vers : ${city.name} (${distance}, -${timeCost}H)...`, "info");
-    if (ambushCount > 0) {
-        logEvent("La route ne s'annonce pas de tout repos...", "danger");
-    }
-
-    if (gameState.timeLeft <= 0) {
-        gameOver(true);
-        return;
-    }
-
-    // Repaire sur la route directement empruntée (voir generateUrbanFloorMap()) : présente le choix
-    // plonger/poursuivre AVANT de résoudre les embuscades normales du trajet — un trajet à plusieurs
-    // sauts vers une ville plus lointaine ne passe pas physiquement par cette route précise, donc ne
-    // déclenche rien ici (voir computeCityDistance(), qui ne suit aucun chemin réel).
-    const directRoad = urbanMap.citiesById[urbanMap.currentCityId].roads.find(r => r.to === cityId);
-    const lair = directRoad && directRoad.isLair ? urbanMap.lairsById[directRoad.lairId] : null;
-    if (lair && !lair.cleared) {
-        triggerLairChoice(lair);
-        return;
-    }
-    triggerNextCityAmbushOrArrive();
-}
-
-// Résout la prochaine embuscade du trajet urbain en cours, ou l'arrivée si le trajet est terminé —
-// symétrique de triggerNextAmbushOrArrive() pour les routes entre villes.
-function triggerNextCityAmbushOrArrive() {
-    const travel = gameState.pendingUrbanTravel;
-    if (!travel) return;
-
-    if (travel.ambushesRemaining > 0) {
-        travel.ambushesRemaining -= 1;
-        logEvent("Une présence hostile vous barre la route !", "danger");
-        gameState.pendingUrbanAdvanceAfterCombat = null; // Ce n'est pas encore l'arrivée
-        initiateCombat(maybeSpawnBountyHunter()); // Mob générique du thème d'étage (ou chasseur de primes)
-        return;
-    }
-
-    arriveAtCity();
-}
-
-// Arrivée effective dans une ville : marque la visite, révèle ses routes sortantes, puis résout
-// l'éventuel gardien (escalier ou Sortie) — sinon simple arrivée sûre (aucun tirage D100, contrairement
-// à une pièce normale de donjon : "les villes sont sûres").
-function arriveAtCity() {
-    const travel = gameState.pendingUrbanTravel;
-    if (!travel) return;
-    const urbanMap = gameState.urbanMap;
-    gameState.pendingUrbanTravel = null;
-    const city = urbanMap.citiesById[travel.destinationCityId];
-    if (!city) return;
-
-    urbanMap.currentCityId = city.id;
-    urbanMap.camera = null; // La caméra "suit" de nouveau la ville courante après un trajet (voir updateUrbanMapUI())
-    const firstVisit = !city.visited;
-    city.visited = true;
-    city.known = true;
-    revealCityNeighbors(urbanMap.citiesById, city.id);
-
-    if ((city.isStairs || city.isExit) && city.guarded && !city.defeated) {
-        triggerUrbanBossEncounter(city);
-        return;
-    }
-    if ((city.isStairs || city.isExit) && (!city.guarded || city.defeated)) {
-        logEvent(`Vous atteignez ${city.name}.`, "info");
-        if (city.isExit) {
-            winGame();
-        } else {
-            logEvent("La voie est libre !", "success");
-            offerStairsChoice({ kind: 'city', cityId: city.id });
-        }
-        return;
-    }
-
-    if (city.role) {
+    if ((room.type === 'shop' || room.type === 'trainer') && city) {
         triggerShopEncounter(city);
+        return true;
+    }
+    if (room.type === 'lair') {
+        enterLair(room);
+        return true;
+    }
+    if (room.cityRole === 'plaza' && city) {
+        setSceneHeader('🏙️', city.name, 'Ville sûre', { key: 'citySafe', cityName: city.name });
+        logEvent(
+            firstVisit
+                ? `Vous découvrez ${city.name}. Les rues sont calmes ici — vous pouvez souffler.`
+                : `Vous retrouvez la place de ${city.name}, toujours aussi tranquille.`,
+            "success"
+        );
+        return true;
+    }
+    return false;
+}
+
+// Salle de l'escalier (ou de la Sortie) au fond de sa ville : gardien à combattre ou à laisser pour plus
+// tard (même choix qu'un boss de quartier, triggerBossEncounter()), sinon escalier libre (choix Descendre /
+// Rester) ou victoire immédiate pour la Sortie de l'étage final.
+function enterUrbanStairs(room) {
+    if (room.guarded && !room.defeated) {
+        triggerBossEncounter(room);
         return;
     }
-
-    setSceneHeader('🏙️', city.name, 'Ville sûre', { key: 'citySafe', cityName: city.name });
-    logEvent(
-        firstVisit
-            ? `Vous découvrez ${city.name}. Les rues sont calmes ici — vous pouvez souffler.`
-            : `Vous retrouvez ${city.name}, toujours aussi tranquille.`,
-        "success"
-    );
-    updateUrbanMapUI();
-    updateUI();
-}
-
-// Présente le choix "combattre maintenant / repérer et partir" pour la ville gardant l'escalier (ou
-// la Sortie, à l'étage final) — même esprit que triggerBossEncounter(), partage le même bloc UI
-// (#boss-choice-zone), mais dispatché séparément : les données sous-jacentes (villes) ne sont pas
-// des pièces de donjon (voir fightBossNow()/retreatFromBoss() pour le dispatch).
-function triggerUrbanBossEncounter(city) {
-    if (!city.bossInstance) {
-        city.bossInstance = generateBoss(gameState.urbanMap.theme) || generateMob(gameState.urbanMap.theme);
+    if (room.isExit) {
+        logEvent("La Sortie est là, grande ouverte.", "info");
+        winGame();
+        return;
     }
-    const boss = city.bossInstance;
-    gameState.pendingUrbanBossEncounter = { cityId: city.id, isExit: city.isExit === true };
-    gameState.bossChoicePending = true;
-
-    setSceneHeader('👑', boss.name, city.isExit ? "Gardien de la Sortie" : "Gardien de l'Escalier", { key: 'urbanGuardian', enemy: boss, isExit: city.isExit === true });
-    logEvent(
-        city.isExit
-            ? `🎬 Vous atteignez la Sortie... gardée par ${boss.name} !`
-            : `🎬 Vous découvrez l'escalier vers l'étage ${gameState.currentFloor + 1}, gardé par ${boss.name} !`,
-        "danger"
-    );
-    logEvent("Le combattre maintenant, ou repérer l'endroit pour y revenir plus tard ?", "info");
-    ui.bossChoiceZone.classList.remove('hidden');
-    updateUI();
+    logEvent("La voie est libre !", "success");
+    offerStairsChoice({ kind: 'room', roomId: room.id });
 }
 
-// Bouton "Combattre" pour un gardien urbain (dispatché depuis fightBossNow())
-function fightUrbanBossNow() {
-    const encounter = gameState.pendingUrbanBossEncounter;
-    gameState.bossChoicePending = false;
-    ui.bossChoiceZone.classList.add('hidden');
-    gameState.pendingUrbanBossEncounter = null;
-    if (!encounter) return;
-
-    const city = gameState.urbanMap.citiesById[encounter.cityId];
-    gameState.pendingUrbanAdvanceAfterCombat = encounter.isExit ? 'win' : 'nextFloor';
-    gameState.pendingUrbanBossCityId = encounter.cityId;
-    initiateCombat(city.bossInstance);
-}
-
-// Bouton "Repérer et partir" pour un gardien urbain (dispatché depuis retreatFromBoss()) : la ville
-// reste connue et visitée, donc re-sélectionnable à tout moment depuis la Carte Urbaine — aucun
-// registre "lieux connus" séparé n'est nécessaire, contrairement au donjon classique.
-function retreatFromUrbanBoss() {
-    gameState.bossChoicePending = false;
-    ui.bossChoiceZone.classList.add('hidden');
-    gameState.pendingUrbanBossEncounter = null;
-    logEvent("Vous repérez soigneusement l'endroit et repartez explorer.", "info");
-    updateUrbanMapUI();
-    updateUI();
+// Montant volé par un pickpocket (pure) : config.pickpocket.pct % des PO, au moins `min`, au plus `max`,
+// jamais plus que ce qu'on a.
+function computePickpocketLoss(gold) {
+    const cfg = config.pickpocket;
+    if (!gold || gold <= 0) return 0;
+    return Math.min(gold, Math.max(cfg.min, Math.min(cfg.max, Math.round(gold * cfg.pct / 100))));
 }
 
 // ==========================================
-// REPAIRES SUR LES ROUTES (voir generateUrbanFloorMap())
+// REPAIRES (impasses accrochées à une route, voir generateMetropolis())
 // ==========================================
 
-// Présente le choix "plonger / poursuivre" pour un repaire repéré sur la route directement
-// empruntée — dispatché depuis travelToCity(). Toujours optionnel : poursuivre reprend le trajet
-// normalement (embuscades incluses), sans aucune pénalité pour avoir décliné.
+// Entrée dans un repaire : choix plonger / ressortir, ou repaire déjà nettoyé.
+function enterLair(room) {
+    const lair = gameState.floorMap.lairsById[room.lairId];
+    if (!lair || lair.cleared) {
+        setSceneHeader('🏆', 'Repaire Nettoyé', 'Route', 'emptyLair');
+        logEvent("Le repaire est désert : vous l'avez déjà nettoyé.", "normal");
+        return;
+    }
+    triggerLairChoice(lair);
+}
+
+// Présente le choix "plonger / ressortir". Toujours optionnel : ressortir laisse le repaire intact, il sera
+// reproposé au prochain passage.
 function triggerLairChoice(lair) {
     gameState.lairChoicePending = true;
     gameState.pendingLairId = lair.id;
-    setSceneHeader('💀', 'Repaire Repéré', 'Route Urbaine', 'lairSpotted');
-    logEvent("Un repaire hostile borde la route. Plonger dedans (combats enchaînés, butin garanti), ou poursuivre votre chemin sans l'affronter ?", "danger");
+    setSceneHeader('💀', 'Repaire', 'Route', 'lairSpotted');
+    logEvent("Un repaire hostile s'ouvre au bord de la route. Plonger dedans (combats enchaînés, butin garanti), ou ressortir sans l'affronter ?", "danger");
     ui.lairChoiceZone.classList.remove('hidden');
     updateUI();
 }
@@ -5464,7 +4690,7 @@ function diveIntoLair() {
     gameState.lairChoicePending = false;
     gameState.pendingLairId = null;
     ui.lairChoiceZone.classList.add('hidden');
-    const lair = gameState.urbanMap.lairsById[lairId];
+    const lair = gameState.floorMap && gameState.floorMap.lairsById[lairId];
     if (!lair) return;
 
     gameState.pendingLairDive = { lairId, combatsLeft: lair.combatsRemaining, stage: 'trash' };
@@ -5472,14 +4698,14 @@ function diveIntoLair() {
     initiateCombat();
 }
 
-// Bouton "Poursuivre" : le repaire reste intact (re-proposé à un futur trajet sur cette même route),
-// le trajet interrompu reprend normalement.
+// Bouton "Ressortir" : le repaire reste intact (reproposé au prochain passage).
 function declineLair() {
     gameState.lairChoicePending = false;
     gameState.pendingLairId = null;
     ui.lairChoiceZone.classList.add('hidden');
-    logEvent("Vous laissez le repaire tranquille et poursuivez votre route.", "info");
-    triggerNextCityAmbushOrArrive();
+    setSceneHeader('💀', 'Repaire', 'Route', 'lairSpotted');
+    logEvent("Vous ressortez du repaire sans bruit. Il vous attendra.", "info");
+    updateUI();
 }
 
 // ==========================================
@@ -5506,7 +4732,7 @@ function generateShopStock(specialty) {
     return stock;
 }
 
-// Présente l'écran marchand/professeur d'une ville spécialisée — dispatché depuis arriveAtCity().
+// Présente l'écran marchand/professeur d'une ville spécialisée — à l'entrée de sa salle (enterUrbanRoom()).
 // Bloque les autres actions (isActionBlocked()) le temps de la visite, comme un choix de boss ou de
 // furtivité, pour que la Carte Urbaine se masque et laisse place à cet écran (voir updateUI()).
 function triggerShopEncounter(city) {
@@ -5534,7 +4760,7 @@ function triggerShopEncounter(city) {
 // routage que addLoot(), la réserve d'équipement limitée s'applique identiquement.
 function buyShopItem(stockIndex) {
     if (!gameState.pendingShopCityId) return;
-    const city = gameState.urbanMap.citiesById[gameState.pendingShopCityId];
+    const city = urbanCityById(gameState.pendingShopCityId);
     if (!city || !city.stock) return;
     const item = city.stock[stockIndex];
     if (!item) return;
@@ -5571,7 +4797,7 @@ function buyShopItem(stockIndex) {
 // spécialisée du professeur — "payer pour s'entraîner" plutôt que le grind combat habituel.
 function trainSkill() {
     if (!gameState.pendingShopCityId) return;
-    const city = gameState.urbanMap.citiesById[gameState.pendingShopCityId];
+    const city = urbanCityById(gameState.pendingShopCityId);
     if (!city || city.role !== 'trainer') return;
     const skill = gameState.skills[city.specialty];
     const cost = TRAINER_COST_PER_LEVEL * skill.level;
@@ -5599,8 +4825,8 @@ function leaveShop() {
 // Reconstruit le contenu dynamique de l'écran marchand/professeur (stock/prix, ou compétence à
 // former) selon le rôle de la ville actuellement visitée — n'affiche rien si aucune n'est en cours.
 function updateShopUI() {
-    if (!ui.shopZone || !gameState.pendingShopCityId || !gameState.urbanMap) return;
-    const city = gameState.urbanMap.citiesById[gameState.pendingShopCityId];
+    if (!ui.shopZone || !gameState.pendingShopCityId) return;
+    const city = urbanCityById(gameState.pendingShopCityId);
     if (!city) return;
 
     const isMerchant = city.role === 'merchant';
@@ -5689,109 +4915,6 @@ function updateShopUI() {
     }
 }
 
-// Reconstruit le panneau "Carte Urbaine" : liste des villes connues, avec leur statut (ici / gardée /
-// escalier / Sortie) et un bouton pour s'y rendre — même esprit que la carte des étages classiques, mais
-// pour le réseau villes/routes plutôt que les lieux connus classiques d'un donjon.
-// Adapte le réseau villes/routes courant au format générique nœuds/arêtes attendu par
-// computeGraphLayout()/renderGraphMiniMap() : seule fonction qui connaît la forme des données du
-// jeu dans tout ce sous-système, tout le reste (disposition, rendu) est réutilisable tel quel.
-function buildUrbanMapGraphData(urbanMap) {
-    const knownCities = Object.values(urbanMap.citiesById).filter(c => c.known);
-    const knownIds = new Set(knownCities.map(c => c.id));
-
-    const positions = {};
-    // `icon` reste générique (toujours 🏙️, un quartier normal) : le marqueur de gardien
-    // (`goalIcon`) est rendu à PART par renderGraphMiniMap(), décalé sur la route d'accès plutôt que
-    // dans le cercle de la ville elle-même — "les boss sont positionnés à côté des routes". Un rôle
-    // marchand/professeur, lui, ne bloque rien : simple `badge` accolé au cercle de la ville.
-    const nodes = knownCities.map(city => {
-        positions[city.id] = { x: city.x, y: city.y };
-        let variant = 'default', goalIcon = null;
-        if (city.isStairs || city.isExit) {
-            if (city.guarded && !city.defeated) {
-                variant = 'guarded'; goalIcon = '👑';
-            } else {
-                variant = 'goal'; goalIcon = city.isExit ? '🚪' : '🪜';
-            }
-        }
-        const badge = city.role === 'merchant' ? '🛒' : (city.role === 'trainer' ? '🎓' : null);
-        return { id: city.id, label: city.name, icon: '🏙️', variant, goalIcon, badge };
-    });
-
-    // Une arête par route reliant deux villes CONNUES (pas de brouillard sur les routes déjà
-    // révélées, mais rien à dessiner vers une ville pas encore repérée). Une route "repaire" (voir
-    // generateUrbanFloorMap()) porte un marqueur dédié (edges[].marker) : rouge/💀 tant qu'elle n'est
-    // pas nettoyée, gris/🏆 une fois vaincue — ni l'un ni l'autre n'est un goalIcon (une route reste
-    // franchissable, contrairement à un gardien qui bloque le passage).
-    const edges = [];
-    const seenPairs = new Set();
-    knownCities.forEach(city => {
-        city.roads.forEach(road => {
-            if (!knownIds.has(road.to)) return;
-            const key = [city.id, road.to].sort().join('|');
-            if (seenPairs.has(key)) return;
-            seenPairs.add(key);
-            const edge = { from: city.id, to: road.to, distance: road.distance };
-            if (road.isLair) {
-                const lair = urbanMap.lairsById[road.lairId];
-                edge.marker = lair.cleared
-                    ? { icon: '🏆', variant: 'default' }
-                    : { icon: '💀', variant: 'guarded' };
-            }
-            edges.push(edge);
-        });
-    });
-
-    return { nodes, edges, positions };
-}
-
-// Fenêtre affichée par la Carte Urbaine (unités monde, voir URBAN_GRID_CELL) — de l'ordre de 3
-// cellules de large, pour toujours voir la ville courante ET ses voisines immédiates d'un coup d'œil.
-const URBAN_MAP_VIEW_SIZE = { w: 230, h: 260 };
-
-// Reconstruit la Carte Urbaine : positions déjà figées à la génération (voir generateUrbanFloorMap()/
-// computeDeclutterLayout()), buildUrbanMapGraphData() les lit directement sur chaque ville ; dessine
-// (renderGraphMiniMap()) le réseau de villes connues sous forme de mini-carte graphique pannable. Un
-// clic sur une ville connue (directement reliée ou non : travelToCity() calcule lui-même le trajet le
-// plus court) déclenche le voyage — sauf s'il suit un glissement de la carte (voir renderGraphMiniMap()).
-// gameState.urbanMap.camera : `null` = caméra auto-centrée sur la ville courante (comportement par
-// défaut, y compris juste après un trajet — voir arriveAtCity()) ; un objet {x,y} = position choisie
-// par le joueur en faisant glisser la carte (onCameraChange ci-dessous), qui prend le dessus jusqu'au
-// prochain trajet ou clic sur "Recentrer" (voir recenterUrbanMap()).
-function updateUrbanMapUI() {
-    if (!ui.urbanMapSvg) return;
-    const urbanMap = gameState.urbanMap;
-    if (!urbanMap) { ui.urbanMapSvg.innerHTML = ""; return; }
-
-    const { nodes, edges, positions } = buildUrbanMapGraphData(urbanMap);
-    // Marge >= la moitié du plus grand côté de la fenêtre affichée (voir URBAN_MAP_VIEW_SIZE) : sans
-    // ça, une ville de bord de zone connue (typiquement la ville de départ, tout juste après
-    // l'arrivée sur l'étage) ne pourrait jamais être parfaitement centrée, le clamping la tirerait
-    // systématiquement vers l'intérieur (voir clampCameraToBounds()) — un peu de marge en plus (une
-    // demi-cellule) pour pouvoir aussi regarder légèrement au-delà.
-    const worldBoundsMargin = Math.max(URBAN_MAP_VIEW_SIZE.w, URBAN_MAP_VIEW_SIZE.h) / 2 + URBAN_GRID_CELL * 0.5;
-    const worldBounds = computeDefaultWorldBounds(positions, worldBoundsMargin);
-
-    renderGraphMiniMap(ui.urbanMapSvg, {
-        nodes, edges, positions, currentId: urbanMap.currentCityId,
-        onNodeClick: (cityId) => travelToCity(cityId),
-        camera: urbanMap.camera || null,
-        viewSize: URBAN_MAP_VIEW_SIZE,
-        worldBounds,
-        onCameraChange: (newCamera) => { gameState.urbanMap.camera = newCamera; },
-        background: URBAN_MAP_BACKGROUND,
-    });
-}
-
-// Bouton "Recentrer" de la Carte Urbaine : efface l'éventuelle position choisie par le joueur en
-// faisant glisser la carte, pour que la caméra revienne se centrer sur la ville courante (voir
-// gameState.urbanMap.camera/updateUrbanMapUI()).
-function recenterUrbanMap() {
-    if (!gameState.urbanMap) return;
-    gameState.urbanMap.camera = null;
-    updateUrbanMapUI();
-}
-
 // ---------- Carte stylisée des étages classiques (chantier 5, voir NOTES_CARTE.md) ----------
 // Rendu pur dans floormap.js (buildFloorMapSvg()) ; ici, le panneau : vue (zoom + caméra, préférences
 // d'affichage — variables de module comme mapPanelOpen, jamais sauvegardées), salle sélectionnée et bulle
@@ -5815,9 +4938,16 @@ function describeFloorMapTravel(roomId) {
     return { title: `Aller : ${plan.label}`, text: `Trajet par le chemin connu : -${plan.timeCost} H${risk}.` };
 }
 
+// Légende sous la carte, selon le type d'étage.
+const FLOOR_MAP_LEGENDS = {
+    classic: "Plein = visité · pointillé « ? » = aperçu · 👑 boss · 🪜 escalier · 🟡 vous · avenues : trajets deux fois plus rapides et plus sûrs",
+    urban: "Plein = visité · pointillé « ? » = aperçu · villes calmes, routes dangereuses · 🛒 marchand · 🎓 professeur · 👑 gardien · 🪜 escalier · 💀 repaire · 🟡 vous"
+};
+
 function updateFloorMapUI() {
     if (!ui.floorMapSvg) return;
     const fm = gameState.floorMap;
+    if (ui.floorMapLegend) ui.floorMapLegend.innerText = FLOOR_MAP_LEGENDS[isUrbanFloor() ? 'urban' : 'classic'];
     if (!fm || !fm.geometry) {
         ui.floorMapSvg.innerHTML = "";
         floorMapSelectedRoomId = null;
@@ -5877,7 +5007,7 @@ function recenterFloorMap() {
 // Glissement (souris et tactile) et toucher sur la carte : attachés UNE seule fois au <svg> (jamais à
 // chaque rendu). Pendant le glissement, seul le viewBox bouge ; à la fin, la caméra est mémorisée. Un
 // relâchement sous 6 px de mouvement est un toucher, résolu par position MONDE (floorMapHitTest()) —
-// pas par le `click` natif, peu fiable après une capture de pointeur (voir renderGraphMiniMap()).
+// pas par le `click` natif, peu fiable après une capture de pointeur (constaté en navigateur réel).
 function attachFloorMapPointerHandlers(svg) {
     if (!svg || !svg.addEventListener) return;
     let drag = null;
@@ -5924,6 +5054,9 @@ function attachFloorMapPointerHandlers(svg) {
 function enterRoom(room) {
     const firstVisit = !room.visited;
     room.visited = true;
+
+    // Étage urbain (chantier 12) : place, boutique, professeur, escalier et repaire ont leur propre entrée.
+    if (isUrbanFloor() && enterUrbanRoom(room, firstVisit)) return;
 
     if (room.type === 'boss') {
         if (room.defeated && room.guardsStairs) {
@@ -6096,11 +5229,16 @@ function triggerBossEncounter(room) {
     gameState.pendingBossEncounter = { roomId: room.id, guardsStairs: room.guardsStairs === true };
     gameState.bossChoicePending = true;
 
-    setSceneHeader('👑', boss.name, room.guardsStairs ? "Gardien de l'Escalier" : 'Boss de Quartier', { key: 'bossSpotted', enemy: boss });
+    // Étage urbain (salle de l'escalier au fond de sa ville) : vignette du gardien devant l'escalier ou la Sortie.
+    const urbanStairs = room.type === 'stairs';
+    const title = urbanStairs && room.isExit ? "Gardien de la Sortie" : room.guardsStairs ? "Gardien de l'Escalier" : 'Boss de Quartier';
+    setSceneHeader('👑', boss.name, title, urbanStairs ? { key: 'urbanGuardian', enemy: boss, isExit: room.isExit === true } : { key: 'bossSpotted', enemy: boss });
     logEvent(
-        room.guardsStairs
-            ? `🎬 Vous découvrez l'escalier vers l'étage ${gameState.currentFloor + 1}, gardé par ${boss.name} !`
-            : `Vous découvrez l'antre de ${boss.name}, un boss de quartier !`,
+        urbanStairs && room.isExit
+            ? `🎬 Vous atteignez la Sortie... gardée par ${boss.name} !`
+            : room.guardsStairs
+                ? `🎬 Vous découvrez l'escalier vers l'étage ${gameState.currentFloor + 1}, gardé par ${boss.name} !`
+                : `Vous découvrez l'antre de ${boss.name}, un boss de quartier !`,
         "danger"
     );
     logEvent("Le combattre maintenant, ou repérer l'endroit pour y revenir plus tard ?", "info");
@@ -6108,14 +5246,8 @@ function triggerBossEncounter(room) {
     updateUI();
 }
 
-// Bouton "Combattre" de la zone de choix de boss — dispatche vers l'équivalent urbain
-// (fightUrbanBossNow()) si le gardien en attente vient d'un étage urbain plutôt que d'un donjon
-// classique (voir triggerUrbanBossEncounter()), sinon comportement inchangé.
+// Bouton "Combattre" de la zone de choix de boss (boss de quartier, gardien d'escalier ou de la Sortie).
 function fightBossNow() {
-    if (gameState.pendingUrbanBossEncounter) {
-        fightUrbanBossNow();
-        return;
-    }
     const encounter = gameState.pendingBossEncounter;
     gameState.bossChoicePending = false;
     ui.bossChoiceZone.classList.add('hidden');
@@ -6129,12 +5261,8 @@ function fightBossNow() {
 }
 
 // Bouton "Repérer et partir" de la zone de choix de boss : l'antre reste marquée 👑 sur la carte,
-// sans y descendre/combattre. Dispatche vers retreatFromUrbanBoss() sur un étage urbain.
+// sans y descendre/combattre.
 function retreatFromBoss() {
-    if (gameState.pendingUrbanBossEncounter) {
-        retreatFromUrbanBoss();
-        return;
-    }
     const encounter = gameState.pendingBossEncounter;
     gameState.bossChoicePending = false;
     ui.bossChoiceZone.classList.add('hidden');
@@ -8121,23 +7249,14 @@ function winCombat() {
     // Pièce / ville du gardien vaincu, gardées pour le choix d'escalier plus bas (ces deux champs sont
     // remis à zéro juste en dessous).
     const defeatedBossRoomId = gameState.pendingBossRoomId;
-    const defeatedUrbanBossCityId = gameState.pendingUrbanBossCityId;
     if (gameState.pendingBossRoomId) {
         const bossRoom = gameState.floorMap && gameState.floorMap.roomsById[gameState.pendingBossRoomId];
         if (bossRoom) bossRoom.defeated = true;
         gameState.pendingBossRoomId = null;
     }
-    // Équivalent urbain : la ville gardienne (escalier ou Sortie) est désormais vaincue, elle reste
-    // simplement accessible via la Carte Urbaine (aucun registre séparé, voir retreatFromUrbanBoss()).
-    if (gameState.pendingUrbanBossCityId) {
-        const city = gameState.urbanMap && gameState.urbanMap.citiesById[gameState.pendingUrbanBossCityId];
-        if (city) city.defeated = true;
-        gameState.pendingUrbanBossCityId = null;
-    }
 
-    // Plongée dans un repaire en cours (voir diveIntoLair()) : enchaîne les combats forcés restants,
-    // puis le boss du repaire, AVANT de reprendre le trajet interrompu (pendingUrbanTravel) ci-dessous
-    // — sinon la victoire sur un simple sbire du repaire serait prise pour l'arrivée à destination.
+    // Plongée dans un repaire en cours (voir diveIntoLair()) : enchaîne les combats forcés restants, puis le
+    // boss du repaire.
     if (gameState.pendingLairDive) {
         const dive = gameState.pendingLairDive;
         if (dive.stage === 'trash') {
@@ -8148,9 +7267,9 @@ function winCombat() {
                 return;
             }
             dive.stage = 'boss';
-            const lair = gameState.urbanMap.lairsById[dive.lairId];
+            const lair = gameState.floorMap.lairsById[dive.lairId];
             if (!lair.bossInstance) {
-                lair.bossInstance = generateBoss(gameState.urbanMap.theme) || generateMob(gameState.urbanMap.theme);
+                lair.bossInstance = generateBoss(gameState.floorMap.theme) || generateMob(gameState.floorMap.theme);
             }
             logEvent("Le repaire se calme... jusqu'à ce qu'une présence bien plus dangereuse n'émerge de l'ombre !", "danger");
             initiateCombat(lair.bossInstance);
@@ -8158,14 +7277,10 @@ function winCombat() {
         }
         // dive.stage === 'boss' : le boss du repaire vient de tomber, la plongée est terminée
         // (butin déjà garanti par la branche wasBoss ci-dessus, comme tout autre boss).
-        const lair = gameState.urbanMap.lairsById[dive.lairId];
+        const lair = gameState.floorMap.lairsById[dive.lairId];
         lair.cleared = true;
         gameState.pendingLairDive = null;
-        logEvent(`🏆 Le repaire est nettoyé ! Plus rien à craindre sur cette route.`, "success");
-        if (gameState.pendingUrbanTravel) {
-            triggerNextCityAmbushOrArrive();
-            return;
-        }
+        logEvent(`🏆 Le repaire est nettoyé ! Plus rien à craindre ici.`, "success");
     }
 
     // Si ce combat faisait partie d'un trajet de retour vers un lieu connu (embuscade),
@@ -8174,31 +7289,18 @@ function winCombat() {
         triggerNextAmbushOrArrive();
         return;
     }
-    // Équivalent urbain : embuscade de route, on enchaîne vers la suite du trajet entre villes.
-    if (gameState.pendingUrbanTravel) {
-        triggerNextCityAmbushOrArrive();
-        return;
-    }
-
     // Si ce combat gardait un escalier, la victoire ouvre le passage vers l'étage suivant
     if (gameState.pendingStairAfterCombat) {
         gameState.pendingStairAfterCombat = false;
-        logEvent("La voie vers l'escalier est libre !", "success");
-        offerStairsChoice({ kind: 'room', roomId: defeatedBossRoomId }); // offerStairsChoice() appelle déjà updateUI()
-        return;
-    }
-    // Équivalent urbain : victoire sur le gardien de l'escalier (étage suivant) ou de la Sortie
-    // (victoire finale, uniquement à l'étage final — voir config.urbanFloors.finalFloor).
-    if (gameState.pendingUrbanAdvanceAfterCombat) {
-        const advance = gameState.pendingUrbanAdvanceAfterCombat;
-        gameState.pendingUrbanAdvanceAfterCombat = null;
-        if (advance === 'win') {
+        const stairsRoom = gameState.floorMap && gameState.floorMap.roomsById[defeatedBossRoomId];
+        // Gardien de la Sortie (étage final, config.urbanFloors.finalFloor) : victoire finale.
+        if (stairsRoom && stairsRoom.isExit) {
             logEvent("La voie vers la Sortie est libre !", "success");
             winGame(); // winGame() appelle déjà updateUI()
-        } else {
-            logEvent("La voie vers l'escalier est libre !", "success");
-            offerStairsChoice({ kind: 'city', cityId: defeatedUrbanBossCityId }); // offerStairsChoice() appelle déjà updateUI()
+            return;
         }
+        logEvent("La voie vers l'escalier est libre !", "success");
+        offerStairsChoice({ kind: 'room', roomId: defeatedBossRoomId }); // offerStairsChoice() appelle déjà updateUI()
         return;
     }
 
@@ -8260,8 +7362,13 @@ function performExploreStep(targetRoomId = null) {
     updateUI();
 }
 
-// Annonce le passage d'une zone à l'autre (bloc -> avenue, avenue -> bloc, bloc -> autre quartier).
+// Annonce le passage d'une zone à l'autre (bloc -> avenue, avenue -> bloc, bloc -> autre quartier ; ville ->
+// route sur un étage urbain).
 function announceZoneChange(from, to, changedQuadrant) {
+    if (isUrbanFloor()) {
+        if (roomZone(to) === 'road' && roomZone(from) === 'city') logEvent("Vous quittez la ville : la route est à découvert, restez sur vos gardes.", "info");
+        return;
+    }
     if (roomZone(to) === 'avenue' && roomZone(from) !== 'avenue') {
         logEvent("Vous débouchez sur une avenue : large, éclairée, et pleine de monde.", "info");
     } else if (roomZone(to) === 'block' && (changedQuadrant || roomZone(from) === 'avenue')) {
@@ -8328,9 +7435,10 @@ function rollWelcomeGiftType() {
 // en arrière-plan (voir le lancement du jeu en bas de ce fichier) dans les deux cas.
 function confirmPlayerName() {
     const raw = ui.startNameInput ? ui.startNameInput.value.trim() : "";
+    // Un crawler mort (sauvegarde à 0 PV) ne revient pas : son nom repart sur un nouveau crawler.
+    const buried = eraseDeadSaveForName(raw);
 
-    if (raw && hasSaveForName(raw)) {
-        restoreSaveForName(raw);
+    if (raw && hasSaveForName(raw) && restoreSaveForName(raw)) {
         if (ui.startScreenOverlay) ui.startScreenOverlay.classList.add('hidden');
         showFloorArrivalScene();
         logEvent(`Sauvegarde de [${gameState.playerName}] restaurée. Bon retour dans le Donjon.`, "success");
@@ -8343,6 +7451,7 @@ function confirmPlayerName() {
     gameState.playerName = raw || gameState.playerName || "CRAWLER_01";
     if (ui.startScreenOverlay) ui.startScreenOverlay.classList.add('hidden');
     gameState.saveEnabled = true;
+    if (buried) logEvent(`⚰️ L'ancien [${gameState.playerName}] est mort pour de bon. Un nouveau crawler reprend son nom.`, "info");
     updateUI();
     revealWelcomeGift();
 }
@@ -8413,8 +7522,7 @@ function devJumpToUrbanFloor() {
     gameState.pendingStealthEncounter = null;
     gameState.companionChoicePending = false;
     gameState.pendingBossEncounter = null;
-    gameState.pendingUrbanBossEncounter = null;
-    gameState.pendingUrbanTravel = null;
+    gameState.pendingTravel = null;
     gameState.floorTransitionPending = false;
     gameState.pactChoicePending = false;
     gameState.stairsChoicePending = false;
@@ -8483,6 +7591,7 @@ function gameOver(timeout = false, killer = null) {
     ui.gameOverOverlay.classList.remove('hidden');
 
     updateUI();
+    eraseSaveOnDeath(); // Après updateUI() (qui autosauvegarde) : le crawler mort ne sera jamais restauré
 }
 
 // Écran de victoire : déclenché en franchissant la Sortie de l'étage final (config.urbanFloors.finalFloor),
@@ -8517,14 +7626,10 @@ function resetGame() {
 // INITIALISATION ET ÉCOUTEURS D'ÉVÉNEMENTS
 // ==========================================
 
-// Toucher la scène d'exploration explore (-1H) ; sur un étage urbain (pas d'exploration libre), elle
-// ouvre la Carte Urbaine. Clavier : Entrée sur la scène quand elle a le focus.
+// Toucher la scène d'exploration explore (-1H), sur tous les étages. Clavier : Entrée sur la scène quand elle a
+// le focus.
 function onExploreSceneActivated() {
     if (isActionBlocked() || gameState.hp <= 0) return;
-    if (gameState.urbanMap) {
-        toggleMapPanel(true);
-        return;
-    }
     triggerHaptic('medium');
     explore();
 }
@@ -8629,8 +7734,6 @@ ui.btnLeaveShop.addEventListener('click', leaveShop);
 ui.btnDiveLair.addEventListener('click', diveIntoLair);
 ui.btnDeclineLair.addEventListener('click', declineLair);
 
-// Bouton "Recentrer" de la Carte Urbaine (voir recenterUrbanMap())
-if (ui.btnRecenterMap) ui.btnRecenterMap.addEventListener('click', recenterUrbanMap);
 // Barre d'icônes du bas et ses panneaux (chantier 9).
 if (ui.navEquipment) ui.navEquipment.addEventListener('click', () => openInventorySheet('equipment'));
 if (ui.navBag) ui.navBag.addEventListener('click', () => openInventorySheet('bag'));

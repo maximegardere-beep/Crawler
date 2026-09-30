@@ -44,7 +44,13 @@ const FLOOR_LAYOUT = {
 const ROOM_TYPES = {
     normal: { key: 'normal', label: 'Salle', mapIcon: null, mapStyle: 'room', onEnter: 'event' },
     boss: { key: 'boss', label: 'Antre du boss', mapIcon: '👑', mapStyle: 'boss', size: { w: 5, h: 4 }, perBlock: [1, 1], onEnter: 'boss' },
-    safe: { key: 'safe', label: 'Salle sûre', mapIcon: '🛏️', mapStyle: 'safe', maxArea: 4, perBlock: [1, 2], placement: 'middle', onEnter: 'safe' }
+    safe: { key: 'safe', label: 'Salle sûre', mapIcon: '🛏️', mapStyle: 'safe', maxArea: 4, perBlock: [1, 2], placement: 'middle', onEnter: 'safe' },
+    // Étages urbains (chantier 12, generateMetropolis()) : la place d'une ville est une salle `normal` (cityRole
+    // 'plaza'), ses ruelles aussi ('alley') ; l'auberge est une salle `safe` (repos existant).
+    shop: { key: 'shop', label: 'Boutique', mapIcon: '🛒', mapStyle: 'shop', onEnter: 'shop' },
+    trainer: { key: 'trainer', label: 'Professeur', mapIcon: '🎓', mapStyle: 'shop', onEnter: 'shop' },
+    stairs: { key: 'stairs', label: 'Escalier', mapIcon: '🪜', mapStyle: 'boss', onEnter: 'stairs' },
+    lair: { key: 'lair', label: 'Repaire', mapIcon: '💀', mapStyle: 'lair', onEnter: 'lair' }
 };
 
 // Zones. `eventTable` : clé de config.eventTables (app.js) ; `travelMult` : multiplicateur du temps ET du
@@ -52,8 +58,33 @@ const ROOM_TYPES = {
 // (appliquée dès config.bounty.avenueHunterMinBounty de prime).
 const ZONE_TYPES = {
     block: { key: 'block', label: 'Quartier', eventTable: 'room', travelMult: 1, hunterMult: 1 },
-    avenue: { key: 'avenue', label: 'Avenue', eventTable: 'avenue', travelMult: 0.5, hunterMult: 2 }
+    avenue: { key: 'avenue', label: 'Avenue', eventTable: 'avenue', travelMult: 0.5, hunterMult: 2 },
+    // Étages urbains (chantier 12) : ville calme (jamais de combat), routes dangereuses, repaire en impasse.
+    city: { key: 'city', label: 'Ville', eventTable: 'city', travelMult: 1, hunterMult: 1 },
+    road: { key: 'road', label: 'Route', eventTable: 'road', travelMult: 1, hunterMult: 1.5 },
+    lair: { key: 'lair', label: 'Repaire', eventTable: 'road', travelMult: 1, hunterMult: 1 }
 };
+
+// Réglages de forme des étages urbains (en cases, generateMetropolis()). Une ville est un carré de côté
+// 2 × cityHalf centré sur sa case de grille ; la place au centre, les autres salles autour, aux angles
+// INTERMÉDIAIRES (22,5° + k × 45°) pour ne jamais gêner les routes, qui partent dans les 8 directions
+// principales.
+const METRO_LAYOUT = {
+    cityCell: 24,              // Distance entre les centres de deux villes voisines (en ligne droite)
+    cityHalf: 6.5,             // Demi-côté du bloc d'une ville
+    plazaSize: 3,              // Place centrale (carrée)
+    roomSize: 2,               // Autres salles de la ville (carrées)
+    roomRadius: 4.6,           // Distance du centre de la ville au centre d'une salle
+    roomsPerCity: [3, 5],      // Salles par ville, place, auberge, boutique/professeur et escalier compris
+    roadSegments: { straight: [2, 3], diagonal: [3, 4] }, // Tronçons par route
+    roadWidth: 2,              // Largeur de la bande d'asphalte (rendu, zone de toucher)
+    lairSize: 3,               // Repaire (carré)
+    lairOffset: 4.5            // Écart du centre du repaire à l'axe de la route
+};
+
+// Les 8 directions de grille (voisins d'une ville) et les 8 angles intermédiaires des salles d'une ville.
+const METRO_NEIGHBOR_OFFSETS = [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];
+const METRO_ROOM_ANGLES = [0, 1, 2, 3, 4, 5, 6, 7].map(k => (22.5 + k * 45) * Math.PI / 180);
 
 // Hasard reproductible (mulberry32) pour les tests et la simulation.
 function createFloorRng(seed) {
@@ -400,6 +431,245 @@ function pickSafeStartRoom(roomsById, rng = Math.random, layout = FLOOR_LAYOUT) 
     return fgPick(rng, pool.sort((a, b) => (a.id < b.id ? -1 : 1))).id;
 }
 
+// ---------- Étage urbain : villes explorables (chantier 12, voir NOTES_VILLES.md) ----------
+// Région de grille CONNEXE par construction : chaque nouvelle ville est tirée à côté (8 directions) d'une ville
+// déjà choisie ; cells[0] est la ville de départ.
+function generateCityGrid(cityCount, rng = Math.random) {
+    const chosen = [{ gx: 0, gy: 0 }];
+    const keys = new Set(['0,0']);
+    while (chosen.length < cityCount) {
+        const candidates = [];
+        chosen.forEach(c => METRO_NEIGHBOR_OFFSETS.forEach(([dx, dy]) => {
+            const gx = c.gx + dx, gy = c.gy + dy, key = `${gx},${gy}`;
+            if (!keys.has(key)) candidates.push({ gx, gy, key });
+        }));
+        if (candidates.length === 0) break;
+        const picked = candidates[Math.floor(rng() * candidates.length)];
+        chosen.push({ gx: picked.gx, gy: picked.gy });
+        keys.add(picked.key);
+    }
+    return chosen;
+}
+
+// Routes : toutes les paires de villes voisines (8 directions), sauf qu'un carré de grille dont les DEUX
+// diagonales existent n'en garde qu'une (deux routes ne se croisent jamais ; les 4 côtés du carré existent
+// alors forcément, la connexité est intacte).
+function cityGridRoads(cells, rng = Math.random) {
+    const pairs = [];
+    for (let i = 0; i < cells.length; i++) {
+        for (let j = i + 1; j < cells.length; j++) {
+            const dx = Math.abs(cells[i].gx - cells[j].gx), dy = Math.abs(cells[i].gy - cells[j].gy);
+            if (dx <= 1 && dy <= 1) pairs.push([i, j]);
+        }
+    }
+    const isDiag = ([i, j]) => cells[i].gx !== cells[j].gx && cells[i].gy !== cells[j].gy;
+    const squareOf = ([i, j]) => `${Math.min(cells[i].gx, cells[j].gx)},${Math.min(cells[i].gy, cells[j].gy)}`;
+    const bySquare = {};
+    pairs.filter(isDiag).forEach(p => { (bySquare[squareOf(p)] = bySquare[squareOf(p)] || []).push(p); });
+    const dropped = new Set();
+    Object.values(bySquare).forEach(list => { if (list.length > 1) dropped.add(list[Math.floor(rng() * list.length)]); });
+    return pairs.filter(p => !dropped.has(p));
+}
+
+// Distance d'un point au segment [a, b].
+function pointSegmentDistance(p, a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+/**
+ * Génère un étage urbain (PUR). options : { rng, cityCount, lairCount, specializedChance (%), layout }.
+ * Renvoie { kind: 'urban', geometry: { width, height, cities, roads }, roomsById, startRoomId, stairsRoomId,
+ * cities: [{ id, index, gx, gy, x, y, w, h, cx, cy, role, isStairs, plazaRoomId, roomIds }], lairs: [{ id,
+ * roomId, roadId }] } — salles au même format que generateBorough() (zone 'city' | 'road' | 'lair', quadrant
+ * null, cityId pour une salle de ville, roadId + seg { x1, y1, x2, y2 } pour un tronçon de route).
+ * La ville de l'escalier (jamais le départ) a une salle `stairs` ; un marchand et un professeur garantis (ni le
+ * départ ni l'escalier), d'autres selon specializedChance ; chaque ville a sa place et son auberge.
+ */
+function generateMetropolis(options = {}) {
+    const rng = options.rng || Math.random;
+    const L = options.layout || METRO_LAYOUT;
+    const cityCount = options.cityCount || 6;
+    const cells = generateCityGrid(cityCount, rng);
+    const roadPairs = cityGridRoads(cells, rng);
+    const minGx = Math.min(...cells.map(c => c.gx)), minGy = Math.min(...cells.map(c => c.gy));
+    const margin = L.cityHalf + 4;
+    const cityCenter = c => ({ x: margin + (c.gx - minGx) * L.cityCell, y: margin + (c.gy - minGy) * L.cityCell });
+    const roomsById = {};
+    const unitCost = (length, zone) => Math.round(length / FLOOR_LAYOUT.cellsPerDistanceUnit * ZONE_TYPES[zone].travelMult * 100) / 100;
+    const link = (aId, bId, length, kind, zone) => {
+        const len = Math.max(1, Math.round(length * 10) / 10);
+        const cost = unitCost(len, zone);
+        roomsById[aId].neighbors.push({ to: bId, length: len, cost, kind });
+        roomsById[bId].neighbors.push({ to: aId, length: len, cost, kind });
+    };
+    const addRoom = room => { roomsById[room.id] = { quadrant: null, visited: false, neighbors: [], ...room }; return roomsById[room.id]; };
+
+    // Villes : rôles (escalier, marchand, professeur, autres).
+    const cities = cells.map((c, index) => {
+        const center = cityCenter(c);
+        return {
+            id: `city${index}`, index, gx: c.gx, gy: c.gy, cx: center.x, cy: center.y,
+            x: center.x - L.cityHalf, y: center.y - L.cityHalf, w: 2 * L.cityHalf, h: 2 * L.cityHalf,
+            role: null, isStairs: false, plazaRoomId: null, roomIds: [], roadDirs: []
+        };
+    });
+    const others = fgShuffle(rng, cities.slice(1));
+    const stairsCity = others[0];
+    stairsCity.isStairs = true;
+    const services = others.slice(1);
+    if (services[0]) services[0].role = 'merchant';
+    if (services[1]) services[1].role = 'trainer';
+    services.slice(2).forEach(city => {
+        if (rng() * 100 < (options.specializedChance || 0)) city.role = rng() < 0.5 ? 'merchant' : 'trainer';
+    });
+    roadPairs.forEach(([i, j]) => {
+        cities[i].roadDirs.push(Math.atan2(cities[j].cy - cities[i].cy, cities[j].cx - cities[i].cx));
+        cities[j].roadDirs.push(Math.atan2(cities[i].cy - cities[j].cy, cities[i].cx - cities[j].cx));
+    });
+
+    // Salles d'une ville : place au centre, puis auberge, boutique/professeur, escalier, ruelles, aux angles
+    // intermédiaires tirés au hasard.
+    cities.forEach(city => {
+        const p = L.plazaSize, r = L.roomSize;
+        const plaza = addRoom({ id: `${city.id}_plaza`, zone: 'city', cityId: city.id, cityRole: 'plaza', type: 'normal',
+            x: city.cx - p / 2, y: city.cy - p / 2, w: p, h: p, size: 'M' });
+        city.plazaRoomId = plaza.id;
+        city.roomIds.push(plaza.id);
+        const kinds = [{ type: 'safe', role: 'inn' }];
+        if (city.role === 'merchant') kinds.push({ type: 'shop', role: 'merchant' });
+        if (city.role === 'trainer') kinds.push({ type: 'trainer', role: 'trainer' });
+        if (city.isStairs) kinds.push({ type: 'stairs', role: 'stairs' });
+        const [minRooms, maxRooms] = L.roomsPerCity;
+        const total = Math.max(kinds.length + 1, fgRandInt(rng, minRooms, maxRooms));
+        while (kinds.length + 1 < total) kinds.push({ type: 'normal', role: 'alley' });
+        const angles = fgShuffle(rng, METRO_ROOM_ANGLES);
+        kinds.forEach((k, n) => {
+            const a = angles[n];
+            const cx = city.cx + Math.cos(a) * L.roomRadius, cy = city.cy + Math.sin(a) * L.roomRadius;
+            const room = addRoom({ id: `${city.id}_${k.role}${k.role === 'alley' ? n : ''}`, zone: 'city', cityId: city.id,
+                cityRole: k.role, type: k.type, x: cx - r / 2, y: cy - r / 2, w: r, h: r, size: 'S' });
+            city.roomIds.push(room.id);
+            link(plaza.id, room.id, fgDistance(rectCenter(plaza), rectCenter(room)), 'corridor', 'city');
+        });
+    });
+
+    // Routes : bande entre les bords des deux villes, découpée en tronçons ; la porte relie la place au premier
+    // tronçon (le bout de rue dans la ville est compté dans sa longueur).
+    const roads = roadPairs.map(([i, j], n) => {
+        const a = cities[i], b = cities[j];
+        const diagonal = a.gx !== b.gx && a.gy !== b.gy;
+        const dx = b.cx - a.cx, dy = b.cy - a.cy, len = Math.hypot(dx, dy);
+        const ux = dx / len, uy = dy / len;
+        const edge = diagonal ? L.cityHalf * Math.SQRT2 : L.cityHalf;
+        const start = { x: a.cx + ux * edge, y: a.cy + uy * edge }, end = { x: b.cx - ux * edge, y: b.cy - uy * edge };
+        const [minSeg, maxSeg] = diagonal ? L.roadSegments.diagonal : L.roadSegments.straight;
+        const count = fgRandInt(rng, minSeg, maxSeg);
+        const road = { id: `road${n}`, a: a.id, b: b.id, diagonal, x1: start.x, y1: start.y, x2: end.x, y2: end.y, segmentIds: [] };
+        for (let k = 0; k < count; k++) {
+            const p1 = { x: start.x + (end.x - start.x) * k / count, y: start.y + (end.y - start.y) * k / count };
+            const p2 = { x: start.x + (end.x - start.x) * (k + 1) / count, y: start.y + (end.y - start.y) * (k + 1) / count };
+            const hw = L.roadWidth / 2;
+            const seg = addRoom({ id: `${road.id}_s${k}`, zone: 'road', roadId: road.id, type: 'normal', size: 'road',
+                seg: { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y },
+                x: Math.min(p1.x, p2.x) - hw, y: Math.min(p1.y, p2.y) - hw,
+                w: Math.abs(p2.x - p1.x) + 2 * hw, h: Math.abs(p2.y - p1.y) + 2 * hw });
+            road.segmentIds.push(seg.id);
+            if (k > 0) link(road.segmentIds[k - 1], seg.id, fgDistance(rectCenter(roomsById[road.segmentIds[k - 1]]), rectCenter(seg)), 'road', 'road');
+        }
+        const first = roomsById[road.segmentIds[0]], last = roomsById[road.segmentIds[count - 1]];
+        link(a.plazaRoomId, first.id, fgDistance(rectCenter(roomsById[a.plazaRoomId]), rectCenter(first)), 'door', 'road');
+        link(b.plazaRoomId, last.id, fgDistance(rectCenter(roomsById[b.plazaRoomId]), rectCenter(last)), 'door', 'road');
+        return road;
+    });
+
+    // Repaires : une salle en impasse accrochée au milieu d'un tronçon, sur le côté de la route, jamais sur une
+    // ville, une autre route ou un autre repaire.
+    const lairs = [];
+    const lairCount = Math.min(options.lairCount || 0, roads.length);
+    const clearOf = rect => cities.every(c => !rectsOverlap(rect, c, 1))
+        && roads.every(rd => pointSegmentDistance(rectCenter(rect), { x: rd.x1, y: rd.y1 }, { x: rd.x2, y: rd.y2 }) > L.lairSize / 2 + L.roadWidth)
+        && lairs.every(l => !rectsOverlap(rect, roomsById[l.roomId], 1));
+    const roadOrder = fgShuffle(rng, roads);
+    for (let t = 0; t < roadOrder.length * 2 && lairs.length < lairCount; t++) {
+        const road = roadOrder[t % roadOrder.length];
+        if (lairs.some(l => l.roadId === road.id)) continue;
+        const segId = road.segmentIds[Math.floor(road.segmentIds.length / 2)];
+        const seg = roomsById[segId];
+        const c = rectCenter(seg);
+        const len = Math.hypot(road.x2 - road.x1, road.y2 - road.y1);
+        const nx = -(road.y2 - road.y1) / len, ny = (road.x2 - road.x1) / len;
+        const side = (t < roadOrder.length ? 1 : -1) * (rng() < 0.5 ? 1 : -1);
+        const s = L.lairSize;
+        const lc = { x: c.x + nx * L.lairOffset * side, y: c.y + ny * L.lairOffset * side };
+        const rect = { x: lc.x - s / 2, y: lc.y - s / 2, w: s, h: s };
+        if (!clearOf(rect)) continue;
+        const id = `lair${lairs.length}`;
+        addRoom({ id: `${id}_room`, zone: 'lair', type: 'lair', lairId: id, roadId: road.id, size: 'M', ...rect });
+        link(segId, `${id}_room`, fgDistance(c, lc), 'door', 'lair');
+        lairs.push({ id, roomId: `${id}_room`, roadId: road.id });
+    }
+
+    const all = Object.values(roomsById);
+    const width = Math.max(...all.map(r => r.x + r.w)) + margin / 2;
+    const height = Math.max(...all.map(r => r.y + r.h)) + margin / 2;
+    cities.forEach(c => { delete c.roadDirs; });
+    const stairsRoom = all.find(r => r.type === 'stairs');
+    return {
+        kind: 'urban',
+        geometry: { width, height, cities, roads },
+        cities, lairs, roomsById,
+        startRoomId: cities[0].plazaRoomId,
+        stairsRoomId: stairsRoom ? stairsRoom.id : null
+    };
+}
+
+// Mesures pures d'un étage urbain (tests, npm run sim:floors) : connexité, tronçons par route, salles par
+// ville, chevauchements (salles d'une même ville, repaires), temps de trajet départ -> escalier.
+function measureMetropolis(floor) {
+    const rooms = Object.values(floor.roomsById);
+    const adj = roomsAdjacency(floor.roomsById);
+    const reach = hopDistances(adj, [floor.startRoomId]);
+    let overlaps = 0;
+    floor.cities.forEach(c => {
+        for (let i = 0; i < c.roomIds.length; i++) for (let j = i + 1; j < c.roomIds.length; j++) {
+            if (rectsOverlap(floor.roomsById[c.roomIds[i]], floor.roomsById[c.roomIds[j]], 0)) overlaps++;
+        }
+    });
+    let roadCrossings = 0;
+    const roads = floor.geometry.roads;
+    for (let i = 0; i < roads.length; i++) for (let j = i + 1; j < roads.length; j++) {
+        const a = roads[i], b = roads[j];
+        if (segmentsCross({ x: a.x1, y: a.y1 }, { x: a.x2, y: a.y2 }, { x: b.x1, y: b.y1 }, { x: b.x2, y: b.y2 })) roadCrossings++;
+    }
+    const dist = {};
+    const queue = [[floor.startRoomId, 0]];
+    dist[floor.startRoomId] = 0;
+    while (queue.length) {
+        queue.sort((x, y) => x[1] - y[1]);
+        const [id, d] = queue.shift();
+        if (d > dist[id]) continue;
+        floor.roomsById[id].neighbors.forEach(n => {
+            const nd = d + n.cost;
+            if (dist[n.to] === undefined || nd < dist[n.to]) { dist[n.to] = nd; queue.push([n.to, nd]); }
+        });
+    }
+    return {
+        rooms: rooms.length,
+        cities: floor.cities.length,
+        roomsPerCity: floor.cities.map(c => c.roomIds.length),
+        segmentsPerRoad: roads.map(r => r.segmentIds.length),
+        lairs: floor.lairs.length,
+        overlaps,
+        roadCrossings,
+        connected: rooms.every(r => reach[r.id] !== undefined),
+        stairsCost: floor.stairsRoomId ? Math.round(dist[floor.stairsRoomId] * 10) / 10 : null,
+        stairsHops: floor.stairsRoomId ? reach[floor.stairsRoomId] : null
+    };
+}
+
 // ---------- Mesures (tests, npm run sim:floors) ----------
 // Mesures pures d'un étage généré : salles par bloc, culs-de-sac, degré max, profondeur du boss depuis les
 // portes, portes par bloc, croisements de couloirs, connexité.
@@ -455,6 +725,7 @@ function measureBorough(floor) {
 if (typeof module !== 'undefined') {
     module.exports = {
         FLOOR_LAYOUT, ROOM_TYPES, ZONE_TYPES, createFloorRng, generateBorough, computeBoroughGeometry,
-        measureBorough, pickSafeStartRoom, roomSizeClass, segmentsCross, rectsOverlap, hopDistances, roomsAdjacency
+        measureBorough, pickSafeStartRoom, roomSizeClass, segmentsCross, rectsOverlap, hopDistances, roomsAdjacency,
+        METRO_LAYOUT, generateMetropolis, measureMetropolis, generateCityGrid, cityGridRoads
     };
 }

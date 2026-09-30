@@ -271,3 +271,43 @@ const { assert, resetTransientState } = require('./_helpers.js');
     localStorage.setItem(SAVE_BACKUP_KEY, "{pas du json");
     restoreSavesBackup(); // Backup corrompu : idem
 }
+
+// Mort = fin du crawler (rogue-like) : gameOver() efface sa sauvegarde et coupe l'autosauvegarde ; une
+// sauvegarde à 0 PV (écrite avant ce correctif) n'est jamais restaurée vivante, et son nom repart sur un
+// nouveau crawler.
+{
+    localStorage.clear();
+    resetTransientState();
+    gameState.playerName = "Ben";
+    gameState.saveEnabled = true;
+    gameState.hp = 30;
+    saveGame();
+    assert(hasSaveForName("Ben"), "Mort : la sauvegarde existe avant la mort");
+    gameState.hp = 0;
+    gameOver(false, { name: "Rat d'égout", hp: 10, maxHp: 10, status: {} });
+    assert(!hasSaveForName("Ben"), "gameOver() : la sauvegarde du crawler mort est effacée");
+    assert(gameState.saveEnabled === false, "gameOver() : l'autosauvegarde est coupée après la mort");
+    updateUI();
+    assert(!hasSaveForName("Ben"), "gameOver() : aucun updateUI() ultérieur ne réécrit la sauvegarde");
+    if (ui.gameOverOverlay) ui.gameOverOverlay.classList.add('hidden');
+
+    // Ancienne sauvegarde d'un crawler mort (0 PV) : jamais restaurée, effacée à la saisie de son nom.
+    resetTransientState();
+    gameState.playerName = "Ben";
+    gameState.saveEnabled = true;
+    gameState.hp = 0;
+    saveGame();
+    gameState.saveEnabled = false;
+    resetTransientState();
+    assert(restoreSaveForName("Ben") === false && gameState.hp > 0, "restoreSaveForName() : une sauvegarde à 0 PV n'est jamais restaurée");
+    assert(!listSavedCrawlerNames().includes("Ben"), "listSavedCrawlerNames() : un crawler mort n'est pas proposé");
+    assert(eraseDeadSaveForName("ben") === true && !hasSaveForName("Ben"), "eraseDeadSaveForName() : efface la sauvegarde d'un crawler mort");
+    gameState.playerName = "Vivant";
+    gameState.saveEnabled = true;
+    gameState.hp = 12;
+    saveGame();
+    assert(eraseDeadSaveForName("Vivant") === false && hasSaveForName("Vivant"), "eraseDeadSaveForName() : ne touche jamais un crawler vivant");
+    gameState.saveEnabled = false;
+    localStorage.clear();
+    resetTransientState();
+}

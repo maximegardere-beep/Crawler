@@ -35,10 +35,9 @@ const KNOWN_GAMESTATE_KEYS = [
     'pactBlessingDelta', 'pactChoicePending', 'pendingBossEncounter', 'pendingBossRoomId',
     'pendingCompanionCandidate', 'pendingLairDive', 'pendingLairId', 'pendingNextFloorAnomalies',
     'pendingSafehouseRoomId', 'pendingShopCityId', 'pendingSneakAttack', 'pendingStairAfterCombat', 'pendingStairsChoice',
-    'pendingStealthEncounter', 'pendingTravel', 'pendingUrbanAdvanceAfterCombat', 'pendingUrbanBossCityId',
-    'pendingUrbanBossEncounter', 'pendingUrbanTravel', 'playerName', 'safehouseChoicePending', 'saveEnabled', 'stairsChoicePending',
+    'pendingStealthEncounter', 'pendingTravel', 'playerName', 'safehouseChoicePending', 'saveEnabled', 'stairsChoicePending',
     'shopChoicePending', 'signaturesAwarded', 'skills', 'spellbook', 'status', 'stealthChoicePending', 'timeLeft',
-    'urbanMap', 'xp', 'xpToNextLevel'
+    'xp', 'xpToNextLevel'
 ];
 
 // --- Complétude : gameState n'a ni plus ni moins de clés que la liste blanche ci-dessus ----------

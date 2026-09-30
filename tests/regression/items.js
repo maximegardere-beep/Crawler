@@ -305,8 +305,8 @@ const qItem = (category, qualifiers, extra = {}) => Object.assign({ name: "Objet
     const item = buildItem(baseItems.armors[0], 'armors', getRarityByKey('rare'), 3, { jitter: false, qualifiers: [{ key: 'thorns', rank: 1 }] });
     item.price = 10;
     const city = { id: 'c-inspect', role: 'merchant', specialty: 'armors', stock: [item] };
-    const previousMap = gameState.urbanMap;
-    gameState.urbanMap = { citiesById: { 'c-inspect': city }, theme: gameState.currentDistrict };
+    const previousMap = gameState.floorMap;
+    gameState.floorMap = { kind: 'urban', roomsById: {}, lairsById: {}, citiesById: { 'c-inspect': city }, theme: gameState.currentDistrict };
     gameState.pendingShopCityId = 'c-inspect';
     gameState.gold = 50;
     gameState.inventory = [];
@@ -315,7 +315,7 @@ const qItem = (category, qualifiers, extra = {}) => Object.assign({ name: "Objet
     assert(gameState.gold === 50 && city.stock.length === 1 && !ui.itemInspectOverlay.classList.contains('hidden'), "Boutique : toucher une ligne ouvre l'inspection sans rien acheter");
     ui.itemInspectActions.children[0].dispatch('click');
     assert(gameState.gold === 40 && gameState.inventory.includes(item), "Boutique : le bouton Acheter du panneau achète l'objet");
-    gameState.urbanMap = previousMap;
+    gameState.floorMap = previousMap;
     gameState.pendingShopCityId = null;
     gameState.inventory = [];
     closeItemInspect();

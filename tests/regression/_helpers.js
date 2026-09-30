@@ -83,11 +83,6 @@ function resetTransientState() {
     gameState.pendingBossRoomId = null;
     gameState.pendingStairAfterCombat = false; // Idem
     gameState.pendingTravel = null;
-    gameState.urbanMap = null;
-    gameState.pendingUrbanTravel = null;
-    gameState.pendingUrbanBossEncounter = null;
-    gameState.pendingUrbanBossCityId = null;
-    gameState.pendingUrbanAdvanceAfterCombat = null;
     gameState.hasWon = false;
     gameState.saveEnabled = false; // Jamais d'autosauvegarde fantôme entre deux tests sans rapport
     gameState.gold = 0;

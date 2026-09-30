@@ -1,4 +1,4 @@
-// urban-shops.js — tests régression : Villes spécialisées (marchand/professeur) : generateUrbanFloorMap()/ triggerShopEncounter()/buyShopItem()/trainSkill()/leaveShop().
+// urban-shops.js — tests régression : Villes spécialisées (marchand/professeur) : generateUrbanFloorMap()/ triggerShopEncounter()/buyShopItem()/trainSkill()/leaveShop() — villes explorables (chantier 12) : la boutique et le professeur sont des salles de leur ville.
 // Extrait de l'ancien regression.test.js monolithique (Tâche 2, voir CLAUDE.md) : contenu inchangé, section(s) originale(s) L2681 du fichier d'origine, dans leur ordre relatif d'origine.
 const { assert, resetTransientState } = require('./_helpers.js');
 // ===================================================================
@@ -14,13 +14,16 @@ const { assert, resetTransientState } = require('./_helpers.js');
     gameState.currentFloor = 3;
     for (let i = 0; i < 20; i++) {
         generateUrbanFloorMap();
-        const um = gameState.urbanMap;
+        const um = gameState.floorMap;
         const start = um.citiesById[um.currentCityId];
+        assert(start.id === um.roomsById[um.startRoomId].cityId, "generateUrbanFloorMap() : départ sur la place de la première ville");
         assert(start.role === null, "generateUrbanFloorMap() : jamais de rôle sur la ville de départ");
         Object.values(um.citiesById).forEach(city => {
-            if (city.isStairs || city.isExit) {
+            if (city.isStairs) {
                 assert(city.role === null, "generateUrbanFloorMap() : jamais de rôle sur la ville gardienne");
             }
+            const serviceRooms = city.roomIds.filter(id => ['shop', 'trainer'].includes(um.roomsById[id].type));
+            assert(serviceRooms.length === (city.role ? 1 : 0), "generateUrbanFloorMap() : une salle de boutique ou de professeur seulement dans une ville qui en a le rôle");
             if (city.role === 'merchant') {
                 assert(['weapons', 'ranged', 'armors', 'scrolls'].includes(city.specialty),
                     "generateUrbanFloorMap() : spécialité marchand dans le bon pool (catégories d'objet)");
@@ -64,7 +67,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     gameState.currentFloor = 3;
     generateUrbanFloorMap();
     const merchantCity = { id: 'test-merchant', name: 'Testopolis', role: 'merchant', specialty: 'weapons', stock: null };
-    gameState.urbanMap.citiesById[merchantCity.id] = merchantCity;
+    gameState.floorMap.citiesById[merchantCity.id] = merchantCity;
 
     ui.shopZone.classList.add('hidden');
     triggerShopEncounter(merchantCity);
@@ -72,7 +75,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(gameState.pendingShopCityId === merchantCity.id, "triggerShopEncounter() : pendingShopCityId pointe sur la bonne ville");
     assert(ui.shopZone.classList.contains('hidden') === false, "triggerShopEncounter() : #shop-zone affiché");
     assert(merchantCity.stock.length === 3, "triggerShopEncounter() : stock généré à la première visite");
-    assert(isActionBlocked() === true, "triggerShopEncounter() : isActionBlocked() true tant que le choix est en attente (masque la Carte Urbaine)");
+    assert(isActionBlocked() === true, "triggerShopEncounter() : isActionBlocked() true tant que le choix est en attente (masque la carte)");
 
     const stockBefore = merchantCity.stock;
     triggerShopEncounter(merchantCity); // Seconde visite
@@ -88,7 +91,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     generateUrbanFloorMap();
     gameState.inventory = []; // resetTransientState() ne touche pas l'inventaire : jamais implicite ici
     const city = { id: 'test-merchant-2', name: 'Testburg', role: 'merchant', specialty: 'weapons', stock: null };
-    gameState.urbanMap.citiesById[city.id] = city;
+    gameState.floorMap.citiesById[city.id] = city;
     gameState.pendingShopCityId = city.id;
     city.stock = [{ name: "Épée test", category: 'weapons', price: 50, baseValue: 20 }];
     gameState.gold = 10;
@@ -146,7 +149,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     gameState.currentFloor = 3;
     generateUrbanFloorMap();
     const city = { id: 'test-trainer', name: 'Testville', role: 'trainer', specialty: 'magic' };
-    gameState.urbanMap.citiesById[city.id] = city;
+    gameState.floorMap.citiesById[city.id] = city;
     gameState.pendingShopCityId = city.id;
     gameState.skills.magic = { level: 3, xp: 5, xpToNext: 40 };
 
@@ -162,7 +165,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(gameState.skills.magic.xp === 0, "trainSkill() : XP exactement consommée jusqu'au niveau suivant, rien de plus");
 }
 
-// leaveShop() : referme #shop-zone et débloque les actions normales (Carte Urbaine redevient
+// leaveShop() : referme #shop-zone et débloque les actions normales (la carte redevient
 // visible via isActionBlocked()).
 {
     resetTransientState();
@@ -177,18 +180,23 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(isActionBlocked() === false, "leaveShop() : isActionBlocked() redevient false");
 }
 
-// arriveAtCity() : une ville avec un rôle déclenche l'écran marchand/professeur plutôt que
-// l'arrivée "ville sûre" générique.
+// enterRoom() sur la salle du professeur (ou du marchand) d'une ville : ouvre l'écran marchand/professeur
+// plutôt qu'un événement de ville.
 {
     resetTransientState();
     gameState.currentFloor = 3;
     generateUrbanFloorMap();
-    const city = { id: 'test-dispatch', name: 'Dispatchville', role: 'trainer', specialty: 'weapon', known: false, visited: false, roads: [] };
-    gameState.urbanMap.citiesById[city.id] = city;
-    gameState.pendingUrbanTravel = { destinationCityId: city.id, ambushesRemaining: 0 };
+    const fm = gameState.floorMap;
+    const room = Object.values(fm.roomsById).find(r => r.type === 'trainer');
     ui.shopZone.classList.add('hidden');
-
-    arriveAtCity();
-    assert(gameState.shopChoicePending === true, "arriveAtCity() : dispatch vers triggerShopEncounter() pour une ville avec un rôle");
-    assert(ui.shopZone.classList.contains('hidden') === false, "arriveAtCity() : #shop-zone affiché après dispatch");
+    moveToFloorRoom(room);
+    enterRoom(room);
+    assert(gameState.shopChoicePending === true && gameState.pendingShopCityId === room.cityId, "enterRoom() : la salle du professeur ouvre l'écran professeur de sa ville");
+    assert(ui.shopZone.classList.contains('hidden') === false, "enterRoom() : #shop-zone affiché");
+    leaveShop();
+    const shop = Object.values(fm.roomsById).find(r => r.type === 'shop');
+    moveToFloorRoom(shop);
+    enterRoom(shop);
+    assert(gameState.shopChoicePending === true && fm.citiesById[shop.cityId].stock.length === 3, "enterRoom() : la salle du marchand ouvre l'échoppe, stock généré");
+    leaveShop();
 }

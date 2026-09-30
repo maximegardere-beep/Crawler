@@ -29,12 +29,12 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 ## Point d'étape (30/09/2026)
 
 - **Tous les chantiers du registre sont codés**, sauf 6, 7 et 8 (pas encore explorés).
-- **PR #32 ouverte** (chantiers 9, 10 et 11, `APP_VERSION` 32) : à merger, puis tag `v32` et release
-  (convention 6 de `CLAUDE.md`).
 - **Tous les chantiers codés restent « à playtester »** : les chiffres sont des valeurs de départ,
   calibrées au mieux par simulation. Les points à vérifier sont regroupés plus bas (« À playtester »).
-- **Prochain chantier** : rien de lancé. Candidats : 6/7 (attendent le résumé de Vibe), 8 (attend la
-  décision sur l'hébergement des sons), ou une passe d'équilibrage après playtest.
+- **PR #32 mergée** (chantiers 9, 10 et 11) : tag `v32` et release à créer (convention 6 de `CLAUDE.md`).
+- **Chantier 12 (villes explorables) codé** sur la branche, avec deux correctifs (crawler mort non restaurable,
+  barre du bas agrandie) : une seule PR à ouvrir. Ensuite : 13 (race et classe à l'étage 3) et 6 (mini-jeux),
+  cadrés.
 
 ## Vue d'ensemble
 
@@ -42,9 +42,10 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 
 | # | Chantier | Ampleur | Statut | Bloqué par |
 |---|----------|---------|--------|------------|
-| 6 | Mini-jeux d'exploration | ? | En attente | résumé de Vibe sur l'exploration |
+| 6 | Mini-jeux (adresse + glyphes de sorts) | L | Exploré (cadrage) | correctif de bug d'abord |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
+| 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage) | correctif de bug d'abord |
 
 ### Codés (à playtester)
 
@@ -55,9 +56,10 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 3 | Chasseurs de primes gobelins (anti-snowball) | M | #28 | `NOTES_CHASSEURS.md` |
 | 4 | Émission de changement d'étage (DeathWatch) | L | #28 (+ #30 : répliques liées à la pique) | `NOTES_DEATHWATCH.md` |
 | 5 | Rework de la carte + génération des étages | XL | #31 | `NOTES_CARTE.md` |
-| 9 | Interface inventaire allégée | M | #32 (ouverte) | `NOTES_INTERFACE.md` |
-| 10 | Expansion de la banque d'objets + refonte de la rareté | L | #32 (ouverte) | `NOTES_ITEMS.md` (section « Chantier 10 ») |
-| 11 | Nouveaux sorts (effets et utilitaires) | M | #32 (ouverte) | `NOTES_SORTS.md` |
+| 9 | Interface inventaire allégée | M | #32 | `NOTES_INTERFACE.md` |
+| 10 | Expansion de la banque d'objets + refonte de la rareté | L | #32 | `NOTES_ITEMS.md` (section « Chantier 10 ») |
+| 11 | Nouveaux sorts (effets et utilitaires) | M | #32 | `NOTES_SORTS.md` |
+| 12 | Villes explorables (étages urbains sur le modèle de la carte) | XL | prochaine PR | `NOTES_VILLES.md` |
 
 ### Chantiers antérieurs au registre
 
@@ -86,6 +88,8 @@ Leviers à regarder en premier ; le détail est dans la section « À surveiller
 - **Carte** (5) : coût et risque des trajets (`cellsPerDistanceUnit`), avenues trop rentables à « farmer » ?
   lisibilité des blocs sur petit écran.
 - **Interface** (9) : fiche lisible avec beaucoup d'états, barre du bas qui ne masque rien.
+- **Villes** (12) : durée d'un étage urbain (~56 salles), routes « plus dures » trop punitives ? auberge dans chaque
+  ville trop généreuse ? pickpocket, lisibilité des routes diagonales sur petit écran.
 - **Objets** (10) : rareté (Légendaire « miracle » avant l'étage 10), économie (un Légendaire vaut ~20× un
   Commun), taux de proc des qualificatifs.
 - **Sorts** (11) : combo Bouclier de Mana + Soin Express, Pas de l'Ombre et le kiting, étourdissement à 30 %.
@@ -161,12 +165,74 @@ N/S/E/O dans la scène), **P2** (cap) et **P3** (humeur d'exploration) écartés
 **Livré** : générateur pur `floorgen.js` + `npm run sim:floors`, branchement moteur (distance réelle,
 table d'événements par zone, chasseurs ×2 sur les avenues, sauvegarde versionnée), voyage M1, carte
 `floormap.js`, P1 — voir `NOTES_CARTE.md`. **Plus tard** : **P4** (flair : indices sur les salles aperçues),
-guildes / toilettes / réserves, étages urbains sur le même modèle.
+guildes / toilettes / réserves (étages urbains sur le même modèle : fait au chantier 12).
 
-## 6. Mini-jeux d'exploration — ? — En attente
+## 6. Mini-jeux — L — Exploré (cadrage)
 
-**Demande** : mini-jeux pour pimenter le gameplay. Vibe a travaillé sur l'exploration : attendre son
-résumé avant d'explorer. Voir aussi 7 (même zone du jeu, fusion possible).
+**Demande** : mini-jeux pour pimenter le gameplay (Vibe devait résumer son travail sur l'exploration : à
+intégrer s'il arrive, le cadrage n'attend plus).
+
+**Cadrage (1er round)** : **jeux d'adresse courts** (au toucher, 10-20 s : crochetage au bon moment,
+désamorçage de piège, mémoire de symboles…) et **glyphes pour les sorts** (tracer un symbole pour lancer un
+sort). Épreuves à compétences (→ chantier 7), paris et défis de l'émission : non retenus pour l'instant.
+
+**Exploré** :
+- Point d'accroche des jeux d'adresse : les événements d'exploration (`config.chances`/`avenueChances`,
+  `performExploreStep()`) — le piège (`trap`) et le butin (`loot`) sont les candidats naturels (désamorcer au
+  lieu de subir, crocheter un coffre) ; ou un nouveau type de salle (`ROOM_TYPES`, prévu par le chantier 5).
+- Glyphes : `attackMagic()` a déjà un jet de réussite (backfire selon la compétence Magie,
+  `config.magicBalance`) — un glyphe réussi/raté pourrait moduler ce jet ou les dégâts. Contrainte forte : le
+  combat est un séquenceur de beats (`runCombatBeats()`), un tracé ajoute une étape interactive au milieu.
+- Contraintes communes : jouable au doigt sur iPhone (≥ 44 px), `prefers-reduced-motion`, testable sous Node
+  (résolution pure séparée du rendu, comme `fx.js`), jamais bloquant pour la simulation longue.
+
+**Décidé (round 2)** : glyphe **optionnel, pour renforcer** un sort (réussi = bonus, raté = sort normal ou
+petit risque de backfire).
+
+**À trancher (prochain round)** : échec d'un
+jeu d'adresse = dégâts, temps ou perte du butin ; fréquence ; option d'accessibilité (résolution automatique
+par un jet, comme avant).
+
+## 12. Villes explorables (étages urbains sur le modèle de la carte) — XL — Codé (à playtester)
+
+**Demande** : poursuivre la refonte de la carte (chantier 5) en l'intégrant aux étages urbains.
+
+**Décisions** : villes de **3 à 5 salles**, routes de **2 à 4 tronçons** explorés pas à pas, villes **calmes**
+(pickpocket parfois), **auberge dans chaque ville**, gardien dans la salle de l'escalier au fond de sa ville,
+**repaire en impasse** sur une route, ancienne Carte Urbaine **remplacée** par la carte stylisée (villes en bloc
+clair + nom, routes d'asphalte), tables d'événements ville / route validées (variante **« routes plus dures »** :
+Combat 40, Piège 14), **une PR à la fin**.
+
+**Livré** : générateur pur `generateMetropolis()` + `npm run sim:floors … urbain`, étage urbain dans
+`gameState.floorMap` (exploration, voyage M1/P1, carte, repères communs), tables ville / route et pickpocket,
+gardien de l'escalier et de la Sortie par le choix de boss existant, repaires en impasse, rendu urbain de la
+carte, retrait de l'ancien réseau (`urbanMap`, `travelToCity()`, Carte Urbaine, `renderGraphMiniMap()`),
+migration des sauvegardes — voir `NOTES_VILLES.md`.
+
+## 13. Race et classe à l'étage 3 — L — Exploré (cadrage)
+
+**Demande** : un système de race et de classe à choisir « au niveau 3 ».
+
+**Cadrage (1er round)** : **à l'arrivée sur l'étage 3**, comme dans Dungeon Crawler Carl — c'est aussi le
+premier étage urbain.
+
+**Exploré** :
+- Progression actuelle : `gainXp()` (PV +15, ATQ `2 + niveau/4`, DEF `1 + niveau/5` par niveau), 4 compétences
+  à l'usage (`gameState.skills` : Arme, Mains nues, Magie, Furtivité), aucune notion de race ni de classe.
+- Moment : `advanceToNextFloor()` enchaîne déjà Pacte du Crawler puis émission DeathWatch à l'arrivée ; le
+  choix s'y ajouterait comme un choix bloquant de plus (`xyzChoicePending`, `isActionBlocked()`,
+  `resetTransientState()`, résolveur de la simulation longue), avant l'émission (le présentateur pourrait s'en
+  moquer).
+- Leviers existants pour des bonus : `recomputeMaxHp()`, `getEffectiveDef()`, `performPlayerAttack()`,
+  compétences (`gainSkillXp()`), qualificatifs passifs (`sumEquippedQualifier()`), sprite en couches du crawler
+  (`composeCrawler()` : une race pourrait changer la silhouette).
+
+**Décidé (round 2)** : race = bonus passifs, classe = **capacité active** en combat + bonus de style ; menu
+**selon la partie, façon DCC** (choix débloqués par la façon de jouer + quelques choix de base).
+
+**À trancher (prochain round)** : nombre de races/classes et leur esprit (DCC : races loufoques, classes
+parfois absurdes) ; bonus de stats seulement ou aussi une capacité active ; choix libre ou tiré parmi 3
+propositions ; effet sur le sprite.
 
 ## 7. Salles spéciales à choix narratif — M — Idée (ancien backlog de `CLAUDE.md`)
 
