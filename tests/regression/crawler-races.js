@@ -64,7 +64,9 @@ const POSTURES = Object.keys(CRAWLER_ARMS);
 // --- Extension avant variable (gabarit légèrement varié) ---
 {
     const max = config.rangedCombat.maxDistance;
-    assert(crawlerFrontExtent(null) === CRAWLER_FRONT_EXTENT && crawlerFrontExtent('goblin') === CRAWLER_FRONT_EXTENT, "Sans corps dessiné : extension commune");
+    const sansCorps = Object.keys(CRAWLER_RACE_LOOKS).filter(r => !CRAWLER_RACE_BODIES[r]);
+    assert(crawlerFrontExtent(null) === CRAWLER_FRONT_EXTENT && crawlerFrontExtent('race-inconnue') === CRAWLER_FRONT_EXTENT && sansCorps.every(r => crawlerFrontExtent(r) === CRAWLER_FRONT_EXTENT), "Sans corps dessiné : extension commune");
+    assert(crawlerFrontExtent('goblin') === CRAWLER_RACE_BODIES.goblin.frontExtent, "Gobelin : extension du corps dessiné lue par crawlerFrontExtent()");
     assert(distanceToX(0, max) === MOB_X_CONTACT && distanceToX(0, max, CRAWLER_FRONT_EXTENT) === MOB_X_CONTACT, "Extension commune : position de contact inchangée");
     [12, 15, 19].forEach(ext => {
         assert(Math.abs(mobContactX(ext) - distanceToX(0, max, ext)) < 1e-9, `Extension ${ext} : distanceToX(0) = position de contact`);
