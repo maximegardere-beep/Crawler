@@ -1750,8 +1750,10 @@ function captureLog(fn) {
     assert(gameState.gold === 120 && gameState.skills.stealth.xp + gameState.skills.stealth.level * 1000 > xpBefore, "Excellent score : gain ×3 et XP de la compétence liée");
     ev('safe', ['perfect', 'success', 'fail']);
     assert(gameState.gold === 105, `Bon score : ×1,5 (${gameState.gold})`);
+    gameState.runStats = createEmptyRunStats();
     ev('safe', ['fail', 'fail', 'fail']);
     assert(gameState.gold === 90, "Raté partout : mise perdue");
+    assert(gameState.runStats.arcadeGames === 1 && gameState.runStats.arcadeLost === 10, "Salle de jeux : la partie écrit la chronique du run (mise perdue)");
     ev('memory', ['success', 'fail']);
     assert(gameState.arcadeSession === null && gameState.gold === 90, "Mémoire : une erreur arrête la partie (aucune manche suivante)");
 

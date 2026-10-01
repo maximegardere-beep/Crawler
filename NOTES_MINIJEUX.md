@@ -11,7 +11,7 @@ Décisions et plan complets : `CHANTIERS.md`, chantier 6 (rounds 1 à 6). Ce fic
 | V2 | Mains nues (Immobiliser, Étrangler), tir (Cible, Points faibles), Occasion de combat (25 %) | **Codé** |
 | V3 | Boss : Parade, Briser la garde, Coup de grâce (+ arme signature conditionnée au Parfait) | **Codé** |
 | V4 | Salle de jeux en ville (stand de tir, ring, coffre-fort, mémoire) | **Codé** |
-| Final | `recordRunEvent('minigame')`, succès, piques DeathWatch | À faire |
+| Final | `recordRunEvent('minigame')`/`('arcade')`, 7 succès, 2 piques DeathWatch | **Codé** |
 
 ## Lot 0 — architecture
 
@@ -188,6 +188,16 @@ Chiffres (départ, à valider en playtest) dans `MINIGAME_SETTINGS.boss`. Logiqu
 - **Plafond de mise** (60 PO × étage = 180 PO à l'étage 3) et multiplicateurs (×1,5 / ×3) : posés sans données. Un joueur adroit enchaîne les Parfaits : à surveiller si
   l'argent ne perd plus toute valeur (1 H par partie est le seul frein ; le temps d'un étage, 130 H +5/étage, reste large).
 - Fréquence des salles de jeux (1 à 2 villes sur 6-8) et valeur de l'objet de la partie parfaite (palier « trésor ») ; difficulté réelle au doigt du coffre-fort (zone .15).
+
+## Lot final — chronique, succès, piques DeathWatch
+
+- **Chronique** : `settleMinigame()` écrit `recordRunEvent('minigame', { kind, outcome, auto, boss })` à chaque épreuve ; seules les épreuves JOUÉES comptent (`auto` : jet
+  automatique, Passer — ni mérite ni échec, et la série de Parfaits n'est pas interrompue). `finishArcadeGame()` écrit `recordRunEvent('arcade', { game, stake, payout, tier, perfectAll })`.
+  Compteurs de `createEmptyRunStats()` : `minigamesPlayed`, `minigamePerfects`, `perfectStreak`/`maxPerfectStreak`, `arcadeGames`, `arcadePerfectGames`, `arcadeNet`, `arcadeLost`.
+- **7 succès** (`achievements.js`, catalogue passé de 40 à 47) : Doigts de fée (1er Parfait), Métronome (5 Parfaits d'affilée), Main de chirurgien (25 Parfaits, Or), Joueur du
+  dimanche (1re partie), Le gérant transpire (partie parfaite), Tout sur le rouge (200 PO de mises perdues, **secret**), La banque gagne rarement (500 PO de gain net, Or).
+- **DeathWatch** : deux familles de piques (`perfect` : ≥ 5 gestes Parfaits ; `gambler` : ≥ 100 PO de mises perdues), chacune avec ses répliques sur les 4 tons ; contexte
+  `parfaits`/`mises` dans `buildShowContext()`.
 
 ## Ajouter une épreuve (mode d'emploi pour V1-V4)
 

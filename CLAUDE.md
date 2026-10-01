@@ -371,7 +371,7 @@ Tailwind CDN, **aucun build step**.
   Pique en retour / Provocation / Insulte en direct (jet d20 + popularité `getShowPopularity()` contre
   8/12/16 : boîte Bronze/Argent/Or via `openAchievementBox()`, sinon −2 H jamais mortelles / combat élite /
   +20 prime et chasseur de primes), ou Refuser.
-- **Mini-jeux** (chantier 6, lot 0, V1, V2, V3 et V4 codés — crochetage, désamorçage, glyphe, Occasions de combat, épreuves de boss, salle de jeux ; voir
+- **Mini-jeux** (chantier 6, lot 0, V1, V2, V3, V4 et lot final codés — crochetage, désamorçage, glyphe, Occasions de combat, épreuves de boss, salle de jeux ; voir
   `NOTES_MINIJEUX.md` ; le reste du chantier est planifié dans `CHANTIERS.md`) : toute épreuve passe par UN point d'entrée, `startMinigame(spec, onResult)` (minigames-ui.js), par
   callback (jamais de Promise, comme `runCombatBeats()`). Trois issues communes `perfect`/`success`/`fail`. Sans
   interface interactive (réglage « Jet automatique », `prefers-reduced-motion` par défaut, tests Node sans
@@ -403,7 +403,8 @@ Tailwind CDN, **aucun build step**.
   (`generateMetropolis({ arcadeCount })`, 1 à 2 villes par étage urbain, jamais le départ) ; `enterUrbanRoom()` → `triggerArcade()` (blocage `shopChoicePending` +
   `pendingArcadeCityId`, partie en cours `gameState.arcadeSession`) ; `playArcadeGame()` prélève la mise (`arcadeCheckStake()`, plafond 60 PO × étage) et 1 H puis enchaîne les manches
   (`ARCADE_GAMES` : stand de tir, ring, coffre-fort, mémoire = épreuves existantes) ; points Parfait 2 / Réussi 1, palier bon ×1,5 / excellent ×3 (+ XP de compétence), tout
-  Parfait = un lot (`arcadeScore()`/`arcadePayout()`). Tout helper pur de `minigames.js` partage l'espace
+  Parfait = un lot (`arcadeScore()`/`arcadePayout()`). **Chronique** : `settleMinigame()` → `recordRunEvent('minigame')` (épreuves jouées seulement), `finishArcadeGame()` → `recordRunEvent('arcade')` ; 7 succès et 2 familles de piques DeathWatch
+  (`perfect`, `gambler`) y sont liés. Tout helper pur de `minigames.js` partage l'espace
   global avec `floorgen.js` : en préfixer le nom (une collision sur `pointSegmentDistance` avait supprimé les repaires).
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de

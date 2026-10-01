@@ -514,7 +514,7 @@ function settleMinigame(spec, outcome, detail, onResult) {
         triggerHaptic(fx.haptic);
         showMinigameBanner(fx);
     }
-    // recordRunEvent('minigame', …) : branché au lot final (succès et piques DeathWatch).
+    recordRunEvent('minigame', { kind: spec.kind, outcome, auto: !!(detail && detail.auto), boss: !!spec.boss });
     const done = () => { if (onResult) onResult(outcome, detail); };
     if (detail && detail.auto) done(); else playMinigameOutcomeFx(fx, done);
 }

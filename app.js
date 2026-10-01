@@ -3476,6 +3476,21 @@ function recordRunEvent(type, data = {}) {
         case 'overflowSold': s.overflowSold += 1; break;
         case 'bounty': s.maxBounty = Math.max(s.maxBounty || 0, data.value || 0); break;
         case 'hunterKilled': s.huntersKilled += 1; break;
+        case 'minigame': // épreuve JOUÉE (jamais le jet automatique : il n'a ni mérite ni échec)
+            if (data.auto) break;
+            s.minigamesPlayed += 1;
+            if (data.outcome === 'perfect') {
+                s.minigamePerfects += 1;
+                s.perfectStreak += 1;
+                s.maxPerfectStreak = Math.max(s.maxPerfectStreak, s.perfectStreak);
+            } else s.perfectStreak = 0;
+            break;
+        case 'arcade': // partie conclue à la salle de jeux
+            s.arcadeGames += 1;
+            if (data.perfectAll) s.arcadePerfectGames += 1;
+            s.arcadeNet += (data.payout || 0) - (data.stake || 0);
+            if (data.tier === 'lose') s.arcadeLost += data.stake || 0;
+            break;
         default: break; // 'explore', 'equip', 'itemStored', 'loyalty', 'death', 'victory'… : simple réévaluation
     }
     evaluateAchievements({ type, ...data });
@@ -3778,6 +3793,8 @@ function buildShowContext(lastFloor = {}) {
         succes: countUnlockedAchievements(),
         niveau: gameState.level,
         or: gameState.gold,
+        parfaits: rs.minigamePerfects || 0,
+        mises: rs.arcadeLost || 0,
         mainsNues: rs.unarmedKills || 0,
         maxHp: gameState.maxHp,
         pvPct: gameState.maxHp > 0 ? Math.round(gameState.hp / gameState.maxHp * 100) : 0
@@ -5185,6 +5202,7 @@ function finishArcadeGame() {
         arcadeSetMessage(`${text} Partie parfaite : un lot en prime !`, 'success');
         addLoot({ source: 'treasure' });
     }
+    recordRunEvent('arcade', { game: session.game, stake: session.stake, payout, tier: score.tier, perfectAll: score.perfectAll });
     updateUI();
     updateArcadeUI();
 }

@@ -59,6 +59,10 @@ const SHOW_TAUNTS = [
     { id: 'broke', theme: 'broke', when: c => c.or < 10 && c.etage >= 4, text: "{{or}} PO à l'étage {{etage}}. Même les rats du donjon ont un meilleur plan d'épargne." },
     { id: 'famous', theme: 'famous', when: c => c.succes >= 10, text: "{{succes}} succès débloqués ! Vous collectionnez les trophées comme d'autres collectionnent les cicatrices." },
     { id: 'underlevel', theme: 'underlevel', when: c => c.niveau < c.etage, text: "Niveau {{niveau}} à l'étage {{etage}} ? Soit vous êtes un génie, soit vous serez notre prochain hommage." },
+    { id: 'perfect1', theme: 'perfect', when: c => c.parfaits >= 5, text: "{{parfaits}} gestes parfaits, {{crawler}}. Nos équipes vérifient que vous ne trichez pas. Vous ne trichez pas ? Dommage, ça aurait fait un meilleur épisode." },
+    { id: 'perfect2', theme: 'perfect', when: c => c.parfaits >= 5, text: "Des doigts de fée ! {{parfaits}} gestes parfaits. La régie a coupé le chronomètre : trop de précision tue le suspense." },
+    { id: 'gambler1', theme: 'gambler', when: c => c.mises >= 100, text: "{{mises}} PO perdus à la salle de jeux, {{crawler}}. Nos actionnaires vous remercient. La salle est à nous, bien sûr." },
+    { id: 'gambler2', theme: 'gambler', when: c => c.mises >= 100, text: "On me souffle que vous avez laissé {{mises}} PO aux bornes d'arcade. La maison gagne toujours, {{crawler}}. La maison, c'est nous." },
     { id: 'boxer', theme: 'boxer', when: c => c.mainsNues >= 5, text: "{{mainsNues}} monstres tués à mains nues. Nos sponsors en armes sont vexés, {{crawler}}." },
     // Génériques (repli)
     { id: 'gen1', theme: 'odds', text: "Bienvenue à l'étage {{etage}}, {{crawler}} ! Nos analystes vous donnent 12 % de chances de survie. C'était avant votre arrivée." },
@@ -78,6 +82,18 @@ const SHOW_REPLIES = {
         retort: ["« {{fuites}} fuites, et je suis toujours là. Vos stars d'avant, elles, sont au cimetière. »", "« Je cours peut-être, mais vous, Chip, vous fuyez les vrais sujets. »"],
         provoke: ["« Je ne fuis pas, je choisis mes combats. Envoyez-en un qui mérite que je reste. »", "« Mettez un monstre digne de ce nom sur ma route et vous verrez si je cours. »"],
         insult: ["« Vous voulez voir quelqu'un courir ? Attendez que je monte en plateau, Chip. »", "« Je fuis les monstres. Vous, même les miroirs vous fuient. »"]
+    },
+    perfect: {
+        polite: ["« Merci, Chip. Une main qui ne tremble pas, c'est rare quand on vous regarde. »", "« Un peu de pratique, beaucoup de chance. Surtout de la chance. »"],
+        retort: ["« {{parfaits}} gestes parfaits, et vous, un seul bon mot par saison. »", "« Je ne triche pas, Chip. Je laisse ça à votre régie. »"],
+        provoke: ["« Ce n'était que l'échauffement. Prochaine épreuve : je ferme les yeux. »", "« Donnez-moi des pièges plus durs, mes doigts s'ennuient. »"],
+        insult: ["« Mes doigts sont si précis que je pourrais vous retirer cette perruque sans que vous sentiez rien, Chip. »", "« Parfait, comme votre calvitie sous ce postiche. »"]
+    },
+    gambler: {
+        polite: ["« Je soutiens l'économie locale, Chip. Quelqu'un doit le faire. »", "« Le jeu est une passion. Je la nourris, comme vos actionnaires. »"],
+        retort: ["« {{mises}} PO perdus, mais au moins, moi, je savais à quoi je jouais. »", "« Si la salle est à vous, rendez-moi mon argent et appelons ça un remboursement de sponsor. »"],
+        provoke: ["« La prochaine fois, je mise tout sur moi. Gardez votre monnaie prête, Chip. »", "« Vos bornes sont truquées ? Tant mieux. J'adore battre un jeu truqué. »"],
+        insult: ["« Vous avez perdu bien plus que ça au casting de votre propre émission, Chip. »", "« Je parie que vous ne tiendrez pas dix saisons de plus. Cote : 1 contre 12. »"]
     },
     hurt: {
         polite: ["« Je remercie nos sponsors en pansements, ils m'ont sauvé la vie. »", "« J'encaisse, Chip. C'est mon seul talent. »"],

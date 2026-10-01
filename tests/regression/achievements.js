@@ -41,10 +41,10 @@ function fillReserve() {
 // --- Catalogue ---
 {
     const ids = new Set(ACHIEVEMENTS.map(a => a.id));
-    assert(ACHIEVEMENTS.length === 40 && ids.size === 40, "Catalogue : 40 succès (35 + 3 chasseurs de primes + 2 DeathWatch), identifiants uniques");
+    assert(ACHIEVEMENTS.length === 47 && ids.size === 47, "Catalogue : 47 succès (35 + 3 chasseurs de primes + 2 DeathWatch + 7 mini-jeux), identifiants uniques");
     assert(ACHIEVEMENTS.every(a => a.icon && a.title && a.text && typeof a.check === 'function' && ACHIEVEMENT_TIERS[a.tier]), "Catalogue : chaque succès a icône, titre, texte, palier valide et condition");
     assert(ACHIEVEMENTS.filter(a => a.posthumous).length === 4 && ACHIEVEMENTS.filter(a => a.posthumous).every(a => a.secret), "Catalogue : 4 succès posthumes, tous secrets");
-    assert(ACHIEVEMENTS.filter(a => a.tier === 'gold').length === 4, "Catalogue : 4 succès Or (Régicide, Collectionneur, Abysses, Sortie)");
+    assert(ACHIEVEMENTS.filter(a => a.tier === 'gold').length === 6, "Catalogue : 6 succès Or (Régicide, Collectionneur, Abysses, Sortie, Main de chirurgien, La banque gagne rarement)");
     const fresh = createEmptyRunStats();
     assert(ACHIEVEMENTS.every(a => { try { return a.check(fresh, { type: 'explore' }, { ...gameState, inventory: [], gold: 0, equipment: {}, companion: null, signaturesAwarded: [], hasWon: false, maxInventory: 8 }) === false; } catch (e) { return false; } }),
         "Catalogue : aucun succès débloqué sur une chronique vierge");
@@ -208,4 +208,49 @@ function fillReserve() {
     gameState.achievements = {};
     assert(restoreSaveForName.toString().includes('normalizeRunStats'), "restoreSaveForName() migre la chronique");
     gameState.saveEnabled = false;
+}
+
+// --- Mini-jeux (chantier 6, lot final) : chronique et succès ---
+{
+    resetTransientState();
+    gameState.runStats = createEmptyRunStats();
+    gameState.saveEnabled = true;
+    gameState.achievements = {};
+    const s = () => gameState.runStats;
+    recordRunEvent('minigame', { kind: 'timing', outcome: 'perfect', auto: true });
+    assert(s().minigamesPlayed === 0 && s().minigamePerfects === 0, "Chronique : un jet automatique n'est ni joué ni compté");
+    recordRunEvent('minigame', { kind: 'timing', outcome: 'success' });
+    assert(s().minigamesPlayed === 1 && s().minigamePerfects === 0 && s().perfectStreak === 0, "Chronique : une épreuve jouée est comptée, sans Parfait");
+    for (let i = 0; i < 4; i++) recordRunEvent('minigame', { kind: 'timing', outcome: 'perfect' });
+    assert(s().minigamePerfects === 4 && s().perfectStreak === 4 && s().maxPerfectStreak === 4 && gameState.achievements.perfect_first && !gameState.achievements.perfect_streak5, "Chronique : série de 4 Parfaits, premier Parfait débloqué");
+    recordRunEvent('minigame', { kind: 'timing', outcome: 'perfect', auto: true });
+    recordRunEvent('minigame', { kind: 'timing', outcome: 'perfect' });
+    assert(s().maxPerfectStreak === 5 && gameState.achievements.perfect_streak5, "Chronique : le jet automatique n'interrompt pas la série ; 5 d'affilée = Métronome");
+    recordRunEvent('minigame', { kind: 'timing', outcome: 'fail' });
+    assert(s().perfectStreak === 0 && s().maxPerfectStreak === 5, "Chronique : un Raté remet la série à zéro, le record reste");
+    for (let i = 0; i < 20; i++) recordRunEvent('minigame', { kind: 'timing', outcome: 'perfect' });
+    assert(s().minigamePerfects === 25 && gameState.achievements.perfect25, "Main de chirurgien : 25 Parfaits");
+
+    recordRunEvent('arcade', { game: 'safe', stake: 100, payout: 0, tier: 'lose', perfectAll: false });
+    assert(s().arcadeGames === 1 && s().arcadeLost === 100 && s().arcadeNet === -100 && gameState.achievements.arcade_first && !gameState.achievements.arcade_broke, "Salle de jeux : mise perdue comptée, premier jeu débloqué");
+    recordRunEvent('arcade', { game: 'safe', stake: 100, payout: 0, tier: 'lose', perfectAll: false });
+    assert(gameState.achievements.arcade_broke, "Tout sur le rouge : 200 PO de mises perdues");
+    recordRunEvent('arcade', { game: 'range', stake: 100, payout: 300, tier: 'excellent', perfectAll: true });
+    assert(s().arcadePerfectGames === 1 && s().arcadeNet === 0 && gameState.achievements.arcade_perfect && !gameState.achievements.arcade_rich, "Partie parfaite comptée, gain net cumulé");
+    recordRunEvent('arcade', { game: 'range', stake: 300, payout: 900, tier: 'excellent', perfectAll: false });
+    assert(s().arcadeNet === 600 && gameState.achievements.arcade_rich, "La banque gagne rarement : 500 PO de gain net");
+    assert(ACHIEVEMENTS.find(a => a.id === 'arcade_broke').secret === true, "Tout sur le rouge est un succès secret");
+
+    // Branchements réels : une épreuve jouée (interface simulée) et une partie de salle de jeux écrivent la chronique.
+    gameState.runStats = createEmptyRunStats();
+    global.requestAnimationFrame = () => 1;
+    setMinigameMode('play');
+    startMinigame('timing', () => {});
+    finishMinigame('perfect');
+    assert(gameState.runStats.minigamesPlayed === 1 && gameState.runStats.minigamePerfects === 1, "Hôte d'épreuve : chaque épreuve jouée écrit la chronique");
+    startMinigame('timing', () => {});
+    skipMinigame();
+    assert(gameState.runStats.minigamesPlayed === 1, "Passer (jet automatique) n'écrit pas la chronique d'une épreuve jouée");
+    delete global.requestAnimationFrame; setMinigameMode('auto');
+    resetTransientState();
 }

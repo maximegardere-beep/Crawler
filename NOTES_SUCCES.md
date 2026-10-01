@@ -59,7 +59,7 @@ Succès posthume : boîte « livrée à titre posthume » (rien n'est donné).
 - Écrans Game Over et Victoire : `buildRunAchievementsSummary()` liste les succès du crawler.
 
 ## Tests
-- `tests/regression/achievements.js` : revente d'office, catalogue (35, 4 Or, 4 posthumes), domination,
+- `tests/regression/achievements.js` : revente d'office, catalogue (47, 6 Or, 4 posthumes ; +7 mini-jeux au chantier 6), domination,
   verrou hors partie, vraie victoire (chronique + succès + boîtes, jamais deux fois), contenu de chaque
   boîte, événements → succès, succès sociaux via les vraies fonctions compagnon, posthumes sans boîte,
   affichage.

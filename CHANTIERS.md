@@ -42,7 +42,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 
 | # | Chantier | Ampleur | Statut | Bloqué par |
 |---|----------|---------|--------|------------|
-| 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | En cours (lot 0, V1, V2, V3 et V4 codés) | `NOTES_MINIJEUX.md` |
+| 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Codé (à playtester) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
 | 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage, en pause) | liste chiffrée à valider |
@@ -244,7 +244,7 @@ interactive du séquenceur, animations d'issue, épreuve de référence `timing`
 l'équilibrage). **V2 codé** (Occasions de combat à 25 % : Immobiliser, Étrangler, Cible de précision, Point faible — voir `NOTES_MINIJEUX.md`).
 **V3 codé** (Parade, Briser la garde, Coup de grâce + cinématique ; arme signature conditionnée au Coup de grâce parfait — voir `NOTES_MINIJEUX.md`).
 **V4 codé** (salle de jeux en ville : stand de tir, ring, coffre-fort, mémoire ; mise libre, 1 H par partie — voir `NOTES_MINIJEUX.md`).
-Reste : lot final (succès, piques DeathWatch, `recordRunEvent('minigame')`).
+**Lot final codé** (chronique `recordRunEvent('minigame'/'arcade')`, 7 succès, 2 piques DeathWatch). Le chantier est codé en entier ; reste le playtest (voir `NOTES_MINIJEUX.md`, « À surveiller »).
 
 **Décidé (round 7 — V4, salle de jeux)** : **4 jeux** — stand de tir (Cible x3), ring (lutte : maintien Immobiliser puis Étrangler), coffre-fort
 (crochetage de zones de plus en plus étroites) et mémoire (séquences de plus en plus longues) ; **mise libre** (plafonnée à ses PO) ; **parties illimitées,

@@ -33,6 +33,9 @@ function createEmptyRunStats() {
         overflowSold: 0,
         maxBounty: 0, huntersKilled: 0, // Chasseurs de primes (chantier 3)
         showInsultWins: 0, showRefusals: 0, // Émission DeathWatch (chantier 4)
+        // Mini-jeux (chantier 6) : épreuves JOUÉES (jamais le jet automatique), Parfaits, plus longue série de Parfaits, salle de jeux.
+        minigamesPlayed: 0, minigamePerfects: 0, perfectStreak: 0, maxPerfectStreak: 0,
+        arcadeGames: 0, arcadePerfectGames: 0, arcadeNet: 0, arcadeLost: 0,
         maxFloor: 1,
         // Victoires récentes (au plus DOMINANCE_WINDOW), pour l'indice de domination (chantier 3) :
         // { ease } = 1 si aucun PV perdu, 0 si ≥ DOMINANCE_HARD_FIGHT des PV max perdus.
@@ -210,7 +213,30 @@ const ACHIEVEMENTS = [
         check: (s, e) => e.type === 'death' && e.cause === 'backfire' },
     { id: 'timeout_death', icon: '⌛', tier: 'bronze', secret: true, posthumous: true, title: "Le temps, c'est de la mort",
         text: "Le donjon s'est effondré pendant que vous flâniez. Il fallait descendre.",
-        check: (s, e) => e.type === 'death' && e.cause === 'timeout' }
+        check: (s, e) => e.type === 'death' && e.cause === 'timeout' },
+
+    // --- Mini-jeux (chantier 6) ---
+    { id: 'perfect_first', icon: '🎯', tier: 'bronze', title: "Doigts de fée",
+        text: "Votre premier geste Parfait. Le public ne sait pas si c'est du talent ou un bug, mais il applaudit.",
+        check: (s) => s.minigamePerfects >= 1 },
+    { id: 'perfect_streak5', icon: '⏱️', tier: 'silver', title: "Métronome",
+        text: "Cinq gestes Parfaits d'affilée. Les écrans de contrôle vérifient que vous n'êtes pas un robot.",
+        check: (s) => s.maxPerfectStreak >= 5 },
+    { id: 'perfect25', icon: '🤌', tier: 'gold', title: "Main de chirurgien",
+        text: "Vingt-cinq gestes Parfaits. Le chef de la régie souhaite vous embaucher. Ou vous disséquer.",
+        check: (s) => s.minigamePerfects >= 25 },
+    { id: 'arcade_first', icon: '🎰', tier: 'bronze', title: "Joueur du dimanche",
+        text: "Votre première partie à la salle de jeux. On commence toujours par « juste pour voir ».",
+        check: (s) => s.arcadeGames >= 1 },
+    { id: 'arcade_perfect', icon: '🧠', tier: 'silver', title: "Le gérant transpire",
+        text: "Une partie parfaite à la salle de jeux. Le gérant vous a fait promettre de ne pas revenir. Vous avez menti.",
+        check: (s) => s.arcadePerfectGames >= 1 },
+    { id: 'arcade_broke', icon: '💸', tier: 'silver', title: "Tout sur le rouge", secret: true,
+        text: "200 PO de mises perdues à la salle de jeux. Le Donjon vous remercie de votre contribution volontaire.",
+        check: (s) => s.arcadeLost >= 200 },
+    { id: 'arcade_rich', icon: '🤑', tier: 'gold', title: "La banque gagne rarement",
+        text: "500 PO de gains nets à la salle de jeux. La banque, justement, vient de gagner un nouvel ennemi.",
+        check: (s) => s.arcadeNet >= 500 }
 ];
 
 function getAchievementById(id) {
