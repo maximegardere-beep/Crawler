@@ -621,7 +621,9 @@ function captureLog(fn) {
     // Sorts utilitaires et sorts sans motif : jamais de glyphe.
     setup({ spellName: "Soin Express", spellCategory: 'any', baseDmg: 0, manaCost: 5, spellEffect: { kind: 'heal', pct: 20 } });
     gameState.hp = 10;
+    Math.random = () => 0.5; // pas de raté de sort (3 % minimum)
     attackMagic();
+    Math.random = original;
     assert(gameState.pendingMinigame === null && gameState.hp > 10, "Sort utilitaire : lancé directement, sans glyphe");
     setup({ spellName: "Sort Inconnu", spellCategory: 'ranged', baseDmg: 10, manaCost: 5 });
     attackMagic();
