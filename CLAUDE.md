@@ -406,6 +406,12 @@ Tailwind CDN, **aucun build step**.
   Parfait = un lot (`arcadeScore()`/`arcadePayout()`). **Chronique** : `settleMinigame()` → `recordRunEvent('minigame')` (épreuves jouées seulement), `finishArcadeGame()` → `recordRunEvent('arcade')` ; 7 succès et 2 familles de piques DeathWatch
   (`perfect`, `gambler`) y sont liés. Tout helper pur de `minigames.js` partage l'espace
   global avec `floorgen.js` : en préfixer le nom (une collision sur `pointSegmentDistance` avait supprimé les repaires).
+- **Buff de départ « Foutu pour foutu »** (chantier 14, voir `CHANTIERS.md`, chiffres dans `config.starterBuff`) : `gameState.starterBuff` (`null | 'desperate' | 'boxer'`,
+  sauvegardé). `revealWelcomeGift()` pose `'desperate'` pour un cadeau Armure ou Rien (22 % des départs) : +5 % de dégâts subis (`applyStarterBuffToDamage()` :
+  `companionInterceptHit()`, pièges, saignement) et dégâts ×2 à mains nues (`starterBuffUnarmedMult()` : attaque Mains nues, Étrangler, Charge sans arme). Il saute à
+  l'ÉQUIPEMENT d'une arme, d'une arme à distance ou d'un sort (`endStarterBuff()` dans `equipItem()`/`equipSpell()`, jamais l'armure, jamais un simple ramassage ni un don à
+  un compagnon) et ne revient pas. Encore actif à l'arrivée sur l'étage 2 (`evolveStarterBuff()` dans `advanceToNextFloor()`), il devient `'boxer'` : sans malus, mains nues
+  ×1,25, définitif. Badge `#starter-buff-status`. Une ancienne sauvegarde sans le champ n'est jamais rétro-activée.
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
@@ -889,7 +895,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests
