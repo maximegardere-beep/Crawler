@@ -37,6 +37,8 @@ function createEmptyRunStats() {
         // Mini-jeux (chantier 6) : épreuves JOUÉES (jamais le jet automatique), Parfaits, plus longue série de Parfaits, salle de jeux.
         minigamesPlayed: 0, minigamePerfects: 0, perfectStreak: 0, maxPerfectStreak: 0,
         arcadeGames: 0, arcadePerfectGames: 0, arcadeNet: 0, arcadeLost: 0,
+        // Origines (chantier 13) : capacités de classe jouées (dont face à un boss, dont avec une synergie) et « Increvable » du Cafard consommé.
+        classAbilities: 0, classAbilityBossUses: 0, synergyAbilities: 0, lastStands: 0,
         maxFloor: 1,
         // Victoires récentes (au plus DOMINANCE_WINDOW), pour l'indice de domination (chantier 3) :
         // { ease } = 1 si aucun PV perdu, 0 si ≥ DOMINANCE_HARD_FIGHT des PV max perdus.
@@ -237,7 +239,27 @@ const ACHIEVEMENTS = [
         check: (s) => s.arcadeLost >= 200 },
     { id: 'arcade_rich', icon: '🤑', tier: 'gold', title: "La banque gagne rarement",
         text: "500 PO de gains nets à la salle de jeux. La banque, justement, vient de gagner un nouvel ennemi.",
-        check: (s) => s.arcadeNet >= 500 }
+        check: (s) => s.arcadeNet >= 500 },
+
+    // --- Origines (chantier 13) ---
+    { id: 'origin_chosen', icon: '🪪', tier: 'bronze', title: "Pièce d'identité",
+        text: "Une race, une classe : le Donjon sait enfin ce que vous êtes. Vous, pas encore.",
+        check: (s, e, g) => !!g.race && !!g.crawlerClass },
+    { id: 'ability_first', icon: '⚡', tier: 'bronze', title: "Coup spécial",
+        text: "Votre première capacité de classe. Elle s'appelle comme ça parce que le reste est ordinaire.",
+        check: (s) => s.classAbilities >= 1 },
+    { id: 'ability_10', icon: '🎬', tier: 'silver', title: "Numéro de cirque",
+        text: "Dix capacités de classe. Le public connaît déjà la chorégraphie par cœur.",
+        check: (s) => s.classAbilities >= 10 },
+    { id: 'ability_boss', icon: '👑', tier: 'silver', title: "Spécial devant le patron",
+        text: "Une capacité de classe jouée face à un boss. Le boss a noté votre geste. Il vous le rendra.",
+        check: (s) => s.classAbilityBossUses >= 1 },
+    { id: 'synergy_used', icon: '✨', tier: 'silver', title: "Combo de salon",
+        text: "Une capacité de classe jouée avec une synergie de race. Le présentateur parle déjà de merchandising.",
+        check: (s) => s.synergyAbilities >= 1 },
+    { id: 'last_stand', icon: '🪳', tier: 'silver', title: "Increvable, vraiment",
+        text: "Un coup mortel, et vous voilà à 1 PV. Les cafards, ça se retourne et ça repart. C'est écœurant.",
+        check: (s) => s.lastStands >= 1 }
 ];
 
 function getAchievementById(id) {

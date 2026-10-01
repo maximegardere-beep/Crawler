@@ -1,7 +1,37 @@
 # Notes — chantier 13 « Race et classe à l'étage 3 » (origines)
 
-Notes détaillées du chantier (décisions et plan : `CHANTIERS.md`, chantier 13). Ce fichier est tenu à jour lot par lot ; il porte pour
-l'instant **le cahier des charges des 6 corps dessinés par Vibe** (lot 4). Sections de bilan, chiffres et « À surveiller en playtest » : au lot 5.
+Notes détaillées du chantier (décisions et plan : `CHANTIERS.md`, chantier 13). Ce fichier porte le **bilan et les chiffres** des lots 0 à 5 (début),
+puis **le cahier des charges des 6 corps dessinés par Vibe** (lot 4).
+
+## Bilan (lots 0 à 5)
+
+| Lot | Contenu | Où |
+|---|---|---|
+| 0 | catalogue pur (7 races, 6 classes, 4 synergies, conditions), tirage des 3 cartes | `origins.js`, `tests/regression/origins.js` |
+| 1 | passifs de race, un point de lecture par effet, Increvable | `app.js` « RACE : PASSIFS », `config.origins.races`, `races.js` |
+| 2 | écrans race puis classe à l'étage 3, badges, fiche d'origine, reprise de sauvegarde | `app.js` « ORIGINES : CHOIX », `origin-choice.js` |
+| 3 | passifs de style, capacité active 1 fois par combat, 4 synergies | `app.js` « CLASSE : PASSIFS… », `config.origins.classes`/`synergies`, `classes.js` |
+| 4 | aspect par race : corps teinté, infrastructure des corps dessinés, gabarit variable, portraits | `sprites/crawler-races.js`, `scene.js`, `crawler-races.js` |
+| 5 | piques DeathWatch, 6 succès, épitaphe par race, effets visuels des capacités sans coup | `deathwatch.js`, `achievements.js`, `fx.js`, `origins-flavor.js` |
+
+### Chiffres de départ (tous à playtester)
+- **Races** (`config.origins.races`) : Humain XP ×1,10 et +1 réserve ; Goule PV ×1,20, saignement ×0,5, soins ×0,8 ; Gobelin Furtivité +10, fuite +15, pièges ×0,75, PV ×0,90 ;
+  Troll PV ×1,25, mains nues ×1,15, Furtivité −10 ; Elfe mana ×1,25, sorts ×1,10, backfire −3 pts, DEF −1 ; Nain DEF ×1,12 (au moins +1), armure ×1,15, fuite −15 ;
+  Cafard PV ×0,85 et Increvable (1 fois par étage, jamais contre un boss).
+- **Classes** (`config.origins.classes`) : Bagarreur mains nues ×1,15 / Uppercut ×2 ; Duelliste arme ×1,10 / Fendre ×1,8 et 50 % de DEF ignorée ; Franc-tireur tir ×1,10 /
+  Tir de barrage 2 × ×0,8 ; Occultiste coût en mana ×0,9 / Surcharge ×1,6 ; Filou Furtivité +1 niveau / Disparition (1 riposte, prochaine attaque ×2) ;
+  Sac de frappe PV ×1,10 / Encaisser (DEF ×2, 50 % renvoyés).
+- **Synergies** (`config.origins.synergies`) : Troll + Bagarreur 2 tours d'étourdissement (« exposé » face à un boss) ; Elfe + Occultiste Surcharge ×1,8 et +20 mana ;
+  Gobelin + Filou 2 ripostes esquivées ; Nain + Sac de frappe 75 % renvoyés.
+
+### À surveiller en playtest
+- **Cafard** : Increvable à chaque étage est très fort ; mesurer la part de runs où il sauve réellement.
+- **Cumul multiplicatif** (Troll + Bagarreur + Boxeur du chantier 14, jusqu'à ×1,65 avant le ×2 du buff de départ) et Goule + Sac de frappe (PV ×1,32).
+- **Conditions de déblocage** (runs courts : seuils de 1 à 4) : vérifier que les 3 cartes reflètent bien la façon de jouer, et que le remplissage n'impose pas de classes injouables.
+- **Disparition** contre les boss à frappes multiples (toute la riposte esquivée), **Fendre** et **Tir de barrage** face aux boss, lisibilité du bouton de capacité sur mobile.
+- **Armure par corps** : l'armure est dessinée une seule fois ; à ajuster dès que les corps de Vibe arrivent (`anchors.armor`, non codé).
+- **Piques DeathWatch** : 17 nouvelles, une seule émission les affiche (étage 3) ; juger leur dosage et leur ton au playtest.
+- Effets visuels des capacités sans coup volontairement sobres (éclat « self » seul).
 
 ## Lot 4 — silhouettes par race
 

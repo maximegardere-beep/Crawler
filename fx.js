@@ -697,6 +697,23 @@ function playPlayerAttackFx(kind, opts, onImpact) {
     runFx('crawler', fx, onImpact);
 }
 
+// Spécification PURE de l'effet d'une capacité de classe SANS coup porté (chantier 13) : éclat sur le crawler lui-même, réutilisant le style
+// « self » des sorts utilitaires. Les capacités qui frappent (Uppercut, Fendre, Tir de barrage) jouent l'effet de leur attaque.
+const CLASS_ABILITY_FX = {
+    occultist: { style: 'self', color: '#c084fc', impact: 'shock' },
+    trickster: { style: 'self', color: '#a78bfa', impact: 'splash' },
+    punchingBag: { style: 'self', color: '#60a5fa', impact: 'smash' }
+};
+function classAbilityFxSpec(key) {
+    return CLASS_ABILITY_FX[key] || null;
+}
+function playClassAbilityFx(key) {
+    const spec = classAbilityFxSpec(key);
+    if (!spec || !fxAnimated()) return;
+    renderScene('combat');
+    runFx('crawler', fxPlayerSelfSpell(spec, fxReducedMotion()), null);
+}
+
 function playSpellBackfireFx() {
     if (!fxAnimated()) return;
     renderScene('combat');

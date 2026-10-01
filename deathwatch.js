@@ -24,7 +24,9 @@ const SHOW_TONES = [
 // Piques à trous. `when(ctx)` = déclencheur (absent = pique générique, de repli) ; `theme` = famille de
 // répliques du crawler (SHOW_REPLIES), pour que la réponse rebondisse sur la pique. Trous disponibles :
 // {{crawler}} {{etage}} {{fuites}} {{degats}} {{mobs}} {{pieges}} {{sortsRates}} {{objet}}
-// {{compagnon}} {{prime}} {{succes}} {{niveau}} {{or}} {{mainsNues}}.
+// {{compagnon}} {{prime}} {{succes}} {{niveau}} {{or}} {{mainsNues}} {{race}} {{classe}} {{synergieTitre}}.
+// `priority` (chantier 13) : à l'arrivée sur l'étage 3, les piques sur la race, la classe ou leur synergie passent avant toutes les autres
+// (la synergie avant la race et la classe, qui se partagent le tirage) ; absent = 0.
 const SHOW_TAUNTS = [
     // Fuites
     { id: 'flee1', theme: 'flee', when: c => c.fuites >= 3, text: "{{fuites}} fuites depuis le début, {{crawler}}. Vous battez le record de l'émission… en course à pied." },
@@ -64,6 +66,24 @@ const SHOW_TAUNTS = [
     { id: 'gambler1', theme: 'gambler', when: c => c.mises >= 100, text: "{{mises}} PO perdus à la salle de jeux, {{crawler}}. Nos actionnaires vous remercient. La salle est à nous, bien sûr." },
     { id: 'gambler2', theme: 'gambler', when: c => c.mises >= 100, text: "On me souffle que vous avez laissé {{mises}} PO aux bornes d'arcade. La maison gagne toujours, {{crawler}}. La maison, c'est nous." },
     { id: 'boxer', theme: 'boxer', when: c => c.mainsNues >= 5, text: "{{mainsNues}} monstres tués à mains nues. Nos sponsors en armes sont vexés, {{crawler}}." },
+    // Origine (chantier 13) : seulement juste après le choix de race et de classe (`origineFraiche`), prioritaires sur tout le reste.
+    { id: 'syn_troll_brawler', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'troll+brawler', text: "« {{synergieTitre}} » ! C'est écrit sur votre carte de visite, {{crawler}}. Et ça cogne aussi fort qu'une réunion qui aurait pu être un courriel." },
+    { id: 'syn_elf_occultist', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'elf+occultist', text: "« {{synergieTitre}} » ! Les sorts sont gratuits, {{crawler}}, mais le fauteuil en velours reste en supplément." },
+    { id: 'syn_goblin_trickster', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'goblin+trickster', text: "« {{synergieTitre}} » ! Vous régnez sur trois égouts et un panneau « sens interdit », {{crawler}}. Un règne honorable." },
+    { id: 'syn_dwarf_punchingbag', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'dwarf+punchingBag', text: "« {{synergieTitre}} » ! On cherche encore le pont-levis, {{crawler}}, mais la façade tient bon." },
+    { id: 'race_human', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'human', text: "Humain·e « moyen·ne mais motivé·e ». Chez nous, on appelle ça un figurant, {{crawler}}. Motivé, c'est vrai." },
+    { id: 'race_ghoul', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'ghoul', text: "Une {{race}} ! {{crawler}}, vous aviez déjà cette mine avant, ou c'est la race qui parle ?" },
+    { id: 'race_goblin', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'goblin', text: "Un {{race}} de caniveau ! Chaque saison, l'un d'eux promet de ne pas voler la caméra. Je tiens les paris, {{crawler}}." },
+    { id: 'race_troll', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'troll', text: "Un {{race}} de bureau ! La régie prévoit déjà une chaise renforcée et une pause café à 10 h pile, {{crawler}}." },
+    { id: 'race_elf', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'elf', text: "Un {{race}} de salon ! Les oreilles pointues sont validées par notre service juridique, {{crawler}}. Le peignoir reste facultatif." },
+    { id: 'race_dwarf', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'dwarf', text: "Un {{race}} de chantier ! Casque obligatoire, {{crawler}}, et interdiction de crier dans le donjon avant 7 h." },
+    { id: 'race_roach', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'roach', text: "Un {{race}} mutant ! On a déjà fait la blague de l'écraser. On ne la refera pas, {{crawler}}. Enfin, pas tout de suite." },
+    { id: 'class_brawler', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'brawler', text: "{{classe}} ! À mains nues, en plus. Notre assureur a quitté le plateau en pleurant, {{crawler}}." },
+    { id: 'class_duelist', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'duelist', text: "{{classe}} ! Vous savez que le donjon ne distribue pas d'épées gratuites, {{crawler}} ? Elles sont chères, et elles cassent." },
+    { id: 'class_gunslinger', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'gunslinger', text: "{{classe}} ! Petit conseil de la production : viser, c'est mieux que prier, {{crawler}}." },
+    { id: 'class_occultist', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'occultist', text: "{{classe}} ! Sans chapiteau, sans lapin, mais avec des sourcils à sacrifier. Le spectacle est lancé, {{crawler}}." },
+    { id: 'class_trickster', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'trickster', text: "Un {{classe}} ! Rassurez-vous, {{crawler}} : vos poches sont déjà vides, c'est nous qui nous en sommes chargés." },
+    { id: 'class_punchingbag', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'punchingBag', text: "{{classe}} ! Un choix de carrière courageux, {{crawler}}. Les monstres vous envoient leurs remerciements." },
     // Génériques (repli)
     { id: 'gen1', theme: 'odds', text: "Bienvenue à l'étage {{etage}}, {{crawler}} ! Nos analystes vous donnent 12 % de chances de survie. C'était avant votre arrivée." },
     { id: 'gen2', theme: 'why', text: "{{crawler}}, tout le monde se demande : pourquoi vous ? Et surtout, pourquoi encore vous ?" },
@@ -209,6 +229,24 @@ const SHOW_REPLIES = {
         provoke: ["« À la fin de l'étage {{etage}}, tout le monde saura qui. »", "« Retenez bien mon nom : c'est celui qui finira votre donjon. »"],
         insult: ["« Qui ? Le type qui va vous faire virer, Chip. »", "« Quand je sortirai, c'est vous que plus personne ne reconnaîtra. »"]
     },
+    originRace: {
+        polite: ["« {{race}}, oui. Je vous prie de m'excuser si je ne fais pas honneur à l'étiquette, Chip. »", "« Merci, Chip. J'essaierai de ne pas décevoir l'espèce. »"],
+        retort: ["« {{race}} peut-être, mais au moins, moi, ce n'est pas une perruque. »", "« Chaque race a ses défauts, Chip. La vôtre s'appelle « présentateur ». »"],
+        provoke: ["« Dites au public de parier sur ma race : {{race}}, cote en hausse. »", "« Je suis {{race}} et fier(e) de l'être. Vous, vous êtes quoi, sous le fond de teint ? »"],
+        insult: ["« {{race}}, c'est déjà plus qu'une personnalité. Vous, Chip, vous avez quoi ? »", "« Si je suis {{race}}, vous êtes quoi, Chip ? Une erreur de casting ? »"]
+    },
+    originClass: {
+        polite: ["« {{classe}}, c'est le métier que je voulais, Chip. Merci de l'avoir remarqué. »", "« Je fais de mon mieux, comme tout bon {{classe}}. »"],
+        retort: ["« Un {{classe}} a de la méthode, Chip. Vous, vous avez un prompteur. »", "« {{classe}}, oui. Ça demande moins de maquillage que votre job. »"],
+        provoke: ["« Dites-le aux monstres : un {{classe}} arrive, et il a rendez-vous. »", "« Regardez bien, Chip. Je suis {{classe}}, pas figurant. »"],
+        insult: ["« Je suis {{classe}} : je sais où frapper. Vous avez de la chance que ça ne soit pas dans votre loge, Chip. »", "« Les {{classe}}, ça tient debout tout seul. Ça ne s'accroche pas à un prompteur, Chip. »"]
+    },
+    originSynergy: {
+        polite: ["« Merci, Chip. « {{synergieTitre}} », ça sonnera très bien sur ma pierre tombale. »", "« Un titre honorifique ! Je n'ai pas de discours préparé, Chip. »"],
+        retort: ["« « {{synergieTitre}} », c'est un vrai titre. Le vôtre est affiché sur une porte de placard. »", "« Mon titre, Chip, il est mérité. Le vôtre vient d'un tirage au sort. »"],
+        provoke: ["« « {{synergieTitre}} » : retenez-le, Chip, ça va faire du bruit dans le donjon. »", "« Prenez des notes, la régie. « {{synergieTitre}} », c'est le début de ma légende. »"],
+        insult: ["« « {{synergieTitre}} » contre « présentateur fatigué » : devinez qui l'emporte, Chip. »", "« Mon titre est plus long que votre carrière, Chip. Et plus solide. »"]
+    },
     scale: {
         polite: ["« Disons 5, Chip. Un bon 5. »", "« À peu près au milieu. C'est confortable. »"],
         retort: ["« Moins que votre émission. Elle sent le cadavre depuis des saisons. »", "« Et sur la même échelle, votre carrière est à combien ? »"],
@@ -247,7 +285,10 @@ const SHOW_REACTIONS = {
 // déclencheur correspond à la partie, sinon une générique.
 function pickShowTaunt(ctx, rng = Math.random) {
     const specific = SHOW_TAUNTS.filter(t => t.when && safeShowCheck(t, ctx));
-    const pool = specific.length > 0 ? specific : SHOW_TAUNTS.filter(t => !t.when);
+    // `priority` : seules les piques de la priorité la plus haute restent en lice (origine à l'arrivée sur l'étage 3, chantier 13).
+    const top = specific.reduce((max, t) => Math.max(max, t.priority || 0), 0);
+    const ranked = specific.filter(t => (t.priority || 0) === top);
+    const pool = ranked.length > 0 ? ranked : SHOW_TAUNTS.filter(t => !t.when);
     return pool[Math.floor(rng() * pool.length)];
 }
 

@@ -42,6 +42,7 @@ require('./regression/races.js');
 require('./regression/origin-choice.js');
 require('./regression/classes.js');
 require('./regression/crawler-races.js');
+require('./regression/origins-flavor.js');
 
 console.log(`${counts.passed} test(s) OK, ${counts.failures} échec(s).`);
 process.exit(counts.failures === 0 ? 0 : 1);

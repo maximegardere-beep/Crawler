@@ -45,7 +45,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Codé (à playtester) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
-| 13 | Race et classe choisies à l'étage 3 | L | En cours (lots 0 à 3 codés, lot 4 : infrastructure) | dessins des 6 corps (Vibe) pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
+| 13 | Race et classe choisies à l'étage 3 | L | Codé sauf les 6 dessins de Vibe (lots 0 à 5 codés, à playtester) | dessins des 6 corps (Vibe) pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 
 ### Codés (à playtester)
@@ -270,7 +270,7 @@ gardien de l'escalier et de la Sortie par le choix de boss existant, repaires en
 carte, retrait de l'ancien réseau (`urbanMap`, `travelToCity()`, Carte Urbaine, `renderGraphMiniMap()`),
 migration des sauvegardes — voir `NOTES_VILLES.md`.
 
-## 13. Race et classe à l'étage 3 — L — En cours (lots 0 à 3 codés, lot 4 : infrastructure)
+## 13. Race et classe à l'étage 3 — L — Codé sauf les 6 dessins de Vibe (lots 0 à 5 codés, à playtester)
 
 **Demande** : un système de race et de classe à choisir « au niveau 3 ».
 
@@ -360,13 +360,15 @@ premier étage urbain.
 
 **Lot 4 (infrastructure) codé** : `sprites/crawler-races.js` (`CRAWLER_RACE_LOOKS` = corps humain **teinté** par race, actif pour les 6 races hors Humain ; `CRAWLER_RACE_BODIES` = corps dessinés, vide tant que Vibe n'en a pas livré), `composeCrawler()` par race (couches, bras par posture, points d'accroche des armes rangées), **extension avant variable** (`crawlerFrontExtent()`, `distanceToX(…, frontExtent)`, `computeRangeBands(…, frontExtent)`, `fx.js`) pour le gabarit légèrement varié, portraits des races sur les cartes de choix et la fiche d'origine (`buildRacePortraitSvg()`), cadavre du Game Over teinté (`crawlerCorpseMarkup()`). `tests/regression/crawler-races.js` valide aussi chaque corps livré (couches, 6 postures, marge d'extension 12-19, interdits `id`/`defs`/dégradés). **Reste** : les 6 dessins de Vibe, puis les brancher (fichiers `sprites/race-<clé>.js`) et ajuster l'armure par corps si besoin (`anchors.armor`, non codé).
 
+**Lot 5 codé** : **DeathWatch** — 4 piques de synergie (priorité 3), 7 de race et 6 de classe (priorité 2), thèmes de répliques `originSynergy`/`originRace`/`originClass` (4 tons × 2 lignes) ; `pickShowTaunt()` gère maintenant `priority` (seules les piques de la plus haute priorité restent en lice : sans effet sur les piques existantes) ; contexte `race`/`classe`/`synergieTitre`/`origineFraiche` (vrai seulement à l'étage d'arrivée, une fois race ET classe choisies), donc l'émission de l'étage 3 ouvre sur l'origine, jamais plus tard. **Succès** (6, aucun Or ni secret) : Pièce d'identité, Coup spécial, Numéro de cirque, Spécial devant le patron, Combo de salon, Increvable vraiment ; compteurs de chronique `classAbilities`/`classAbilityBossUses`/`synergyAbilities`/`lastStands` (événements `classAbility`, `lastStand`, `origin`). **Épitaphe** : `EPITAPH_RACE_MENTIONS` (une phrase par race, ajoutée à toute épitaphe). **Effets visuels** des capacités sans coup : `classAbilityFxSpec()`/`playClassAbilityFx()` (fx.js, éclat « self » sur le crawler, une couleur par capacité). Tests : `tests/regression/origins-flavor.js`.
+
 **Plan en lots** (chaque lot : `npm test`, `npm run test:long` dès que la boucle de jeu est touchée) :
 - **Lot 0 — données pures (CODÉ)** : `origins.js` (`ORIGIN_RACES`, `ORIGIN_CLASSES`, conditions, `pickOriginOffers(kind, state, rng)` pure à hasard injectable), compteur `rangedKills` dans `createEmptyRunStats()`, ajout aux DEUX listes de scripts (`index.html`, `GAME_FILES`) ; tests des conditions et du tirage (toujours 3 cartes, conditions remplies d'abord).
 - **Lot 1 — passifs de race (CODÉ)** : `gameState.race` (sauvegardé ; absent = aucune race, jamais de rétro-activation), `config.origins`, un seul point de lecture par effet (`recomputeMaxHp()`, `gainXp()`, `rollDamage()`, `getStealthChance()`/fuite, `applyPlayerHeal()`, piège, saignement, mana, `getEffectiveDef()`, Increvable dans `applyPlayerDamage()`) ; tests de chaque race.
 - **Lot 2 — écrans de choix (CODÉ)** : `raceChoicePending` puis `classChoicePending` (deux overlays, même famille que `#pact-choice-zone`), déclenchés par `advanceToNextFloor()` à l'étage 3 AVANT le Pacte et l'émission (la généralisation de `pendingShowAfterPact` en attente commune est à faire), `resetTransientState()`, `KNOWN_GAMESTATE_KEYS`, résolveur de `long_playthrough.js`, deux badges sous le nom + fiche d'origine (round 8), saut DEV aléatoire.
 - **Lot 3 — classes (CODÉ)** : `gameState.crawlerClass`, passifs de style, bouton `#btn-class-ability` (grisé une fois utilisé, remis à zéro dans `initiateCombat()`), 6 capacités via les points d'entrée existants (`performPlayerAttack()`, `resolveEnemyReaction()`…), effets visuels dans `fx.js`.
 - **Lot 4 — sprites (infrastructure CODÉE, dessins en attente de Vibe)** : les 6 corps sont dessinés par **Vibe** (cahier des charges : `NOTES_ORIGINES.md`) ; en attendant : corps humain teinté par race (round 8), `composeCrawler()` par race, armures et bras par posture recalés, icônes des cartes de choix. **Peut démarrer dès le lot 0** (je prépare les prompts), puisque les dessins viennent de l'extérieur.
-- **Lot 5 — habillage** : piques DeathWatch par race/classe, succès, épitaphe, chronique ; `NOTES_ORIGINES.md` et `CLAUDE.md`.
+- **Lot 5 — habillage (CODÉ)** : piques DeathWatch par race/classe, succès, épitaphe, chronique ; `NOTES_ORIGINES.md` et `CLAUDE.md`.
 
 **À surveiller en playtest** : Cafard (Increvable à chaque étage : très fort), cumul Troll/Bagarreur et Goule/Sac de frappe, fréquence réelle des conditions à l'étage 3 (runs courts : seuils bas à confirmer), interaction avec le Boxeur du chantier 14, lisibilité du bouton de capacité.
 

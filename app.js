@@ -3559,6 +3559,12 @@ function recordRunEvent(type, data = {}) {
             if (data.item && data.item.rarityKey === 'camelote') s.junkGifts += 1;
             break;
         case 'overflowSold': s.overflowSold += 1; break;
+        case 'classAbility': // capacité de classe jouée (chantier 13)
+            s.classAbilities += 1;
+            if (data.boss) s.classAbilityBossUses += 1;
+            if (data.synergy) s.synergyAbilities += 1;
+            break;
+        case 'lastStand': s.lastStands += 1; break; // « Increvable » consommé (chantier 13)
         case 'bounty': s.maxBounty = Math.max(s.maxBounty || 0, data.value || 0); break;
         case 'hunterKilled': s.huntersKilled += 1; break;
         case 'minigame': // épreuve JOUÉE (jamais le jet automatique : il n'a ni mérite ni échec)
@@ -3882,7 +3888,15 @@ function buildShowContext(lastFloor = {}) {
         mises: rs.arcadeLost || 0,
         mainsNues: rs.unarmedKills || 0,
         maxHp: gameState.maxHp,
-        pvPct: gameState.maxHp > 0 ? Math.round(gameState.hp / gameState.maxHp * 100) : 0
+        pvPct: gameState.maxHp > 0 ? Math.round(gameState.hp / gameState.maxHp * 100) : 0,
+        // Origine (chantier 13) : piques dédiées juste après le choix de race et de classe (étage d'arrivée).
+        raceKey: gameState.race || null,
+        classKey: gameState.crawlerClass || null,
+        race: (originEntry('race', gameState.race) || {}).short || null,
+        classe: (originEntry('class', gameState.crawlerClass) || {}).name || null,
+        synergie: (() => { const syn = originSynergyFor(gameState.race, gameState.crawlerClass); return syn ? `${syn.race}+${syn.cls}` : null; })(),
+        synergieTitre: (originSynergyFor(gameState.race, gameState.crawlerClass) || {}).title || null,
+        origineFraiche: !!gameState.race && !!gameState.crawlerClass && gameState.currentFloor === config.origins.chooseFloor
     };
 }
 
@@ -4350,6 +4364,7 @@ function confirmOriginChoice() {
 
 // Fin des deux écrans : rend la main, ou ouvre ce qui attendait derrière (Pacte du Crawler, puis émission DeathWatch).
 function finishOriginChoice() {
+    recordRunEvent('origin'); // succès « Pièce d'identité »
     gameState.raceChoicePending = false;
     gameState.classChoicePending = false;
     gameState.pendingOriginOffers = null;
@@ -4508,6 +4523,17 @@ function findRidiculousEquippedItem() {
 // Construit l'épitaphe sarcastique pour le décès en cours, à partir du contexte réel (cause, mob
 // tueur éventuel). Fonction pure hors lecture de gameState/Math.random — appelée uniquement par
 // gameOver().
+// Mention propre à la race du crawler (chantier 13), ajoutée à toute épitaphe : une phrase, jamais tirée au hasard.
+const EPITAPH_RACE_MENTIONS = {
+    human: "Humain·e jusqu'au bout : moyen·ne, mais motivé·e.",
+    ghoul: "La Goule n'aura, pour une fois, eu aucune raison de se plaindre de sa mine.",
+    goblin: "Le Gobelin laisse derrière lui trois égouts, deux mégots et une caméra qu'il jure ne pas avoir volée.",
+    troll: "Le Troll de bureau n'aura jamais rempli sa dernière note de frais.",
+    elf: "L'Elfe de salon repose enfin : le peignoir est plié, les oreilles ne le sont pas.",
+    dwarf: "Le Nain de chantier est tombé casque sur la tête, ce qui, au moins, était réglementaire.",
+    roach: "On dit que le Cafard survit à tout. On dit beaucoup de choses."
+};
+
 function generateEpitaph(deathContext) {
     const { cause, enemyName, bountyHunter } = deathContext;
     const floor = gameState.currentFloor;
@@ -4538,6 +4564,8 @@ function generateEpitaph(deathContext) {
     if (fleesThisRun >= NECROLOGIE_FLEE_THRESHOLD) {
         text += " " + pick(EPITAPH_FLEE_MENTIONS).replace(/\{\{fuites\}\}/g, fleesThisRun);
     }
+    const raceMention = gameState.race && EPITAPH_RACE_MENTIONS[gameState.race];
+    if (raceMention) text += " " + raceMention;
     if (ridiculousItem) {
         text += " " + pick(EPITAPH_RIDICULOUS_ITEM_MENTIONS).replace(/\{\{objetRidicule\}\}/g, ridiculousItem.name);
     }
@@ -7656,6 +7684,7 @@ function applyRaceLastStand(amount) {
     if (gameState.raceLastStandFloor === gameState.currentFloor) return amount;
     if (gameState.inCombat && gameState.currentEnemy && gameState.currentEnemy.isBoss) return amount;
     gameState.raceLastStandFloor = gameState.currentFloor;
+    recordRunEvent('lastStand');
     logEvent("🪳 Increvable : le coup aurait dû vous tuer, mais un cafard, ça se retourne et ça repart. Il vous reste 1 PV.", "success");
     return gameState.hp - 1;
 }
@@ -7744,6 +7773,7 @@ function useClassAbility() {
     const run = CLASS_ABILITIES[key];
     if (!run || !tryPlayerAction()) return false;
     gameState.classAbilityUsed = true;
+    recordRunEvent('classAbility', { boss: !!(gameState.currentEnemy && gameState.currentEnemy.isBoss), synergy: !!activeSynergy() });
     run(originAbilityValues());
     updateUI();
     return true;
@@ -7799,6 +7829,7 @@ const CLASS_ABILITIES = {
         gameState.status.overcharge = true;
         if (v.manaRefund) gameState.mana = Math.min(gameState.maxMana, gameState.mana + v.manaRefund);
         showDie(ui.combatPlayerDie, "🔮");
+        playClassAbilityFx('occultist');
         logEvent(`🔮 Surcharge : votre prochain sort sera gratuit, ×${v.abilityMult} et infaillible${v.manaRefund ? ` (+${v.manaRefund} mana)` : ''}.`, "success");
         resolveEnemyReaction();
     },
@@ -7806,6 +7837,7 @@ const CLASS_ABILITIES = {
     trickster(v) {
         gameState.status.vanish = { turns: v.dodgeTurns, nextAttack: true, dodging: false };
         showDie(ui.combatPlayerDie, "🎭");
+        playClassAbilityFx('trickster');
         logEvent(`🎭 Disparition : vous vous fondez dans le décor (${v.dodgeTurns} riposte${v.dodgeTurns > 1 ? 's' : ''} esquivée${v.dodgeTurns > 1 ? 's' : ''}, prochaine attaque ×${v.nextAttackMult}).`, "success");
         resolveEnemyReaction();
     },
@@ -7813,6 +7845,7 @@ const CLASS_ABILITIES = {
     punchingBag(v) {
         gameState.status.brace = true;
         showDie(ui.combatPlayerDie, "🛡️");
+        playClassAbilityFx('punchingBag');
         logEvent(`🛡️ Encaisser : DEF ×${v.braceDefMult} pour la prochaine riposte, ${Math.round(v.reflectPct * 100)} % des dégâts renvoyés.`, "success");
         resolveEnemyReaction();
     }
