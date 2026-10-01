@@ -311,6 +311,12 @@ le bestiaire).
 - **Bonus plats → pourcentages** (Nain DEF +12 % au moins +1, Elfe mana max +25 %) pour suivre la progression ; les points de furtivité/fuite du Gobelin restent des points de chance (plafonds existants).
 - **Bouton de capacité** : bande dédiée pleine largeur au-dessus des attaques, sur le modèle de `#btn-occasion`, grisée « utilisée » après emploi, remise à zéro au combat suivant.
 
+**Décidé (round 7)** :
+- **Coup fatal par une capacité** : Coup de grâce normal — chaque capacité fixe `lastAttackKind` (mains nues, arme, distance, magie ; Filou et Sac de frappe gardent la dernière attaque utilisée).
+- **DeathWatch** : pique **dédiée à l'arrivée** de l'étage 3, tirée d'un gabarit propre à la race, à la classe ou à la synergie (nouvelle famille dans `deathwatch.js`) ; pas de pique récurrente aux étages suivants.
+- **Gobelin et chasseurs de primes** : fuite **fixe à 50 %**, le bonus de fuite ne joue que contre les mobs ordinaires.
+- **Gabarits légèrement variés** : chaque corps a son propre `frontExtent` (aujourd'hui `CRAWLER_FRONT_EXTENT` = 15, constante unique) dans une marge fixe — départ proposé : 12 à 19, hauteur ±20 % — et ses points de fixation d'arme/armure. `distanceToX()`/`MOB_X_CONTACT` et les bandes de portée lisent l'extension du corps courant (fonction `crawlerFrontExtent()`), à tester sur les 7 corps (aucun chevauchement au contact). **Coût ajouté au lot 4** (recalage par corps).
+
 | Synergie | Titre | Effet |
 |---|---|---|
 | Troll + Bagarreur | « Cadre supérieur du pugilat » | Uppercut étourdit 2 tours (non-boss) ; contre un boss, applique « exposé » (DEF ×0,7 un coup) |
