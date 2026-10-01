@@ -37,6 +37,7 @@ require('./regression/floor-map.js');
 require('./regression/inventory-ui.js');
 require('./regression/minigames.js');
 require('./regression/starter-buff.js');
+require('./regression/origins.js');
 
 console.log(`${counts.passed} test(s) OK, ${counts.failures} échec(s).`);
 process.exit(counts.failures === 0 ? 0 : 1);

@@ -20,6 +20,7 @@ function createEmptyRunStats() {
     return {
         kills: 0, bossKills: 0, eliteKills: 0,
         unarmedKills: 0, spellKills: 0, sneakKills: 0, oneShotKills: 0,
+        rangedKills: 0, // victoires à l'arme à distance (chantier 13 : condition du Franc-tireur)
         flawlessWins: 0, clutchWins: 0,
         damageTaken: 0,
         flees: 0,

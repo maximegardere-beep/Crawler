@@ -3458,6 +3458,7 @@ function recordRunEvent(type, data = {}) {
             else if (typeof isEliteMob === 'function' && isEliteMob(enemy)) s.eliteKills += 1;
             if (data.kind === 'unarmed') s.unarmedKills += 1;
             if (data.kind === 'magic') s.spellKills += 1;
+            if (data.kind === 'ranged') s.rangedKills += 1;
             if (track.sneak) s.sneakKills += 1;
             if (track.playerAttacks === 1) s.oneShotKills += 1;
             if (hpLost === 0) s.flawlessWins += 1;
