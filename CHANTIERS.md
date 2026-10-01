@@ -302,6 +302,12 @@ le bestiaire).
 - **Silhouettes** : **corps complet par race** (7 corps dont l'Humain actuel), armure, bras par posture et effets à recaler pour chaque corps.
 - **Flux** : **deux écrans successifs** (race puis classe), donc deux états bloquants distincts. Choix **définitif pour le run**.
 
+**Décidé (round 5, affinage)** :
+- **Matériel manquant** : le remplissage au hasard ne propose que des classes **jouables** (arme, arme à distance ou sort possédé, équipé ou en réserve ; Bagarreur, Filou et Sac de frappe le sont toujours). Une classe dont la condition est remplie reste proposée telle quelle.
+- **Increvable (Cafard)** : un dégât mortel (combat, piège, saignement) laisse 1 PV, **1 fois par étage, jamais contre un boss** ; le temps écoulé ne le sauve pas.
+- **Cumul** : **tout multiplicatif** (race × style de classe × Boxeur × objets), un seul opérateur dans le code ; à surveiller sur les combinaisons assumées (Troll + Bagarreur + Boxeur : 1,15 × 1,15 × 1,25).
+- **Synergies race × classe** : quelques synergies **mécaniques** (liste à valider ci-dessous), plus une ligne d'explication sur chaque carte de choix (« Proposé car vous avez assommé 4 monstres à mains nues. »).
+
 | Race | Bonus | Défaut | Proposée si… |
 |---|---|---|---|
 | Humain·e « Moyen·ne mais motivé·e » | XP +10 % | aucun | toujours éligible (choix de base) |
