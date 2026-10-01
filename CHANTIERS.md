@@ -306,16 +306,27 @@ le bestiaire).
 - **Matériel manquant** : le remplissage au hasard ne propose que des classes **jouables** (arme, arme à distance ou sort possédé, équipé ou en réserve ; Bagarreur, Filou et Sac de frappe le sont toujours). Une classe dont la condition est remplie reste proposée telle quelle.
 - **Increvable (Cafard)** : un dégât mortel (combat, piège, saignement) laisse 1 PV, **1 fois par étage, jamais contre un boss** ; le temps écoulé ne le sauve pas.
 - **Cumul** : **tout multiplicatif** (race × style de classe × Boxeur × objets), un seul opérateur dans le code ; à surveiller sur les combinaisons assumées (Troll + Bagarreur + Boxeur : 1,15 × 1,15 × 1,25).
-- **Synergies race × classe** : quelques synergies **mécaniques** (liste à valider ci-dessous), plus une ligne d'explication sur chaque carte de choix (« Proposé car vous avez assommé 4 monstres à mains nues. »).
+- **Synergies race × classe** : 4 synergies **mécaniques validées** (tableau ci-dessous), plus une ligne d'explication sur chaque carte de choix (« Proposé car vous avez assommé 4 monstres à mains nues. »).
+- **Humain** : XP +10 % et **+1 emplacement de réserve** (`config.inventory.maxEquipment` 8 → 9 ; `gameState.maxInventory` suit).
+- **Bonus plats → pourcentages** (Nain DEF +12 % au moins +1, Elfe mana max +25 %) pour suivre la progression ; les points de furtivité/fuite du Gobelin restent des points de chance (plafonds existants).
+- **Bouton de capacité** : bande dédiée pleine largeur au-dessus des attaques, sur le modèle de `#btn-occasion`, grisée « utilisée » après emploi, remise à zéro au combat suivant.
+
+| Synergie | Titre | Effet |
+|---|---|---|
+| Troll + Bagarreur | « Cadre supérieur du pugilat » | Uppercut étourdit 2 tours (non-boss) ; contre un boss, applique « exposé » (DEF ×0,7 un coup) |
+| Elfe + Occultiste | « Archimage de salon » | Surcharge ×1,8 (au lieu de ×1,6) et rend 20 mana |
+| Gobelin + Filou | « Roi des caniveaux » | Disparition esquive 2 ripostes au lieu d'une |
+| Nain + Sac de frappe | « Forteresse sur pattes » | Encaisser renvoie 75 % au lieu de 50 % |
+
 
 | Race | Bonus | Défaut | Proposée si… |
 |---|---|---|---|
-| Humain·e « Moyen·ne mais motivé·e » | XP +10 % | aucun | toujours éligible (choix de base) |
+| Humain·e « Moyen·ne mais motivé·e » | XP +10 %, +1 emplacement de réserve (9 au lieu de 8) | aucun | toujours éligible (choix de base) |
 | Goule | PV max +20 %, saignement −50 % | soins reçus −20 % | `clutchWins ≥ 1` ou `damageTaken ≥ 100` |
 | Gobelin de caniveau | Furtivité +10 pts, fuite +15 pts, pièges −25 % | PV max −10 % | `sneakKills ≥ 1` ou `flees ≥ 2` |
 | Troll de bureau | PV max +25 %, mains nues +15 % | Furtivité −10 pts | `unarmedKills ≥ 3` |
-| Elfe de salon | mana max +25, sorts +10 %, backfire −3 pts | DEF −1 | `spellKills ≥ 2` ou un sort appris |
-| Nain de chantier | DEF +2, armure portée +15 % | fuite −15 pts | une armure équipée |
+| Elfe de salon | mana max +25 %, sorts +10 %, backfire −3 pts | DEF −1 | `spellKills ≥ 2` ou un sort appris |
+| Nain de chantier | DEF +12 % (au moins +1), armure portée +15 % | fuite −15 pts | une armure équipée |
 | Cafard mutant | « Increvable » : 1 fois par étage, un coup mortel laisse 1 PV | PV max −15 % | `flees ≥ 1` ou `clutchWins ≥ 1` |
 
 | Classe | Capacité active (1/combat) | Style passif | Proposée si… |
