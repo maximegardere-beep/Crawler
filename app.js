@@ -152,6 +152,8 @@ const gameState = {
     pendingShowAfterPact: null,
     // Mini-jeu ouvert (chantier 6, minigames-ui.js) : { kind, boss } — bloque les actions le temps de l'épreuve.
     pendingMinigame: null,
+    // Occasions de combat (chantier 6, V2) : { current: { type } | null, turn, rolledTurn, lastOfferTurn, pity } — voir rollCombatOccasion().
+    occasion: { current: null, turn: 0, rolledTurn: -1, lastOfferTurn: -9, pity: 0 },
     // Journal des N dernières épitaphes (voir generateEpitaph()/recordEpitaph()), plus récente en
     // premier, plafonné à NECROLOGIE_MAX_ENTRIES. Persistant en save (aucun système de lecture dédié
     // pour l'instant, préparé pour un futur "journal" consultable). Absent d'une sauvegarde antérieure :
@@ -810,6 +812,7 @@ const ui = {
     btnSprint: document.getElementById('btn-sprint'),
     btnRetreat: document.getElementById('btn-retreat'),
     btnEngage: document.getElementById('btn-engage'),
+    btnOccasion: document.getElementById('btn-occasion'),
     btnFlee: document.getElementById('btn-flee'),
     distanceTensionLabel: document.getElementById('distance-tension-label'),
     equippedRanged: document.getElementById('equipped-ranged'),
@@ -1007,6 +1010,7 @@ function restoreSaveForName(name) {
     gameState.pendingShow = null;
     gameState.pendingShowAfterPact = null;
     abortMinigame(); // Mini-jeu (chantier 6) ouvert à la sauvegarde : jamais restauré
+    gameState.occasion = Object.assign(createOccasionState(), { pity: (saved.occasion && saved.occasion.pity) || 0 }); // Occasion en cours : jamais restaurée, la garantie oui
 
     // Nettoyage de l'état transitoire/bloquant
     gameState.inCombat = false;
@@ -1484,6 +1488,8 @@ function updateUI() {
             ui.btnEngage.classList.toggle('opacity-40', !engageUsable);
             ui.btnEngage.classList.toggle('pointer-events-none', !engageUsable);
         }
+        rollCombatOccasion(); // Une fois par tour (chantier 6, V2)
+        updateOccasionButton();
         // Un mob "alerted" (échec de furtivité, voir attemptStealthEvasion()) ne laisse plus fuir.
         if (ui.btnFlee) {
             const fleeUsable = !gameState.currentEnemy || !gameState.currentEnemy.alerted;
@@ -1496,6 +1502,7 @@ function updateUI() {
         ui.advanceHint.classList.toggle('hidden', isActionBlocked());
         ui.advanceHint.innerText = "👆 Touchez la scène pour explorer (-1H)";
         if (ui.exploreScene) ui.exploreScene.setAttribute('aria-label', "Explorer (-1H)");
+        updateOccasionButton();
         ui.combatZone.classList.add('hidden');
         ui.exploreStage.classList.remove('hidden');
         // Salle sécurisée et ville spécialisée ont leur propre scène (au-dessus de leurs boutons) : la
@@ -5435,6 +5442,8 @@ function renderEnemyStatusBadges(enemy) {
     const add = (active, icon, title) => { if (active) badges.push({ icon, title }); };
     add(status.bleed && status.bleed.rounds > 0, "🔥", "Saignement");
     add(status.stunned, "💫", "Étourdi");
+    add(status.immobilized && status.immobilized.rounds > 0, "🤼", "Immobilisé (ne peut pas riposter)");
+    add(status.weakened && status.weakened.rounds > 0, "💪", "Affaibli (ATQ réduite)");
     add(status.slowed && status.slowed.rounds > 0, "🐌", "Ralenti");
     add(status.blinded && status.blinded.rounds > 0, "✨", "Ébloui");
     add(status.corroded && status.corroded.rounds > 0, "🧪", "Corrodé (DEF réduite)");
@@ -5534,6 +5543,8 @@ function initiateCombat(forcedEnemy = null) {
     if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
+    // Occasions de combat (chantier 6, V2) : état remis à zéro ; la garantie compte un combat de plus sans Occasion.
+    gameState.occasion = Object.assign(createOccasionState(), { pity: ((gameState.occasion && gameState.occasion.pity) || 0) + 1 });
 
     // En-tête de la scène d'exploration : toujours posé ici, quel que soit le chemin d'entrée en combat (embuscade
     // de trajet, compagnon qui se retourne contre vous, rencontre furtive ratée...). Avant ce correctif,
@@ -5554,7 +5565,7 @@ function initiateCombat(forcedEnemy = null) {
         // telegraph/defBuffed/frenzied : uniquement lus/écrits côté boss (voir performBossCounterAttack()
         // dans app.js, Chantier 2 du rework combat) — restent toujours neutres sur un mob normal/élite.
         // enraged/enrageCooldown : Chantier 3 (enrage distance), tous mobs confondus, boss inclus.
-        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, distracted: null, telegraph: null, defBuffed: null, frenzied: false, enraged: null, enrageCooldown: null };
+        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, distracted: null, telegraph: null, defBuffed: null, frenzied: false, enraged: null, enrageCooldown: null, immobilized: null, weakened: null };
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
         // Compteur de tours de kiting (Chantier 3) : un boss démarre à 1 (s'enrage plus vite qu'un
         // mob normal, voir NOTES_COMBAT.md Chantier 2) plutôt qu'à 0.
@@ -5884,6 +5895,8 @@ function getEffectiveDef() {
 // agir ce tour-ci (combat terminé entre-temps, ou étourdi).
 function tryPlayerAction() {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
+    // Une action = un tour : l'Occasion proposée (chantier 6, V2) s'éteint, que le joueur l'ait prise ou non.
+    if (gameState.occasion) { gameState.occasion.current = null; gameState.occasion.turn += 1; }
     // Un skip demandé pendant le tour précédent ne doit jamais escamoter l'effet de CETTE attaque (fx.js).
     combatSkipRequested = false;
 
@@ -6291,6 +6304,13 @@ function consumeEnemyAttackDebuffs(enemy) {
         status.feared.rounds -= 1;
         if (status.feared.rounds <= 0) status.feared = null;
     }
+    // Bras touché (Point faible, chantier 6 V2) : ATQ réduite quelques tours.
+    if (status.weakened && status.weakened.rounds > 0) {
+        mult *= status.weakened.mult;
+        note += " (bras touché)";
+        status.weakened.rounds -= 1;
+        if (status.weakened.rounds <= 0) status.weakened = null;
+    }
     return { mult, note };
 }
 
@@ -6370,7 +6390,7 @@ const COMBAT_BEAT_MS = config.combatRhythm.beatActionToRiposte;
 
 // Empêche de spammer les boutons de combat pendant la petite pause entre deux actions
 function setCombatInputLocked(locked) {
-    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnRetreat, ui.btnEngage, ui.btnFlee].forEach(btn => {
+    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnRetreat, ui.btnEngage, ui.btnFlee, ui.btnOccasion].forEach(btn => {
         if (!btn) return;
         btn.disabled = locked;
         btn.classList.toggle('opacity-40', locked);
@@ -6747,6 +6767,16 @@ function resolveEnemyCounterAttack(onDone) {
         return;
     }
 
+    // Immobilisé (action spéciale Immobiliser, chantier 6 V2) : il ne peut pas riposter, pendant `rounds` de ses tours.
+    if (enemy.status && enemy.status.immobilized && enemy.status.immobilized.rounds > 0) {
+        enemy.status.immobilized.rounds -= 1;
+        if (enemy.status.immobilized.rounds <= 0) enemy.status.immobilized = null;
+        logEvent(`[${enemy.name}] est immobilisé et ne peut pas riposter !`, "info");
+        showDie(ui.combatEnemyDie, "🤼");
+        if (onDone) onDone();
+        return;
+    }
+
     // Déconcentré (qualificatif Vibrant) : chance de rater complètement sa riposte, le temps que l'effet dure.
     if (enemy.status && enemy.status.distracted && enemy.status.distracted.rounds > 0) {
         const distracted = enemy.status.distracted;
@@ -6974,6 +7004,151 @@ function attackUnarmed() {
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
     const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75, varianceRange: 0.10, defReduction }, "à mains nues");
     if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
+}
+
+// ==========================================
+// OCCASIONS DE COMBAT (chantier 6, V2 — voir NOTES_MINIJEUX.md)
+// ==========================================
+// Une Occasion est une action SPÉCIALE proposée de façon aléatoire au début d'un tour (25 % en mode Jouer, un peu plus avec le
+// niveau de la compétence liée) : un bouton mis en avant, valable CE tour seulement. La prendre consomme le tour ; un échec =
+// tour perdu, sans autre pénalité. Mains nues au contact : Immobiliser (puis Étrangler, proposé à coup sûr sur un mob immobilisé
+// ou étourdi, jamais un boss). À distance avec une arme à distance : Cible de précision ou Point faible. Jamais en mode « Jet
+// automatique » ni sans interface interactive (tests Node, simulation longue). La décision est pure : decideOccasion() (minigames.js).
+function createOccasionState() {
+    return { current: null, turn: 0, rolledTurn: -1, lastOfferTurn: -9, pity: 0 };
+}
+
+function occasionContext() {
+    const enemy = gameState.currentEnemy;
+    const st = (enemy && enemy.status) || {};
+    return {
+        distance: gameState.combatDistance || 0,
+        hasRanged: !!gameState.equipment.ranged,
+        disarmed: !!(gameState.status.disarmed && gameState.status.disarmed.rounds > 0),
+        isBoss: !!(enemy && enemy.isBoss),
+        immobilized: !!(st.stunned || (st.immobilized && st.immobilized.rounds > 0))
+    };
+}
+
+// Tire l'Occasion du tour courant (une seule fois par tour, au premier rafraîchissement de l'interface de ce tour).
+function rollCombatOccasion() {
+    const occ = gameState.occasion;
+    if (!occ || !gameState.inCombat || !gameState.currentEnemy) return;
+    if (occ.rolledTurn === occ.turn) return;
+    occ.rolledTurn = occ.turn;
+    occ.current = null;
+    if (!minigameIsInteractive()) return;
+    const type = decideOccasion({
+        ctx: occasionContext(), mode: getMinigameMode(),
+        skillLevels: { unarmed: gameState.skills.unarmed.level, weapon: gameState.skills.weapon.level },
+        turn: occ.turn, lastOfferTurn: occ.lastOfferTurn, pity: occ.pity
+    });
+    if (!type) return;
+    occ.current = { type };
+    occ.lastOfferTurn = occ.turn;
+    occ.pity = 0;
+}
+
+// Bouton « ✨ Occasion » : visible seulement si une Occasion est proposée ET encore possible (la situation a pu changer pendant la riposte).
+function updateOccasionButton() {
+    const btn = ui.btnOccasion;
+    if (!btn) return;
+    const occ = gameState.occasion;
+    const cur = gameState.inCombat && gameState.currentEnemy && occ && occ.current;
+    const valid = !!cur && occasionStillValid(cur.type, occasionContext());
+    btn.classList.toggle('hidden', !valid);
+    if (valid) {
+        const t = OCCASION_TYPES[cur.type];
+        const label = `✨ Occasion : ${t.icon} ${t.label}`;
+        if (btn.innerText !== label) btn.innerText = label;
+    }
+}
+
+function buildOccasionSpec(type) {
+    const unarmed = gameState.skills.unarmed.level, weapon = gameState.skills.weapon.level;
+    switch (type) {
+        case 'immobilize': return buildMinigameSpec('grapple', { zoneWidth: holdZoneWidth('grapple', unarmed) });
+        case 'strangle': return buildMinigameSpec('choke', { zoneWidth: holdZoneWidth('choke', unarmed) });
+        case 'target': return buildMinigameSpec('target', { distance: gameState.combatDistance, skillLevel: weapon });
+        default: return buildMinigameSpec('weakpoint');
+    }
+}
+
+function startOccasion() {
+    const occ = gameState.occasion;
+    if (!occ || !occ.current || !gameState.inCombat || !gameState.currentEnemy) return;
+    if (gameState.pendingMinigame || (ui.btnOccasion && ui.btnOccasion.disabled)) return; // épreuve déjà ouverte, ou tour de l'ennemi en cours
+    const type = occ.current.type;
+    if (!occasionStillValid(type, occasionContext())) { occ.current = null; updateOccasionButton(); return; }
+    occ.current = null;
+    updateOccasionButton();
+    startMinigame(buildOccasionSpec(type), (outcome, detail) => {
+        if (!gameState.inCombat || !gameState.currentEnemy) return; // le combat s'est terminé entre-temps
+        resolveOccasion(type, outcome, detail || {});
+    });
+}
+
+// Applique l'issue d'une Occasion. Échec = tour perdu (la riposte suit normalement), sans autre pénalité.
+function resolveOccasion(type, outcome, detail) {
+    if (!tryPlayerAction()) return; // saignement mortel ou joueur étourdi : le tour est déjà réglé par tryPlayerAction()
+    const enemy = gameState.currentEnemy;
+    const failed = outcome === 'fail';
+    const mg = MINIGAME_SETTINGS;
+    const t = OCCASION_TYPES[type];
+    const lostTurn = (msg) => {
+        showDie(ui.combatPlayerDie, "✗");
+        logEvent(msg, "danger");
+        gainSkillXp(t.skill, SKILL_XP_PER_USE); // on apprend même de ses échecs, comme pour un sort raté
+        resolveEnemyReaction();
+    };
+
+    if (type === 'immobilize') {
+        gameState.lastAttackKind = 'unarmed'; // Posture du crawler : garde du boxeur
+        if (failed) { lostTurn(`🤼 [${enemy.name}] se dégage de votre prise. Tour perdu.`); return; }
+        const rounds = grappleRounds(outcome, !!enemy.isBoss);
+        enemy.status.immobilized = { rounds };
+        showDie(ui.combatPlayerDie, "🤼");
+        logEvent(`🤼 Vous plaquez [${enemy.name}] : immobilisé ${rounds} tour${rounds > 1 ? 's' : ''}${enemy.isBoss ? " (un boss ne résiste pas plus d'un tour)" : ''}.`, "success");
+        gainSkillXp('unarmed', SKILL_XP_PER_USE);
+        resolveEnemyReaction();
+        return;
+    }
+
+    if (type === 'strangle') {
+        gameState.lastAttackKind = 'unarmed';
+        if (failed) { lostTurn(`🪢 [${enemy.name}] se débat et vous échappe. Tour perdu.`); return; }
+        const skill = gameState.skills.unarmed;
+        const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1));
+        const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * mg.choke.damageMult, varianceRange: 0.10, defReduction }, "en l'étranglant");
+        if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
+        return;
+    }
+
+    // Tir : Cible de précision ou Point faible, avec l'arme à distance équipée.
+    gameState.lastAttackKind = 'ranged';
+    const gear = gameState.equipment.ranged;
+    if (failed || !gear) { lostTurn(type === 'target' ? "🎯 Votre tir passe à côté de la cible. Tour perdu." : "🦴 Vous hésitez trop longtemps : l'occasion est passée. Tour perdu."); return; }
+    let mult = 1;
+    let label = "d'un tir ajusté";
+    if (type === 'target') {
+        mult = outcome === 'perfect' ? mg.target.perfectMult : mg.target.successMult;
+        label = outcome === 'perfect' ? "en plein centre de la cible" : "d'un tir ajusté";
+    } else {
+        const zone = WEAKPOINT_ZONES[detail.zone] || WEAKPOINT_ZONES.head;
+        mult = zone.dmgMult;
+        label = `sur le point faible (${zone.label.toLowerCase()})`;
+        // Les effets s'appliquent AVANT le coup : la riposte qui suit en tient compte.
+        if (zone.weaken) { enemy.status.weakened = { mult: zone.weaken.mult, rounds: zone.weaken.rounds }; logEvent(`💪 Le bras de [${enemy.name}] est touché : son ATQ baisse.`, "info"); }
+        if (zone.push) { setCombatDistance(gameState.combatDistance + zone.push); logEvent(`🦵 La jambe de [${enemy.name}] cède : il recule d'un cran.`, "info"); }
+    }
+    const skill = gameState.skills.weapon;
+    const atkMultiplier = (1.0 + 0.04 * (skill.level - 1)) * mult;
+    const effectiveAtk = gameState.atk + (gear.baseDmg || 0);
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0, gear }, label);
+    if (landed) {
+        gainSkillXp('weapon', SKILL_XP_PER_USE);
+        applyWeaponMechanic(gear);
+    }
 }
 
 // S'approcher : action dédiée au rapprochement, à la place d'une attaque. Toujours disponible dès
@@ -7788,6 +7963,7 @@ if (ui.btnManageSavesRestoreBackup) ui.btnManageSavesRestoreBackup.addEventListe
 ui.btnAttackWeapon.addEventListener('click', attackWeapon);
 ui.btnAttackRanged.addEventListener('click', attackRanged);
 ui.btnAttackUnarmed.addEventListener('click', attackUnarmed);
+if (ui.btnOccasion) ui.btnOccasion.addEventListener('click', startOccasion);
 ui.btnAttackMagic.addEventListener('click', attackMagic);
 if (ui.btnSprint) ui.btnSprint.addEventListener('click', attemptSprint);
 if (ui.btnRetreat) ui.btnRetreat.addEventListener('click', attemptRetreat);

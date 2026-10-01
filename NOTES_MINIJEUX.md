@@ -8,7 +8,7 @@ Décisions et plan complets : `CHANTIERS.md`, chantier 6 (rounds 1 à 6). Ce fic
 |-----|---------|--------|
 | 0 | Hôte d'épreuve, bande d'UI, réglage, étape interactive des beats, animations d'issue, épreuve de référence `timing` | **Codé** |
 | V1 | Crochetage d'un coffre, désamorçage d'un piège, glyphe de sort | **Codé** |
-| V2 | Mains nues (Immobiliser, Étrangler), tir (Cible, Points faibles), Occasion de combat (25 %) | À faire |
+| V2 | Mains nues (Immobiliser, Étrangler), tir (Cible, Points faibles), Occasion de combat (25 %) | **Codé** |
 | V3 | Boss : Parade, Briser la garde, Coup de grâce (+ arme signature conditionnée au Parfait) | À faire |
 | V4 | Salle de jeux en ville (stand de tir, ring) | À cadrer |
 | Final | `recordRunEvent('minigame')`, succès, piques DeathWatch | À faire |
@@ -88,6 +88,47 @@ Réglages (chiffres de départ, à valider en playtest) dans `MINIGAME_SETTINGS`
 - Pièges : 50 % sont désamorçables ; en jet automatique, 45 % de réussite à Furtivité 1 (≈ −22 % de pièges déclenchés), 63 %
   à Furtivité 4 (≈ −32 %).
 - Glyphe : +25 % de dégâts sur les sorts, uniquement pour qui joue le mini-jeu (aucun malus pour les autres).
+
+## V2 — Occasions de combat : Immobiliser, Étrangler, Cible, Point faible
+
+Chiffres (départ, à valider en playtest) dans `MINIGAME_SETTINGS` (`occasion`, `grapple`, `choke`, `target`, `weakpoint`) ; pure et
+testée : `decideOccasion()` (minigames.js).
+
+- **Occasion** : au début d'un tour, **25 %** de chance (réglage Jouer ; Réduit 10 % ; Jet automatique 0), **+1 % par niveau de la compétence
+  liée** (Mains nues pour Immobiliser, Arme pour Cible / Point faible), plafonné à +10. Un bouton « ✨ Occasion : … » (`#btn-occasion`,
+  pulsation coupée sous `prefers-reduced-motion`) s'ajoute aux actions pour CE tour seulement ; toute action normale l'éteint. **Jamais
+  deux Occasions tirées d'affilée** ; **garantie** : au 7e combat sans Occasion, la première situation éligible en propose une
+  (`gameState.occasion.pity`, conservée en sauvegarde). Sans interface interactive (tests Node, simulation longue) : jamais d'Occasion.
+  Tirage fait une fois par tour au premier rafraîchissement (`rollCombatOccasion()`, appelé par `updateUI()`), `gameState.occasion`
+  = `{ current, turn, rolledTurn, lastOfferTurn, pity }` ; le bouton se masque si la situation a changé (mob rué au contact…).
+- **Immobiliser** (mains nues, au contact) : garder le doigt dans une zone qui bouge (3 s, zone 0,34 + 0,01 par niveau de Mains nues,
+  jusqu'à +0,08). Part du temps dans la zone : ≥ 80 % Parfait, ≥ 50 % Réussi. Réussi = **1 tour** d'immobilisation, Parfait = **2 tours** ; un
+  boss : toujours 1 tour. Le mob immobilisé ne riposte pas (`status.immobilized`, branche dans `resolveEnemyCounterAttack()`, badge 🤼) : la
+  riposte du tour de la prise est déjà sautée. Raté : tour perdu, la riposte suit.
+- **Étrangler** (finisseur) : proposé **à coup sûr** (sans tirage) sur un mob non-boss, au contact, immobilisé OU étourdi. Zone plus étroite (0,28),
+  seuils 85 % / 60 %. Réussi / Parfait : une attaque à mains nues à **dégâts ×3**, jamais un boss. Raté : tour perdu.
+- **Cible de précision** (arme à distance équipée, écart > 0) : un réticule (trajet de Lissajous) balaie une cible ; un tap tire là où il est.
+  Centre = Parfait (**×1,5**), cible = Réussi (×1), hors cible = Raté (tour perdu). La cible rétrécit de 6 % par cran d'écart (plancher 50 %) et grandit un
+  peu avec la compétence Arme. Le réticule croise **exactement le centre** à un instant tiré entre 0,8 et 2,2 s : un Parfait est toujours atteignable
+  (bug trouvé en navigateur : avec des phases libres, il pouvait ne jamais passer au centre).
+- **Point faible** (même condition) : trois zones, un choix tactique sans adresse (seule l'hésitation, 6 s, est un Raté) — **Tête** dégâts ×1,3 ;
+  **Bras** dégâts ×0,8 et ATQ du mob ×0,75 pendant 2 tours (`status.weakened`, lu par `consumeEnemyAttackDebuffs()`, badge 💪) ; **Jambe** dégâts
+  ×0,8 et le mob recule d'un cran. Les effets s'appliquent AVANT le coup, la riposte qui suit en tient compte.
+- **Jet automatique / Passer** : Immobiliser 10 / 45 / 45 %, Étrangler 5 / 45 / 50 %, Cible 10 / 40 / 50 % (Parfait / Réussi / Raté) ; Point faible : la tête.
+  (Les Occasions ne se proposent pas en Jet automatique ; ces taux ne servent qu'à « Passer » en cours d'épreuve.)
+- **Suivi du doigt** (`holdRenderer`) : `renderer.pointer(type, x)` testable sans DOM ; le temps crédité entre deux échantillons est plafonné à
+  100 ms (un onglet masqué ne crédite jamais des secondes d'un coup).
+- **Animations** : éclats `grapple` (mains qui se referment), `choke` (cercle qui se resserre), `bullseye` (anneaux + flèche), `ricochet`, `weakMark`
+  (réticule) sur le mob.
+- **Posture du crawler** : Immobiliser / Étrangler = garde du boxeur ; Cible / Point faible = arme à distance pointée.
+
+### À surveiller en playtest (V2)
+
+- **Puissance de la prise** : un Immobiliser Parfait neutralise 2 ripostes, puis l'Étranglement frappe à ×2,25 de l'ATQ (0,75 × 3, DEF ignorée à 35 %+) :
+  à bas niveau cela dépasse un coup d'arme ; la valeur relative baisse quand l'arme progresse. Sur un élite, c'est un combo très rentable.
+- **Fréquence réelle** : ~30 % au premier tour (25 % + garantie), soit environ une Occasion par combat de 3-4 tours.
+- **Cible à grand écart** : à 8 crans la cible vaut ×0,52 (fenêtre Parfait ≈ ±17 ms) : volontairement dure ; à vérifier au doigt.
+- **Clavier** : Immobiliser / Étrangler n'ont pas d'équivalent clavier (le suivi est au pointeur) ; Cible : Espace/Entrée tire ; Échap = Passer partout.
 
 ## Ajouter une épreuve (mode d'emploi pour V1-V3)
 

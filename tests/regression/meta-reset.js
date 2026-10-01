@@ -31,7 +31,7 @@ const KNOWN_GAMESTATE_KEYS = [
     'currentDistrict', 'currentEnemy', 'currentFloor', 'def', 'engageDefHalved', 'equipment', 'fleesThisRun', 'lastAttackKind',
     'floorMap', 'floorStats', 'floorTransitionPending', 'gold', 'hasWon', 'hp', 'inCombat',
     'inventory', 'lairChoicePending', 'lastPlayerActionWasBackfire',
-    'lastSavedAt', 'level', 'runStats', 'achievements', 'bounty', 'pendingBountySquad', 'showChoicePending', 'pendingShow', 'pendingShowAfterPact', 'pendingMinigame', 'mana', 'maxHp', 'maxInventory', 'maxMana', 'maxTime', 'necrologie',
+    'lastSavedAt', 'level', 'runStats', 'achievements', 'bounty', 'pendingBountySquad', 'showChoicePending', 'pendingShow', 'pendingShowAfterPact', 'pendingMinigame', 'occasion', 'mana', 'maxHp', 'maxInventory', 'maxMana', 'maxTime', 'necrologie',
     'pactBlessingDelta', 'pactChoicePending', 'pendingBossEncounter', 'pendingBossRoomId',
     'pendingCompanionCandidate', 'pendingLairDive', 'pendingLairId', 'pendingNextFloorAnomalies',
     'pendingSafehouseRoomId', 'pendingShopCityId', 'pendingSneakAttack', 'pendingStairAfterCombat', 'pendingStairsChoice',

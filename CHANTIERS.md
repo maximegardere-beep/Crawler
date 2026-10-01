@@ -42,7 +42,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 
 | # | Chantier | Ampleur | Statut | Bloqué par |
 |---|----------|---------|--------|------------|
-| 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | En cours (lot 0 et V1 codés) | `NOTES_MINIJEUX.md` |
+| 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | En cours (lot 0, V1 et V2 codés) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
 | 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage, en pause) | liste chiffrée à valider |
@@ -241,7 +241,8 @@ compétence liée) ; Immobiliser = **maintenir le doigt dans une zone mouvante**
 **Livré** : **lot 0** (hôte d'épreuve `startMinigame()`, bande d'UI, réglage Jouer / Réduit / Jet automatique, étape
 interactive du séquenceur, animations d'issue, épreuve de référence `timing`) — voir `NOTES_MINIJEUX.md`.
 **V1 codé** (crochetage, désamorçage, glyphe — chiffres du plan validé, voir `NOTES_MINIJEUX.md` pour les effets sur
-l'équilibrage). Reste : V2, V3, V4, lot final.
+l'équilibrage). **V2 codé** (Occasions de combat à 25 % : Immobiliser, Étrangler, Cible de précision, Point faible — voir `NOTES_MINIJEUX.md`).
+Reste : V3 (boss), V4 (salle de jeux), lot final.
 
 **Plan proposé** : validé (voir les rounds ci-dessus).
 

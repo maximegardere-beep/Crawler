@@ -262,6 +262,111 @@ MINIGAME_RENDERERS.glyph = {
     }
 };
 
+// Immobiliser / Étrangler (V2) : une barre avec une zone qui va et vient ; on garde le doigt dessus, la part du temps passée dans la
+// zone fait l'issue. La fin du temps est la fin NORMALE de l'épreuve (renderer.timeout). Lever le doigt compte comme « hors zone ».
+// Le suivi est testable sans DOM via renderer.pointer(type, x) (x dans 0..1 le long de la barre) et renderer.scoreNow().
+const holdRenderer = {
+    mount(root, spec, api) {
+        const pct = v => `${(Math.max(0, Math.min(1, v)) * 100).toFixed(1)}%`;
+        const mk = (tag, cls) => { const el = document.createElement(tag); el.className = cls; return el; };
+        const bar = mk('div', 'relative h-16 rounded bg-gray-900 border border-gray-700 overflow-hidden touch-none select-none');
+        bar.setAttribute('role', 'slider');
+        bar.setAttribute('aria-label', 'Gardez le doigt dans la zone qui bouge');
+        const zone = mk('div', 'absolute top-0 bottom-0 bg-orange-600/50 border-x-2 border-orange-300');
+        zone.style.width = pct(spec.zoneWidth);
+        const finger = mk('div', 'absolute top-1 bottom-1 w-3 -ml-1.5 rounded bg-amber-100 opacity-0');
+        const meter = mk('div', 'mt-2 h-2 rounded-full bg-gray-900 border border-gray-800 overflow-hidden');
+        const fill = mk('div', 'h-full bg-orange-400 rounded-full');
+        fill.style.width = '0%';
+        meter.appendChild(fill);
+        bar.appendChild(zone); bar.appendChild(finger);
+        root.appendChild(bar); root.appendChild(meter);
+
+        let cursor = null, inside = 0, last = api.elapsed();
+        const sample = (el) => {
+            const dt = Math.min(100, Math.max(0, el - last)); // un onglet masqué ne crédite jamais d'un coup des secondes entières
+            last = el;
+            if (holdInside(cursor, holdZoneCenter(el, spec), spec.zoneWidth)) inside += dt;
+        };
+        const toX = e => {
+            const r = bar.getBoundingClientRect ? bar.getBoundingClientRect() : { left: 0, width: 1 };
+            return Math.max(0, Math.min(1, (e.clientX - r.left) / (r.width || 1)));
+        };
+        function pointer(type, x) {
+            if (type === 'up') { sample(api.elapsed()); cursor = null; finger.style.opacity = '0'; return; }
+            sample(api.elapsed()); // crédite le temps écoulé avec l'ANCIENNE position avant de la changer
+            cursor = x;
+            finger.style.left = pct(x); finger.style.opacity = '1';
+        }
+        bar.addEventListener('pointerdown', e => { if (e.preventDefault) e.preventDefault(); if (bar.setPointerCapture && e.pointerId !== undefined) { try { bar.setPointerCapture(e.pointerId); } catch (err) { /* sans capture : le suivi continue sur la barre */ } } pointer('down', toX(e)); });
+        bar.addEventListener('pointermove', e => { if (cursor !== null) pointer('move', toX(e)); });
+        bar.addEventListener('pointerup', () => pointer('up'));
+        bar.addEventListener('pointercancel', () => pointer('up'));
+        return {
+            update(el) {
+                sample(el);
+                zone.style.left = pct(holdZoneCenter(el, spec) - spec.zoneWidth / 2);
+                fill.style.width = pct(inside / spec.durationMs);
+            },
+            timeout() {
+                sample(spec.durationMs);
+                const ratio = Math.min(1, inside / spec.durationMs);
+                api.finish(holdOutcome(ratio, spec), { ratio });
+            },
+            pointer, scoreNow: () => inside, destroy() {}
+        };
+    }
+};
+MINIGAME_RENDERERS.grapple = holdRenderer;
+MINIGAME_RENDERERS.choke = holdRenderer;
+
+// Cible de précision (V2) : un réticule balaie une cible en anneaux ; un tap (ou Espace/Entrée) tire là où il se trouve.
+MINIGAME_RENDERERS.target = {
+    mount(root, spec, api) {
+        const NS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('viewBox', '-1 -1 2 2');
+        svg.setAttribute('class', 'mx-auto block w-full max-w-[220px] touch-none select-none');
+        svg.setAttribute('role', 'button');
+        svg.setAttribute('aria-label', 'Cible : touchez pour tirer quand le réticule est dessus');
+        svg.innerHTML = `<circle r="0.96" fill="#111827" stroke="#374151" stroke-width="0.02"/>` +
+            `<circle r="${spec.outerRadius}" fill="#7f1d1d" stroke="#fca5a5" stroke-width="0.02"/>` +
+            `<circle r="${(spec.outerRadius + spec.centerRadius) / 2}" fill="#f8fafc" opacity="0.9"/>` +
+            `<circle r="${spec.centerRadius}" fill="#dc2626" stroke="#fef08a" stroke-width="0.02"/>` +
+            `<g id="mg-reticle"><circle r="0.09" fill="none" stroke="#fde047" stroke-width="0.03"/><path d="M-0.16 0 H-0.05 M0.05 0 H0.16 M0 -0.16 V-0.05 M0 0.05 V0.16" stroke="#fde047" stroke-width="0.03" stroke-linecap="round"/></g>`;
+        const reticle = svg.querySelector('#mg-reticle');
+        root.appendChild(svg);
+        const position = () => targetReticlePosition(api.elapsed(), spec);
+        const shoot = () => { const pos = position(); api.finish(resolveTargetShot(pos, spec), { x: pos.x, y: pos.y }); };
+        bindTap(svg, shoot);
+        return {
+            primary: shoot,
+            update() { const p = position(); if (reticle && reticle.setAttribute) reticle.setAttribute('transform', `translate(${p.x.toFixed(3)} ${p.y.toFixed(3)})`); },
+            destroy() {}
+        };
+    }
+};
+
+// Points faibles (V2) : trois zones au choix, chacune avec son effet écrit dessus. Aucune adresse : seule l'hésitation est un Raté.
+MINIGAME_RENDERERS.weakpoint = {
+    mount(root, spec, api) {
+        const mk = (tag, cls) => { const el = document.createElement(tag); el.className = cls; return el; };
+        const row = mk('div', 'grid grid-cols-3 gap-2');
+        const pressed = {};
+        const pick = zone => api.finish('success', { zone });
+        Object.keys(WEAKPOINT_ZONES).forEach(key => {
+            const z = WEAKPOINT_ZONES[key];
+            const b = mk('button', 'min-h-[72px] px-1 py-2 rounded border border-orange-700 bg-gray-900 text-orange-200 text-xs font-bold leading-tight');
+            b.innerHTML = `<span class="block text-2xl" aria-hidden="true">${z.icon}</span>${z.label}<span class="block mt-1 text-[10px] font-normal text-gray-400">${z.text}</span>`;
+            bindTap(b, () => pick(key));
+            pressed[key] = b;
+            row.appendChild(b);
+        });
+        root.appendChild(row);
+        return { update() {}, pick, destroy() {} };
+    }
+};
+
 // --- Cycle de vie -----------------------------------------------------------------------------------------------
 function minigameElapsed() {
     if (!minigameRuntime) return 0;

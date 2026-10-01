@@ -765,3 +765,498 @@ function captureLog(fn) {
     }));
     assert(minigameOutcomeFxSpec('lockpick', 'perfect').burst === 'chestOpen' && minigameOutcomeFxSpec('sequence', 'fail').burst === 'trapSnap' && minigameOutcomeFxSpec('glyph', 'success').burst === 'glyphSeal', "Les épreuves V1 ont leurs éclats (coffre, piège, glyphe)");
 }
+
+// =====================================================================================================
+// V2 : Immobiliser / Étrangler, Cible de précision, Points faibles, Occasions de combat
+// =====================================================================================================
+
+// --- Maintien : fonctions pures ---
+{
+    const g = buildMinigameSpec('grapple', { phase: 0 });
+    const c = buildMinigameSpec('choke', { phase: 0 });
+    assert(g.kind === 'grapple' && g.durationMs === 3000 && g.zoneWidth === 0.34 && c.zoneWidth === 0.28 && c.zoneWidth < g.zoneWidth, "Immobiliser : zone 0,34 sur 3 s ; Étrangler : zone plus étroite (0,28)");
+    assert(holdZoneWidth('grapple', 1) === 0.34 && holdZoneWidth('grapple', 5) === 0.38 && holdZoneWidth('grapple', 99) === 0.42, "Immobiliser : la zone s'élargit avec Mains nues (+0,01 par niveau, bornée à +0,08)");
+    assert(holdZoneWidth('choke', 99) === 0.36, "Étrangler : même élargissement, borné");
+    let inBar = true;
+    for (let t = 0; t <= 6000; t += 25) {
+        const center = holdZoneCenter(t, g);
+        if (center - g.zoneWidth / 2 < 0 || center + g.zoneWidth / 2 > 1) inBar = false;
+    }
+    assert(inBar && holdZoneCenter(0, g) === 0.5, "La zone reste entièrement dans la barre, et part du milieu (phase 0)");
+    assert(holdZoneCenter(g.periodMs, g) > 0.499 && holdZoneCenter(g.periodMs, g) < 0.501, "La zone est périodique");
+    assert(holdInside(0.5, 0.5, 0.34) && holdInside(0.66, 0.5, 0.34) && !holdInside(0.68, 0.5, 0.34) && !holdInside(null, 0.5, 0.34), "Doigt dans la zone ou non (null = doigt levé)");
+    assert(holdOutcome(1, g) === 'perfect' && holdOutcome(0.8, g) === 'perfect' && holdOutcome(0.79, g) === 'success' && holdOutcome(0.5, g) === 'success' && holdOutcome(0.49, g) === 'fail', "Immobiliser : Parfait dès 80 %, Réussi dès 50 % du temps dans la zone");
+    assert(holdOutcome(0.84, c) === 'success' && holdOutcome(0.85, c) === 'perfect' && holdOutcome(0.59, c) === 'fail' && holdOutcome(0.6, c) === 'success', "Étrangler : seuils plus exigeants (85 % / 60 %)");
+    assert(grappleRounds('fail', false) === 0 && grappleRounds('success', false) === 1 && grappleRounds('perfect', false) === 2, "Immobilisation : 1 tour (Réussi), 2 tours (Parfait)");
+    assert(grappleRounds('perfect', true) === 1 && grappleRounds('success', true) === 1 && grappleRounds('fail', true) === 0, "Un boss n'est jamais immobilisé plus d'un tour");
+    assert(MINIGAME_SETTINGS.choke.damageMult === 3, "Étrangler : dégâts x3");
+    assert(MINIGAME_KINDS.grapple.autoRates.perfect + MINIGAME_KINDS.grapple.autoRates.success + MINIGAME_KINDS.grapple.autoRates.fail === 100, "Jet automatique d'Immobiliser : taux sommés à 100");
+}
+
+// --- Cible : fonctions pures ---
+{
+    assert(targetSizeFactor(0) === 1 && Math.abs(targetSizeFactor(5) - 0.7) < 1e-9 && targetSizeFactor(8) === 0.52 && targetSizeFactor(40) === 0.5, "La cible rétrécit avec l'écart (-6 % par cran), jamais sous 50 %");
+    const near = buildMinigameSpec('target', { distance: 0, phaseX: 0 }, () => 0);
+    const far = buildMinigameSpec('target', { distance: 8 }, () => 0);
+    assert(far.outerRadius < near.outerRadius && far.centerRadius < near.centerRadius, "Cible : plus petite quand l'écart est grand");
+    assert(buildMinigameSpec('target', { distance: 4, skillLevel: 10 }, () => 0).outerRadius > buildMinigameSpec('target', { distance: 4, skillLevel: 1 }, () => 0).outerRadius, "Cible : la compétence d'Arme l'agrandit un peu");
+    assert(near.outerRadius === 0.5 && near.centerRadius === 0.18 && near.durationMs === 3000, "Cible : rayons de départ 0,5 / 0,18, 3 s");
+    const spec = { outerRadius: 0.5, centerRadius: 0.18, amplitude: 0.85, periodXMs: 1300, periodYMs: 1900, phaseX: 0, phaseY: 0 };
+    const p0 = targetReticlePosition(0, spec);
+    assert(p0.x === 0 && p0.y === 0, "Réticule : part du centre (phases nulles)");
+    let inBounds = true;
+    for (let t = 0; t < 8000; t += 40) { const p = targetReticlePosition(t, spec); if (Math.abs(p.x) > 0.85 + 1e-9 || Math.abs(p.y) > 0.85 + 1e-9) inBounds = false; }
+    assert(inBounds, "Réticule : reste dans l'amplitude");
+    assert(resolveTargetShot({ x: 0, y: 0 }, spec) === 'perfect' && resolveTargetShot({ x: 0.18, y: 0 }, spec) === 'perfect', "Tir au centre : Parfait");
+    assert(resolveTargetShot({ x: 0.3, y: 0.2 }, spec) === 'success' && resolveTargetShot({ x: 0.5, y: 0 }, spec) === 'success', "Tir dans la cible : Réussi");
+    assert(resolveTargetShot({ x: 0.6, y: 0 }, spec) === 'fail' && resolveTargetShot({ x: 0.85, y: 0.85 }, spec) === 'fail', "Tir hors cible : Raté");
+    // Un Parfait est TOUJOURS atteignable : le réticule croise le centre à `perfectAtMs`, quel que soit le hasard et l'écart.
+    let unreachable = 0;
+    for (let i = 0; i < 300; i++) {
+        const sp = buildMinigameSpec('target', { distance: i % 9, skillLevel: 1 }, Math.random);
+        const atStar = targetReticlePosition(sp.perfectAtMs, sp);
+        let perfectWindow = 0;
+        for (let t = 0; t <= sp.durationMs; t += 5) if (resolveTargetShot(targetReticlePosition(t, sp), sp) === 'perfect') perfectWindow++;
+        if (Math.hypot(atStar.x, atStar.y) > 1e-6 || perfectWindow < 4 || sp.perfectAtMs < 800 || sp.perfectAtMs > 2200) unreachable++;
+    }
+    assert(unreachable === 0, `Cible : un Parfait est toujours atteignable (fenêtre d'au moins 20 ms, passage au centre entre 0,8 et 2,2 s) — ${unreachable} cas sur 300`);
+    const seen = new Set();
+    for (let t = 0; t < 3000; t += 10) seen.add(resolveTargetShot(targetReticlePosition(t, spec), spec));
+    assert(seen.has('perfect') && seen.has('success') && seen.has('fail'), "Sur 3 s, le réticule passe au centre, sur la cible et hors cible (les trois issues sont atteignables)");
+}
+
+// --- Points faibles : zones ---
+{
+    const z = WEAKPOINT_ZONES;
+    assert(Object.keys(z).join() === 'head,arm,leg', "Points faibles : tête, bras, jambe");
+    assert(z.head.dmgMult === 1.3 && !z.head.weaken && !z.head.push, "Tête : dégâts +30 %, aucun effet");
+    assert(z.arm.dmgMult === 0.8 && z.arm.weaken.mult === 0.75 && z.arm.weaken.rounds === 2 && !z.arm.push, "Bras : dégâts -20 % et ATQ du mob -25 % pendant 2 tours");
+    assert(z.leg.dmgMult === 0.8 && z.leg.push === 1 && !z.leg.weaken, "Jambe : dégâts -20 % et le mob recule d'un cran");
+    Object.values(z).forEach(v => assert(v.icon && v.label && v.text, "Chaque zone a son icône, son nom et son effet écrit dessus"));
+    const auto = minigameAutoResult(buildMinigameSpec('weakpoint'), () => 0.9);
+    assert(auto.outcome === 'success' && auto.detail.zone === 'head', "Points faibles : le jet automatique choisit la tête (aucune adresse en jeu)");
+}
+
+// --- Occasions : décision pure ---
+{
+    const base = { distance: 0, hasRanged: false, disarmed: false, isBoss: false, immobilized: false };
+    const E = (o) => eligibleOccasions(Object.assign({}, base, o));
+    assert(E({}).pool.join() === 'immobilize' && E({}).forced === null, "Au contact : Immobiliser");
+    assert(E({ immobilized: true }).forced === 'strangle' && E({ immobilized: true }).pool.length === 0, "Mob immobilisé ou étourdi au contact : Étrangler, à coup sûr (et plus rien d'autre)");
+    assert(E({ immobilized: true, isBoss: true }).forced === null && E({ immobilized: true, isBoss: true }).pool.length === 0, "Boss immobilisé : jamais d'Étrangler");
+    assert(E({ isBoss: true }).pool.join() === 'immobilize', "Un boss peut être immobilisé (un tour)");
+    assert(E({ distance: 3, hasRanged: true }).pool.join() === 'target,weakpoint', "À distance avec une arme à distance : Cible ou Point faible");
+    assert(E({ distance: 3 }).pool.length === 0, "À distance sans arme à distance : rien");
+    assert(E({ distance: 3, hasRanged: true, disarmed: true }).pool.length === 0, "Arme arrachée : pas de tir spécial");
+    assert(occasionStillValid('strangle', Object.assign({}, base, { immobilized: true })) && !occasionStillValid('immobilize', Object.assign({}, base, { immobilized: true })), "Validité d'une Occasion déjà proposée");
+    assert(!occasionStillValid('target', base) && occasionStillValid('target', Object.assign({}, base, { distance: 2, hasRanged: true })), "Une Cible n'est plus valable une fois au contact");
+
+    assert(occasionChancePct('play', 1) === 25 && occasionChancePct('play', 6) === 30 && occasionChancePct('play', 99) === 35, "Chance d'Occasion : 25 %, +1 % par niveau de compétence, plafonné à +10");
+    assert(occasionChancePct('reduced', 1) === 10 && occasionChancePct('reduced', 99) === 20 && occasionChancePct('auto', 99) === 0, "Chance d'Occasion : 10 % en Réduit, jamais en Jet automatique");
+
+    const input = (o) => Object.assign({ ctx: base, mode: 'play', skillLevels: { unarmed: 1, weapon: 1 }, turn: 5, lastOfferTurn: -9, pity: 0 }, o);
+    assert(decideOccasion(input({}), () => 0.24) === 'immobilize' && decideOccasion(input({}), () => 0.25) === null, "Décision : un tirage sous 25 % propose l'Occasion");
+    assert(decideOccasion(input({ skillLevels: { unarmed: 11, weapon: 1 } }), () => 0.34) === 'immobilize', "Décision : la compétence liée relève la chance (Mains nues pour Immobiliser)");
+    assert(decideOccasion(input({ skillLevels: { unarmed: 1, weapon: 11 } }), () => 0.34) === null, "Décision : seule la compétence liée compte (l'Arme n'aide pas Immobiliser)");
+    assert(decideOccasion(input({ mode: 'auto' }), () => 0) === null && decideOccasion(input({ mode: 'auto', ctx: Object.assign({}, base, { immobilized: true }) }), () => 0) === null, "Jet automatique : jamais d'Occasion (Étrangler compris)");
+    assert(decideOccasion(input({ mode: 'bidon' }), () => 0) === null, "Réglage inconnu : jamais d'Occasion");
+    assert(decideOccasion(input({ mode: 'reduced' }), () => 0.12) === null && decideOccasion(input({ mode: 'reduced' }), () => 0.09) === 'immobilize', "Mode Réduit : 10 %");
+    assert(decideOccasion(input({ ctx: Object.assign({}, base, { immobilized: true }) }), () => 0.99) === 'strangle', "Étrangler : proposé sans tirage");
+    assert(decideOccasion(input({ ctx: Object.assign({}, base, { immobilized: true }), lastOfferTurn: 4 }), () => 0.99) === 'strangle', "Étrangler : proposé même juste après une Occasion (c'est la suite du combo)");
+    assert(decideOccasion(input({ lastOfferTurn: 4 }), () => 0) === null && decideOccasion(input({ lastOfferTurn: 3 }), () => 0) === 'immobilize', "Jamais deux Occasions tirées d'affilée");
+    assert(decideOccasion(input({ pity: 6 }), () => 0.99) === 'immobilize' && decideOccasion(input({ pity: 5 }), () => 0.99) === null, "Garantie : une Occasion après 6 combats sans");
+    assert(decideOccasion(input({ pity: 6, lastOfferTurn: 4 }), () => 0) === null, "Même la garantie respecte « pas deux de suite »");
+    const ranged = input({ ctx: Object.assign({}, base, { distance: 3, hasRanged: true }) });
+    assert(decideOccasion(ranged, seqRng([0, 0])) === 'target' && decideOccasion(ranged, seqRng([0, 0.99])) === 'weakpoint', "À distance : Cible ou Point faible, au hasard");
+    assert(decideOccasion(input({ ctx: Object.assign({}, base, { isBoss: true, immobilized: true }) }), () => 0) === null, "Boss immobilisé : aucune Occasion");
+    Object.keys(OCCASION_TYPES).forEach(k => assert(MINIGAME_KINDS[OCCASION_TYPES[k].kind] && OCCASION_TYPES[k].icon && OCCASION_TYPES[k].label && ['unarmed', 'weapon'].includes(OCCASION_TYPES[k].skill), `Occasion ${k} : épreuve, icône, nom et compétence liée`));
+}
+
+// --- Hôte : maintien du doigt ---
+{
+    resetTransientState();
+    global.requestAnimationFrame = () => 1;
+    global.cancelAnimationFrame = () => {};
+    let now = 0;
+    setMinigameClock(() => now);
+    setMinigameMode('play');
+    let res = [];
+    const cb = (o, d) => res.push({ o, d });
+    const hold = (kind) => buildMinigameSpec(kind, { phase: 0 });
+    const R = () => minigameRuntime.renderer;
+
+    // Doigt qui suit la zone pendant toute l'épreuve : Parfait.
+    const g = hold('grapple');
+    startMinigame(g, cb);
+    R().pointer('down', holdZoneCenter(0, g));
+    for (now = 100; now <= 3000; now += 100) { R().pointer('move', holdZoneCenter(now, g)); minigameTick(); }
+    assert(res.length === 1 && res[0].o === 'perfect' && res[0].d.ratio > 0.9, `Doigt qui suit la zone : Parfait (${res[0] && res[0].d.ratio})`);
+
+    // Doigt jamais posé : Raté (la fin du temps est la fin normale de l'épreuve).
+    res = []; now = 0;
+    startMinigame(hold('grapple'), cb);
+    now = 3000; minigameTick();
+    assert(res.length === 1 && res[0].o === 'fail' && res[0].d.ratio === 0 && !res[0].d.timeout, "Doigt jamais posé : Raté, ratio 0");
+
+    // Doigt levé aux deux tiers du temps : Réussi.
+    res = []; now = 0;
+    const g2 = hold('grapple');
+    startMinigame(g2, cb);
+    R().pointer('down', holdZoneCenter(0, g2));
+    for (now = 100; now <= 2000; now += 100) { R().pointer('move', holdZoneCenter(now, g2)); minigameTick(); }
+    R().pointer('up');
+    for (now = 2100; now <= 3000; now += 100) minigameTick();
+    assert(res.length === 1 && res[0].o === 'success' && res[0].d.ratio > 0.5 && res[0].d.ratio < 0.8, `Doigt levé aux 2/3 : Réussi (${res[0] && res[0].d.ratio})`);
+
+    // Doigt posé hors de la zone en permanence : Raté.
+    res = []; now = 0;
+    const g3 = hold('grapple');
+    startMinigame(g3, cb);
+    R().pointer('down', 0.02);
+    for (now = 100; now <= 3000; now += 100) { R().pointer('move', holdZoneCenter(now, g3) > 0.5 ? 0.02 : 0.98); minigameTick(); }
+    assert(res[0].o === 'fail', "Doigt toujours du mauvais côté : Raté");
+
+    // Onglet masqué : un saut de temps ne crédite jamais plus de 100 ms.
+    res = []; now = 0;
+    const g4 = hold('grapple');
+    startMinigame(g4, cb);
+    R().pointer('down', holdZoneCenter(0, g4));
+    now = 2900;
+    R().pointer('move', holdZoneCenter(2900, g4)); // le saut de 2900 ms n'est crédité que de 100 ms
+    assert(R().scoreNow() <= 100, `Un grand saut de temps ne crédite que 100 ms (${R().scoreNow()})`);
+    skipMinigame();
+
+    // Étrangler : mêmes mécaniques, seuils plus exigeants (zone 0,28 + 85 %).
+    res = []; now = 0;
+    const c = hold('choke');
+    startMinigame(c, cb);
+    R().pointer('down', holdZoneCenter(0, c));
+    for (now = 100; now <= 3000; now += 100) { R().pointer('move', holdZoneCenter(now, c)); minigameTick(); }
+    assert(res[0].o === 'perfect', "Étrangler : doigt qui suit la zone = Parfait");
+
+    // Passer : jet automatique.
+    res = []; now = 0;
+    startMinigame(buildMinigameSpec('grapple', { autoRates: { perfect: 0, success: 100, fail: 0 } }), cb);
+    skipMinigame();
+    assert(res[0].o === 'success' && res[0].d.skipped, "Passer : jet automatique");
+
+    delete global.requestAnimationFrame; delete global.cancelAnimationFrame;
+    setMinigameClock(null); setMinigameMode('auto');
+}
+
+// --- Hôte : cible et points faibles ---
+{
+    resetTransientState();
+    global.requestAnimationFrame = () => 1;
+    global.cancelAnimationFrame = () => {};
+    let now = 0;
+    setMinigameClock(() => now);
+    setMinigameMode('play');
+    let res = [];
+    const cb = (o, d) => res.push({ o, d });
+    const spec = () => buildMinigameSpec('target', { phaseX: 0, phaseY: 0 });
+    const s0 = spec();
+    const timeFor = (wanted) => { for (let t = 0; t < 3000; t += 5) if (resolveTargetShot(targetReticlePosition(t, s0), s0) === wanted) return t; return -1; };
+
+    startMinigame(spec(), cb);
+    now = 0; minigamePrimaryAction();
+    assert(res[0].o === 'perfect' && res[0].d.x === 0, "Cible : tir au démarrage, réticule au centre = Parfait");
+    for (const wanted of ['success', 'fail']) {
+        res = []; now = 0;
+        startMinigame(spec(), cb);
+        now = timeFor(wanted); minigamePrimaryAction();
+        assert(res[0].o === wanted, `Cible : tir à l'instant où le réticule donne « ${wanted} »`);
+    }
+    res = []; now = 0;
+    startMinigame(spec(), cb);
+    now = 3000; minigameTick();
+    assert(res[0].o === 'fail' && res[0].d.timeout, "Cible : aucun tir à temps = Raté");
+
+    // Points faibles : un choix, trois zones.
+    for (const zone of ['head', 'arm', 'leg']) {
+        res = []; now = 0;
+        startMinigame(buildMinigameSpec('weakpoint'), cb);
+        minigameRuntime.renderer.pick(zone);
+        assert(res[0].o === 'success' && res[0].d.zone === zone && gameState.pendingMinigame === null, `Point faible : ${zone} choisi`);
+    }
+    res = []; now = 0;
+    startMinigame(buildMinigameSpec('weakpoint'), cb);
+    now = 6000; minigameTick();
+    assert(res[0].o === 'fail' && res[0].d.timeout, "Point faible : trop d'hésitation = Raté (6 s)");
+    res = []; now = 0;
+    startMinigame(buildMinigameSpec('weakpoint'), cb);
+    skipMinigame();
+    assert(res[0].o === 'success' && res[0].d.zone === 'head' && res[0].d.skipped, "Point faible passé : la tête, jet automatique");
+
+    delete global.requestAnimationFrame; delete global.cancelAnimationFrame;
+    setMinigameClock(null); setMinigameMode('auto');
+}
+
+// --- Moteur : Occasions de combat ---
+{
+    const original = Math.random;
+    const withRand = (v, fn) => { Math.random = () => v; try { return fn(); } finally { Math.random = original; } };
+    const rollWith = (v) => withRand(v, () => updateUI());
+    const begin = (opts = {}) => {
+        resetTransientState();
+        global.requestAnimationFrame = () => 1; global.cancelAnimationFrame = () => {};
+        setMinigameMode('play');
+        let t = 0; setMinigameClock(() => t);
+        gameState.atk = 100; // dégâts élevés : les arrondis ne faussent pas les rapports
+        if (opts.ranged) gameState.equipment.ranged = { name: "Fronde d'Essai", baseDmg: 10, category: 'ranged' };
+        withRand(0.5, () => initiateCombat(Object.assign({ name: "Cobaye Occasion", hp: 9999, atk: 1, def: 5, xpReward: 1, ranged: !!opts.ranged }, opts.enemy)));
+        gameState.combatDistance = opts.distance || 0;
+        gameState.occasion = createOccasionState();
+        return gameState.currentEnemy;
+    };
+    const finish = () => { delete global.requestAnimationFrame; delete global.cancelAnimationFrame; setMinigameClock(null); setMinigameMode('auto'); resetTransientState(); };
+    const hpLost = (enemy) => 9999 - enemy.hp;
+
+    // Sans interface (Node) : jamais d'Occasion.
+    resetTransientState();
+    withRand(0.5, () => initiateCombat({ name: "Cobaye Muet", hp: 50, atk: 1, def: 5, xpReward: 1 }));
+    rollWith(0);
+    assert(gameState.occasion.current === null && ui.btnOccasion.classList.contains('hidden'), "Sans interface interactive : aucune Occasion, bouton masqué");
+    resetTransientState();
+
+    // Une Occasion se propose au tirage favorable, une seule fois par tour ; le bouton est mis en avant.
+    let enemy = begin();
+    rollWith(0);
+    assert(gameState.occasion.current && gameState.occasion.current.type === 'immobilize', "Contact, tirage favorable : Immobiliser proposé");
+    assert(!ui.btnOccasion.classList.contains('hidden') && ui.btnOccasion.innerText.includes('Immobiliser'), "Le bouton « ✨ Occasion » apparaît avec le nom de l'action");
+    rollWith(0.99);
+    assert(gameState.occasion.current && gameState.occasion.current.type === 'immobilize', "Une fois par tour : un second rafraîchissement ne retire pas l'Occasion");
+    assert(gameState.occasion.pity === 0 && gameState.occasion.lastOfferTurn === gameState.occasion.turn, "L'offre remet la garantie à zéro et note le tour");
+
+    // Immobiliser réussi (Parfait) : 2 tours, la riposte de CE tour est déjà sautée ; puis Étrangler à coup sûr.
+    Math.random = () => 0.5;
+    const hp0 = gameState.hp;
+    startOccasion();
+    assert(gameState.pendingMinigame && gameState.pendingMinigame.kind === 'grapple' && gameState.occasion.current === null, "L'Occasion prise ouvre l'épreuve et s'éteint");
+    assert(ui.btnAttackWeapon.disabled === true, "Boutons de combat verrouillés pendant l'épreuve");
+    let lines = captureLog(() => finishMinigame('perfect', { ratio: 1 }));
+    assert(enemy.status.immobilized && enemy.status.immobilized.rounds === 1, "Immobiliser parfait : 2 tours, dont la riposte de ce tour (sautée) -> reste 1");
+    assert(gameState.hp === hp0 && lines.some(l => l.includes('immobilisé')), "Immobilisé : le mob ne riposte pas, le journal le dit");
+    assert(gameState.occasion.current && gameState.occasion.current.type === 'strangle', "Mob immobilisé au tour suivant : Étrangler proposé à coup sûr");
+
+    // Étrangler : dégâts x3 d'une attaque à mains nues.
+    Math.random = () => 0.5;
+    const before = enemy.hp;
+    startOccasion();
+    assert(gameState.pendingMinigame.kind === 'choke', "Étrangler : l'épreuve s'ouvre");
+    finishMinigame('success', { ratio: 0.7 });
+    const strangled = before - enemy.hp;
+    assert(enemy.status.immobilized === null, "Étrangler : la seconde riposte est sautée, l'immobilisation prend fin");
+    Math.random = original;
+    finish();
+    enemy = begin();
+    withRand(0.5, () => attackUnarmed());
+    const plain = hpLost(enemy);
+    assert(plain > 0 && strangled >= plain * 2.8 && strangled <= plain * 3.2, `Étrangler : dégâts ~x3 d'une attaque à mains nues (${plain} -> ${strangled})`);
+    finish();
+
+    // Immobiliser raté : tour perdu, la riposte part normalement.
+    enemy = begin();
+    rollWith(0);
+    Math.random = () => 0.5;
+    lines = captureLog(() => { startOccasion(); finishMinigame('fail', { ratio: 0.1 }); });
+    Math.random = original;
+    assert(enemy.status.immobilized === null && lines.some(l => l.includes('se dégage')), "Immobiliser raté : pas d'immobilisation, tour perdu");
+    assert(gameState.skills.unarmed.xp > 0, "Immobiliser raté : on apprend quand même (XP Mains nues)");
+    finish();
+
+    // Boss : immobilisé un seul tour, jamais étranglé.
+    enemy = begin({ enemy: { isBoss: true, hp: 9999, name: "Boss d'Essai" } });
+    rollWith(0);
+    Math.random = () => 0.5;
+    startOccasion();
+    finishMinigame('perfect', { ratio: 1 });
+    Math.random = original;
+    assert(enemy.status.immobilized === null || enemy.status.immobilized.rounds === 0, "Boss : immobilisé un seul tour (déjà consommé par la riposte sautée)");
+    rollWith(0.99);
+    assert(!gameState.occasion.current || gameState.occasion.current.type !== 'strangle', "Boss : jamais d'Étrangler");
+    finish();
+
+    // Mob déjà étourdi (autre source) : Étrangler proposé, pas d'Immobiliser.
+    enemy = begin();
+    enemy.status.stunned = true;
+    rollWith(0.99);
+    assert(gameState.occasion.current && gameState.occasion.current.type === 'strangle', "Mob étourdi : Étrangler proposé");
+    finish();
+
+    // Tir : Cible. Parfait x1,5, Réussi x1, Raté = tour perdu.
+    const shotDamage = (outcome) => {
+        const e = begin({ ranged: true, distance: 3 });
+        rollWith(0);
+        assert(gameState.occasion.current && gameState.occasion.current.type === 'target', "À distance avec une arme à distance : Cible proposée");
+        Math.random = () => 0.5;
+        startOccasion();
+        assert(gameState.pendingMinigame.kind === 'target', "Cible : l'épreuve s'ouvre");
+        finishMinigame(outcome, {});
+        Math.random = original;
+        const dmg = hpLost(e);
+        finish();
+        return dmg;
+    };
+    const dPerfect = shotDamage('perfect'), dSuccess = shotDamage('success'), dFail = shotDamage('fail');
+    let e = begin({ ranged: true, distance: 3 });
+    withRand(0.5, () => attackRanged());
+    const dPlain = hpLost(e);
+    finish();
+    assert(dFail === 0, "Cible ratée : aucun dégât (tour perdu)");
+    assert(dSuccess === dPlain, `Cible réussie : dégâts d'un tir normal (${dPlain} / ${dSuccess})`);
+    assert(dPerfect > dSuccess && dPerfect >= dPlain * 1.45 && dPerfect <= dPlain * 1.55, `Cible parfaite : dégâts x1,5 (${dPlain} -> ${dPerfect})`);
+
+    // Points faibles.
+    const weak = (zone) => {
+        const en = begin({ ranged: true, distance: 3 });
+        withRand(0, () => { gameState.occasion = createOccasionState(); updateUI(); });
+        gameState.occasion.current = { type: 'weakpoint' };
+        Math.random = () => 0.5;
+        const dist0 = gameState.combatDistance;
+        startOccasion();
+        assert(gameState.pendingMinigame.kind === 'weakpoint', "Point faible : l'épreuve s'ouvre");
+        const lg = captureLog(() => finishMinigame('success', { zone }));
+        Math.random = original;
+        const out = { dmg: hpLost(en), enemy: en, dist0, dist: gameState.combatDistance, lines: lg };
+        finish();
+        return out;
+    };
+    const head = weak('head'), arm = weak('arm'), leg = weak('leg');
+    assert(head.dmg > dPlain && head.dmg <= Math.ceil(dPlain * 1.4), `Point faible (tête) : dégâts +30 % (${dPlain} -> ${head.dmg})`);
+    assert(arm.dmg < dPlain && arm.enemy.status.weakened && arm.enemy.status.weakened.mult === 0.75 && arm.enemy.status.weakened.rounds === 1, "Point faible (bras) : dégâts -20 %, ATQ du mob -25 % (2 tours, dont celui de la riposte déjà passé)");
+    assert(arm.lines.some(l => l.includes('bras')), "Point faible (bras) : le journal l'annonce");
+    assert(leg.dmg < dPlain && leg.dist === leg.dist0 + 1, "Point faible (jambe) : dégâts -20 % et le mob recule d'un cran");
+    assert(head.enemy.status.weakened === null && head.dist === head.dist0, "Point faible (tête) : aucun effet d'état ni recul");
+
+    // Un coup normal éteint l'Occasion (même si elle n'est pas prise) ; une nouvelle ne tombe pas au tour suivant (pas deux de suite).
+    e = begin();
+    rollWith(0);
+    assert(gameState.occasion.current, "Occasion proposée");
+    // Les tirages d'Occasion ont lieu pendant l'action (rafraîchissement de fin de riposte) : hasard favorable (0) tout du long.
+    withRand(0, () => attackUnarmed());
+    assert(gameState.occasion.current === null, "Tour suivant (tirage pourtant favorable) : pas de seconde Occasion tirée d'affilée");
+    withRand(0, () => attackUnarmed());
+    assert(gameState.occasion.current && gameState.occasion.current.type === 'immobilize', "Deux tours plus tard : une Occasion peut de nouveau être tirée");
+    finish();
+
+    // Une action normale éteint l'Occasion du tour (prise ou non).
+    e = begin();
+    rollWith(0);
+    assert(gameState.occasion.current, "Occasion proposée (avant une action normale)");
+    withRand(0.5, () => attackUnarmed());
+    assert(gameState.occasion.current === null, "Une action normale éteint l'Occasion du tour");
+    finish();
+
+    // Garantie après 6 combats sans Occasion.
+    e = begin();
+    gameState.occasion.pity = 6;
+    rollWith(0.99);
+    assert(gameState.occasion.current && gameState.occasion.pity === 0, "Garantie : après 6 combats sans Occasion, un tirage défavorable en propose une");
+    finish();
+    // Chaque nouveau combat compte un combat de plus sans Occasion ; une offre remet à zéro.
+    resetTransientState();
+    gameState.occasion.pity = 2;
+    withRand(0.5, () => initiateCombat({ name: "Cobaye A", hp: 50, atk: 1, def: 5, xpReward: 1 }));
+    assert(gameState.occasion.pity === 3 && gameState.occasion.turn === 0 && gameState.occasion.current === null, "Nouveau combat : garantie +1, état de tour remis à zéro");
+    resetTransientState();
+
+    // Réglage Réduit : 10 % ; Jet automatique : jamais.
+    e = begin();
+    setMinigameMode('reduced');
+    rollWith(0.15);
+    assert(gameState.occasion.current === null, "Mode Réduit : 15 % ne suffit pas (10 %)");
+    gameState.occasion.rolledTurn = -1;
+    rollWith(0.05);
+    assert(gameState.occasion.current, "Mode Réduit : 5 % déclenche");
+    setMinigameMode('auto');
+    gameState.occasion.rolledTurn = -1; gameState.occasion.current = null;
+    rollWith(0);
+    assert(gameState.occasion.current === null, "Jet automatique : jamais d'Occasion");
+    finish();
+
+    // Pas d'arme à distance, ou arme arrachée : rien à distance.
+    e = begin({ distance: 3 });
+    rollWith(0);
+    assert(gameState.occasion.current === null, "À distance sans arme à distance : aucune Occasion");
+    finish();
+    e = begin({ ranged: true, distance: 3 });
+    gameState.status.disarmed = { rounds: 2 };
+    rollWith(0);
+    assert(gameState.occasion.current === null, "Arme arrachée : aucune Occasion de tir");
+    finish();
+
+    // Une Occasion devenue impossible (le mob s'est rué au contact) se masque et ne se lance pas.
+    e = begin({ ranged: true, distance: 3 });
+    rollWith(0);
+    assert(gameState.occasion.current && gameState.occasion.current.type === 'target', "Cible proposée à distance");
+    gameState.combatDistance = 0;
+    updateOccasionButton();
+    assert(ui.btnOccasion.classList.contains('hidden'), "Le mob s'est rué au contact : le bouton Cible se masque");
+    startOccasion();
+    assert(gameState.pendingMinigame === null && gameState.occasion.current === null, "Une Occasion devenue impossible ne s'ouvre pas");
+    finish();
+
+    // Tour de l'ennemi en cours (boutons verrouillés) : le bouton ne lance rien.
+    e = begin();
+    rollWith(0);
+    ui.btnOccasion.disabled = true;
+    startOccasion();
+    assert(gameState.pendingMinigame === null && gameState.occasion.current, "Boutons verrouillés : l'Occasion reste en attente");
+    ui.btnOccasion.disabled = false;
+    finish();
+
+    // Combat terminé pendant l'épreuve : rien n'est résolu.
+    e = begin();
+    rollWith(0);
+    Math.random = () => 0.5;
+    startOccasion();
+    gameState.inCombat = false; gameState.currentEnemy = null;
+    finishMinigame('perfect', { ratio: 1 });
+    Math.random = original;
+    assert(e.status.immobilized === null, "Combat terminé pendant l'épreuve : l'issue n'est pas appliquée");
+    finish();
+
+    // Sauvegarde : l'Occasion en cours n'est jamais restaurée, la garantie oui.
+    resetTransientState();
+    gameState.playerName = "OccasionTest";
+    gameState.saveEnabled = true;
+    gameState.occasion = Object.assign(createOccasionState(), { current: { type: 'immobilize' }, pity: 4 });
+    saveGame();
+    gameState.occasion = createOccasionState();
+    assert(restoreSaveForName("OccasionTest"), "Restauration d'une sauvegarde avec Occasion");
+    assert(gameState.occasion.current === null && gameState.occasion.pity === 4, "Restauration : Occasion éteinte, garantie conservée");
+    gameState.saveEnabled = false;
+    localStorage.removeItem(saveKeyForName("OccasionTest"));
+    resetTransientState();
+}
+
+// --- Statuts de mob : immobilisé, affaibli ---
+{
+    resetTransientState();
+    withSeq([0.5], () => initiateCombat({ name: "Cobaye Statuts", hp: 100, atk: 10, def: 0, xpReward: 1 }));
+    const en = gameState.currentEnemy;
+    assert(en.status.immobilized === null && en.status.weakened === null, "Un nouveau mob n'est ni immobilisé ni affaibli");
+    en.status.immobilized = { rounds: 1 };
+    en.status.weakened = { mult: 0.75, rounds: 2 };
+    renderEnemyStatusBadges(en);
+    assert(ui.enemyStatusIcons.innerHTML.includes('🤼') && ui.enemyStatusIcons.innerHTML.includes('💪'), "Badges d'état : immobilisé 🤼 et affaibli 💪");
+    const d = consumeEnemyAttackDebuffs(en);
+    assert(Math.abs(d.mult - 0.75) < 1e-9 && d.note.includes('bras touché') && en.status.weakened.rounds === 1, "Affaibli : ATQ x0,75 pendant 2 tours");
+    consumeEnemyAttackDebuffs(en);
+    assert(en.status.weakened === null, "Affaibli : s'éteint après 2 ripostes");
+    const hpBefore = gameState.hp;
+    withSeq([0.5], () => resolveEnemyCounterAttack());
+    assert(gameState.hp === hpBefore && en.status.immobilized === null, "Immobilisé : la riposte est sautée, l'état s'éteint");
+    resetTransientState();
+}
+
+// --- Animations d'issue V2 ---
+{
+    ['grapple', 'choke', 'target', 'weakpoint'].forEach(k => OUTCOMES.forEach(o => {
+        const fx = minigameOutcomeFxSpec(k, o);
+        assert(MINIGAME_KIND_FX[k][o] && FX_IMPACTS[fx.burst] && fx.target === (MINIGAME_KIND_FX[k][o].target), `${k} / ${o} : animation d'issue propre à l'épreuve`);
+    }));
+    assert(minigameOutcomeFxSpec('grapple', 'perfect').burst === 'grapple' && minigameOutcomeFxSpec('choke', 'success').burst === 'choke' && minigameOutcomeFxSpec('target', 'perfect').burst === 'bullseye' && minigameOutcomeFxSpec('target', 'fail').burst === 'ricochet' && minigameOutcomeFxSpec('weakpoint', 'success').burst === 'weakMark', "Éclats V2 : prise, étranglement, cible, ricochet, point faible");
+    assert(minigameOutcomeFxSpec('grapple', 'fail').hitstopMs === 0 && minigameOutcomeFxSpec('grapple', 'perfect').heavy, "Raté : aucun gel ; Parfait : gel et secousse");
+}

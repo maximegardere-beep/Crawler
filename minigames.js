@@ -36,7 +36,23 @@ const MINIGAME_SETTINGS = {
     glyph: {
         chancePct: { play: 100, reduced: 25, auto: 0 },     // un glyphe est proposé à chaque sort offensif (Réduit : plus rarement)
         durationMs: 5000, perfectTimeRatio: 0.4, hitRadius: 16
-    }
+    },
+    // --- V2 : actions spéciales de combat, proposées par des « Occasions » ---
+    occasion: {
+        skillBonusPerLevel: 1, skillBonusMax: 10,           // la chance monte un peu avec le niveau de la compétence liée
+        pityCombats: 6                                      // garantie : une Occasion au plus tard au 7e combat sans aucune
+    },
+    // Immobiliser (mains nues) : on garde le doigt dans une zone qui bouge ; la part du temps passée dedans fait l'issue.
+    grapple: { durationMs: 3000, zoneWidth: 0.34, periodMs: 1700, perfectRatio: 0.8, successRatio: 0.5, roundsSuccess: 1, roundsPerfect: 2, roundsBoss: 1,
+        zonePerSkill: 0.01, zoneSkillMax: 0.08 },
+    // Étrangler (finisseur sur un mob immobilisé / étourdi, jamais un boss) : zone plus étroite, seuils plus exigeants, dégâts x3.
+    choke: { durationMs: 3000, zoneWidth: 0.28, periodMs: 1500, perfectRatio: 0.85, successRatio: 0.6, damageMult: 3,
+        zonePerSkill: 0.01, zoneSkillMax: 0.08 },
+    // Cible de précision (tir) : un réticule balaie la cible ; la cible rétrécit avec l'écart de combat.
+    target: { durationMs: 3000, outerRadius: 0.5, centerRadius: 0.18, amplitude: 0.85, periodXMs: 1600, periodYMs: 2300,
+        perfectPassFromMs: 800, perfectPassToMs: 2200, // le réticule passe EXACTEMENT au centre à un instant tiré dans cette fenêtre
+        distanceShrink: 0.06, minSizeFactor: 0.5, radiusPerSkill: 0.004, radiusSkillMax: 0.04, perfectMult: 1.5, successMult: 1 },
+    weakpoint: { durationMs: 6000 }
 };
 
 // Catalogue des épreuves. `build(rng, overrides)` renvoie les paramètres propres à l'épreuve ; le reste
@@ -113,6 +129,47 @@ const MINIGAME_KINDS = {
             const inputMs = o.inputMs || cfg.inputMs;
             return { sequence, stepMs, showMs, inputMs, durationMs: o.durationMs || showMs + inputMs };
         }
+    },
+    // Immobiliser / Étrangler (V2) : même geste (garder le doigt dans une zone qui bouge, pendant toute la durée), deux épreuves
+    // pour que leurs issues, leurs seuils et leurs animations restent distincts. Le temps écoulé est la FIN normale de l'épreuve.
+    grapple: {
+        label: 'Immobiliser', icon: '🤼', hint: 'Gardez le doigt dans la zone qui bouge.',
+        autoRates: { perfect: 10, success: 45, fail: 45 },
+        build(rng, o) { return buildHoldParams(MINIGAME_SETTINGS.grapple, rng, o); }
+    },
+    choke: {
+        label: 'Étrangler', icon: '🪢', hint: 'Serrez : gardez le doigt dans la zone, sans la lâcher.',
+        autoRates: { perfect: 5, success: 45, fail: 50 },
+        build(rng, o) { return buildHoldParams(MINIGAME_SETTINGS.choke, rng, o); }
+    },
+    // Cible de précision (V2) : un tap fait partir le tir, là où se trouve le réticule à cet instant.
+    target: {
+        label: 'Cible', icon: '🎯', hint: 'Touchez quand le réticule est sur la cible.',
+        autoRates: { perfect: 10, success: 40, fail: 50 },
+        build(rng, o) {
+            const cfg = MINIGAME_SETTINGS.target;
+            const f = targetSizeFactor(o.distance || 0);
+            const bonus = Math.min(cfg.radiusSkillMax, cfg.radiusPerSkill * Math.max(0, (o.skillLevel || 1) - 1));
+            // Phases choisies pour que le réticule croise le centre à `perfectAtMs` : un Parfait est toujours atteignable
+            // (avec des phases libres, les deux oscillations pouvaient ne jamais se retrouver au centre pendant les 3 s).
+            const perfectAtMs = cfg.perfectPassFromMs + rng() * (cfg.perfectPassToMs - cfg.perfectPassFromMs);
+            return {
+                outerRadius: Math.min(0.9, (cfg.outerRadius + bonus) * f),
+                centerRadius: Math.min(0.5, (cfg.centerRadius + bonus / 2) * f),
+                amplitude: cfg.amplitude, periodXMs: cfg.periodXMs, periodYMs: cfg.periodYMs,
+                perfectAtMs,
+                phaseX: typeof o.phaseX === 'number' ? o.phaseX : -(perfectAtMs / cfg.periodXMs) * Math.PI * 2,
+                phaseY: typeof o.phaseY === 'number' ? o.phaseY : -(perfectAtMs / cfg.periodYMs) * Math.PI * 2,
+                durationMs: o.durationMs || cfg.durationMs
+            };
+        }
+    },
+    // Points faibles (V2) : un choix tactique, sans adresse. Seule l'hésitation (temps écoulé) est un Raté.
+    weakpoint: {
+        label: 'Point faible', icon: '🦴', hint: 'Choisissez où frapper.',
+        autoRates: { perfect: 0, success: 100, fail: 0 },
+        build(rng, o) { return { durationMs: o.durationMs || MINIGAME_SETTINGS.weakpoint.durationMs }; },
+        autoResolve() { return { outcome: 'success', detail: { zone: 'head' } }; }
     },
     // Glyphe d'un sort offensif : relier des points d'une grille 3 x 3 dans l'ordre. OPTIONNEL : un échec ou un « Passer »
     // lance le sort normalement (jamais de malus) ; une réussite le renforce (config.magicBalance.glyph*). Un jet automatique
@@ -305,6 +362,132 @@ function glyphAdvance(pattern, progress, from, to, radius) {
     return p;
 }
 
+// --- V2 : maintien (Immobiliser / Étrangler) ---------------------------------------------------------------------
+function buildHoldParams(cfg, rng, o) {
+    const width = o.zoneWidth || cfg.zoneWidth;
+    return {
+        zoneWidth: width,
+        periodMs: o.periodMs || cfg.periodMs,
+        phase: typeof o.phase === 'number' ? o.phase : rng() * Math.PI * 2,
+        perfectRatio: o.perfectRatio || cfg.perfectRatio,
+        successRatio: o.successRatio || cfg.successRatio,
+        durationMs: o.durationMs || cfg.durationMs
+    };
+}
+
+// Largeur de la zone selon le niveau de la compétence liée (Mains nues) : +0,01 par niveau, bornée.
+function holdZoneWidth(kindKey, skillLevel) {
+    const cfg = MINIGAME_SETTINGS[kindKey];
+    return Math.round((cfg.zoneWidth + Math.min(cfg.zoneSkillMax, cfg.zonePerSkill * Math.max(0, skillLevel - 1))) * 1000) / 1000;
+}
+
+// Centre de la zone (0..1) : va-et-vient sinusoïdal, toujours entièrement dans la barre.
+function holdZoneCenter(elapsedMs, spec) {
+    const amp = 0.5 - spec.zoneWidth / 2 - 0.02;
+    return 0.5 + amp * Math.sin((elapsedMs / spec.periodMs) * Math.PI * 2 + spec.phase);
+}
+
+function holdInside(cursorX, center, zoneWidth) {
+    return cursorX !== null && cursorX !== undefined && Math.abs(cursorX - center) <= zoneWidth / 2;
+}
+
+// Issue selon la part du temps passée dans la zone (0..1).
+function holdOutcome(ratio, spec) {
+    if (ratio >= spec.perfectRatio) return 'perfect';
+    return ratio >= spec.successRatio ? 'success' : 'fail';
+}
+
+// Immobiliser : nombre de tours d'immobilisation (Parfait = 2 ; Réussi = 1 ; un boss n'est jamais immobilisé plus d'un tour).
+function grappleRounds(outcome, isBoss) {
+    const c = MINIGAME_SETTINGS.grapple;
+    if (outcome === 'fail') return 0;
+    if (isBoss) return c.roundsBoss;
+    return outcome === 'perfect' ? c.roundsPerfect : c.roundsSuccess;
+}
+
+// --- V2 : cible de précision ---------------------------------------------------------------------------------------
+// La cible rétrécit avec l'écart de combat (-6 % par cran, jamais sous 50 %).
+function targetSizeFactor(distance) {
+    const c = MINIGAME_SETTINGS.target;
+    return Math.max(c.minSizeFactor, 1 - c.distanceShrink * Math.max(0, distance));
+}
+
+// Position du réticule (repère -1..1) : deux oscillations de périodes différentes (trajet de Lissajous).
+function targetReticlePosition(elapsedMs, spec) {
+    return {
+        x: spec.amplitude * Math.sin((elapsedMs / spec.periodXMs) * Math.PI * 2 + spec.phaseX),
+        y: spec.amplitude * Math.sin((elapsedMs / spec.periodYMs) * Math.PI * 2 + spec.phaseY)
+    };
+}
+
+// Tir à la position `pos` : Parfait au centre, Réussi dans la cible, sinon Raté.
+function resolveTargetShot(pos, spec) {
+    const d = Math.hypot(pos.x, pos.y);
+    if (d <= spec.centerRadius) return 'perfect';
+    return d <= spec.outerRadius ? 'success' : 'fail';
+}
+
+// --- V2 : points faibles -------------------------------------------------------------------------------------------
+// Chaque zone échange des dégâts contre un effet (chiffres de départ, à valider en playtest).
+const WEAKPOINT_ZONES = {
+    head: { icon: '🎯', label: 'Tête', text: 'Dégâts +30 %', dmgMult: 1.3 },
+    arm: { icon: '💪', label: 'Bras', text: 'ATQ du mob −25 % (2 tours), dégâts −20 %', dmgMult: 0.8, weaken: { mult: 0.75, rounds: 2 } },
+    leg: { icon: '🦵', label: 'Jambe', text: 'Le mob recule d\'un cran, dégâts −20 %', dmgMult: 0.8, push: 1 }
+};
+
+// --- V2 : Occasions de combat ----------------------------------------------------------------------------------------
+// Une Occasion est une action spéciale proposée de façon aléatoire au début d'un tour (bouton mis en avant, ce tour seulement).
+const OCCASION_TYPES = {
+    immobilize: { icon: '🤼', label: 'Immobiliser', kind: 'grapple', skill: 'unarmed' },
+    strangle: { icon: '🪢', label: 'Étrangler', kind: 'choke', skill: 'unarmed' },
+    target: { icon: '🎯', label: 'Viser', kind: 'target', skill: 'weapon' },
+    weakpoint: { icon: '🦴', label: 'Point faible', kind: 'weakpoint', skill: 'weapon' }
+};
+
+// Occasions possibles dans cette situation. ctx : { distance, hasRanged, disarmed, isBoss, immobilized }.
+//  - `forced` : Étrangler, proposé à coup sûr (sans tirage) dès qu'un mob non-boss au contact est immobilisé / étourdi ;
+//  - `pool` : le reste, tiré au sort (au contact : Immobiliser ; à distance avec une arme à distance : Cible ou Point faible).
+function eligibleOccasions(ctx) {
+    const out = { forced: null, pool: [] };
+    if (ctx.distance <= 0) {
+        if (ctx.immobilized) { if (!ctx.isBoss) out.forced = 'strangle'; }
+        else out.pool.push('immobilize');
+    } else if (ctx.hasRanged && !ctx.disarmed) {
+        out.pool.push('target', 'weakpoint');
+    }
+    return out;
+}
+
+function occasionStillValid(type, ctx) {
+    const e = eligibleOccasions(ctx);
+    return e.forced === type || e.pool.includes(type);
+}
+
+// Chance d'Occasion d'un tour : base du réglage + un peu selon le niveau de la compétence liée.
+function occasionChancePct(mode, skillLevel) {
+    const base = MINIGAME_SETTINGS.occasionChancePct[mode] || 0;
+    if (base <= 0) return 0;
+    const c = MINIGAME_SETTINGS.occasion;
+    return base + Math.min(c.skillBonusMax, c.skillBonusPerLevel * Math.max(0, (skillLevel || 1) - 1));
+}
+
+// Décide de l'Occasion de CE tour (pure). input : { ctx, mode, skillLevels: { unarmed, weapon }, turn, lastOfferTurn, pity }.
+// Jamais en Jet automatique ; Étrangler est garanti ; jamais deux Occasions tirées d'affilée ; garantie après `pityCombats` combats sans.
+function decideOccasion(input, rng = Math.random) {
+    if (input.mode === 'auto' || !MINIGAME_MODES.includes(input.mode)) return null;
+    const e = eligibleOccasions(input.ctx);
+    if (e.forced) return e.forced;
+    if (!e.pool.length) return null;
+    if (input.lastOfferTurn === input.turn - 1) return null; // pas deux Occasions de suite
+    const pityHit = input.pity >= MINIGAME_SETTINGS.occasion.pityCombats;
+    if (!pityHit) {
+        const skill = OCCASION_TYPES[e.pool[0]].skill;
+        const chance = occasionChancePct(input.mode, (input.skillLevels || {})[skill]);
+        if (rng() * 100 >= chance) return null;
+    }
+    return e.pool[Math.min(e.pool.length - 1, Math.floor(rng() * e.pool.length))];
+}
+
 // --- Animations d'issue (spécification pure, jouée par fx.js) ---------------------------------------------------
 // `burst` : clé de FX_IMPACTS (sprites/fx.js) ; `hitstopMs` : gel à l'impact (le long gel et la secousse d'écran
 // `heavy` sont réservés au Parfait) ; `target` : qui reçoit l'éclat en combat ; `haptic` : motif de triggerHaptic().
@@ -326,6 +509,27 @@ const MINIGAME_KIND_FX = {
         perfect: { burst: 'disarmed', color: '#4ade80', target: 'prop', at: [250, 108], durationMs: 420 },
         success: { burst: 'disarmed', color: '#86efac', target: 'prop', at: [250, 108], durationMs: 360 },
         fail: { burst: 'trapSnap', color: '#ef4444', target: 'prop', at: [250, 108], durationMs: 360 }
+    },
+    // Combat (V2) : l'éclat tombe sur le mob (prise, étranglement, impact de tir) ; un Raté se perd à côté.
+    grapple: {
+        perfect: { burst: 'grapple', color: '#facc15', target: 'mob', durationMs: 460 },
+        success: { burst: 'grapple', color: '#fdba74', target: 'mob', durationMs: 380 },
+        fail: { burst: 'fizzle', color: '#9ca3af', target: 'mob', durationMs: 340 }
+    },
+    choke: {
+        perfect: { burst: 'choke', color: '#f87171', target: 'mob', durationMs: 460 },
+        success: { burst: 'choke', color: '#fca5a5', target: 'mob', durationMs: 380 },
+        fail: { burst: 'fizzle', color: '#9ca3af', target: 'mob', durationMs: 340 }
+    },
+    target: {
+        perfect: { burst: 'bullseye', color: '#facc15', target: 'mob', durationMs: 460 },
+        success: { burst: 'bullseye', color: '#fde68a', target: 'mob', durationMs: 380 },
+        fail: { burst: 'ricochet', color: '#9ca3af', target: 'mob', durationMs: 340 }
+    },
+    weakpoint: {
+        perfect: { burst: 'weakMark', color: '#f87171', target: 'mob', durationMs: 420 },
+        success: { burst: 'weakMark', color: '#fb923c', target: 'mob', durationMs: 380 },
+        fail: { burst: 'ricochet', color: '#9ca3af', target: 'mob', durationMs: 340 }
     },
     glyph: {
         perfect: { burst: 'glyphSeal', color: '#c084fc', target: 'crawler', durationMs: 440 },
@@ -358,6 +562,8 @@ if (typeof module !== 'undefined' && module.exports) {
         MINIGAME_OUTCOME_FX, MINIGAME_KIND_FX, buildMinigameSpec, normalizeMinigameMode, minigameAutoOutcome,
         timingCursorPosition, resolveTimingStop, minigameOutcomeFxSpec, pickMinigameLine, minigameAutoResult,
         LOCKPICK_REWARDS, lockpickReward, lockpickOutcome, lockpickZoneWidth, SEQUENCE_SYMBOLS, disarmOverrides, sequenceInputStatus,
-        sequenceOutcome, sequenceShownSymbol, GLYPH_GRID_POINTS, GLYPH_PATTERNS, getGlyphPattern, glyphSegmentDistance, glyphAdvance
+        sequenceOutcome, sequenceShownSymbol, GLYPH_GRID_POINTS, GLYPH_PATTERNS, getGlyphPattern, glyphSegmentDistance, glyphAdvance,
+        buildHoldParams, holdZoneWidth, holdZoneCenter, holdInside, holdOutcome, grappleRounds, targetSizeFactor, targetReticlePosition,
+        resolveTargetShot, WEAKPOINT_ZONES, OCCASION_TYPES, eligibleOccasions, occasionStillValid, occasionChancePct, decideOccasion
     };
 }

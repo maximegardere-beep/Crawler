@@ -371,7 +371,7 @@ Tailwind CDN, **aucun build step**.
   Pique en retour / Provocation / Insulte en direct (jet d20 + popularité `getShowPopularity()` contre
   8/12/16 : boîte Bronze/Argent/Or via `openAchievementBox()`, sinon −2 H jamais mortelles / combat élite /
   +20 prime et chasseur de primes), ou Refuser.
-- **Mini-jeux** (chantier 6, lot 0 et V1 codés — crochetage d'un coffre, désamorçage d'un piège, glyphe de sort ; voir
+- **Mini-jeux** (chantier 6, lot 0, V1 et V2 codés — crochetage, désamorçage, glyphe, Occasions de combat ; voir
   `NOTES_MINIJEUX.md` ; le reste du chantier est planifié dans `CHANTIERS.md`) : toute épreuve passe par UN point d'entrée, `startMinigame(spec, onResult)` (minigames-ui.js), par
   callback (jamais de Promise, comme `runCombatBeats()`). Trois issues communes `perfect`/`success`/`fail`. Sans
   interface interactive (réglage « Jet automatique », `prefers-reduced-motion` par défaut, tests Node sans
@@ -386,7 +386,13 @@ Tailwind CDN, **aucun build step**.
   (`openLockedChest()` : 3 goupilles, butin selon le nombre — `LOCKPICK_REWARDS`), un piège sur deux se désamorce
   (`openTrapDisarm()` : séquence de 4 symboles ; raté = `springTrap()` comme avant) et `attackMagic()` propose un glyphe aux sorts
   offensifs (`maybeGlyphSpec()` puis `castEquippedSpell()` ; renfort `config.magicBalance.glyph*`, raté = sort normal). Le jet
-  automatique d'une épreuve peut avoir sa propre résolution (`autoResolve`). Tout helper pur de `minigames.js` partage l'espace
+  automatique d'une épreuve peut avoir sa propre résolution (`autoResolve`). **V2 (Occasions de combat)** : au début d'un tour,
+  `rollCombatOccasion()` (appelée par `updateUI()`, une fois par tour) tire 25 % (+1 %/niveau de compétence liée, Réduit 10 %, Jet
+  automatique 0, jamais deux d'affilée, garantie au 7e combat sans) via `decideOccasion()` (pure) ; `gameState.occasion` = `{ current,
+  turn, rolledTurn, lastOfferTurn, pity }`, `#btn-occasion` ; toute action (`tryPlayerAction()`) l'éteint. `startOccasion()` →
+  `resolveOccasion()` : Immobiliser (`enemy.status.immobilized`, riposte sautée, 1-2 tours, boss 1), Étrangler (×3, proposé à coup sûr sur un
+  mob non-boss immobilisé/étourdi), Cible de précision (×1,5 / ×1) et Point faible (tête ×1,3 / bras `status.weakened` / jambe recule) ;
+  échec = tour perdu. Jamais d'Occasion sans interface interactive (tests Node, simulation longue). Tout helper pur de `minigames.js` partage l'espace
   global avec `floorgen.js` : en préfixer le nom (une collision sur `pointSegmentDistance` avait supprimé les repaires).
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
