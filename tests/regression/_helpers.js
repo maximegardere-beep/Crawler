@@ -90,6 +90,12 @@ function resetTransientState() {
     gameState.pendingShopCityId = null;
     gameState.starterBuff = null; // Buff de départ (chantier 14)
     gameState.race = null; // Race (chantier 13) : aucune
+    gameState.crawlerClass = null; // Classe (chantier 13, lot 2)
+    gameState.raceChoicePending = false; // Choix de race/classe à l'étage 3 (chantier 13, lot 2)
+    gameState.classChoicePending = false;
+    gameState.pendingOriginOffers = null;
+    gameState.pendingPactAfterOrigin = false;
+    hideOriginOverlays();
     gameState.raceLastStandFloor = 0;
     gameState.maxMana = 100;
     gameState.maxInventory = config.inventory.maxEquipment;

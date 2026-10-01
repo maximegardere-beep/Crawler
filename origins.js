@@ -22,13 +22,13 @@ function originSpellCount(state) { return (originStats(state).spellsLearned || [
 // d'explication affichée sur la carte quand la condition est remplie. `effects` / `flaw` : libellés des cartes.
 const ORIGIN_RACES = {
     human: {
-        key: 'human', icon: '🧑', name: "Humain·e « Moyen·ne mais motivé·e »", basic: true,
+        key: 'human', icon: '🧑', name: "Humain·e « Moyen·ne mais motivé·e »", short: 'Humain·e', basic: true,
         effects: ["XP +10 %", "+1 emplacement de réserve (9 au lieu de 8)"], flaw: null,
         when: () => true,
         why: () => "Un choix de base : le Donjon en garde toujours un en stock."
     },
     ghoul: {
-        key: 'ghoul', icon: '🧟', name: "Goule",
+        key: 'ghoul', icon: '🧟', name: "Goule", short: 'Goule',
         effects: ["PV max +20 %", "Saignement −50 %"], flaw: "Soins reçus −20 %",
         when: s => originNum(s, 'clutchWins') >= 1 || originNum(s, 'damageTaken') >= 100,
         why: s => originNum(s, 'clutchWins') >= 1
@@ -36,7 +36,7 @@ const ORIGIN_RACES = {
             : `Proposée car vous avez déjà encaissé ${originNum(s, 'damageTaken')} points de dégâts.`
     },
     goblin: {
-        key: 'goblin', icon: '👺', name: "Gobelin de caniveau",
+        key: 'goblin', icon: '👺', name: "Gobelin de caniveau", short: 'Gobelin',
         effects: ["Furtivité +10 pts", "Fuite +15 pts", "Pièges −25 %"], flaw: "PV max −10 %",
         when: s => originNum(s, 'sneakKills') >= 1 || originNum(s, 'flees') >= 2,
         why: s => originNum(s, 'sneakKills') >= 1
@@ -44,13 +44,13 @@ const ORIGIN_RACES = {
             : `Proposé car vous avez pris la fuite ${originNum(s, 'flees')} fois.`
     },
     troll: {
-        key: 'troll', icon: '👔', name: "Troll de bureau",
+        key: 'troll', icon: '👔', name: "Troll de bureau", short: 'Troll',
         effects: ["PV max +25 %", "Mains nues +15 %"], flaw: "Furtivité −10 pts",
         when: s => originNum(s, 'unarmedKills') >= 3,
         why: s => `Proposé car vous avez assommé ${originNum(s, 'unarmedKills')} monstres à mains nues.`
     },
     elf: {
-        key: 'elf', icon: '🧝', name: "Elfe de salon",
+        key: 'elf', icon: '🧝', name: "Elfe de salon", short: 'Elfe',
         effects: ["Mana max +25 %", "Sorts +10 %", "Backfire −3 pts"], flaw: "DEF −1",
         when: s => originNum(s, 'spellKills') >= 2 || originSpellCount(s) >= 1,
         why: s => originNum(s, 'spellKills') >= 2
@@ -58,13 +58,13 @@ const ORIGIN_RACES = {
             : "Proposée car vous avez appris un sort."
     },
     dwarf: {
-        key: 'dwarf', icon: '⛏️', name: "Nain de chantier",
+        key: 'dwarf', icon: '⛏️', name: "Nain de chantier", short: 'Nain',
         effects: ["DEF +12 % (au moins +1)", "Armure portée +15 %"], flaw: "Fuite −15 pts",
         when: s => originHasEquipped(s, 'armor'),
         why: () => "Proposé car vous portez une armure."
     },
     roach: {
-        key: 'roach', icon: '🪳', name: "Cafard mutant",
+        key: 'roach', icon: '🪳', name: "Cafard mutant", short: 'Cafard',
         effects: ["Increvable : 1 fois par étage, un coup mortel laisse 1 PV (jamais contre un boss)"], flaw: "PV max −15 %",
         when: s => originNum(s, 'flees') >= 1 || originNum(s, 'clutchWins') >= 1,
         why: s => originNum(s, 'clutchWins') >= 1

@@ -17,7 +17,8 @@ let urbanFloorsSeen = 0, cityTravels = 0, mapTravels = 0, winTriggered = false;
 let shopEncounters = 0, lairEncounters = 0, floorTransitionsSeen = 0, pactChoicesSeen = 0, safehouseEncounters = 0, stairsChoices = 0;
 const seenErrors = [];
 const huntersSeen = new Set(); // Chasseurs de primes rencontrés (chantier 3)
-let showsSeen = 0; // Émissions DeathWatch (chantier 4)
+let showsSeen = 0;
+let originChoicesSeen = 0; // Race puis classe à l'étage 3 (chantier 13, lot 2) // Émissions DeathWatch (chantier 4)
 
 gameState.equipment.armor = { name: "Plastron d'Essai", baseArmor: 12, category: 'armors', mechanics: ['bleed', 'heal', 'adrenaline', 'stealth'] };
 gameState.equipment.weapon = { name: "Gourdin d'Essai", baseDmg: 12, category: 'weapons' };
@@ -106,6 +107,11 @@ try {
             // simulation resterait bloquée sur cet écran jusqu'à épuisement du temps imparti.
             floorTransitionsSeen++;
             continueFromFloorTransition();
+        } else if (gameState.raceChoicePending || gameState.classChoicePending) {
+            // Race puis classe à l'étage 3 (chantier 13, lot 2) : la simulation prend toujours la première carte proposée.
+            originChoicesSeen++;
+            selectOrigin(gameState.pendingOriginOffers.offers[0].key);
+            confirmOriginChoice();
         } else if (gameState.pactChoicePending) {
             // Anomalie PACTE_DU_CRAWLER (voir triggerPactChoice()) : choix forcé à l'entrée de
             // l'étage, sans quoi la simulation resterait bloquée dessus (isActionBlocked()).
@@ -178,6 +184,13 @@ try {
     }
 } catch (err) {
     seenErrors.push(err);
+}
+
+// Chantier 13 (lot 2) : la simulation traverse l'étage 3 d'une vraie partie — les deux écrans (race puis classe) se sont ouverts une fois chacun et ont été résolus.
+if (floorsCleared >= 3) {
+    assert(originChoicesSeen === 2, `Race et classe : deux écrans résolus à l'étage 3 (vus : ${originChoicesSeen})`);
+    assert(!!gameState.race && !!gameState.crawlerClass, "Race et classe posées après l'étage 3");
+    assert(!gameState.raceChoicePending && !gameState.classChoicePending, "Aucun choix d'origine ne reste bloquant");
 }
 
 // Intégration PACTE_DU_CRAWLER : force le déclenchement (la probabilité réelle en simulation ne le
@@ -263,6 +276,9 @@ try {
             declineLair(); // Idem : on ne dévie jamais vers un repaire quand la Sortie est en vue
         } else if (gameState.floorTransitionPending) {
             continueFromFloorTransition(); // Idem : jamais bloqué sur l'écran d'escalier
+        } else if (gameState.raceChoicePending || gameState.classChoicePending) {
+            selectOrigin(gameState.pendingOriginOffers.offers[0].key);
+            confirmOriginChoice();
         } else if (gameState.pactChoicePending) {
             pactChoicesSeen++;
             choosePactBlessing('hp'); // Priorité à la survie sur l'étage final
@@ -290,7 +306,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${mapTravels} voyages sur carte, ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), ${showsSeen} émissions DeathWatch, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${mapTravels} voyages sur carte, ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), ${showsSeen} émissions DeathWatch, ${originChoicesSeen} choix de race/classe, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");

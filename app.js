@@ -156,6 +156,14 @@ const gameState = {
     // `raceLastStandFloor` : dernier étage où « Increvable » (Cafard mutant) a servi (1 fois par étage).
     race: null,
     raceLastStandFloor: 0,
+    // Classe du crawler (chantier 13, lot 2 : choisie à l'étage 3 ; ses effets sont codés au lot 3) : clé d'ORIGIN_CLASSES, null = aucune.
+    crawlerClass: null,
+    // Choix de l'étage 3 (race puis classe, deux écrans successifs) : `pendingOriginOffers` = { kind, offers, selected } ;
+    // `pendingPactAfterOrigin` = le Pacte du Crawler attend la fin du choix (jamais deux écrans bloquants à la fois).
+    raceChoicePending: false,
+    classChoicePending: false,
+    pendingOriginOffers: null,
+    pendingPactAfterOrigin: false,
     pendingShowAfterPact: null,
     // Mini-jeu ouvert (chantier 6, minigames-ui.js) : { kind, boss } — bloque les actions le temps de l'épreuve.
     pendingMinigame: null,
@@ -518,6 +526,7 @@ const config = {
     },
     // Passifs de race (chantier 13, lot 1) : valeurs de départ à playtester. Une clé absente = neutre. Lues par originRaceEffects().
     origins: {
+        chooseFloor: 3, // étage d'arrivée où s'ouvrent les deux écrans de choix
         races: {
             human: { xpMult: 1.10, extraReserve: 1 },
             ghoul: { maxHpMult: 1.20, bleedMult: 0.5, healMult: 0.8 },
@@ -789,6 +798,14 @@ const ui = {
     btnFloorTransitionContinue: document.getElementById('btn-floor-transition-continue'),
     anomalyStatusBar: document.getElementById('anomaly-status-bar'),
     starterBuffStatus: document.getElementById('starter-buff-status'),
+    raceStatus: document.getElementById('race-status'),
+    classStatus: document.getElementById('class-status'),
+    raceChoiceOverlay: document.getElementById('race-choice-overlay'),
+    classChoiceOverlay: document.getElementById('class-choice-overlay'),
+    raceChoiceCards: document.getElementById('race-choice-cards'),
+    classChoiceCards: document.getElementById('class-choice-cards'),
+    btnRaceConfirm: document.getElementById('btn-race-confirm'),
+    btnClassConfirm: document.getElementById('btn-class-confirm'),
     pactChoiceOverlay: document.getElementById('pact-choice-overlay'),
     btnPactAtk: document.getElementById('btn-pact-atk'),
     btnPactHp: document.getElementById('btn-pact-hp'),
@@ -1040,6 +1057,7 @@ function restoreSaveForName(name) {
     if (saved.starterBuff === undefined) gameState.starterBuff = null;
     if (saved.raceLastStandFloor === undefined) gameState.raceLastStandFloor = 0;
     if (!saved.race || !config.origins.races[saved.race]) gameState.race = null; // ancienne sauvegarde ou clé inconnue : aucune race
+    if (!saved.crawlerClass || !ORIGIN_CLASSES[saved.crawlerClass]) gameState.crawlerClass = null;
     recomputeRaceDerived();
     // Compagnon d'une sauvegarde antérieure au rework (leaveChance, pas de loyauté ni d'équipement).
     if (gameState.companion) gameState.companion = normalizeCompanion(gameState.companion);
@@ -1079,6 +1097,12 @@ function restoreSaveForName(name) {
     gameState.pendingLairDive = null;
     gameState.floorTransitionPending = false;
     gameState.pactChoicePending = false;
+    // Choix de race/classe sauvegardé en cours : l'écran concerné est rouvert à la fin de la restauration (jamais perdu : sans lui le crawler resterait sans origine).
+    gameState.raceChoicePending = false;
+    gameState.classChoicePending = false;
+    gameState.pendingOriginOffers = null;
+    gameState.pendingPactAfterOrigin = false;
+    hideOriginOverlays();
     gameState.pendingNextFloorAnomalies = null;
     gameState.safehouseChoicePending = false;
     gameState.pendingSafehouseRoomId = null;
@@ -1098,6 +1122,8 @@ function restoreSaveForName(name) {
     }
 
     gameState.saveEnabled = true; // Réactive l'autosave après une restauration réussie
+    if (saved.classChoicePending && gameState.race) triggerClassChoice();
+    else if (saved.raceChoicePending || saved.classChoicePending) triggerRaceChoice();
     return true;
 }
 
@@ -1340,6 +1366,7 @@ function updateUI() {
 
     updateAnomalyStatusUI();
     updateStarterBuffUI();
+    updateOriginUI();
 
     // Icônes de statut du joueur
     let playerIcons = "";
@@ -2745,7 +2772,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending || !!gameState.pendingMinigame;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.raceChoicePending || gameState.classChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending || !!gameState.pendingMinigame;
 }
 
 // ---------- Voyage sur carte (chantier 5, M1 + P1 — remplace les anciens « Lieux connus ») ----------
@@ -3996,8 +4023,12 @@ function advanceToNextFloor() {
 
     // PACTE_DU_CRAWLER : choix forcé à l'entrée de l'étage, résolu AVANT de rendre la main au joueur
     // (isActionBlocked() le bloque comme n'importe quel autre choix en attente).
+    // Race puis classe (chantier 13) : à l'arrivée sur l'étage 3, AVANT le Pacte et l'émission, seulement dans une vraie partie.
+    const originDue = originChoiceDue();
+    if (originDue) triggerRaceChoice();
     if (gameState.anomalyEffects.forcedPactChoice) {
-        triggerPactChoice();
+        if (originDue) gameState.pendingPactAfterOrigin = true; // ouvert par finishOriginChoice()
+        else triggerPactChoice();
     }
 
     // Émission DeathWatch (chantier 4) : à chaque nouvel étage dès config.show.firstFloor — après le Pacte
@@ -4005,7 +4036,7 @@ function advanceToNextFloor() {
     // seulement dans une vraie partie (gameState.saveEnabled : nom confirmé), jamais pendant
     // l'initialisation silencieuse ni dans les tests qui ne la demandent pas.
     if (gameState.saveEnabled && gameState.currentFloor >= config.show.firstFloor) {
-        if (gameState.pactChoicePending) gameState.pendingShowAfterPact = lastFloorForShow;
+        if (gameState.pactChoicePending || gameState.raceChoicePending || gameState.classChoicePending) gameState.pendingShowAfterPact = lastFloorForShow;
         else triggerShow(lastFloorForShow);
     }
 
@@ -4191,6 +4222,161 @@ function choosePactBlessing(choice) {
         triggerShow(lastFloor);
     }
     updateUI();
+}
+
+// ==========================================
+// ORIGINES : CHOIX DE LA RACE ET DE LA CLASSE À L'ÉTAGE 3 (chantier 13, lot 2 — voir origins.js et CHANTIERS.md)
+// ==========================================
+// À l'arrivée sur l'étage 3 d'une vraie partie (`gameState.saveEnabled`, comme l'émission DeathWatch), deux écrans successifs : la race puis la
+// classe, chacun avec 3 cartes tirées par pickOriginOffers() (« conditions remplies d'abord »). Toucher une carte la sélectionne, le bouton de
+// confirmation valide : le choix est définitif pour le run. Ordre à l'arrivée : origine, puis Pacte du Crawler (s'il est tiré), puis émission.
+// Un crawler sans race qui a déjà dépassé l'étage 3 (ancienne sauvegarde) n'est jamais concerné. Les effets de classe viennent au lot 3.
+function originChoiceDue() {
+    return !!gameState.saveEnabled && gameState.currentFloor === config.origins.chooseFloor && !gameState.race;
+}
+
+function originEntry(kind, key) {
+    const catalog = kind === 'race' ? ORIGIN_RACES : ORIGIN_CLASSES;
+    return (key && catalog[key]) || null;
+}
+
+function triggerOriginChoice(kind) {
+    gameState.raceChoicePending = kind === 'race';
+    gameState.classChoicePending = kind === 'class';
+    gameState.pendingOriginOffers = { kind, offers: pickOriginOffers(kind, gameState), selected: null };
+    setSceneHeader('🧬', kind === 'race' ? 'Choix de la race' : 'Choix de la classe', 'Origines', 'pact');
+    logEvent(kind === 'race'
+        ? "🧬 Étage 3 : le Donjon exige de savoir ce que vous êtes. Choisissez une race."
+        : "🧬 Maintenant, ce que vous savez faire. Choisissez une classe.", "danger");
+    renderOriginChoice();
+}
+function triggerRaceChoice() { triggerOriginChoice('race'); }
+function triggerClassChoice() { triggerOriginChoice('class'); }
+
+function hideOriginOverlays() {
+    if (ui.raceChoiceOverlay) ui.raceChoiceOverlay.classList.add('hidden');
+    if (ui.classChoiceOverlay) ui.classChoiceOverlay.classList.add('hidden');
+}
+
+// HTML d'une carte de choix (texte interne au jeu : aucune saisie du joueur, donc rien à échapper).
+function buildOriginCardHtml(kind, offer, selected) {
+    const entry = originEntry(kind, offer.key);
+    if (!entry) return '';
+    const lines = kind === 'race'
+        ? entry.effects.map(e => `<li class="text-emerald-300">＋ ${e}</li>`).join('') + (entry.flaw ? `<li class="text-red-300">－ ${entry.flaw}</li>` : '')
+        : `<li class="text-amber-300">⚡ ${entry.ability}</li><li class="text-emerald-300">＋ ${entry.style}</li>`;
+    const synergy = kind === 'class' ? originSynergyFor(gameState.race, offer.key) : null;
+    const synergyHtml = synergy ? `<p class="mt-1 text-[10px] text-fuchsia-300">✨ Synergie avec votre race — « ${synergy.title} » : ${synergy.effect}</p>` : '';
+    const reasonColor = offer.conditionMet ? 'text-gray-400' : 'text-gray-600';
+    return `<button type="button" data-origin-key="${offer.key}" class="origin-card w-full text-left p-3 rounded-lg border-2 transition-all active:scale-[0.99] ${selected ? 'border-amber-400 bg-amber-900/20' : 'border-gray-700 bg-gray-900 hover:border-gray-500'}">
+            <p class="font-bold text-sm text-gray-100">${entry.icon} ${entry.name}</p>
+            <ul class="mt-1 text-[11px] leading-snug space-y-0.5">${lines}</ul>
+            ${synergyHtml}
+            <p class="mt-1 text-[10px] italic ${reasonColor}">${offer.reason}</p>
+        </button>`;
+}
+
+function renderOriginChoice() {
+    const pending = gameState.pendingOriginOffers;
+    hideOriginOverlays();
+    if (!pending) return;
+    const kind = pending.kind;
+    const overlay = kind === 'race' ? ui.raceChoiceOverlay : ui.classChoiceOverlay;
+    const cards = kind === 'race' ? ui.raceChoiceCards : ui.classChoiceCards;
+    const confirm = kind === 'race' ? ui.btnRaceConfirm : ui.btnClassConfirm;
+    if (!overlay || !cards || !confirm) return;
+    cards.innerHTML = pending.offers.map(o => buildOriginCardHtml(kind, o, o.key === pending.selected)).join('');
+    const chosen = originEntry(kind, pending.selected);
+    confirm.disabled = !chosen;
+    confirm.innerText = chosen ? `Confirmer : ${chosen.short || chosen.name}` : 'Choisissez une carte';
+    overlay.classList.remove('hidden');
+}
+
+// Sélectionne une carte de l'écran en cours (jamais une origine hors des 3 cartes proposées).
+function selectOrigin(key) {
+    const pending = gameState.pendingOriginOffers;
+    if (!pending || !pending.offers.some(o => o.key === key)) return false;
+    pending.selected = key;
+    renderOriginChoice();
+    return true;
+}
+
+// Valide la carte sélectionnée : la race ouvre l'écran de la classe, la classe termine le choix.
+function confirmOriginChoice() {
+    const pending = gameState.pendingOriginOffers;
+    if (!pending || !pending.selected || !originEntry(pending.kind, pending.selected)) return false;
+    const key = pending.selected;
+    if (pending.kind === 'race') {
+        if (!applyRace(key)) return false;
+        const race = ORIGIN_RACES[key];
+        logEvent(`${race.icon} Vous êtes désormais ${race.name}. ${race.flaw ? `Défaut inclus : ${race.flaw.toLowerCase()}.` : "Aucun défaut : le Donjon est vexé."}`, "success");
+        triggerClassChoice();
+    } else {
+        gameState.crawlerClass = key;
+        const cls = ORIGIN_CLASSES[key];
+        logEvent(`${cls.icon} Classe : ${cls.name}.`, "success");
+        const synergy = originSynergyFor(gameState.race, key);
+        if (synergy) logEvent(`✨ Synergie : « ${synergy.title} » — ${synergy.effect}.`, "success");
+        finishOriginChoice();
+    }
+    updateUI();
+    return true;
+}
+
+// Fin des deux écrans : rend la main, ou ouvre ce qui attendait derrière (Pacte du Crawler, puis émission DeathWatch).
+function finishOriginChoice() {
+    gameState.raceChoicePending = false;
+    gameState.classChoicePending = false;
+    gameState.pendingOriginOffers = null;
+    hideOriginOverlays();
+    if (gameState.pendingPactAfterOrigin) {
+        gameState.pendingPactAfterOrigin = false;
+        triggerPactChoice();
+    } else if (gameState.pendingShowAfterPact) {
+        const lastFloor = gameState.pendingShowAfterPact;
+        gameState.pendingShowAfterPact = null;
+        triggerShow(lastFloor);
+    }
+}
+
+// Saut DEV (devJumpToUrbanFloor) : tire une race et une classe au hasard au lieu d'ouvrir les deux écrans.
+function rollDevOrigin() {
+    const races = Object.keys(ORIGIN_RACES), classes = Object.keys(ORIGIN_CLASSES);
+    applyRace(races[Math.floor(Math.random() * races.length)]);
+    gameState.crawlerClass = classes[Math.floor(Math.random() * classes.length)];
+}
+
+// Fiche d'origine : bonus, défauts, capacité, synergie (HTML interne, rien à échapper).
+function buildOriginSheetHtml() {
+    const race = originEntry('race', gameState.race), cls = originEntry('class', gameState.crawlerClass);
+    const raceHtml = race ? `<div><p class="font-bold text-sm text-gray-100">${race.icon} ${race.name}</p>
+            <ul class="mt-1 text-[11px] space-y-0.5">${race.effects.map(e => `<li class="text-emerald-300">＋ ${e}</li>`).join('')}${race.flaw ? `<li class="text-red-300">－ ${race.flaw}</li>` : ''}</ul></div>` : '';
+    const classHtml = cls ? `<div class="mt-3"><p class="font-bold text-sm text-gray-100">${cls.icon} ${cls.name}</p>
+            <ul class="mt-1 text-[11px] space-y-0.5"><li class="text-amber-300">⚡ ${cls.ability} <span class="text-gray-500">(1 fois par combat)</span></li><li class="text-emerald-300">＋ ${cls.style}</li></ul></div>` : '';
+    const synergy = race && cls ? originSynergyFor(race.key, cls.key) : null;
+    const synergyHtml = synergy ? `<div class="mt-3 p-2 rounded border border-fuchsia-800 bg-fuchsia-950/30"><p class="font-bold text-[12px] text-fuchsia-300">✨ « ${synergy.title} »</p><p class="text-[11px] text-fuchsia-200">${synergy.effect}</p></div>` : '';
+    return raceHtml + classHtml + synergyHtml;
+}
+
+function openOriginSheet() {
+    if (!ui.itemInspectOverlay || !(gameState.race || gameState.crawlerClass)) return;
+    ui.itemInspectBody.innerHTML = buildOriginSheetHtml();
+    if (ui.itemInspectPanel) ui.itemInspectPanel.style.borderColor = '#0f766e';
+    renderInspectActions([]);
+    ui.itemInspectOverlay.classList.remove('hidden');
+}
+
+// Badges permanents sous le nom (race, classe) ; un toucher ouvre la fiche d'origine.
+function updateOriginUI() {
+    const race = originEntry('race', gameState.race), cls = originEntry('class', gameState.crawlerClass);
+    if (ui.raceStatus) {
+        ui.raceStatus.classList.toggle('hidden', !race);
+        if (race) { ui.raceStatus.innerText = `${race.icon} ${race.short}`; ui.raceStatus.title = `${race.name} — ${race.effects.join(', ')}${race.flaw ? ` · Défaut : ${race.flaw}` : ''}`; }
+    }
+    if (ui.classStatus) {
+        ui.classStatus.classList.toggle('hidden', !cls);
+        if (cls) { ui.classStatus.innerText = `${cls.icon} ${cls.name}`; ui.classStatus.title = `${cls.name} — ${cls.ability} · ${cls.style}`; }
+    }
 }
 
 // ==========================================
@@ -8292,6 +8478,11 @@ function devJumpToUrbanFloor() {
     if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
     if (ui.pactChoiceOverlay) ui.pactChoiceOverlay.classList.add('hidden');
 
+    if (!gameState.race) rollDevOrigin(); // Race et classe au hasard : jamais les deux écrans de choix (chantier 13)
+    hideOriginOverlays();
+    gameState.raceChoicePending = false;
+    gameState.classChoicePending = false;
+    gameState.pendingOriginOffers = null;
     gameState.currentFloor = 2; // advanceToNextFloor() incrémente : atterrit bien sur l'étage 3 (urbain)
     advanceToNextFloor(); // Raccourci DEV : saute délibérément l'écran d'escalier
     logEvent("🛠️ DEV : saut direct à l'étage 3 (urbain).", "info");
@@ -8402,6 +8593,16 @@ ui.btnWinRestart.addEventListener('click', resetGame);
 // Bouton "Continuer" de l'écran d'escalier (voir continueFromFloorTransition())
 if (ui.btnFloorTransitionContinue) ui.btnFloorTransitionContinue.addEventListener('click', continueFromFloorTransition);
 if (ui.btnPactAtk) ui.btnPactAtk.addEventListener('click', () => choosePactBlessing('atk'));
+[ui.raceChoiceCards, ui.classChoiceCards].forEach(box => {
+    if (box) box.addEventListener('click', (e) => {
+        const card = e.target.closest('[data-origin-key]');
+        if (card) selectOrigin(card.dataset.originKey);
+    });
+});
+if (ui.btnRaceConfirm) ui.btnRaceConfirm.addEventListener('click', confirmOriginChoice);
+if (ui.btnClassConfirm) ui.btnClassConfirm.addEventListener('click', confirmOriginChoice);
+if (ui.raceStatus) ui.raceStatus.addEventListener('click', openOriginSheet);
+if (ui.classStatus) ui.classStatus.addEventListener('click', openOriginSheet);
 if (ui.btnPactHp) ui.btnPactHp.addEventListener('click', () => choosePactBlessing('hp'));
 
 // Écran de départ : nom du crawler (bouton ou touche Entrée), puis révélation du cadeau de bienvenue
