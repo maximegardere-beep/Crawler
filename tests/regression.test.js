@@ -40,6 +40,7 @@ require('./regression/starter-buff.js');
 require('./regression/origins.js');
 require('./regression/races.js');
 require('./regression/origin-choice.js');
+require('./regression/classes.js');
 
 console.log(`${counts.passed} test(s) OK, ${counts.failures} échec(s).`);
 process.exit(counts.failures === 0 ? 0 : 1);

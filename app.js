@@ -158,6 +158,7 @@ const gameState = {
     raceLastStandFloor: 0,
     // Classe du crawler (chantier 13, lot 2 : choisie à l'étage 3 ; ses effets sont codés au lot 3) : clé d'ORIGIN_CLASSES, null = aucune.
     crawlerClass: null,
+    classAbilityUsed: false, // capacité active de classe déjà utilisée dans CE combat (remise à faux à chaque nouveau combat)
     // Choix de l'étage 3 (race puis classe, deux écrans successifs) : `pendingOriginOffers` = { kind, offers, selected } ;
     // `pendingPactAfterOrigin` = le Pacte du Crawler attend la fin du choix (jamais deux écrans bloquants à la fois).
     raceChoicePending: false,
@@ -526,6 +527,22 @@ const config = {
     },
     // Passifs de race (chantier 13, lot 1) : valeurs de départ à playtester. Une clé absente = neutre. Lues par originRaceEffects().
     origins: {
+        // Passifs de classe et capacités actives (chantier 13, lot 3) : valeurs de départ à playtester. Lus par originClassEffects().
+        classes: {
+            brawler: { unarmedMult: 1.15, abilityMult: 2, stunTurns: 1 },
+            duelist: { weaponMult: 1.10, abilityMult: 1.8, abilityDefIgnore: 0.5 },
+            gunslinger: { rangedMult: 1.10, shots: 2, shotMult: 0.8 },
+            occultist: { manaCostMult: 0.9, abilityMult: 1.6 },
+            trickster: { stealthLevels: 1, dodgeTurns: 1, nextAttackMult: 2 },
+            punchingBag: { maxHpMult: 1.10, braceDefMult: 2, reflectPct: 0.5 }
+        },
+        // Synergies race × classe (clé « race+classe », voir ORIGIN_SYNERGIES) : chaque champ REMPLACE celui de la classe quand il existe.
+        synergies: {
+            'troll+brawler': { stunTurns: 2, bossExposed: true },
+            'elf+occultist': { abilityMult: 1.8, manaRefund: 20 },
+            'goblin+trickster': { dodgeTurns: 2 },
+            'dwarf+punchingBag': { reflectPct: 0.75 }
+        },
         chooseFloor: 3, // étage d'arrivée où s'ouvrent les deux écrans de choix
         races: {
             human: { xpMult: 1.10, extraReserve: 1 },
@@ -869,6 +886,7 @@ const ui = {
     btnRetreat: document.getElementById('btn-retreat'),
     btnEngage: document.getElementById('btn-engage'),
     btnOccasion: document.getElementById('btn-occasion'),
+    btnClassAbility: document.getElementById('btn-class-ability'),
     finisherCinema: document.getElementById('finisher-cinema'),
     finisherCinemaText: document.getElementById('finisher-cinema-text'),
     btnFlee: document.getElementById('btn-flee'),
@@ -1102,6 +1120,7 @@ function restoreSaveForName(name) {
     gameState.classChoicePending = false;
     gameState.pendingOriginOffers = null;
     gameState.pendingPactAfterOrigin = false;
+    gameState.classAbilityUsed = false;
     hideOriginOverlays();
     gameState.pendingNextFloorAnomalies = null;
     gameState.safehouseChoicePending = false;
@@ -1566,6 +1585,7 @@ function updateUI() {
         }
         rollCombatOccasion(); // Une fois par tour (chantier 6, V2)
         updateOccasionButton();
+        updateClassAbilityUI();
         // Un mob "alerted" (échec de furtivité, voir attemptStealthEvasion()) ne laisse plus fuir.
         if (ui.btnFlee) {
             const fleeUsable = !gameState.currentEnemy || !gameState.currentEnemy.alerted;
@@ -2485,7 +2505,7 @@ function springTrap(trap) {
 
 // Niveau de Furtivité du crawler (règle la difficulté du crochetage et du désamorçage).
 function stealthSkillLevel() {
-    return (gameState.skills && gameState.skills.stealth && gameState.skills.stealth.level) || 1;
+    return effectiveStealthLevel();
 }
 
 // Coffre verrouillé (chantier 6, V1) : trois goupilles à crocheter ; le butin dépend du nombre réussi
@@ -2683,7 +2703,7 @@ function resolveCardEvent() {
 // d'équipement si l'arme ou l'armure porte le modificateur "Silencieux" (mechanic 'stealth',
 // jusqu'ici purement cosmétique — première vraie utilité).
 function getStealthChance() {
-    let chance = 15 + (gameState.skills.stealth.level - 1) * 6;
+    let chance = 15 + (effectiveStealthLevel() - 1) * 6;
     if (hasActiveCompanion('scout')) chance += config.companions.scout.stealthBonus;
     // Silencieux (bonus) et Grinçant (défaut de Camelote, bonus négatif) sur tout l'équipement porté.
     chance += sumEquippedQualifier('stealth', 'bonus') + sumEquippedQualifier('squeaky', 'bonus');
@@ -2734,7 +2754,7 @@ function attemptStealthEvasion() {
     gameState.pendingStealthEncounter = null;
     if (!enemy) { updateUI(); return; }
 
-    const evadeChance = Math.min(70 + (gameState.anomalyEffects.stealthCapBonus || 0), 40 + (gameState.skills.stealth.level - 1) * 8); // NOCTURNE (anomalies.js)
+    const evadeChance = Math.min(70 + (gameState.anomalyEffects.stealthCapBonus || 0), 40 + (effectiveStealthLevel() - 1) * 8); // NOCTURNE (anomalies.js)
     if (Math.random() * 100 < evadeChance) {
         setSceneHeader('🥷', 'Évitement Réussi', 'Furtivité', { key: 'stealthEvaded', enemy });
         logEvent(`Vous évitez [${enemy.name}] sans un bruit.`, "success");
@@ -4368,6 +4388,7 @@ function openOriginSheet() {
 
 // Badges permanents sous le nom (race, classe) ; un toucher ouvre la fiche d'origine.
 function updateOriginUI() {
+    updateClassAbilityUI(); // masquée hors combat
     const race = originEntry('race', gameState.race), cls = originEntry('class', gameState.crawlerClass);
     if (ui.raceStatus) {
         ui.raceStatus.classList.toggle('hidden', !race);
@@ -4639,7 +4660,7 @@ function recomputeMaxHp() {
     // Robuste (qualificatif d'armure) : PV max +%, tant que l'armure est portée.
     const sturdy = getItemQualifierValues(gameState.equipment.armor, 'sturdy', 'armor');
     const gearMult = sturdy ? 1 + sturdy.pct / 100 : 1;
-    const raceMult = originRaceEffects().maxHpMult || 1; // Goule, Gobelin, Troll, Cafard (chantier 13)
+    const raceMult = (originRaceEffects().maxHpMult || 1) * (originClassEffects().maxHpMult || 1); // Goule, Gobelin, Troll, Cafard ; Sac de frappe (chantier 13)
     gameState.maxHp = Math.max(1, Math.round(gameState.baseMaxHp * mult * gearMult * raceMult));
     if (gameState.hp > gameState.maxHp) gameState.hp = gameState.maxHp;
 }
@@ -5998,6 +6019,7 @@ function initiateCombat(forcedEnemy = null) {
 
     // Statuts remis à zéro à chaque nouveau combat (des deux côtés)
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null };
+    gameState.classAbilityUsed = false; // capacité de classe : une fois par combat (chantier 13)
     if (enemy) {
         // telegraph/defBuffed/frenzied : uniquement lus/écrits côté boss (voir performBossCounterAttack()
         // dans app.js, Chantier 2 du rework combat) — restent toujours neutres sur un mob normal/élite.
@@ -6327,6 +6349,8 @@ function getEffectiveDef() {
     if (gameState.engageDefHalved) {
         effectiveDef = Math.round(effectiveDef * 0.5);
     }
+    // Encaisser (Sac de frappe, chantier 13) : DEF ×2 pour la riposte qui suit la capacité.
+    if (gameState.status.brace) effectiveDef = Math.round(effectiveDef * (originClassEffects().braceDefMult || 1));
     return effectiveDef;
 }
 
@@ -6346,6 +6370,7 @@ function tryPlayerAction() {
     // Même convention pour "Charger" (Chantier 3, attemptEngage()) : la DEF divisée par 2 ne doit
     // couvrir QUE la riposte qui suit la charge, jamais fuiter sur l'action suivante du joueur.
     gameState.engageDefHalved = false;
+    gameState.status.brace = null; // Encaisser (chantier 13) : ne couvre que la riposte qui suit la capacité
     // Bouclier de Mana (chantier 11) : couvre les ripostes des `rounds` actions suivant le sort.
     if (gameState.status.manaShield) {
         gameState.status.manaShield.rounds -= 1;
@@ -6385,6 +6410,8 @@ function tryPlayerAction() {
 function performPlayerAttack(attackerAtk, options, label) {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
     const enemy = gameState.currentEnemy;
+    // `options.skipReaction` : un coup de capacité de classe qui n'est pas le dernier d'une rafale (Tir de barrage) ne déclenche pas la riposte.
+    const react = () => { if (!options.skipReaction) resolveEnemyReaction(); };
 
     // Un joueur confus a une chance de rater complètement son attaque (aucun dégât, tour perdu)
     if (gameState.status.confused && gameState.status.confused.rounds > 0) {
@@ -6393,7 +6420,7 @@ function performPlayerAttack(attackerAtk, options, label) {
         if (Math.random() * 100 < 45) {
             showDie(ui.combatPlayerDie, "❓");
             logEvent(`Désorienté, vous frappez complètement à côté de [${enemy.name}] !`, "danger");
-            resolveEnemyReaction();
+            react();
             return true;
         }
     }
@@ -6407,7 +6434,7 @@ function performPlayerAttack(attackerAtk, options, label) {
     if (wobbly && Math.random() * 100 < wobbly.chance) {
         showDie(ui.combatPlayerDie, "🥴");
         logEvent(`🥴 Votre [${gear.name}] bancal vous glisse des mains : coup complètement raté !`, "danger");
-        resolveEnemyReaction();
+        react();
         return false;
     }
 
@@ -6437,6 +6464,16 @@ function performPlayerAttack(attackerAtk, options, label) {
         adrenalineNote = " (galvanisé)";
         gameState.status.adrenaline.rounds -= 1;
         if (gameState.status.adrenaline.rounds <= 0) gameState.status.adrenaline = null;
+    }
+
+    // Disparition (Filou, chantier 13) : la prochaine attaque après la capacité porte un bonus garanti.
+    let vanishNote = "";
+    const vanish = gameState.status.vanish;
+    if (vanish && vanish.nextAttack) {
+        const vanishMult = originClassEffects().nextAttackMult || 1;
+        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * vanishMult };
+        vanishNote = ` (disparition ×${vanishMult})`;
+        vanish.nextAttack = false;
     }
 
     // Attaque furtive réussie : le tout premier coup de ce combat porte un bonus x2 garanti
@@ -6552,10 +6589,11 @@ function performPlayerAttack(attackerAtk, options, label) {
     // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
     // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
     // pure redite de ce que les badges du Chantier 2 montrent déjà sans rapport avec CE coup précis).
-    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyWasExposed ? " (garde ouverte)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
+    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${vanishNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyWasExposed ? " (garde ouverte)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
 
     // Appui du compagnon : sort donné, Frappe d'appoint ou coup d'opportunité (voir companionCombatSupport())
     companionCombatSupport(enemy);
+    if (enemy.hp > 0 && options.onHit) options.onHit(enemy, playerDamage); // effet de capacité de classe posé AVANT la riposte (ex. étourdissement)
 
     if (enemy.hp <= 0) {
         // Coup de grâce (chantier 6, V3) : le coup fatal porté à un boss ouvre d'abord l'épreuve (si une interface la permet).
@@ -6567,7 +6605,7 @@ function performPlayerAttack(attackerAtk, options, label) {
         return true;
     }
 
-    resolveEnemyReaction();
+    react();
     return true;
 }
 
@@ -6730,6 +6768,13 @@ function applyArmorMechanic(attacker, incomingDamage) {
 
 // Ténébreux (armure) : chance d'esquiver complètement une attaque ennemie.
 function rollPlayerDodge(enemy) {
+    // Disparition (Filou, chantier 13) : toute la riposte de ce tour (toutes ses frappes) est esquivée ; chaque tour esquivé consomme une charge.
+    const vanish = gameState.status.vanish;
+    if (vanish && (vanish.dodging || vanish.turns > 0)) {
+        if (!vanish.dodging) { vanish.turns -= 1; vanish.dodging = true; }
+        logEvent(`🎭 Vous n'êtes déjà plus là : l'attaque de [${enemy.name}] frappe le vide !`, "success");
+        return true;
+    }
     const values = getItemQualifierValues(gameState.equipment.armor, 'darkness', 'armor');
     if (!values || Math.random() * 100 >= values.chance) return false;
     logEvent(`🌑 Vous vous fondez dans l'ombre et esquivez l'attaque de [${enemy.name}] !`, "success");
@@ -6768,7 +6813,9 @@ function consumeEnemyAttackDebuffs(enemy) {
 function getSpellManaCost(spell) {
     if (!spell) return 0;
     const thrifty = getItemQualifierValues(spell, 'thrifty', 'spell');
-    return thrifty ? Math.max(1, Math.round(spell.manaCost * (1 - thrifty.pct / 100))) : spell.manaCost;
+    const cost = thrifty ? Math.max(1, Math.round(spell.manaCost * (1 - thrifty.pct / 100))) : spell.manaCost;
+    const classMult = originClassEffects().manaCostMult; // Occultiste de foire : coût en mana −10 % (style)
+    return classMult ? Math.max(1, Math.round(cost * classMult)) : cost;
 }
 
 // Tente d'appliquer un effet de statut au joueur selon le trait élémentaire du monstre
@@ -6840,7 +6887,7 @@ const COMBAT_BEAT_MS = config.combatRhythm.beatActionToRiposte;
 
 // Empêche de spammer les boutons de combat pendant la petite pause entre deux actions
 function setCombatInputLocked(locked) {
-    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnRetreat, ui.btnEngage, ui.btnFlee, ui.btnOccasion].forEach(btn => {
+    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnRetreat, ui.btnEngage, ui.btnFlee, ui.btnOccasion, ui.btnClassAbility].forEach(btn => {
         if (!btn) return;
         btn.disabled = locked;
         btn.classList.toggle('opacity-40', locked);
@@ -6918,7 +6965,11 @@ function enemyCounterAttack() {
     if (!gameState.currentEnemy) return; // sécurité si le combat vient d'être résolu
     combatSkipRequested = false; // Chantier 9 : jamais de skip qui fuite d'un tour précédent (ou du clic qui a déclenché celui-ci)
     setCombatInputLocked(true);
-    resolveEnemyCounterAttack(() => { setCombatInputLocked(false); updateUI(); });
+    resolveEnemyCounterAttack(() => {
+        endClassDefenseTurn(); // Disparition / Encaisser : valables pour CETTE riposte seulement
+        setCombatInputLocked(false);
+        updateUI();
+    });
 }
 
 // ==========================================
@@ -7040,6 +7091,7 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
     const companionAbsorbNote = intercept.note;
     const hpBefore = gameState.hp;
     applyPlayerDamage(playerDamage);
+    applyBraceReflect(enemy, playerDamage); // Encaisser (Sac de frappe, chantier 13)
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
     // Effet d'attaque du mob (fx.js) : chiffre, secousse et flash à l'impact ; `silent` = multi-coups,
     // joué sans élan pour tenir dans beatMultiHit.
@@ -7303,7 +7355,8 @@ function resolveEnemyCounterAttack(onDone) {
     // Étourdissement en cours sur l'ennemi : il rate son tour
     if (enemy.status && enemy.status.stunned) {
         logEvent(`[${enemy.name}] est étourdi et ne peut pas riposter !`, "info");
-        enemy.status.stunned = false;
+        const stunLeft = typeof enemy.status.stunned === 'number' ? enemy.status.stunned - 1 : 0; // Uppercut + synergie Troll : étourdi plusieurs tours
+        enemy.status.stunned = stunLeft > 0 ? stunLeft : false;
         showDie(ui.combatEnemyDie, "😴");
         // Plus de updateUI() explicite ici (Chantier 7) : onDone() le fait déjà, centralisé.
         if (onDone) onDone();
@@ -7405,6 +7458,7 @@ function resolveNonBossCounterAttack(enemy) {
 
     const hpBefore = gameState.hp;
     applyPlayerDamage(playerDamage);
+    applyBraceReflect(enemy, playerDamage); // Encaisser (Sac de frappe, chantier 13)
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
     playMobAttackFx(enemy, { heldPlayerHp: hpBefore }, () => {
         showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
@@ -7482,8 +7536,7 @@ function attackWeapon() {
         return;
     }
 
-    const skill = gameState.skills.weapon;
-    const atkMultiplier = 1.0 + 0.04 * (skill.level - 1); // +4% par niveau
+    const atkMultiplier = weaponAttackMultiplier('weaponMult'); // +4 % par niveau d'Arme, × style de classe (Duelliste)
     const equippedGear = gameState.equipment.weapon;
     const weaponBonus = equippedGear ? (equippedGear.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
@@ -7519,8 +7572,7 @@ function attackRanged() {
         return;
     }
 
-    const skill = gameState.skills.weapon; // Même compétence "Arme" que le corps à corps
-    const atkMultiplier = 1.0 + 0.04 * (skill.level - 1);
+    const atkMultiplier = weaponAttackMultiplier('rangedMult'); // Même compétence "Arme" que le corps à corps ; style Franc-tireur
     const equippedGear = gameState.equipment.ranged;
     const weaponBonus = equippedGear ? (equippedGear.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
@@ -7589,7 +7641,7 @@ function applyRaceDamageMods(amount, source) {
 
 // Multiplicateur de dégâts à mains nues : buff de départ (chantier 14) × race (Troll).
 function unarmedDamageMult() {
-    return starterBuffUnarmedMult() * (originRaceEffects().unarmedMult || 1);
+    return starterBuffUnarmedMult() * (originRaceEffects().unarmedMult || 1) * (originClassEffects().unarmedMult || 1); // + Bagarreur (style)
 }
 
 // Increvable (Cafard mutant) : un dégât mortel laisse 1 PV, 1 fois par étage, jamais contre un boss. Renvoie le montant à appliquer.
@@ -7601,6 +7653,181 @@ function applyRaceLastStand(amount) {
     gameState.raceLastStandFloor = gameState.currentFloor;
     logEvent("🪳 Increvable : le coup aurait dû vous tuer, mais un cafard, ça se retourne et ça repart. Il vous reste 1 PV.", "success");
     return gameState.hp - 1;
+}
+
+// ==========================================
+// CLASSE : PASSIFS DE STYLE ET CAPACITÉS ACTIVES (chantier 13, lot 3 — voir origins.js et CHANTIERS.md)
+// ==========================================
+// `gameState.crawlerClass` (clé d'ORIGIN_CLASSES, null = aucune) choisit une entrée de `config.origins.classes` : un passif de style (lu à son point
+// d'usage : PV max, mains nues, arme, tir, coût en mana, niveau de Furtivité) et UNE capacité active, utilisable 1 fois par combat
+// (`gameState.classAbilityUsed`, remis à faux dans initiateCombat()). Une capacité prend le tour : la riposte suit normalement. Les synergies
+// race × classe (`config.origins.synergies`) REMPLACENT certains chiffres de la classe. Contre un boss, les statuts sont réduits (voir chaque capacité).
+function originClassEffects() {
+    return (gameState.crawlerClass && config.origins.classes[gameState.crawlerClass]) || {};
+}
+
+// Chiffres de la capacité en cours : ceux de la classe, remplacés champ par champ par la synergie race × classe éventuelle.
+function originAbilityValues() {
+    const syn = originSynergyFor(gameState.race, gameState.crawlerClass);
+    return Object.assign({}, originClassEffects(), (syn && config.origins.synergies[`${syn.race}+${syn.cls}`]) || {});
+}
+function activeSynergy() {
+    const syn = originSynergyFor(gameState.race, gameState.crawlerClass);
+    return (syn && config.origins.synergies[`${syn.race}+${syn.cls}`]) || null;
+}
+
+function effectiveStealthLevel() {
+    const base = (gameState.skills && gameState.skills.stealth && gameState.skills.stealth.level) || 1;
+    return base + (originClassEffects().stealthLevels || 0); // Filou : Furtivité +1 niveau (style)
+}
+
+// Multiplicateur d'une attaque d'arme (mêlée ou distance) : +4 % par niveau d'Arme, × style de classe (`styleKey` : 'weaponMult' | 'rangedMult').
+function weaponAttackMultiplier(styleKey) {
+    const level = gameState.skills.weapon.level;
+    return (1.0 + 0.04 * (level - 1)) * (originClassEffects()[styleKey] || 1);
+}
+
+// Fin de la riposte : Disparition et Encaisser ne valent que pour elle.
+function endClassDefenseTurn() {
+    const vanish = gameState.status && gameState.status.vanish;
+    if (vanish) { vanish.dodging = false; if (vanish.turns <= 0 && !vanish.nextAttack) gameState.status.vanish = null; }
+    if (gameState.status && gameState.status.brace) gameState.status.brace = null;
+}
+
+// Encaisser : une part des dégâts réellement subis revient à l'attaquant (jamais de coup fatal : l'ennemi garde au moins 1 PV, comme Épineux).
+function applyBraceReflect(enemy, damageTaken) {
+    if (!gameState.status.brace || !(damageTaken > 0) || !enemy) return 0;
+    const pct = originAbilityValues().reflectPct || 0;
+    const back = Math.min(Math.max(0, enemy.hp - 1), Math.max(1, Math.round(damageTaken * pct)));
+    if (back <= 0) return 0;
+    enemy.hp -= back;
+    logEvent(`🛡️ Encaisser : ${back} dégâts renvoyés à [${enemy.name}] (${Math.round(pct * 100)} %).`, "success");
+    return back;
+}
+
+// Disponibilité de la capacité (pure, lue par le bouton et par useClassAbility()) : { usable, reason }.
+function classAbilityStatus() {
+    const cls = originEntry('class', gameState.crawlerClass);
+    if (!cls) return { usable: false, reason: "Aucune classe." };
+    if (!gameState.inCombat || !gameState.currentEnemy) return { usable: false, reason: "Seulement en combat." };
+    if (gameState.classAbilityUsed) return { usable: false, reason: "Déjà utilisée dans ce combat." };
+    const disarmed = gameState.status.disarmed && gameState.status.disarmed.rounds > 0;
+    switch (cls.key) {
+        case 'brawler': if (gameState.combatDistance > 0) return { usable: false, reason: "Trop loin pour frapper." }; break;
+        case 'duelist':
+            if (!gameState.equipment.weapon) return { usable: false, reason: "Aucune arme équipée." };
+            if (disarmed) return { usable: false, reason: "Arme arrachée." };
+            if (gameState.combatDistance > 0) return { usable: false, reason: "Trop loin pour frapper." };
+            break;
+        case 'gunslinger':
+            if (!gameState.equipment.ranged) return { usable: false, reason: "Aucune arme à distance." };
+            if (disarmed) return { usable: false, reason: "Arme arrachée." };
+            break;
+        case 'occultist': if (!gameState.equipment.spell) return { usable: false, reason: "Aucun sort équipé." }; break;
+    }
+    return { usable: true, reason: "" };
+}
+
+// Utilise la capacité de classe. Renvoie vrai si elle a été jouée (un tour consommé).
+function useClassAbility() {
+    const status = classAbilityStatus();
+    if (!status.usable) {
+        if (gameState.inCombat) logEvent(`${status.reason} Capacité indisponible.`, "danger");
+        return false;
+    }
+    const key = gameState.crawlerClass;
+    const run = CLASS_ABILITIES[key];
+    if (!run || !tryPlayerAction()) return false;
+    gameState.classAbilityUsed = true;
+    run(originAbilityValues());
+    updateUI();
+    return true;
+}
+
+const CLASS_ABILITIES = {
+    // Uppercut du dimanche : mains nues ×2 ; étourdit (1 tour, 2 avec la synergie Troll). Un boss n'est jamais étourdi : il est « exposé » seulement avec la synergie.
+    brawler(v) {
+        gameState.lastAttackKind = 'unarmed';
+        const skill = gameState.skills.unarmed;
+        const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1));
+        const landed = performPlayerAttack(gameState.atk, {
+            atkMultiplier: 0.75 * unarmedDamageMult() * v.abilityMult, varianceRange: 0.10, defReduction,
+            onHit: (enemy) => {
+                if (!enemy.isBoss) {
+                    enemy.status.stunned = v.stunTurns > 1 ? v.stunTurns : true;
+                    logEvent(`💫 Uppercut du dimanche : [${enemy.name}] voit des chandelles${v.stunTurns > 1 ? ` (${v.stunTurns} tours)` : ''} !`, "success");
+                } else if (v.bossExposed) {
+                    enemy.status.exposed = { rounds: 1 };
+                    logEvent(`💫 Uppercut du dimanche : la garde de [${enemy.name}] est ouverte !`, "success");
+                }
+            }
+        }, "avec un Uppercut du dimanche");
+        if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
+    },
+    // Fendre : frappe à l'arme ×1,8 qui ignore la moitié de la DEF.
+    duelist(v) {
+        gameState.lastAttackKind = 'weapon';
+        const gear = gameState.equipment.weapon;
+        const landed = performPlayerAttack(gameState.atk + (gear.baseDmg || 0), {
+            atkMultiplier: weaponAttackMultiplier('weaponMult') * v.abilityMult, varianceRange: 0.15, defReduction: v.abilityDefIgnore, gear
+        }, "en fendant");
+        if (landed) { gainSkillXp('weapon', SKILL_XP_PER_USE); applyWeaponMechanic(gear); }
+    },
+    // Tir de barrage : `shots` tirs à ×0,8 à toute distance, une seule riposte à la fin (jamais de second tir sur un ennemi déjà tombé).
+    gunslinger(v) {
+        gameState.lastAttackKind = 'ranged';
+        const gear = gameState.equipment.ranged;
+        let landedAny = false;
+        for (let i = 0; i < v.shots; i++) {
+            const enemy = gameState.currentEnemy;
+            if (!gameState.inCombat || !enemy || enemy.hp <= 0 || gameState.pendingMinigame) break;
+            const last = i === v.shots - 1;
+            const landed = performPlayerAttack(gameState.atk + (gear.baseDmg || 0), {
+                atkMultiplier: weaponAttackMultiplier('rangedMult') * v.shotMult, varianceRange: 0.15, defReduction: 0, gear, skipReaction: !last
+            }, `en rafale (tir ${i + 1}/${v.shots})`);
+            landedAny = landedAny || landed;
+        }
+        if (landedAny) { gainSkillXp('weapon', SKILL_XP_PER_USE); applyWeaponMechanic(gear); }
+    },
+    // Surcharge : le prochain sort est gratuit, plus fort et ne rate jamais (voir castEquippedSpell()) ; la synergie Elfe rend aussi du mana.
+    occultist(v) {
+        gameState.status.overcharge = true;
+        if (v.manaRefund) gameState.mana = Math.min(gameState.maxMana, gameState.mana + v.manaRefund);
+        showDie(ui.combatPlayerDie, "🔮");
+        logEvent(`🔮 Surcharge : votre prochain sort sera gratuit, ×${v.abilityMult} et infaillible${v.manaRefund ? ` (+${v.manaRefund} mana)` : ''}.`, "success");
+        resolveEnemyReaction();
+    },
+    // Disparition : la prochaine riposte (2 avec la synergie Gobelin) est esquivée et l'attaque suivante porte ×2.
+    trickster(v) {
+        gameState.status.vanish = { turns: v.dodgeTurns, nextAttack: true, dodging: false };
+        showDie(ui.combatPlayerDie, "🎭");
+        logEvent(`🎭 Disparition : vous vous fondez dans le décor (${v.dodgeTurns} riposte${v.dodgeTurns > 1 ? 's' : ''} esquivée${v.dodgeTurns > 1 ? 's' : ''}, prochaine attaque ×${v.nextAttackMult}).`, "success");
+        resolveEnemyReaction();
+    },
+    // Encaisser : DEF ×2 pour la riposte qui suit, et une part des dégâts reçus revient à l'attaquant.
+    punchingBag(v) {
+        gameState.status.brace = true;
+        showDie(ui.combatPlayerDie, "🛡️");
+        logEvent(`🛡️ Encaisser : DEF ×${v.braceDefMult} pour la prochaine riposte, ${Math.round(v.reflectPct * 100)} % des dégâts renvoyés.`, "success");
+        resolveEnemyReaction();
+    }
+};
+
+// Bouton de capacité (bande pleine largeur au-dessus des attaques, comme #btn-occasion) : visible en combat avec une classe ; grisé quand
+// la capacité est indisponible, avec la raison. Appelée par updateUI().
+function updateClassAbilityUI() {
+    const btn = ui.btnClassAbility;
+    if (!btn) return;
+    const cls = originEntry('class', gameState.crawlerClass);
+    const show = !!cls && gameState.inCombat && !!gameState.currentEnemy;
+    btn.classList.toggle('hidden', !show);
+    if (!show) return;
+    const status = classAbilityStatus();
+    btn.disabled = !status.usable;
+    btn.classList.toggle('opacity-40', !status.usable);
+    btn.classList.toggle('pointer-events-none', !status.usable);
+    btn.innerHTML = `${cls.icon} ${cls.abilityName}<span class="block text-[9px] font-normal normal-case opacity-80">${status.usable ? 'Capacité de classe · 1 fois par combat' : status.reason}</span>`;
+    btn.title = `${cls.name} — ${cls.ability}`;
 }
 
 // ==========================================
@@ -7943,7 +8170,7 @@ function attackMagic() {
         logEvent(`Trop près pour lancer [${spell.spellName}] — éloignez-vous !`, "danger");
         return;
     }
-    const manaCost = getSpellManaCost(spell); // Économe (qualificatif de sort) le réduit
+    const manaCost = gameState.status.overcharge ? 0 : getSpellManaCost(spell); // Économe (qualificatif de sort) le réduit ; Surcharge : gratuit
     if (gameState.mana < manaCost) {
         logEvent(`Mana insuffisant pour lancer [${spell.spellName}] (${manaCost} requis).`, "danger");
         return;
@@ -7988,6 +8215,9 @@ function castEquippedSpell(spell, manaCost, glyphBoost) {
     // Le backfire reste le prix du chaos, et devient PLUS punitif à haut niveau qu'avant (plancher
     // abaissé) pour continuer à justifier ce risque une fois la compétence Magie montée.
     const mb = config.magicBalance;
+    // Surcharge (Occultiste de foire, chantier 13) : ce sort est gratuit (coût déjà à 0 chez l'appelant), plus fort et ne rate jamais.
+    const overcharged = !!gameState.status.overcharge;
+    if (overcharged) gameState.status.overcharge = null;
     let backfireChance = Math.max(mb.backfireMin, mb.backfireBase + mb.backfirePerLevel * (skill.level - 1)) + (gameState.anomalyEffects.backfireBonusPct || 0);
     // Qualificatifs de sort : Canalisé réduit le risque d'échec (jamais sous 1 %), Bredouillant l'augmente.
     const channeled = getItemQualifierValues(spell, 'channeled', 'spell');
@@ -7996,13 +8226,19 @@ function castEquippedSpell(spell, manaCost, glyphBoost) {
     if (stutter) backfireChance += stutter.bonus;
     if (originRaceEffects().backfirePts) backfireChance = Math.max(1, backfireChance + originRaceEffects().backfirePts); // Elfe : −3 pts (jamais sous 1 %)
     let atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1) * (originRaceEffects().spellMult || 1); // ZONE_MAGIQUE (anomalies.js), Elfe (chantier 13)
+    if (overcharged) {
+        const boost = (activeSynergy() && activeSynergy().abilityMult) || originClassEffects().abilityMult || 1;
+        atkMultiplier *= boost;
+        backfireChance = 0;
+        logEvent(`🔮 Surcharge : [${spell.spellName}] jaillit, gratuit et ×${boost} !`, "success");
+    }
     if (glyphBoost) {
         atkMultiplier *= mb.glyphDamageMult;
         backfireChance *= mb.glyphBackfireMult;
         logEvent(`✍️ Le glyphe renforce [${spell.spellName}] (dégâts +${Math.round((mb.glyphDamageMult - 1) * 100)} %, risque de raté ÷${Math.round(1 / mb.glyphBackfireMult)}).`, "success");
     }
 
-    if (Math.random() * 100 < backfireChance) {
+    if (!overcharged && Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
         playSpellBackfireFx(); // la lueur crachote et s'éteint en fumée (fx.js)
         logEvent(`[${spell.spellName}] part de travers et fait un flop retentissant. Aucun dégât (mana quand même dépensé).`, "danger");
@@ -8633,6 +8869,7 @@ ui.btnAttackWeapon.addEventListener('click', attackWeapon);
 ui.btnAttackRanged.addEventListener('click', attackRanged);
 ui.btnAttackUnarmed.addEventListener('click', attackUnarmed);
 if (ui.btnOccasion) ui.btnOccasion.addEventListener('click', startOccasion);
+if (ui.btnClassAbility) ui.btnClassAbility.addEventListener('click', useClassAbility);
 ui.btnAttackMagic.addEventListener('click', attackMagic);
 if (ui.btnSprint) ui.btnSprint.addEventListener('click', attemptSprint);
 if (ui.btnRetreat) ui.btnRetreat.addEventListener('click', attemptRetreat);

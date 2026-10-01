@@ -77,35 +77,35 @@ const ORIGIN_RACES = {
 // Bagarreur, Filou et Sac de frappe le sont toujours. Une classe dont la condition est remplie est proposée même injouable.
 const ORIGIN_CLASSES = {
     brawler: {
-        key: 'brawler', icon: '🥊', name: "Bagarreur",
+        key: 'brawler', icon: '🥊', name: "Bagarreur", abilityName: 'Uppercut du dimanche',
         ability: "Uppercut du dimanche : mains nues ×2 + étourdit 1 tour", style: "Mains nues +15 %",
         when: s => originNum(s, 'unarmedKills') >= 3,
         why: s => `Proposé car vous avez assommé ${originNum(s, 'unarmedKills')} monstres à mains nues.`,
         playable: () => true
     },
     duelist: {
-        key: 'duelist', icon: '⚔️', name: "Duelliste",
+        key: 'duelist', icon: '⚔️', name: "Duelliste", abilityName: 'Fendre',
         ability: "Fendre : ×1,8, ignore 50 % de la DEF", style: "Arme +10 %",
         when: s => originSkillLevel(s, 'weapon') >= 3,
         why: s => `Proposé car votre compétence Arme est au niveau ${originSkillLevel(s, 'weapon')}.`,
         playable: s => originHasEquipped(s, 'weapon') || originHasInBag(s, 'weapons')
     },
     gunslinger: {
-        key: 'gunslinger', icon: '🏹', name: "Franc-tireur",
+        key: 'gunslinger', icon: '🏹', name: "Franc-tireur", abilityName: 'Tir de barrage',
         ability: "Tir de barrage : 2 tirs à ×0,8, à toute distance", style: "Tir +10 %",
         when: s => originNum(s, 'rangedKills') >= 3,
         why: s => `Proposé car vous avez abattu ${originNum(s, 'rangedKills')} monstres à distance.`,
         playable: s => originHasEquipped(s, 'ranged') || originHasInBag(s, 'ranged')
     },
     occultist: {
-        key: 'occultist', icon: '🔮', name: "Occultiste de foire",
+        key: 'occultist', icon: '🔮', name: "Occultiste de foire", abilityName: 'Surcharge',
         ability: "Surcharge : prochain sort gratuit, ×1,6, sans backfire", style: "Coût en mana −10 %",
         when: s => originNum(s, 'spellKills') >= 2,
         why: s => `Proposé car vous avez achevé ${originNum(s, 'spellKills')} monstres au sort.`,
         playable: s => originHasEquipped(s, 'spell') || (Array.isArray(s && s.spellbook) && s.spellbook.length > 0)
     },
     trickster: {
-        key: 'trickster', icon: '🎭', name: "Filou",
+        key: 'trickster', icon: '🎭', name: "Filou", abilityName: 'Disparition',
         ability: "Disparition : prochaine riposte esquivée + prochaine attaque ×2", style: "Furtivité +1 niveau",
         when: s => originNum(s, 'sneakKills') >= 1 || originNum(s, 'flees') >= 2,
         why: s => originNum(s, 'sneakKills') >= 1
@@ -114,7 +114,7 @@ const ORIGIN_CLASSES = {
         playable: () => true
     },
     punchingBag: {
-        key: 'punchingBag', icon: '🛡️', name: "Sac de frappe",
+        key: 'punchingBag', icon: '🛡️', name: "Sac de frappe", abilityName: 'Encaisser',
         ability: "Encaisser : DEF ×2 sur la riposte, renvoie 50 % des dégâts reçus", style: "PV max +10 %",
         when: s => originNum(s, 'damageTaken') >= 150,
         why: s => `Proposé car vous avez encaissé ${originNum(s, 'damageTaken')} points de dégâts.`,

@@ -18,6 +18,7 @@ let shopEncounters = 0, lairEncounters = 0, floorTransitionsSeen = 0, pactChoice
 const seenErrors = [];
 const huntersSeen = new Set(); // Chasseurs de primes rencontrés (chantier 3)
 let showsSeen = 0;
+let classAbilitiesUsed = 0; // Capacités de classe jouées (chantier 13, lot 3)
 let originChoicesSeen = 0; // Race puis classe à l'étage 3 (chantier 13, lot 2) // Émissions DeathWatch (chantier 4)
 
 gameState.equipment.armor = { name: "Plastron d'Essai", baseArmor: 12, category: 'armors', mechanics: ['bleed', 'heal', 'adrenaline', 'stealth'] };
@@ -120,7 +121,9 @@ try {
         } else if (gameState.inCombat) {
             const enemy = gameState.currentEnemy;
             if (enemy && isEliteMob(enemy)) eliteMobsSeen++;
-            if (enemy) {
+            // Capacité de classe (chantier 13, lot 3) : jouée dès qu'elle est disponible, pour exercer les 6 capacités dans la boucle de combat réelle.
+            if (enemy && gameState.hp > gameState.maxHp * 0.5 && classAbilityStatus().usable) { classAbilitiesUsed++; useClassAbility(); }
+            if (enemy && gameState.currentEnemy) {
                 // Seuil à la moitié des PV max (et non 20 PV fixes) : un élite à deux modificateurs de l'étage 1
                 // pouvait sinon tuer la simulation en 3 ripostes (voir le commentaire du soin plus haut).
                 for (let round = 0; round < 3 && gameState.inCombat && gameState.hp > gameState.maxHp * 0.5; round++) {
@@ -306,7 +309,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${mapTravels} voyages sur carte, ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), ${showsSeen} émissions DeathWatch, ${originChoicesSeen} choix de race/classe, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${mapTravels} voyages sur carte, ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), ${showsSeen} émissions DeathWatch, ${originChoicesSeen} choix de race/classe, ${classAbilitiesUsed} capacités de classe, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");
