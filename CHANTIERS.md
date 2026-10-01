@@ -317,6 +317,13 @@ le bestiaire).
 - **Gobelin et chasseurs de primes** : fuite **fixe à 50 %**, le bonus de fuite ne joue que contre les mobs ordinaires.
 - **Gabarits légèrement variés** : chaque corps a son propre `frontExtent` (aujourd'hui `CRAWLER_FRONT_EXTENT` = 15, constante unique) dans une marge fixe — départ proposé : 12 à 19, hauteur ±20 % — et ses points de fixation d'arme/armure. `distanceToX()`/`MOB_X_CONTACT` et les bandes de portée lisent l'extension du corps courant (fonction `crawlerFrontExtent()`), à tester sur les 7 corps (aucun chevauchement au contact). **Coût ajouté au lot 4** (recalage par corps).
 
+**Décidé (round 8 — cas limites)** :
+- **Anciennes sauvegardes** : un crawler déjà au-delà de l'étage 3 sans race ni classe reste **sans origine** (aucune rétro-activation, comme le buff du chantier 14 : `gameState.race`/`crawlerClass` absents = aucun effet).
+- **Déclenchement** : **vraie partie seulement** (`gameState.saveEnabled`, comme l'émission DeathWatch et les succès), **sauf le saut DEV** : `devJumpToUrbanFloor()` tire une race et une classe au hasard au lieu d'ouvrir les deux écrans (test rapide de l'étage urbain). Les tests Node forcent le choix ; la simulation longue sait résoudre les deux états bloquants.
+- **Sans dessins** : tant qu'un corps n'est pas livré, la race utilise le **corps humain actuel teinté** (couleur de peau propre à la race : vert gobelin, gris goule…) ; chaque dessin livré remplace sa teinte, un par un.
+- **Affichage** : **deux badges sous le nom** (icône + libellé, comme `#anomaly-status-bar`/`#starter-buff-status`) qui ouvrent une **fiche d'origine** (bonus, défauts, capacité, synergie éventuelle, titre sarcastique), sur le modèle de la fiche compagnon (`openCompanionSheet()`).
+- **Boxeur (chantier 14)** : le `starterBuff` et la race/classe sont indépendants ; leur cumul reste multiplicatif (voir « Cumul »).
+
 | Synergie | Titre | Effet |
 |---|---|---|
 | Troll + Bagarreur | « Cadre supérieur du pugilat » | Uppercut étourdit 2 tours (non-boss) ; contre un boss, applique « exposé » (DEF ×0,7 un coup) |
@@ -347,9 +354,9 @@ le bestiaire).
 **Plan en lots** (chaque lot : `npm test`, `npm run test:long` dès que la boucle de jeu est touchée) :
 - **Lot 0 — données pures** : `origins.js` (`ORIGIN_RACES`, `ORIGIN_CLASSES`, conditions, `pickOriginOffers(kind, state, rng)` pure à hasard injectable), compteur `rangedKills` dans `createEmptyRunStats()`, ajout aux DEUX listes de scripts (`index.html`, `GAME_FILES`) ; tests des conditions et du tirage (toujours 3 cartes, conditions remplies d'abord).
 - **Lot 1 — passifs de race** : `gameState.race` (sauvegardé ; absent = aucune race, jamais de rétro-activation), `config.origins`, un seul point de lecture par effet (`recomputeMaxHp()`, `gainXp()`, `rollDamage()`, `getStealthChance()`/fuite, `applyPlayerHeal()`, piège, saignement, mana, `getEffectiveDef()`, Increvable dans `applyPlayerDamage()`) ; tests de chaque race.
-- **Lot 2 — écrans de choix** : `raceChoicePending` puis `classChoicePending` (deux overlays, même famille que `#pact-choice-zone`), déclenchés par `advanceToNextFloor()` à l'étage 3 AVANT le Pacte et l'émission (la généralisation de `pendingShowAfterPact` en attente commune est à faire), `resetTransientState()`, `KNOWN_GAMESTATE_KEYS`, résolveur de `long_playthrough.js`, badge et fiche.
+- **Lot 2 — écrans de choix** : `raceChoicePending` puis `classChoicePending` (deux overlays, même famille que `#pact-choice-zone`), déclenchés par `advanceToNextFloor()` à l'étage 3 AVANT le Pacte et l'émission (la généralisation de `pendingShowAfterPact` en attente commune est à faire), `resetTransientState()`, `KNOWN_GAMESTATE_KEYS`, résolveur de `long_playthrough.js`, deux badges sous le nom + fiche d'origine (round 8), saut DEV aléatoire.
 - **Lot 3 — classes** : `gameState.crawlerClass`, passifs de style, bouton `#btn-class-ability` (grisé une fois utilisé, remis à zéro dans `initiateCombat()`), 6 capacités via les points d'entrée existants (`performPlayerAttack()`, `resolveEnemyReaction()`…), effets visuels dans `fx.js`.
-- **Lot 4 — sprites** : prompts Gemini pour 6 corps, `composeCrawler()` par race, armures et bras par posture recalés, icônes des cartes de choix. **Peut démarrer dès le lot 0** (je prépare les prompts), puisque les dessins viennent de l'extérieur.
+- **Lot 4 — sprites** : prompts Gemini pour 6 corps (en attendant : corps humain teinté par race, round 8), `composeCrawler()` par race, armures et bras par posture recalés, icônes des cartes de choix. **Peut démarrer dès le lot 0** (je prépare les prompts), puisque les dessins viennent de l'extérieur.
 - **Lot 5 — habillage** : piques DeathWatch par race/classe, succès, épitaphe, chronique ; `NOTES_ORIGINES.md` et `CLAUDE.md`.
 
 **À surveiller en playtest** : Cafard (Increvable à chaque étage : très fort), cumul Troll/Bagarreur et Goule/Sac de frappe, fréquence réelle des conditions à l'étage 3 (runs courts : seuils bas à confirmer), interaction avec le Boxeur du chantier 14, lisibilité du bouton de capacité.
