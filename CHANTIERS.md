@@ -45,7 +45,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Codé (à playtester) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
-| 13 | Race et classe choisies à l'étage 3 | L | En cours (lot 0 codé) | dessins des 7 corps (prompts Gemini) pour le lot 4 |
+| 13 | Race et classe choisies à l'étage 3 | L | En cours (lots 0 et 1 codés) | dessins des 7 corps (prompts Gemini) pour le lot 4 |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 
 ### Codés (à playtester)
@@ -270,7 +270,7 @@ gardien de l'escalier et de la Sortie par le choix de boss existant, repaires en
 carte, retrait de l'ancien réseau (`urbanMap`, `travelToCity()`, Carte Urbaine, `renderGraphMiniMap()`),
 migration des sauvegardes — voir `NOTES_VILLES.md`.
 
-## 13. Race et classe à l'étage 3 — L — En cours (lot 0 codé)
+## 13. Race et classe à l'étage 3 — L — En cours (lots 0 et 1 codés)
 
 **Demande** : un système de race et de classe à choisir « au niveau 3 ».
 
@@ -353,9 +353,11 @@ le bestiaire).
 
 **Lot 0 codé** : `origins.js` (catalogue pur — 7 races, 6 classes, 4 synergies, libellés d'effets et explications — et `pickOriginOffers(kind, state, rng)`), compteur `rangedKills` (`createEmptyRunStats()`, `recordRunEvent('win')` pour les victoires à l'arme à distance), `tests/regression/origins.js`. Choix d'implémentation : quand plus de 3 conditions sont remplies, les 3 cartes sont tirées au hasard parmi les éligibles ; l'Humain (choix de base) compte comme éligible ; le remplissage des classes ne propose que des classes jouables, et ne complète avec des injouables que s'il en manque pour atteindre 3. Aucun effet de jeu n'est encore branché (lots 1 à 3).
 
+**Lot 1 codé** : `gameState.race` + `gameState.raceLastStandFloor` (sauvegardés ; absents = aucune race), `config.origins.races` (une entrée par race, clé absente = neutre), `applyRace(key)`/`recomputeRaceDerived()`/`originRaceEffects()` (app.js, section « RACE : PASSIFS »), un seul point de lecture par effet : PV max (`recomputeMaxHp()`), XP (`gainXp()`), soins (`applyPlayerHeal()`, régénération passive comprise), DEF et armure (`getEffectiveDef()`), mana max et réserve (`recomputeRaceDerived()`), Furtivité (`getStealthChance()`), fuite (`attemptFlee()`, jamais contre un chasseur de primes), pièges et saignement (`applyRaceDamageMods()`), mains nues (`unarmedDamageMult()` = buff de départ × race), sorts et backfire (`attackMagic()`), Increvable (`applyPlayerDamage()` via `applyRaceLastStand()` : 1 fois par étage, jamais contre un boss, jamais à 1 PV). Aucun écran de choix encore : une race se pose par `applyRace()` (lot 2). La restauration d'une sauvegarde ne laisse plus fuiter `starterBuff`/`race` d'un crawler chargé avant (ancienne sauvegarde sans le champ = aucun effet). Tests : `tests/regression/races.js`. Lecture retenue : « sorts +10 % » = dégâts de sorts du joueur (pas les soins ni le compagnon) ; « soins −20 % » inclut la régénération passive.
+
 **Plan en lots** (chaque lot : `npm test`, `npm run test:long` dès que la boucle de jeu est touchée) :
 - **Lot 0 — données pures (CODÉ)** : `origins.js` (`ORIGIN_RACES`, `ORIGIN_CLASSES`, conditions, `pickOriginOffers(kind, state, rng)` pure à hasard injectable), compteur `rangedKills` dans `createEmptyRunStats()`, ajout aux DEUX listes de scripts (`index.html`, `GAME_FILES`) ; tests des conditions et du tirage (toujours 3 cartes, conditions remplies d'abord).
-- **Lot 1 — passifs de race** : `gameState.race` (sauvegardé ; absent = aucune race, jamais de rétro-activation), `config.origins`, un seul point de lecture par effet (`recomputeMaxHp()`, `gainXp()`, `rollDamage()`, `getStealthChance()`/fuite, `applyPlayerHeal()`, piège, saignement, mana, `getEffectiveDef()`, Increvable dans `applyPlayerDamage()`) ; tests de chaque race.
+- **Lot 1 — passifs de race (CODÉ)** : `gameState.race` (sauvegardé ; absent = aucune race, jamais de rétro-activation), `config.origins`, un seul point de lecture par effet (`recomputeMaxHp()`, `gainXp()`, `rollDamage()`, `getStealthChance()`/fuite, `applyPlayerHeal()`, piège, saignement, mana, `getEffectiveDef()`, Increvable dans `applyPlayerDamage()`) ; tests de chaque race.
 - **Lot 2 — écrans de choix** : `raceChoicePending` puis `classChoicePending` (deux overlays, même famille que `#pact-choice-zone`), déclenchés par `advanceToNextFloor()` à l'étage 3 AVANT le Pacte et l'émission (la généralisation de `pendingShowAfterPact` en attente commune est à faire), `resetTransientState()`, `KNOWN_GAMESTATE_KEYS`, résolveur de `long_playthrough.js`, deux badges sous le nom + fiche d'origine (round 8), saut DEV aléatoire.
 - **Lot 3 — classes** : `gameState.crawlerClass`, passifs de style, bouton `#btn-class-ability` (grisé une fois utilisé, remis à zéro dans `initiateCombat()`), 6 capacités via les points d'entrée existants (`performPlayerAttack()`, `resolveEnemyReaction()`…), effets visuels dans `fx.js`.
 - **Lot 4 — sprites** : prompts Gemini pour 6 corps (en attendant : corps humain teinté par race, round 8), `composeCrawler()` par race, armures et bras par posture recalés, icônes des cartes de choix. **Peut démarrer dès le lot 0** (je prépare les prompts), puisque les dessins viennent de l'extérieur.

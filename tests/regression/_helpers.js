@@ -89,6 +89,10 @@ function resetTransientState() {
     gameState.shopChoicePending = false;
     gameState.pendingShopCityId = null;
     gameState.starterBuff = null; // Buff de départ (chantier 14)
+    gameState.race = null; // Race (chantier 13) : aucune
+    gameState.raceLastStandFloor = 0;
+    gameState.maxMana = 100;
+    gameState.maxInventory = config.inventory.maxEquipment;
     gameState.pendingArcadeCityId = null; // Salle de jeux (V4)
     gameState.arcadeSession = null;
     gameState.lairChoicePending = false;

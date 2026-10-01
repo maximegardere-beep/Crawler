@@ -17,7 +17,7 @@ Tailwind CDN, **aucun build step**.
   indice de domination `computeDominance()`), chargé juste après `anomalies.js`
 - `origins.js` — races et classes (chantier 13, lot 0, voir `CHANTIERS.md`) : catalogue PUR (`ORIGIN_RACES`, `ORIGIN_CLASSES`,
   `ORIGIN_SYNERGIES`, conditions de déblocage et de jouabilité) et tirage des 3 cartes d'un écran de choix `pickOriginOffers(kind, state, rng)`
-  (hasard injectable) ; aucun effet de jeu encore branché ; chargé après `achievements.js`, avant `deathwatch.js`
+  (hasard injectable) ; les passifs de race sont branchés dans `app.js` (lot 1, section « RACE : PASSIFS », `config.origins.races`), pas encore les écrans de choix ni les classes ; chargé après `achievements.js`, avant `deathwatch.js`
 - `deathwatch.js` — émission DeathWatch (catalogue pur : présentateur, piques à trous (avec `theme`),
   répliques par thème de pique et par ton, réactions, `pickShowTaunt()`/`getShowReplyLines()`/
   `fillShowTemplate()`), chargé juste après `achievements.js`
@@ -898,7 +898,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests

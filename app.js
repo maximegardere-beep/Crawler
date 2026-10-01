@@ -152,6 +152,10 @@ const gameState = {
     // Buff de départ « Foutu pour foutu » (chantier 14, voir NOTES_ITEMS.md/CHANTIERS.md) : null | 'desperate' (cadeau Armure ou Rien :
     // +5 % de dégâts subis, mains nues ×2) | 'boxer' (évolution à l'étage 2 : mains nues ×1,25, définitif). Absent d'une ancienne sauvegarde : null.
     starterBuff: null,
+    // Race du crawler (chantier 13, lot 1 — voir origins.js/CHANTIERS.md) : clé d'ORIGIN_RACES, null = aucune (ancienne sauvegarde, avant l'étage 3).
+    // `raceLastStandFloor` : dernier étage où « Increvable » (Cafard mutant) a servi (1 fois par étage).
+    race: null,
+    raceLastStandFloor: 0,
     pendingShowAfterPact: null,
     // Mini-jeu ouvert (chantier 6, minigames-ui.js) : { kind, boss } — bloque les actions le temps de l'épreuve.
     pendingMinigame: null,
@@ -511,6 +515,18 @@ const config = {
         unarmedMult: 2,          // 'desperate' : attaque Mains nues, Étrangler et Charge à mains nues
         boxerUnarmedMult: 1.25,  // 'boxer' (évolution à l'étage 2) : mêmes attaques, définitif
         evolveFloor: 2
+    },
+    // Passifs de race (chantier 13, lot 1) : valeurs de départ à playtester. Une clé absente = neutre. Lues par originRaceEffects().
+    origins: {
+        races: {
+            human: { xpMult: 1.10, extraReserve: 1 },
+            ghoul: { maxHpMult: 1.20, bleedMult: 0.5, healMult: 0.8 },
+            goblin: { stealthPts: 10, fleePts: 15, trapMult: 0.75, maxHpMult: 0.90 },
+            troll: { maxHpMult: 1.25, unarmedMult: 1.15, stealthPts: -10 },
+            elf: { maxManaMult: 1.25, spellMult: 1.10, backfirePts: -3, defFlat: -1 },
+            dwarf: { defMult: 1.12, armorMult: 1.15, fleePts: -15 },
+            roach: { maxHpMult: 0.85, lastStand: true }
+        }
     },
     magicBalance: {
         atkBase: 1.1,
@@ -1020,6 +1036,11 @@ function restoreSaveForName(name) {
     ['urbanMap', 'pendingUrbanTravel', 'pendingUrbanBossEncounter', 'pendingUrbanBossCityId', 'pendingUrbanAdvanceAfterCombat']
         .forEach(key => { delete gameState[key]; });
     if (needsBaseMaxHpMigration) gameState.baseMaxHp = saved.maxHp || gameState.maxHp;
+    // Champs de crawler absents d'une ancienne sauvegarde : jamais ceux du crawler précédemment chargé dans cette page (Object.assign ne les écrase pas).
+    if (saved.starterBuff === undefined) gameState.starterBuff = null;
+    if (saved.raceLastStandFloor === undefined) gameState.raceLastStandFloor = 0;
+    if (!saved.race || !config.origins.races[saved.race]) gameState.race = null; // ancienne sauvegarde ou clé inconnue : aucune race
+    recomputeRaceDerived();
     // Compagnon d'une sauvegarde antérieure au rework (leaveChance, pas de loyauté ni d'équipement).
     if (gameState.companion) gameState.companion = normalizeCompanion(gameState.companion);
     // Chronique / succès (chantier 2) : complétés pour une sauvegarde antérieure ou partielle.
@@ -2425,7 +2446,7 @@ function rollGoldAmount() {
 
 // Le piège se déclenche : dégâts, journal, mort éventuelle (cause 'trap').
 function springTrap(trap) {
-    const dmg = applyStarterBuffToDamage(Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin);
+    const dmg = applyStarterBuffToDamage(applyRaceDamageMods(Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin, 'trap'));
     applyPlayerDamage(dmg);
     setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
     logEvent(`${trap.text} (-${dmg} PV)`, "danger");
@@ -2642,6 +2663,7 @@ function getStealthChance() {
     // NOCTURNE (anomalies.js) : détection des mobs accrue (pénalité sur la chance de base) mais
     // plafond relevé d'autant — récompense un fort investissement en Furtivité, punit un faible.
     chance -= gameState.anomalyEffects.detectionBonus || 0;
+    chance += originRaceEffects().stealthPts || 0; // Gobelin +10, Troll −10 (chantier 13)
     return Math.max(0, Math.min(60 + (gameState.anomalyEffects.stealthCapBonus || 0), chance));
 }
 
@@ -4403,6 +4425,7 @@ function awardBossSignatureItem(boss, itemLevel = gameState.currentFloor, outcom
 // hook d'anomalie qui multiplierait les dégâts subis n'aurait qu'ICI à s'accrocher).
 function applyPlayerDamage(amount) {
     if (!amount || amount <= 0) return;
+    amount = applyRaceLastStand(amount); // Cafard mutant : Increvable (chantier 13)
     gameState.hp = Math.max(0, gameState.hp - amount);
     gameState.floorStats.damageTaken += amount;
     recordRunEvent('damageTaken', { amount }); // Chronique de run (chantier 2)
@@ -4415,7 +4438,7 @@ function applyPlayerDamage(amount) {
 // même quand l'anomalie change le montant affiché.
 function applyPlayerHeal(amount) {
     if (!amount || amount <= 0) return 0;
-    const mult = gameState.anomalyEffects.healingMult || 1;
+    const mult = (gameState.anomalyEffects.healingMult || 1) * (originRaceEffects().healMult || 1); // PEAU_DE_VERRE, Goule (chantier 13)
     const before = gameState.hp;
     gameState.hp = Math.min(gameState.maxHp, gameState.hp + amount * mult);
     return Math.round(gameState.hp - before);
@@ -4430,7 +4453,8 @@ function recomputeMaxHp() {
     // Robuste (qualificatif d'armure) : PV max +%, tant que l'armure est portée.
     const sturdy = getItemQualifierValues(gameState.equipment.armor, 'sturdy', 'armor');
     const gearMult = sturdy ? 1 + sturdy.pct / 100 : 1;
-    gameState.maxHp = Math.max(1, Math.round(gameState.baseMaxHp * mult * gearMult));
+    const raceMult = originRaceEffects().maxHpMult || 1; // Goule, Gobelin, Troll, Cafard (chantier 13)
+    gameState.maxHp = Math.max(1, Math.round(gameState.baseMaxHp * mult * gearMult * raceMult));
     if (gameState.hp > gameState.maxHp) gameState.hp = gameState.maxHp;
 }
 
@@ -4439,7 +4463,7 @@ function recomputeMaxHp() {
 // ==========================================
 function gainXp(amount) {
     if (!amount || amount <= 0) return;
-    amount = Math.round(amount * (gameState.anomalyEffects.xpMult || 1)); // MOB_ENRAGE (anomalies.js)
+    amount = Math.round(amount * (gameState.anomalyEffects.xpMult || 1) * (originRaceEffects().xpMult || 1)); // MOB_ENRAGE (anomalies.js), Humain (chantier 13)
     gameState.xp += amount;
     gameState.floorStats.xpGained += amount;
     logEvent(`+${amount} XP`, "success");
@@ -5513,7 +5537,7 @@ function leaveSafehouse() {
 // un piège sévère suivi d'un trésor nettement supérieur à la normale (powerScore maximal). Réutilise
 // exactement applyPlayerDamage()/gameOver()/addLoot(), aucune nouvelle formule de dégâts ou de loot.
 function triggerCafetRoom(room) {
-    const trapDmg = applyStarterBuffToDamage(Math.floor(Math.random() * 12) + 10); // 10 à 21 PV : nettement au-dessus d'un piège normal (~5-15)
+    const trapDmg = applyStarterBuffToDamage(applyRaceDamageMods(Math.floor(Math.random() * 12) + 10, 'trap')); // 10 à 21 PV : nettement au-dessus d'un piège normal (~5-15)
     applyPlayerDamage(trapDmg);
     setSceneHeader('🕯️', 'Cafétéria Assombrie', 'Danger', 'cafeteria');
     logEvent(`Un piège vicieux se déclenche dans l'obscurité de la cafétéria abandonnée ! (-${trapDmg} PV)`, "danger");
@@ -6097,11 +6121,14 @@ function rollDamage(attackerAtk, defenderDef, options = {}) {
 // Réduite de moitié tant que le joueur est ébloui (effet "light"), et encore réduite de 40% tant
 // qu'il est corrodé (effet "corrode") — les deux se cumulent si les deux sont actifs à la fois.
 function getEffectiveDef() {
-    const armorBonus = gameState.equipment.armor ? (gameState.equipment.armor.baseArmor || 0) : 0;
+    const raceFx = originRaceEffects();
+    const armorBonus = gameState.equipment.armor ? Math.round((gameState.equipment.armor.baseArmor || 0) * (raceFx.armorMult || 1)) : 0; // Nain : armure portée +15 %
     const companionBonus = hasActiveCompanion('guard')
         ? Math.round(getCompanionDef(gameState.companion) * config.companions.guard.defShare)
         : 0;
     let effectiveDef = gameState.def + armorBonus + companionBonus;
+    if (raceFx.defMult) effectiveDef += Math.max(1, Math.round(effectiveDef * (raceFx.defMult - 1))); // Nain : DEF +12 % (au moins +1)
+    if (raceFx.defFlat) effectiveDef = Math.max(0, effectiveDef + raceFx.defFlat); // Elfe : DEF −1
     if (gameState.status.blinded && gameState.status.blinded.rounds > 0) {
         effectiveDef = Math.round(effectiveDef * 0.5);
     }
@@ -6141,7 +6168,7 @@ function tryPlayerAction() {
 
     // Saignement en cours sur le joueur : tique avant son action
     if (gameState.status.bleed && gameState.status.bleed.rounds > 0) {
-        const dmg = applyStarterBuffToDamage(gameState.status.bleed.dmgPerRound);
+        const dmg = applyStarterBuffToDamage(applyRaceDamageMods(gameState.status.bleed.dmgPerRound, 'bleed'));
         applyPlayerDamage(dmg);
         gameState.status.bleed.rounds -= 1;
         if (gameState.status.bleed.rounds <= 0) gameState.status.bleed = null;
@@ -7332,8 +7359,62 @@ function attackUnarmed() {
 
     const skill = gameState.skills.unarmed;
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
-    const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * starterBuffUnarmedMult(), varianceRange: 0.10, defReduction }, "à mains nues");
+    const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * unarmedDamageMult(), varianceRange: 0.10, defReduction }, "à mains nues");
     if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
+}
+
+// ==========================================
+// RACE : PASSIFS (chantier 13, lot 1 — voir origins.js et CHANTIERS.md)
+// ==========================================
+// `gameState.race` (clé d'ORIGIN_RACES, null = aucune : une ancienne sauvegarde ou un crawler avant l'étage 3 n'a aucun effet) choisit une entrée de
+// `config.origins.races`. UN SEUL point de lecture par effet : PV max (recomputeMaxHp), XP (gainXp), soins (applyPlayerHeal), DEF (getEffectiveDef),
+// mana max (recomputeRaceDerived), réserve (idem), furtivité (getStealthChance), fuite (attemptFlee), pièges et saignement (applyRaceDamageMods),
+// mains nues (unarmedDamageMult), sorts (attackMagic), Increvable (applyPlayerDamage).
+function originRaceEffects() {
+    return (gameState.race && config.origins.races[gameState.race]) || {};
+}
+
+// Choisit la race (une seule fois par run, définitif) : pose `gameState.race` puis recalcule les valeurs dérivées.
+function applyRace(key) {
+    if (!config.origins.races[key]) return false;
+    gameState.race = key;
+    gameState.raceLastStandFloor = 0;
+    recomputeRaceDerived();
+    return true;
+}
+
+// PV max, mana max et emplacements de réserve dépendent de la race : recalculés au choix, à la restauration d'une sauvegarde.
+function recomputeRaceDerived() {
+    const fx = originRaceEffects();
+    const hadMaxMana = gameState.maxMana || 100;
+    gameState.maxMana = Math.round(100 * (fx.maxManaMult || 1));
+    gameState.mana = Math.min(gameState.maxMana, Math.round(gameState.mana * gameState.maxMana / hadMaxMana));
+    gameState.maxInventory = config.inventory.maxEquipment + (fx.extraReserve || 0);
+    recomputeMaxHp();
+}
+
+// Dégâts de pièges et de saignement après la race (Gobelin : pièges −25 %, Goule : saignement −50 %) ; jamais sous 1.
+function applyRaceDamageMods(amount, source) {
+    const fx = originRaceEffects();
+    const mult = source === 'trap' ? fx.trapMult : source === 'bleed' ? fx.bleedMult : null;
+    if (!mult || !(amount > 0)) return amount;
+    return Math.max(1, Math.round(amount * mult));
+}
+
+// Multiplicateur de dégâts à mains nues : buff de départ (chantier 14) × race (Troll).
+function unarmedDamageMult() {
+    return starterBuffUnarmedMult() * (originRaceEffects().unarmedMult || 1);
+}
+
+// Increvable (Cafard mutant) : un dégât mortel laisse 1 PV, 1 fois par étage, jamais contre un boss. Renvoie le montant à appliquer.
+function applyRaceLastStand(amount) {
+    const fx = originRaceEffects();
+    if (!fx.lastStand || !(amount >= gameState.hp) || gameState.hp <= 1) return amount;
+    if (gameState.raceLastStandFloor === gameState.currentFloor) return amount;
+    if (gameState.inCombat && gameState.currentEnemy && gameState.currentEnemy.isBoss) return amount;
+    gameState.raceLastStandFloor = gameState.currentFloor;
+    logEvent("🪳 Increvable : le coup aurait dû vous tuer, mais un cafard, ça se retourne et ça repart. Il vous reste 1 PV.", "success");
+    return gameState.hp - 1;
 }
 
 // ==========================================
@@ -7502,7 +7583,7 @@ function resolveOccasion(type, outcome, detail) {
         if (failed) { lostTurn(`🪢 [${enemy.name}] se débat et vous échappe. Tour perdu.`); return; }
         const skill = gameState.skills.unarmed;
         const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1));
-        const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * mg.choke.damageMult * starterBuffUnarmedMult(), varianceRange: 0.10, defReduction }, "en l'étranglant");
+        const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * mg.choke.damageMult * unarmedDamageMult(), varianceRange: 0.10, defReduction }, "en l'étranglant");
         if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
         return;
     }
@@ -7646,7 +7727,7 @@ function attemptEngage() {
     const effectiveAtk = gameState.atk + weaponBonus;
     const defReduction = weapon ? 0 : 0.35; // Pas d'arme équipée : mêmes mains nues qu'attackUnarmed()
     const label = weapon ? "en chargeant à l'arme" : "en chargeant à mains nues";
-    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier: config.engageAction.atkMultiplier * (weapon ? 1 : starterBuffUnarmedMult()), defReduction, gear: weapon }, label);
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier: config.engageAction.atkMultiplier * (weapon ? 1 : unarmedDamageMult()), defReduction, gear: weapon }, label);
     if (landed) {
         gainSkillXp(weapon ? 'weapon' : 'unarmed', SKILL_XP_PER_USE);
         if (weapon) applyWeaponMechanic(weapon);
@@ -7727,7 +7808,8 @@ function castEquippedSpell(spell, manaCost, glyphBoost) {
     if (channeled) backfireChance = Math.max(1, backfireChance - channeled.bonus);
     const stutter = getItemQualifierValues(spell, 'stutter', 'spell');
     if (stutter) backfireChance += stutter.bonus;
-    let atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
+    if (originRaceEffects().backfirePts) backfireChance = Math.max(1, backfireChance + originRaceEffects().backfirePts); // Elfe : −3 pts (jamais sous 1 %)
+    let atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1) * (originRaceEffects().spellMult || 1); // ZONE_MAGIQUE (anomalies.js), Elfe (chantier 13)
     if (glyphBoost) {
         atkMultiplier *= mb.glyphDamageMult;
         backfireChance *= mb.glyphBackfireMult;
@@ -7827,6 +7909,7 @@ function attemptFlee() {
     if (scoutHelps) {
         fleeChance += config.companions.scout.fleeBonus; // Compagnon "Éclaireur" : facilite la fuite
     }
+    else fleeChance += originRaceEffects().fleePts || 0; // Gobelin +15, Nain −15 : jamais contre un chasseur de primes (fixe, chantier 13)
     if (enemy.isBountyHunter) fleeChance = config.bounty.fleeChance; // Chasseur de primes : une fois sur deux, sans aide
 
     if (Math.random() * 100 < fleeChance) {
