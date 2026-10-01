@@ -52,7 +52,18 @@ const MINIGAME_SETTINGS = {
     target: { durationMs: 3000, outerRadius: 0.5, centerRadius: 0.18, amplitude: 0.85, periodXMs: 1600, periodYMs: 2300,
         perfectPassFromMs: 800, perfectPassToMs: 2200, // le réticule passe EXACTEMENT au centre à un instant tiré dans cette fenêtre
         distanceShrink: 0.06, minSizeFactor: 0.5, radiusPerSkill: 0.004, radiusSkillMax: 0.04, perfectMult: 1.5, successMult: 1 },
-    weakpoint: { durationMs: 6000 }
+    weakpoint: { durationMs: 6000 },
+    // --- V3 : épreuves de boss (chiffres de départ, à valider en playtest) ---
+    boss: {
+        trialCap: 3,                                        // épreuves de télégraphe par boss ; au-delà, le comportement d'avant (le Coup de grâce s'ajoute : 4 au plus)
+        autoSuccessBasePct: 35, autoSuccessPerLevel: 2, autoSuccessMaxPct: 70, // jet automatique / Passer : jamais de Parfait
+        // Parade au télégraphe : un anneau se resserre ; le coup tombe à `impactMs` (tiré dans cette fenêtre).
+        parry: { impactFromMs: 900, impactToMs: 1400, padMs: 450, perfectMs: 90, successMs: 220, successDamageMult: 0.5, perfectRiposteMult: 1.5 },
+        // Briser la garde : un point faible apparaît après un court délai ; on le touche le plus vite possible.
+        guard: { appearFromMs: 300, appearToMs: 900, windowMs: 1700, perfectMs: 450, successMs: 1100 },
+        exposed: { defMult: 0.7, rounds: 1 },               // Parfait : DEF du boss −30 % pendant 1 tour
+        extraQualifierPerfects: 3                           // 3 Parfaits ou plus dans le combat : l'arme signature gagne un qualificatif de plus
+    }
 };
 
 // Catalogue des épreuves. `build(rng, overrides)` renvoie les paramètres propres à l'épreuve ; le reste
@@ -170,6 +181,32 @@ const MINIGAME_KINDS = {
         autoRates: { perfect: 0, success: 100, fail: 0 },
         build(rng, o) { return { durationMs: o.durationMs || MINIGAME_SETTINGS.weakpoint.durationMs }; },
         autoResolve() { return { outcome: 'success', detail: { zone: 'head' } }; }
+    },
+    // Parade au télégraphe (V3, boss) : un anneau se resserre sur le bouclier ; un tap au moment où le coup tombe pare. Taper trop tôt
+    // ou trop tard (ou jamais) = Raté : le coup lourd tombe comme avant.
+    parry: {
+        label: 'Parade', icon: '🛡️', hint: 'Touchez au moment où l\'anneau referme le bouclier !',
+        autoRates: { perfect: 0, success: 35, fail: 65 },
+        build(rng, o) {
+            const c = MINIGAME_SETTINGS.boss.parry;
+            const impactMs = typeof o.impactMs === 'number' ? o.impactMs : c.impactFromMs + rng() * (c.impactToMs - c.impactFromMs);
+            return { impactMs, perfectMs: c.perfectMs, successMs: c.successMs, durationMs: o.durationMs || Math.round(impactMs + c.padMs) };
+        }
+    },
+    // Briser la garde (V3, boss) : un point faible apparaît à un endroit tiré après un court délai ; le toucher vite brise la garde.
+    guard: {
+        label: 'Briser la garde', icon: '🔨', hint: 'Touchez le point faible dès qu\'il apparaît !',
+        autoRates: { perfect: 0, success: 35, fail: 65 },
+        build(rng, o) {
+            const c = MINIGAME_SETTINGS.boss.guard;
+            return {
+                appearMs: typeof o.appearMs === 'number' ? o.appearMs : c.appearFromMs + rng() * (c.appearToMs - c.appearFromMs),
+                spotX: typeof o.spotX === 'number' ? o.spotX : 15 + rng() * 70,
+                spotY: typeof o.spotY === 'number' ? o.spotY : 20 + rng() * 60,
+                perfectMs: c.perfectMs, successMs: c.successMs,
+                durationMs: o.durationMs || c.appearToMs + c.windowMs
+            };
+        }
     },
     // Glyphe d'un sort offensif : relier des points d'une grille 3 x 3 dans l'ordre. OPTIONNEL : un échec ou un « Passer »
     // lance le sort normalement (jamais de malus) ; une réussite le renforce (config.magicBalance.glyph*). Un jet automatique
@@ -488,6 +525,39 @@ function decideOccasion(input, rng = Math.random) {
     return e.pool[Math.min(e.pool.length - 1, Math.floor(rng() * e.pool.length))];
 }
 
+// --- V3 : épreuves de boss ----------------------------------------------------------------------------------------------
+// Parade : écart (en ms) entre le tap et l'impact du coup. Parfait ≤ 90 ms, Réussi ≤ 220 ms, sinon Raté (trop tôt, trop tard, jamais).
+function parryOutcome(tapMs, spec) {
+    if (tapMs === null || tapMs === undefined) return 'fail';
+    const gap = Math.abs(tapMs - spec.impactMs);
+    if (gap <= spec.perfectMs) return 'perfect';
+    return gap <= spec.successMs ? 'success' : 'fail';
+}
+
+// Briser la garde : temps de réaction entre l'apparition du point faible et le tap. Parfait ≤ 450 ms, Réussi ≤ 1,1 s, sinon Raté.
+function guardOutcome(reactionMs, spec) {
+    if (reactionMs === null || reactionMs === undefined || reactionMs < 0) return 'fail';
+    if (reactionMs <= spec.perfectMs) return 'perfect';
+    return reactionMs <= spec.successMs ? 'success' : 'fail';
+}
+
+// Jet automatique d'une épreuve de boss (Passer, ou réglage « Jet automatique » avec interface) : réussite selon la compétence d'Arme,
+// jamais de Parfait (donc jamais l'arme signature).
+function bossAutoRates(weaponLevel) {
+    const c = MINIGAME_SETTINGS.boss;
+    const success = Math.min(c.autoSuccessMaxPct, c.autoSuccessBasePct + c.autoSuccessPerLevel * Math.max(0, (weaponLevel || 1) - 1));
+    return { perfect: 0, success, fail: 100 - success };
+}
+
+// Arme signature d'un boss : conditionnée au PARFAIT du Coup de grâce (aucune autre voie) ; 3 Parfaits ou plus dans le combat
+// (Coup de grâce compris) lui ajoutent un qualificatif.
+function signatureReward(perfectFinisher, perfectsInFight) {
+    return {
+        awarded: !!perfectFinisher,
+        extraQualifier: !!perfectFinisher && perfectsInFight >= MINIGAME_SETTINGS.boss.extraQualifierPerfects
+    };
+}
+
 // --- Animations d'issue (spécification pure, jouée par fx.js) ---------------------------------------------------
 // `burst` : clé de FX_IMPACTS (sprites/fx.js) ; `hitstopMs` : gel à l'impact (le long gel et la secousse d'écran
 // `heavy` sont réservés au Parfait) ; `target` : qui reçoit l'éclat en combat ; `haptic` : motif de triggerHaptic().
@@ -531,6 +601,17 @@ const MINIGAME_KIND_FX = {
         success: { burst: 'weakMark', color: '#fb923c', target: 'mob', durationMs: 380 },
         fail: { burst: 'ricochet', color: '#9ca3af', target: 'mob', durationMs: 340 }
     },
+    // Boss (V3) : la parade éclate au contact du crawler ; la garde brisée, sur le boss.
+    parry: {
+        perfect: { burst: 'parry', color: '#facc15', target: 'crawler', durationMs: 460 },
+        success: { burst: 'parry', color: '#e5e7eb', target: 'crawler', durationMs: 380 },
+        fail: { burst: 'fizzle', color: '#9ca3af', target: 'crawler', durationMs: 300 }
+    },
+    guard: {
+        perfect: { burst: 'guardBreak', color: '#facc15', target: 'mob', durationMs: 460 },
+        success: { burst: 'guardBreak', color: '#fdba74', target: 'mob', durationMs: 380 },
+        fail: { burst: 'fizzle', color: '#9ca3af', target: 'mob', durationMs: 300 }
+    },
     glyph: {
         perfect: { burst: 'glyphSeal', color: '#c084fc', target: 'crawler', durationMs: 440 },
         success: { burst: 'glyphSeal', color: '#a78bfa', target: 'crawler', durationMs: 380 },
@@ -564,6 +645,7 @@ if (typeof module !== 'undefined' && module.exports) {
         LOCKPICK_REWARDS, lockpickReward, lockpickOutcome, lockpickZoneWidth, SEQUENCE_SYMBOLS, disarmOverrides, sequenceInputStatus,
         sequenceOutcome, sequenceShownSymbol, GLYPH_GRID_POINTS, GLYPH_PATTERNS, getGlyphPattern, glyphSegmentDistance, glyphAdvance,
         buildHoldParams, holdZoneWidth, holdZoneCenter, holdInside, holdOutcome, grappleRounds, targetSizeFactor, targetReticlePosition,
-        resolveTargetShot, WEAKPOINT_ZONES, OCCASION_TYPES, eligibleOccasions, occasionStillValid, occasionChancePct, decideOccasion
+        resolveTargetShot, WEAKPOINT_ZONES, OCCASION_TYPES, eligibleOccasions, occasionStillValid, occasionChancePct, decideOccasion,
+        parryOutcome, guardOutcome, bossAutoRates, signatureReward
     };
 }

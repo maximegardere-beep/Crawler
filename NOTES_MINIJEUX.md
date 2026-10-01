@@ -9,7 +9,7 @@ Décisions et plan complets : `CHANTIERS.md`, chantier 6 (rounds 1 à 6). Ce fic
 | 0 | Hôte d'épreuve, bande d'UI, réglage, étape interactive des beats, animations d'issue, épreuve de référence `timing` | **Codé** |
 | V1 | Crochetage d'un coffre, désamorçage d'un piège, glyphe de sort | **Codé** |
 | V2 | Mains nues (Immobiliser, Étrangler), tir (Cible, Points faibles), Occasion de combat (25 %) | **Codé** |
-| V3 | Boss : Parade, Briser la garde, Coup de grâce (+ arme signature conditionnée au Parfait) | À faire |
+| V3 | Boss : Parade, Briser la garde, Coup de grâce (+ arme signature conditionnée au Parfait) | **Codé** |
 | V4 | Salle de jeux en ville (stand de tir, ring) | À cadrer |
 | Final | `recordRunEvent('minigame')`, succès, piques DeathWatch | À faire |
 
@@ -129,6 +129,38 @@ testée : `decideOccasion()` (minigames.js).
 - **Fréquence réelle** : ~30 % au premier tour (25 % + garantie), soit environ une Occasion par combat de 3-4 tours.
 - **Cible à grand écart** : à 8 crans la cible vaut ×0,52 (fenêtre Parfait ≈ ±17 ms) : volontairement dure ; à vérifier au doigt.
 - **Clavier** : Immobiliser / Étrangler n'ont pas d'équivalent clavier (le suivi est au pointeur) ; Cible : Espace/Entrée tire ; Échap = Passer partout.
+
+## V3 — épreuves de boss
+
+Chiffres (départ, à valider en playtest) dans `MINIGAME_SETTINGS.boss`. Logique pure : `parryOutcome()`, `guardOutcome()`, `bossAutoRates()`, `signatureReward()`.
+
+- **Parade** (exécution d'un coup lourd télégraphié) : un anneau se resserre sur un bouclier, le coup tombe entre 0,9 et 1,4 s ; un tap (ou Espace/Entrée)
+  à ±90 ms = **Parfait** (coup détourné, le crawler riposte à x1,5 SANS jamais achever le boss, et la garde du boss s'ouvre un tour : statut `exposed`,
+  DEF x0,7), à ±220 ms = **Réussi** (dégâts x0,5, plancher de pression réduit en proportion), sinon **Raté** (le coup lourd tombe comme avant).
+- **Briser la garde** (exécution de « il se hérisse ») : un point faible apparaît à un endroit tiré (0,3-0,9 s) ; le toucher en ≤ 450 ms = Parfait (la garde
+  ne monte pas ET s'ouvre), ≤ 1,1 s = Réussi (la garde ne monte pas), sinon Raté (elle monte comme avant). Espace/Entrée touchent le point faible.
+- **Rythme** : 3 épreuves de télégraphe au plus par boss (`trialCap`, compteur `enemy.trials`) ; au-delà, le comportement d'avant. Le Coup de grâce s'y
+  ajoute : 4 épreuves au plus. **Jamais d'épreuve sans interface** (tests Node, simulation longue) : comportement strictement inchangé.
+- **Coup de grâce** : le coup FATAL porté à un boss (`performPlayerAttack()`) n'achève pas tout de suite : `offerCoupDeGrace()` ouvre l'épreuve (une seule fois par
+  boss, `finisherDone`), choisie selon la dernière attaque — tir : Cible ; mains nues : maintien (Étrangler) ; arme / sort : timing à zone étroite (0,20,
+  période 1 s). Le boss est de toute façon achevé (aucune pénalité) ; la cinématique (`#finisher-cinema` : bandes de cinéma, flash — doré si Parfait —, mention,
+  750 ms ; sans mouvement sous `prefers-reduced-motion`) précède la victoire. Pas d'Occasion proposée sur un boss à terre.
+- **Arme signature** : **100 % avec un Coup de grâce parfait, 0 % sans** (plus de garantie à la première victoire, plus de chance de répétition ;
+  `itemBalance.boss.signatureRepeatChance` supprimé). Un Raté, un Réussi, « Passer », le mode Jet automatique, des mini-jeux sans interface ou un boss achevé
+  autrement (saignement, compagnon) : pas d'arme signature (une ligne de journal l'explique). **3 Parfaits ou plus** dans le combat (Coup de grâce compris) : un
+  qualificatif de plus, distinct des siens, au rang maximal de la rareté (`item.forgedByPerfect`, mention dans l'inspection). Le nom reste celui du boss.
+- **Jet automatique / Passer** : réussite 35 % + 2 % par niveau d'Arme (plafond 70 %), jamais de Parfait.
+- **Animations** : éclats `parry` (étincelles croisées, sur le crawler) et `guardBreak` (fissure, sur le boss) ; la Parade et le Parfait portent le gel d'impact et la
+  secousse d'écran ; le Coup de grâce a sa cinématique.
+
+### À surveiller en playtest (V3)
+
+- **Économie des armes signature** : en jet automatique (ou sans interface) on n'en obtient plus jamais — c'est voulu, mais à confronter au ressenti ;
+  pour les autres, un Coup de grâce Raté « coûte » l'arme : frustration possible, surtout si l'épreuve (timing étroit) est dure.
+- **Puissance de la Parade** : un Parfait annule un coup lourd (x1,8) ET inflige une riposte ET ouvre la garde ; sur un boss à 3-4 télégraphes, l'écart entre
+  un joueur adroit et un joueur qui passe devient grand (voulu : « Passer » ne change rien au boss d'avant, seul le jeu apporte un avantage).
+- **Fenêtres** : ±90 ms (Parfait de la Parade) et 450 ms (Briser la garde) à vérifier au doigt sur iPhone.
+- **Boss achevé par un coup non direct** (saignement, compagnon, riposte d'armure) : jamais d'arme signature ; à confirmer que ça n'arrive pas trop souvent.
 
 ## Ajouter une épreuve (mode d'emploi pour V1-V3)
 

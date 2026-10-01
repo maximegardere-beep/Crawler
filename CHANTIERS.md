@@ -42,7 +42,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 
 | # | Chantier | Ampleur | Statut | Bloqué par |
 |---|----------|---------|--------|------------|
-| 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | En cours (lot 0, V1 et V2 codés) | `NOTES_MINIJEUX.md` |
+| 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | En cours (lot 0, V1, V2 et V3 codés) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
 | 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage, en pause) | liste chiffrée à valider |
@@ -242,7 +242,8 @@ compétence liée) ; Immobiliser = **maintenir le doigt dans une zone mouvante**
 interactive du séquenceur, animations d'issue, épreuve de référence `timing`) — voir `NOTES_MINIJEUX.md`.
 **V1 codé** (crochetage, désamorçage, glyphe — chiffres du plan validé, voir `NOTES_MINIJEUX.md` pour les effets sur
 l'équilibrage). **V2 codé** (Occasions de combat à 25 % : Immobiliser, Étrangler, Cible de précision, Point faible — voir `NOTES_MINIJEUX.md`).
-Reste : V3 (boss), V4 (salle de jeux), lot final.
+**V3 codé** (Parade, Briser la garde, Coup de grâce + cinématique ; arme signature conditionnée au Coup de grâce parfait — voir `NOTES_MINIJEUX.md`).
+Reste : V4 (salle de jeux), lot final (succès, piques DeathWatch, `recordRunEvent('minigame')`).
 
 **Plan proposé** : validé (voir les rounds ci-dessus).
 

@@ -245,8 +245,8 @@ Tailwind CDN, **aucun build step**.
   tour de boss. Récompenses de boss (revues par le chantier "refonte des objets") : un objet garanti
   (`itemBalance.boss` : +1 palier, plancher selon l'étage, second objet à 25 %) et l'objet signature
   du boss, dont la rareté suit l'étage (`getSignatureRarity()` : Rare 1-4, Épique 5-9, Légendaire 10+) (`bestiary.js`, `districtBosses.*.signatureItem`, stats de base mises à l'échelle par
-  `buildSignatureItem()`), garanti à la PREMIÈRE victoire sur ce boss dans la partie
-  (`gameState.signaturesAwarded`) puis à 20 % (`awardBossSignatureItem()`).
+  `buildSignatureItem()`), **exclusivement offert par un Coup de grâce parfait** (chantier 6, V3 : 100 % avec, 0 % sans — ni garantie à la
+  première victoire, ni chance de répétition ; `awardBossSignatureItem()`, `gameState.signaturesAwarded` ne sert plus qu'au succès « collectionneur »).
 - **Enrage distance et engagement** (chantier "rework combat", Chantier 3 — voir `NOTES_COMBAT.md`
   pour le détail des valeurs) : anti-kite générique, tous mobs confondus (boss inclus).
   `enemy.kitingRounds` (base 1 pour un boss, 0 sinon — `mobKitingBaseline()`) s'incrémente à chaque
@@ -371,7 +371,7 @@ Tailwind CDN, **aucun build step**.
   Pique en retour / Provocation / Insulte en direct (jet d20 + popularité `getShowPopularity()` contre
   8/12/16 : boîte Bronze/Argent/Or via `openAchievementBox()`, sinon −2 H jamais mortelles / combat élite /
   +20 prime et chasseur de primes), ou Refuser.
-- **Mini-jeux** (chantier 6, lot 0, V1 et V2 codés — crochetage, désamorçage, glyphe, Occasions de combat ; voir
+- **Mini-jeux** (chantier 6, lot 0, V1, V2 et V3 codés — crochetage, désamorçage, glyphe, Occasions de combat, épreuves de boss ; voir
   `NOTES_MINIJEUX.md` ; le reste du chantier est planifié dans `CHANTIERS.md`) : toute épreuve passe par UN point d'entrée, `startMinigame(spec, onResult)` (minigames-ui.js), par
   callback (jamais de Promise, comme `runCombatBeats()`). Trois issues communes `perfect`/`success`/`fail`. Sans
   interface interactive (réglage « Jet automatique », `prefers-reduced-motion` par défaut, tests Node sans
@@ -392,7 +392,14 @@ Tailwind CDN, **aucun build step**.
   turn, rolledTurn, lastOfferTurn, pity }`, `#btn-occasion` ; toute action (`tryPlayerAction()`) l'éteint. `startOccasion()` →
   `resolveOccasion()` : Immobiliser (`enemy.status.immobilized`, riposte sautée, 1-2 tours, boss 1), Étrangler (×3, proposé à coup sûr sur un
   mob non-boss immobilisé/étourdi), Cible de précision (×1,5 / ×1) et Point faible (tête ×1,3 / bras `status.weakened` / jambe recule) ;
-  échec = tour perdu. Jamais d'Occasion sans interface interactive (tests Node, simulation longue). Tout helper pur de `minigames.js` partage l'espace
+  échec = tour perdu. Jamais d'Occasion sans interface interactive (tests Node, simulation longue). **V3 (boss)** : `runBossTrial()` ouvre une
+  Parade (exécution d'un coup lourd télégraphié : Parfait = coup détourné + riposte x1,5 + garde ouverte, Réussi = dégâts x0,5) ou « Briser la
+  garde » (exécution de « il se hérisse » : la garde ne monte pas), via des étapes `interactive` de `runCombatBeats()` dans
+  `performBossCounterAttackInner()` ; 3 épreuves de télégraphe au plus par boss (`MINIGAME_SETTINGS.boss.trialCap`), un Raté n'ajoute aucune pénalité,
+  jamais d'épreuve sans interface (comportement d'avant). Le coup fatal à un boss ouvre d'abord le **Coup de grâce** (`offerCoupDeGrace()` dans
+  `performPlayerAttack()`, épreuve selon la dernière attaque, cinématique `playFinisherCinematic()`) : seul un Parfait ouvre l'arme signature, et 3
+  Parfaits ou plus dans le combat lui ajoutent un qualificatif (`signatureReward()`, `buildSignatureItem(..., { extraQualifier })`). Statut de
+  boss `exposed` (DEF x0,7 un coup). Les Parfaits des épreuves se comptent dans `enemy.trials`. Tout helper pur de `minigames.js` partage l'espace
   global avec `floorgen.js` : en préfixer le nom (une collision sur `pointSegmentDistance` avait supprimé les repaires).
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de

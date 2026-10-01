@@ -53,8 +53,8 @@ refonte validée au chantier 10 (l'ancienne table rendait la rareté triviale d�
 Élite : 20 % de monter d'un palier. Boss : +1 palier, plancher selon l'étage (aucun 1-3, Rare dès 4, Épique
 dès 12), second objet 25 %. Trésor de CAFET_ASSOMBRIE : +1 palier. Plafond des montées (élite, boss, trésor,
 Chanceux) : Épique jusqu'à l'étage 4 ; le tirage de base n'est jamais rabaissé (le « miracle »).
-Objet signature : Rare aux étages 1-4, Épique 5-9, Légendaire dès 10 (rang de sa rareté), garanti à la
-première victoire sur ce boss, puis 20 %.
+Objet signature : Rare aux étages 1-4, Épique 5-9, Légendaire dès 10 (rang de sa rareté). **Depuis le chantier 6 (V3)** il n'est
+plus garanti à la première victoire ni tiré à 20 % : il tombe à 100 % avec un Coup de grâce parfait, jamais sinon (voir `NOTES_MINIJEUX.md`).
 
 Mesuré (`npm run sim:items`, 20 000 tirages) : boss d'étage 1 ~30 % Commun / 60 % Rare / 10 % Épique ;
 étage 8 ~62 / 28 / 10 % Rare / Épique / Légendaire ; étage 15 ~66 % Épique / 34 % Légendaire.

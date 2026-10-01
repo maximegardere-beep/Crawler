@@ -1260,3 +1260,325 @@ function captureLog(fn) {
     assert(minigameOutcomeFxSpec('grapple', 'perfect').burst === 'grapple' && minigameOutcomeFxSpec('choke', 'success').burst === 'choke' && minigameOutcomeFxSpec('target', 'perfect').burst === 'bullseye' && minigameOutcomeFxSpec('target', 'fail').burst === 'ricochet' && minigameOutcomeFxSpec('weakpoint', 'success').burst === 'weakMark', "Éclats V2 : prise, étranglement, cible, ricochet, point faible");
     assert(minigameOutcomeFxSpec('grapple', 'fail').hitstopMs === 0 && minigameOutcomeFxSpec('grapple', 'perfect').heavy, "Raté : aucun gel ; Parfait : gel et secousse");
 }
+
+// =====================================================================================================
+// V3 : épreuves de boss — Parade, Briser la garde, Coup de grâce, arme signature conditionnée au Parfait
+// =====================================================================================================
+
+// --- Fonctions pures ---
+{
+    const parry = buildMinigameSpec('parry', { impactMs: 1000 });
+    assert(parry.kind === 'parry' && parry.impactMs === 1000 && parry.perfectMs === 90 && parry.successMs === 220 && parry.durationMs === 1450, "Parade : fenêtre Parfait ±90 ms, Réussi ±220 ms, 450 ms après l'impact pour conclure");
+    const rnd = (r) => buildMinigameSpec('parry', {}, () => r).impactMs;
+    assert(rnd(0) === 900 && rnd(0.999999) > 1399 && rnd(0.999999) <= 1400, "Parade : le coup tombe entre 0,9 et 1,4 s");
+    assert(parryOutcome(1000, parry) === 'perfect' && parryOutcome(910, parry) === 'perfect' && parryOutcome(1090, parry) === 'perfect', "Parade : un tap à ±90 ms du coup = Parfait");
+    assert(parryOutcome(1091, parry) === 'success' && parryOutcome(780, parry) === 'success' && parryOutcome(1220, parry) === 'success', "Parade : ±220 ms = Réussi");
+    assert(parryOutcome(779, parry) === 'fail' && parryOutcome(1221, parry) === 'fail' && parryOutcome(0, parry) === 'fail' && parryOutcome(null, parry) === 'fail', "Parade : trop tôt, trop tard ou jamais = Raté");
+
+    const guard = buildMinigameSpec('guard', { appearMs: 500, spotX: 40, spotY: 50 });
+    assert(guard.kind === 'guard' && guard.appearMs === 500 && guard.perfectMs === 450 && guard.successMs === 1100, "Briser la garde : Parfait ≤ 450 ms, Réussi ≤ 1,1 s après l'apparition");
+    assert(guardOutcome(0, guard) === 'perfect' && guardOutcome(450, guard) === 'perfect' && guardOutcome(451, guard) === 'success' && guardOutcome(1100, guard) === 'success' && guardOutcome(1101, guard) === 'fail', "Briser la garde : seuils de réaction");
+    assert(guardOutcome(null, guard) === 'fail' && guardOutcome(-5, guard) === 'fail', "Briser la garde : pas de tap (ou tap avant l'apparition) = Raté");
+    let spots = true;
+    for (let i = 0; i < 200; i++) { const g = buildMinigameSpec('guard', {}); if (g.spotX < 15 || g.spotX > 85 || g.spotY < 20 || g.spotY > 80 || g.appearMs < 300 || g.appearMs > 900) spots = false; }
+    assert(spots, "Briser la garde : point faible toujours dans le panneau, apparition entre 0,3 et 0,9 s");
+    assert(buildMinigameSpec('guard', {}).durationMs === 900 + 1700, "Briser la garde : durée = apparition maximale + fenêtre de réaction");
+
+    assert(bossAutoRates(1).success === 35 && bossAutoRates(11).success === 55 && bossAutoRates(99).success === 70, "Jet automatique de boss : 35 % + 2 % par niveau d'Arme, plafonné à 70 %");
+    assert(bossAutoRates(5).perfect === 0 && bossAutoRates(5).success + bossAutoRates(5).fail === 100, "Jet automatique de boss : jamais de Parfait");
+    const spec = buildMinigameSpec('parry', { boss: true, allowPerfect: false, autoRates: bossAutoRates(11) });
+    let perfects = 0;
+    for (let i = 0; i < 500; i++) if (minigameAutoOutcome(spec, () => i / 500) === 'perfect') perfects++;
+    assert(perfects === 0, "Épreuve de boss en jet automatique : jamais de Parfait");
+
+    assert(signatureReward(true, 1).awarded && !signatureReward(true, 1).extraQualifier, "Arme signature : Coup de grâce parfait = 100 %");
+    assert(!signatureReward(false, 4).awarded && !signatureReward(false, 4).extraQualifier, "Arme signature : sans Coup de grâce parfait = 0 %, quel que soit le nombre d'autres Parfaits");
+    assert(signatureReward(true, 2).extraQualifier === false && signatureReward(true, 3).extraQualifier === true, "Arme signature : qualificatif supplémentaire à 3 Parfaits ou plus (Coup de grâce compris)");
+    assert(MINIGAME_SETTINGS.boss.trialCap === 3 && MINIGAME_SETTINGS.boss.parry.successDamageMult === 0.5 && MINIGAME_SETTINGS.boss.exposed.defMult === 0.7, "Réglages de boss : 3 épreuves de télégraphe, Parade x0,5, garde ouverte DEF x0,7");
+}
+
+// --- Hôte : Parade et Briser la garde ---
+{
+    resetTransientState();
+    global.requestAnimationFrame = () => 1;
+    global.cancelAnimationFrame = () => {};
+    let now = 0;
+    setMinigameClock(() => now);
+    setMinigameMode('play');
+    let res = [];
+    const cb = (o, d) => res.push({ o, d });
+    const tapAt = (t) => { now = t; minigamePrimaryAction(); };
+
+    for (const [t, wanted] of [[1000, 'perfect'], [1150, 'success'], [850, 'success'], [1300, 'fail'], [700, 'fail']]) {
+        res = []; now = 0;
+        startMinigame(buildMinigameSpec('parry', { impactMs: 1000 }), cb);
+        tapAt(t);
+        assert(res.length === 1 && res[0].o === wanted && res[0].d.impactMs === 1000, `Parade : tap à ${t} ms -> ${wanted}`);
+    }
+    res = []; now = 0;
+    startMinigame(buildMinigameSpec('parry', { impactMs: 1000 }), cb);
+    now = 1450; minigameTick();
+    assert(res.length === 1 && res[0].o === 'fail' && res[0].d.timeout, "Parade : aucun tap = Raté (le coup tombe)");
+
+    res = []; now = 0;
+    startMinigame(buildMinigameSpec('guard', { appearMs: 500, spotX: 40, spotY: 50 }), cb);
+    const G = () => minigameRuntime.renderer;
+    now = 300; minigameTick(); G().hit();
+    assert(res.length === 0 && !G().shownNow(), "Briser la garde : le point faible n'est pas touchable avant son apparition");
+    now = 600; minigameTick();
+    assert(G().shownNow(), "Briser la garde : le point faible apparaît à l'heure");
+    now = 700; G().hit();
+    assert(res.length === 1 && res[0].o === 'perfect' && res[0].d.reactionMs === 200, "Briser la garde : réaction en 200 ms = Parfait");
+    for (const [t, wanted] of [[1200, 'success'], [1800, 'fail']]) {
+        res = []; now = 0;
+        startMinigame(buildMinigameSpec('guard', { appearMs: 500, spotX: 40, spotY: 50 }), cb);
+        now = 600; minigameTick(); now = t; G().hit();
+        assert(res[0].o === wanted, `Briser la garde : tap à ${t} ms -> ${wanted}`);
+    }
+    res = []; now = 0;
+    startMinigame(buildMinigameSpec('guard', { appearMs: 500 }), cb);
+    now = 2600; minigameTick();
+    assert(res[0].o === 'fail' && res[0].d.timeout, "Briser la garde : aucun tap = Raté");
+    res = []; now = 0;
+    startMinigame(buildMinigameSpec('guard', { appearMs: 500 }), cb);
+    now = 600; minigameTick(); now = 640; minigamePrimaryAction();
+    assert(res[0].o === 'perfect', "Briser la garde : Espace/Entrée touchent le point faible (clavier)");
+
+    delete global.requestAnimationFrame; delete global.cancelAnimationFrame;
+    setMinigameClock(null); setMinigameMode('auto');
+}
+
+// --- Moteur : épreuves de boss ---
+{
+    const original = Math.random;
+    const withRand = (v, fn) => { Math.random = () => v; try { return fn(); } finally { Math.random = original; } };
+    const begin = (extra = {}) => {
+        resetTransientState();
+        global.requestAnimationFrame = () => 1; global.cancelAnimationFrame = () => {};
+        let t = 0; setMinigameClock(() => t);
+        setMinigameMode('play');
+        gameState.baseMaxHp = 5000; recomputeMaxHp(); gameState.hp = gameState.maxHp; gameState.def = 5; gameState.atk = 100;
+        withRand(0.5, () => initiateCombat(Object.assign({ name: "Boss d'Épreuve", baseName: "Boss d'Épreuve", isBoss: true, hp: 99999, atk: 200, def: 10, xpReward: 1 }, extra)));
+        gameState.occasion = createOccasionState();
+        return gameState.currentEnemy;
+    };
+    const end = () => { delete global.requestAnimationFrame; delete global.cancelAnimationFrame; setMinigameClock(null); setMinigameMode('auto'); resetTransientState(); };
+    const heavyLoss = (outcome) => {
+        const boss = begin();
+        boss.status.telegraph = { type: 'heavy' };
+        const hp0 = gameState.hp;
+        withRand(0.5, () => {
+            resolveEnemyCounterAttack(() => {});
+            if (outcome !== null) {
+                assert(gameState.pendingMinigame && gameState.pendingMinigame.kind === 'parry', "Télégraphe lourd exécuté : la Parade s'ouvre avant le coup");
+                assert(gameState.hp === hp0, "Parade ouverte : le coup n'est pas encore tombé");
+                finishMinigame(outcome, { tapMs: 1000 });
+            }
+        });
+        const res = { loss: hp0 - gameState.hp, boss, hp0 };
+        end();
+        return res;
+    };
+    const fail = heavyLoss('fail'), success = heavyLoss('success'), perfect = heavyLoss('perfect');
+    assert(fail.loss > 0, "Parade ratée : le coup lourd tombe normalement");
+    assert(success.loss > 0 && success.loss >= fail.loss * 0.45 && success.loss <= fail.loss * 0.55, `Parade réussie : dégâts réduits de moitié (${fail.loss} -> ${success.loss})`);
+    assert(perfect.loss === 0, "Parade parfaite : le coup est détourné, aucun dégât");
+    assert(perfect.boss.hp < 99999 && perfect.boss.hp >= 1, "Parade parfaite : le crawler riposte, sans jamais achever le boss");
+    assert(perfect.boss.status.exposed && perfect.boss.status.exposed.rounds === 1, "Parade parfaite : la garde du boss s'ouvre un tour (exposé)");
+    assert(perfect.boss.trials.count === 1 && perfect.boss.trials.perfects === 1, "Parade parfaite : comptée parmi les épreuves du combat");
+
+    // Réussi : un seul statut posé ? (pas d'exposé) ; Raté : rien.
+    assert(!success.boss.status.exposed && !fail.boss.status.exposed, "Parade réussie ou ratée : aucune ouverture de garde");
+
+    // Passer : jet automatique, jamais Parfait, et le résultat reste cohérent.
+    let boss = begin();
+    boss.status.telegraph = { type: 'heavy' };
+    withRand(0.5, () => { resolveEnemyCounterAttack(() => {}); skipMinigame(); });
+    assert(boss.trials.perfects === 0 && gameState.pendingMinigame === null, "Parade passée : jamais de Parfait comptabilisé");
+    end();
+
+    // Plafond de 3 épreuves de télégraphe : au-delà, le comportement d'avant, sans épreuve.
+    boss = begin();
+    boss.trials = { count: 3, perfects: 0 };
+    boss.status.telegraph = { type: 'heavy' };
+    const hpCap = gameState.hp;
+    withRand(0.5, () => resolveEnemyCounterAttack(() => {}));
+    assert(gameState.pendingMinigame === null && hpCap - gameState.hp === fail.loss, "Plafond atteint : plus d'épreuve, le coup lourd tombe comme avant");
+    end();
+
+    // Sans interface : jamais d'épreuve, comportement strictement inchangé.
+    resetTransientState();
+    withRand(0.5, () => initiateCombat({ name: "Boss Muet", isBoss: true, hp: 99999, atk: 200, def: 10, xpReward: 1 }));
+    gameState.baseMaxHp = 5000; recomputeMaxHp(); gameState.hp = gameState.maxHp; gameState.def = 5;
+    gameState.currentEnemy.status.telegraph = { type: 'heavy' };
+    const hpMute = gameState.hp;
+    withRand(0.5, () => resolveEnemyCounterAttack(() => {}));
+    assert(gameState.pendingMinigame === null && hpMute - gameState.hp === fail.loss, "Sans interface (Node) : le coup lourd tombe comme avant, aucune épreuve");
+    resetTransientState();
+
+    // Briser la garde.
+    const guardCase = (outcome) => {
+        const b = begin();
+        b.status.telegraph = { type: 'defBuff' };
+        withRand(0.5, () => {
+            resolveEnemyCounterAttack(() => {});
+            assert(gameState.pendingMinigame && gameState.pendingMinigame.kind === 'guard', "« Il se hérisse » exécuté : Briser la garde s'ouvre");
+            finishMinigame(outcome, {});
+        });
+        const st = { buffed: !!b.status.defBuffed, exposed: !!b.status.exposed, trials: b.trials };
+        end();
+        return st;
+    };
+    const gFail = guardCase('fail'), gSuccess = guardCase('success'), gPerfect = guardCase('perfect');
+    assert(gFail.buffed && !gFail.exposed, "Garde non brisée (Raté) : la garde monte comme avant");
+    assert(!gSuccess.buffed && !gSuccess.exposed, "Garde brisée (Réussi) : la garde ne monte pas");
+    assert(!gPerfect.buffed && gPerfect.exposed && gPerfect.trials.perfects === 1, "Garde brisée parfaitement : elle ne monte pas ET s'ouvre (exposé)");
+
+    // Exposé : la DEF du boss baisse de 30 % pendant 1 coup.
+    const hitOn = (exposed) => {
+        const b = begin({ def: 100 });
+        if (exposed) b.status.exposed = { rounds: 1 };
+        const before = b.hp;
+        withRand(0.5, () => performPlayerAttack(gameState.atk, { atkMultiplier: 1, varianceRange: 0, defReduction: 0 }, "d'essai"));
+        const out = { dmg: before - b.hp, exposed: b.status.exposed };
+        end();
+        return out;
+    };
+    const plainHit = hitOn(false), exposedHit = hitOn(true);
+    assert(exposedHit.dmg > plainHit.dmg && exposedHit.exposed === null, `Exposé : la DEF du boss baisse (${plainHit.dmg} -> ${exposedHit.dmg} dégâts), l'état s'éteint après le coup`);
+    boss = begin();
+    boss.status.exposed = { rounds: 1 };
+    renderEnemyStatusBadges(boss);
+    assert(ui.enemyStatusIcons.innerHTML.includes('🎯'), "Badge d'état : exposé 🎯");
+    end();
+}
+
+// --- Moteur : Coup de grâce et arme signature ---
+{
+    const original = Math.random;
+    const withRand = (v, fn) => { Math.random = () => v; try { return fn(); } finally { Math.random = original; } };
+    const templateName = Object.keys(districtBosses).find(k => districtBosses[k].signatureItem && districtBosses[k].signatureItem.category === 'weapons');
+    const begin = (opts = {}) => {
+        resetTransientState();
+        global.requestAnimationFrame = () => 1; global.cancelAnimationFrame = () => {};
+        let t = 0; setMinigameClock(() => t);
+        setMinigameMode(opts.mode || 'play');
+        gameState.currentFloor = 4;
+        gameState.inventory = [];
+        gameState.baseMaxHp = 5000; recomputeMaxHp(); gameState.hp = gameState.maxHp; gameState.def = 5; gameState.atk = 100;
+        if (opts.ranged) gameState.equipment.ranged = { name: "Fronde d'Essai", baseDmg: 10, category: 'ranged' };
+        const boss = withRand(0.5, () => generateBoss(templateName));
+        boss.hp = opts.hp || 5; // un coup suffit à l'achever
+        withRand(0.5, () => initiateCombat(boss));
+        boss.maxHp = 99999; boss.hp = opts.hp || 5;
+        gameState.combatDistance = opts.distance || 0;
+        gameState.occasion = createOccasionState();
+        return gameState.currentEnemy;
+    };
+    const end = () => { delete global.requestAnimationFrame; delete global.cancelAnimationFrame; setMinigameClock(null); setMinigameMode('auto'); resetTransientState(); };
+    const signatures = () => gameState.inventory.filter(i => i.signature);
+
+    // Coup fatal à un boss : l'épreuve s'ouvre AVANT la victoire.
+    let boss = begin();
+    withRand(0.5, () => attackUnarmed());
+    assert(gameState.pendingMinigame && gameState.pendingMinigame.kind === 'choke', "Coup fatal à mains nues : Coup de grâce = épreuve de maintien");
+    assert(gameState.inCombat && gameState.currentEnemy === boss && boss.hp <= 0, "Pendant le Coup de grâce : le boss est à terre mais le combat n'est pas conclu");
+    assert(boss.finisherDone === true && ui.minigameTitle.innerText.includes('Coup de grâce'), "Le Coup de grâce porte son nom et n'est joué qu'une fois");
+    withRand(0.5, () => finishMinigame('perfect', { ratio: 1 }));
+    assert(!gameState.inCombat && signatures().length === 1, "Coup de grâce parfait : le boss est vaincu et l'arme signature tombe");
+    assert(!signatures()[0].forgedByPerfect, "Un seul Parfait : pas de qualificatif supplémentaire");
+    end();
+
+    // Réussi, Raté, Passer : victoire normale, mais pas d'arme signature.
+    for (const [label, finishWith] of [['Réussi', () => finishMinigame('success', {})], ['Raté', () => finishMinigame('fail', {})], ['Passer', () => skipMinigame()]]) {
+        boss = begin();
+        withRand(0.5, () => attackUnarmed());
+        const lines = captureLog(() => withRand(0.5, finishWith));
+        assert(!gameState.inCombat && signatures().length === 0, `Coup de grâce ${label} : victoire, mais pas d'arme signature`);
+        assert(lines.some(l => l.includes('vous échappe')), `Coup de grâce ${label} : le journal explique l'absence d'arme signature`);
+        end();
+    }
+
+    // 3 Parfaits (dont le Coup de grâce) : un qualificatif de plus.
+    boss = begin();
+    boss.trials = { count: 2, perfects: 2 };
+    withRand(0.5, () => attackUnarmed());
+    withRand(0.5, () => finishMinigame('perfect', { ratio: 1 }));
+    const forged = signatures()[0];
+    const baseCount = (districtBosses[templateName].signatureItem.mechanics || []).length;
+    assert(forged && forged.forgedByPerfect && forged.qualifiers.length === baseCount + 1 && forged.mechanics.length === baseCount + 1, "3 Parfaits : l'arme signature gagne un qualificatif");
+    assert(new Set(forged.qualifiers.map(q => q.key)).size === forged.qualifiers.length, "Le qualificatif supplémentaire est distinct des siens");
+    assert(buildItemInspectHtml(forged).includes('Forgée par un combat parfait'), "Inspection : la mention « forgée par un combat parfait »");
+    end();
+    boss = begin();
+    boss.trials = { count: 2, perfects: 1 };
+    withRand(0.5, () => attackUnarmed());
+    withRand(0.5, () => finishMinigame('perfect', { ratio: 1 }));
+    assert(signatures().length === 1 && !signatures()[0].forgedByPerfect, "2 Parfaits seulement : pas de qualificatif supplémentaire");
+    end();
+
+    // L'épreuve dépend de la dernière attaque : tir -> Cible ; arme de mêlée -> timing étroit.
+    boss = begin({ ranged: true, distance: 3 });
+    withRand(0.5, () => attackRanged());
+    assert(gameState.pendingMinigame && gameState.pendingMinigame.kind === 'target', "Coup fatal au tir : Coup de grâce = Cible");
+    assert(minigameRuntime.spec.outerRadius < 0.5, "Coup de grâce à distance : la cible tient compte de l'écart");
+    finishMinigame('perfect', {});
+    assert(signatures().length === 1, "Coup de grâce à la Cible parfaite : arme signature");
+    end();
+    boss = begin();
+    gameState.equipment.weapon = { name: "Arme d'Essai", baseDmg: 10, category: 'weapons' };
+    withRand(0.5, () => attackWeapon());
+    assert(gameState.pendingMinigame && gameState.pendingMinigame.kind === 'timing' && minigameRuntime.spec.zoneWidth === 0.2 && minigameRuntime.spec.periodMs === 1000, "Coup fatal à l'arme : Coup de grâce = timing, zone étroite");
+    skipMinigame();
+    end();
+
+    // Boss achevé autrement qu'au coup (saignement...), mode Jet automatique, ou mob normal : pas d'épreuve.
+    boss = begin({ mode: 'auto' });
+    withRand(0.5, () => attackUnarmed());
+    assert(gameState.pendingMinigame === null && !gameState.inCombat && signatures().length === 0, "Mode Jet automatique : le boss tombe sans épreuve, et sans arme signature");
+    end();
+    resetTransientState();
+    withRand(0.5, () => initiateCombat({ name: "Cobaye Normal", hp: 5, atk: 1, def: 1, xpReward: 1 }));
+    global.requestAnimationFrame = () => 1; setMinigameMode('play');
+    withRand(0.5, () => attackUnarmed());
+    assert(gameState.pendingMinigame === null && !gameState.inCombat, "Un mob normal n'a pas de Coup de grâce");
+    delete global.requestAnimationFrame; setMinigameMode('auto'); resetTransientState();
+
+    // Pas d'Occasion pendant le Coup de grâce.
+    boss = begin();
+    withRand(0.5, () => attackUnarmed());
+    withRand(0, () => updateUI());
+    assert(gameState.occasion.current === null, "Pas d'Occasion proposée sur un boss à terre");
+    skipMinigame();
+    end();
+
+    // Sans interface (Node) : le boss tombe au coup fatal, sans épreuve ni arme signature.
+    resetTransientState();
+    gameState.currentFloor = 4;
+    gameState.inventory = [];
+    const noUi = withRand(0.5, () => generateBoss(templateName));
+    noUi.hp = 5;
+    withRand(0.5, () => initiateCombat(noUi));
+    gameState.atk = 100;
+    const lines = captureLog(() => withRand(0.5, () => attackUnarmed()));
+    assert(!gameState.inCombat && gameState.pendingMinigame === null && signatures().length === 0, "Sans interface : victoire immédiate, pas d'arme signature");
+    assert(lines.some(l => l.includes('vous échappe')), "Sans interface : le journal le dit");
+    resetTransientState();
+}
+
+// --- Cinématique du Coup de grâce ---
+{
+    resetTransientState();
+    let done = 0;
+    playFinisherCinematic(true, () => { done++; });
+    assert(done === 1, "Sans interface : la cinématique rend la main tout de suite");
+    global.requestAnimationFrame = () => 1;
+    ui.finisherCinema.classList.add('hidden');
+    playFinisherCinematic(true, () => { done++; });
+    assert(done === 2, "Avec interface : la cinématique rend la main une fois jouée");
+    assert(ui.finisherCinema.classList.contains('hidden') && ui.finisherCinemaText.innerText === 'COUP DE GRÂCE PARFAIT', "Cinématique parfaite : mention dédiée, masquée ensuite");
+    playFinisherCinematic(false, () => { done++; });
+    assert(done === 3 && ui.finisherCinemaText.innerText === 'COUP DE GRÂCE' && !ui.finisherCinema.classList.contains('finisher-perfect'), "Cinématique ordinaire : mention simple, sans flash doré");
+    delete global.requestAnimationFrame;
+    resetTransientState();
+}

@@ -367,6 +367,58 @@ MINIGAME_RENDERERS.weakpoint = {
     }
 };
 
+// Parade au télégraphe (V3, boss) : un anneau se resserre sur un bouclier ; un tap (ou Espace/Entrée) au moment où il se referme pare.
+// Le coup tombe à spec.impactMs ; sans tap, ou trop tôt / trop tard : Raté (le coup lourd tombe comme avant).
+MINIGAME_RENDERERS.parry = {
+    mount(root, spec, api) {
+        const NS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('viewBox', '-1 -1 2 2');
+        svg.setAttribute('class', 'mx-auto block w-full max-w-[200px] touch-none select-none');
+        svg.setAttribute('role', 'button');
+        svg.setAttribute('aria-label', 'Parade : touchez quand l\'anneau se referme sur le bouclier');
+        svg.innerHTML = `<circle r="0.96" fill="#111827" stroke="#374151" stroke-width="0.02"/>` +
+            `<circle r="0.26" fill="#1e3a8a" stroke="#93c5fd" stroke-width="0.04"/><path d="M0 -0.15 L0.12 -0.08 V0.05 Q0.12 0.14 0 0.2 Q-0.12 0.14 -0.12 0.05 V-0.08 Z" fill="#bfdbfe"/>` +
+            `<circle id="mg-parry-ring" r="0.95" fill="none" stroke="#facc15" stroke-width="0.07"/>`;
+        const ring = svg.querySelector('#mg-parry-ring');
+        root.appendChild(svg);
+        const radius = el => 0.26 + (0.95 - 0.26) * Math.max(0, 1 - el / spec.impactMs);
+        const tap = () => { const t = api.elapsed(); api.finish(parryOutcome(t, spec), { tapMs: Math.round(t), impactMs: Math.round(spec.impactMs) }); };
+        bindTap(svg, tap);
+        return {
+            primary: tap,
+            update(el) { if (ring && ring.setAttribute) ring.setAttribute('r', radius(el).toFixed(3)); },
+            destroy() {}
+        };
+    }
+};
+
+// Briser la garde (V3, boss) : un point faible apparaît à un endroit tiré, après un court délai ; le toucher vite brise la garde.
+MINIGAME_RENDERERS.guard = {
+    mount(root, spec, api) {
+        const mk = (tag, cls) => { const el = document.createElement(tag); el.className = cls; return el; };
+        const panel = mk('div', 'relative w-full h-28 rounded bg-gray-900 border border-gray-700 overflow-hidden select-none');
+        const spot = mk('button', 'absolute w-12 h-12 -ml-6 -mt-6 rounded-full border-2 border-orange-300 bg-orange-600/70 text-xl');
+        spot.textContent = '🎯';
+        spot.setAttribute('aria-label', 'Point faible');
+        spot.style.left = `${spec.spotX.toFixed(1)}%`;
+        spot.style.top = `${spec.spotY.toFixed(1)}%`;
+        spot.style.display = 'none';
+        panel.appendChild(spot);
+        root.appendChild(panel);
+        let shown = false;
+        const hit = () => { if (shown) api.finish(guardOutcome(api.elapsed() - spec.appearMs, spec), { reactionMs: Math.round(api.elapsed() - spec.appearMs) }); };
+        bindTap(spot, hit);
+        return {
+            // Espace/Entrée touchent le point faible dès qu'il est apparu (accessibilité clavier).
+            primary: hit,
+            update(el) { if (!shown && el >= spec.appearMs) { shown = true; spot.style.display = 'block'; } },
+            shownNow: () => shown, hit,
+            destroy() {}
+        };
+    }
+};
+
 // --- Cycle de vie -----------------------------------------------------------------------------------------------
 function minigameElapsed() {
     if (!minigameRuntime) return 0;
@@ -475,6 +527,19 @@ function showMinigameBanner(fx) {
     ui.minigameBanner.classList.remove('hidden');
     if (minigameBannerTimer) clearTimeout(minigameBannerTimer);
     minigameBannerTimer = setTimeout(() => { ui.minigameBanner.classList.add('hidden'); minigameBannerTimer = null; }, MINIGAME_SETTINGS.bannerMs);
+}
+
+// Cinématique du Coup de grâce (V3) : bandes noires, flash (doré si Parfait) et mention, puis `onDone`. Aucune interface (Node) ou aucun
+// élément : onDone tout de suite. Sous prefers-reduced-motion : les mêmes éléments, sans mouvement (voir le CSS).
+const FINISHER_CINEMA_MS = 750;
+function playFinisherCinematic(perfect, onDone) {
+    const el = typeof ui !== 'undefined' ? ui.finisherCinema : null;
+    if (!el || typeof requestAnimationFrame !== 'function') { if (onDone) onDone(); return; }
+    el.classList.toggle('finisher-perfect', !!perfect);
+    if (ui.finisherCinemaText) ui.finisherCinemaText.innerText = perfect ? 'COUP DE GRÂCE PARFAIT' : 'COUP DE GRÂCE';
+    el.classList.remove('hidden');
+    triggerHaptic(perfect ? 'heavy' : 'medium');
+    setTimeout(() => { el.classList.add('hidden'); if (onDone) onDone(); }, FINISHER_CINEMA_MS);
 }
 
 // Ferme une éventuelle épreuve ouverte sans rien résoudre (restauration de sauvegarde, remise à zéro).

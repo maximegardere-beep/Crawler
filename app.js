@@ -58,8 +58,8 @@ const gameState = {
     // `inventory` (voir spells.js/generateSpellScroll()) : un sort ne compte pas dans maxInventory,
     // pas plus qu'un consommable. Le sort actuellement équipé n'y figure jamais (voir equipSpell()).
     spellbook: [],
-    // Boss (nom de base) dont l'objet signature a déjà été obtenu dans cette partie : le premier est
-    // garanti, les suivants seulement à itemBalance.boss.signatureRepeatChance (voir awardBossSignatureItem()).
+    // Boss (nom de base) dont l'objet signature a déjà été obtenu dans cette partie (succès « collectionneur ») : l'objet n'est
+    // plus garanti — il exige un Coup de grâce PARFAIT (chantier 6, V3, voir awardBossSignatureItem()).
     signaturesAwarded: [],
     // Écart de distance courant (0 = corps à corps). Aucune notion de posture : la distance de
     // départ dépend uniquement de la nature du mob (mob.ranged), et n'évolue ensuite que via les
@@ -813,6 +813,8 @@ const ui = {
     btnRetreat: document.getElementById('btn-retreat'),
     btnEngage: document.getElementById('btn-engage'),
     btnOccasion: document.getElementById('btn-occasion'),
+    finisherCinema: document.getElementById('finisher-cinema'),
+    finisherCinemaText: document.getElementById('finisher-cinema-text'),
     btnFlee: document.getElementById('btn-flee'),
     distanceTensionLabel: document.getElementById('distance-tension-label'),
     equippedRanged: document.getElementById('equipped-ranged'),
@@ -2149,7 +2151,8 @@ function buildItemInspectHtml(item, options = {}) {
         : `<p class="text-gray-500 italic">${item.category === 'consumables' ? 'Un consommable ne porte jamais de qualificatif.' : 'Aucun qualificatif.'}</p>`);
 
     const value = getItemValue(item);
-    const valueHtml = `<p class="text-gray-400">💰 Valeur : <span class="text-yellow-300 font-bold">${value} PO</span> · revente <span class="text-emerald-300 font-bold">${getSellPrice(item)} PO</span></p>`;
+    const forgedHtml = item.forgedByPerfect ? `<p class="text-amber-300 italic">🔥 Forgée par un combat parfait : un qualificatif de plus.</p>` : '';
+    const valueHtml = forgedHtml + `<p class="text-gray-400">💰 Valeur : <span class="text-yellow-300 font-bold">${value} PO</span> · revente <span class="text-emerald-300 font-bold">${getSellPrice(item)} PO</span></p>`;
     const priceHtml = options.priceLine ? `<p class="text-gray-300 font-bold">${options.priceLine}</p>` : '';
 
     const compareHtml = compareTo
@@ -4324,19 +4327,21 @@ function getOverflowSellPrice(item) {
     return Math.max(1, Math.round(getSellPrice(item) * LOOT_OVERFLOW_SELL_RATIO));
 }
 
-// Objet signature d'un boss précis (bestiary.js, districtBosses.*.signatureItem) : garanti à la
-// PREMIÈRE défaite de ce boss dans la partie (gameState.signaturesAwarded), puis seulement à
-// itemBalance.boss.signatureRepeatChance — plusieurs quartiers d'un même type reviennent au fil des
-// étages, un objet signature garanti à chaque fois inonderait le joueur. Sa rareté suit l'étage courant
-// (Rare, Épique, Légendaire dès l'étage 10 — getSignatureRarity()), au niveau d'objet du butin du boss
-// (voir buildSignatureItem() dans generator.js).
-function awardBossSignatureItem(boss, itemLevel = gameState.currentFloor) {
+// Objet signature d'un boss précis (bestiary.js, districtBosses.*.signatureItem) : depuis le chantier 6 (V3), il n'est plus garanti
+// à la première victoire — il tombe à 100 % si le Coup de grâce a été PARFAIT, jamais sinon (jet automatique, mini-jeux désactivés,
+// Coup de grâce raté ou seulement réussi, boss achevé autrement : pas d'objet signature). Avec 3 Parfaits ou plus dans le combat
+// (Coup de grâce compris), l'arme gagne un qualificatif de plus (signatureReward()). Sa rareté suit l'étage courant (Rare, Épique,
+// Légendaire dès l'étage 10 — getSignatureRarity()), au niveau d'objet du butin du boss (voir buildSignatureItem() dans generator.js).
+function awardBossSignatureItem(boss, itemLevel = gameState.currentFloor, outcome = {}) {
     if (!boss || !boss.signatureItem) return;
+    const reward = signatureReward(!!outcome.perfectFinisher, outcome.perfects || 0);
+    if (!reward.awarded) {
+        logEvent(`🗡️ Sans Coup de grâce parfait, l'objet signature de ${boss.name} vous échappe.`, "info");
+        return;
+    }
     const key = boss.baseName || boss.name;
-    const alreadyAwarded = gameState.signaturesAwarded.includes(key);
-    if (alreadyAwarded && Math.random() * 100 >= itemBalance.boss.signatureRepeatChance) return;
-    if (!alreadyAwarded) gameState.signaturesAwarded.push(key);
-    storeLootItem(buildSignatureItem(boss.signatureItem, itemLevel, getSignatureRarity(gameState.currentFloor).key), "✨ Objet signature — ");
+    if (!gameState.signaturesAwarded.includes(key)) gameState.signaturesAwarded.push(key);
+    storeLootItem(buildSignatureItem(boss.signatureItem, itemLevel, getSignatureRarity(gameState.currentFloor).key, { extraQualifier: reward.extraQualifier }), "✨ Objet signature — ");
 }
 
 // Point de passage UNIQUE pour toute perte de PV du joueur (piège, saignement, riposte ennemie...) —
@@ -5444,6 +5449,7 @@ function renderEnemyStatusBadges(enemy) {
     add(status.stunned, "💫", "Étourdi");
     add(status.immobilized && status.immobilized.rounds > 0, "🤼", "Immobilisé (ne peut pas riposter)");
     add(status.weakened && status.weakened.rounds > 0, "💪", "Affaibli (ATQ réduite)");
+    add(status.exposed && status.exposed.rounds > 0, "🎯", "Exposé (DEF −30 %)");
     add(status.slowed && status.slowed.rounds > 0, "🐌", "Ralenti");
     add(status.blinded && status.blinded.rounds > 0, "✨", "Ébloui");
     add(status.corroded && status.corroded.rounds > 0, "🧪", "Corrodé (DEF réduite)");
@@ -5565,7 +5571,7 @@ function initiateCombat(forcedEnemy = null) {
         // telegraph/defBuffed/frenzied : uniquement lus/écrits côté boss (voir performBossCounterAttack()
         // dans app.js, Chantier 2 du rework combat) — restent toujours neutres sur un mob normal/élite.
         // enraged/enrageCooldown : Chantier 3 (enrage distance), tous mobs confondus, boss inclus.
-        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, distracted: null, telegraph: null, defBuffed: null, frenzied: false, enraged: null, enrageCooldown: null, immobilized: null, weakened: null };
+        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, distracted: null, telegraph: null, defBuffed: null, frenzied: false, enraged: null, enrageCooldown: null, immobilized: null, weakened: null, exposed: null };
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
         // Compteur de tours de kiting (Chantier 3) : un boss démarre à 1 (s'enrage plus vite qu'un
         // mob normal, voir NOTES_COMBAT.md Chantier 2) plutôt qu'à 0.
@@ -6023,6 +6029,14 @@ function performPlayerAttack(attackerAtk, options, label) {
         if (enemy.status.corroded.rounds <= 0) enemy.status.corroded = null;
     }
 
+    // Exposé (Parade ou garde brisée parfaite, chantier 6 V3) : DEF effective réduite de 30 % pendant `rounds` coups.
+    const enemyWasExposed = enemy.status && enemy.status.exposed && enemy.status.exposed.rounds > 0;
+    if (enemyWasExposed) {
+        effectiveEnemyDef = Math.round(effectiveEnemyDef * MINIGAME_SETTINGS.boss.exposed.defMult);
+        enemy.status.exposed.rounds -= 1;
+        if (enemy.status.exposed.rounds <= 0) enemy.status.exposed = null;
+    }
+
     // Boss phase 2 "il se hérisse" (voir performBossCounterAttack()) : DEF effective AUGMENTÉE tant
     // que le buff est actif — symétrique aux réductions ébloui/corrodé ci-dessus.
     const enemyWasDefBuffed = enemy.status && enemy.status.defBuffed && enemy.status.defBuffed.rounds > 0;
@@ -6104,12 +6118,14 @@ function performPlayerAttack(attackerAtk, options, label) {
     // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
     // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
     // pure redite de ce que les badges du Chantier 2 montrent déjà sans rapport avec CE coup précis).
-    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
+    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyWasExposed ? " (garde ouverte)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
 
     // Appui du compagnon : sort donné, Frappe d'appoint ou coup d'opportunité (voir companionCombatSupport())
     companionCombatSupport(enemy);
 
     if (enemy.hp <= 0) {
+        // Coup de grâce (chantier 6, V3) : le coup fatal porté à un boss ouvre d'abord l'épreuve (si une interface la permet).
+        if (offerCoupDeGrace(enemy)) return true;
         setTimeout(() => {
             logEvent(`[${enemy.name}] s'effondre, vaincu !`, "success");
             winCombat();
@@ -6480,6 +6496,73 @@ function enemyCounterAttack() {
 // (resolveEnemyCounterAttack ci-dessous) : isEliteMob() exclut déjà les boss, donc aucun
 // recouvrement avec le scaling élite du Chantier 1.
 
+// ==========================================
+// ÉPREUVES DE BOSS (chantier 6, V3 — voir NOTES_MINIJEUX.md)
+// ==========================================
+// Trois moments : la Parade (exécution d'un coup lourd télégraphié), Briser la garde (exécution de « il se hérisse ») et le Coup de
+// grâce (coup fatal). 3 épreuves de télégraphe au plus par boss (MINIGAME_SETTINGS.boss.trialCap), puis le comportement d'avant ; le Coup
+// de grâce s'y ajoute (4 au plus). Un Raté n'ajoute AUCUNE pénalité : le boss fait ce qu'il aurait fait sans épreuve. Sans interface
+// (tests Node, simulation longue) : jamais d'épreuve, comportement strictement inchangé. Avec interface mais en mode « Jet automatique »
+// ou via « Passer » : réussite tirée selon la compétence d'Arme, jamais de Parfait (bossAutoRates()).
+function ensureBossTrials(enemy) {
+    if (!enemy.trials) enemy.trials = { count: 0, perfects: 0 };
+    return enemy.trials;
+}
+
+// Joue une épreuve de télégraphe puis rappelle `cb(outcome)` ('fail' sans épreuve : plafond atteint ou pas d'interface).
+function runBossTrial(enemy, kind, cb) {
+    const trials = ensureBossTrials(enemy);
+    if (typeof requestAnimationFrame !== 'function' || trials.count >= MINIGAME_SETTINGS.boss.trialCap) { cb('fail'); return; }
+    trials.count += 1;
+    const spec = buildMinigameSpec(kind, { boss: true, allowPerfect: false, autoRates: bossAutoRates(gameState.skills.weapon.level) });
+    startMinigame(spec, (outcome, detail) => {
+        if (outcome === 'perfect' && !(detail && detail.auto)) trials.perfects += 1;
+        cb(outcome);
+    });
+}
+
+// Parade parfaite : le coup est détourné, le crawler riposte (x1,5, sans jamais achever le boss : le coup fatal reste le sien) et la garde
+// du boss s'ouvre un tour (statut « exposé »).
+function parryRiposte(enemy) {
+    const gear = gameState.equipment.weapon || gameState.equipment.ranged;
+    const atk = gameState.atk + (gear ? (gear.baseDmg || 0) : 0);
+    const dmg = Math.max(0, Math.min(enemy.hp - 1, rollDamage(atk, enemy.def, { atkMultiplier: MINIGAME_SETTINGS.boss.parry.perfectRiposteMult, varianceRange: 0.15, defReduction: 0 })));
+    enemy.hp -= dmg;
+    if (dmg > 0) showFloatingDamage(ui.sceneMobAnchor, dmg, { toPlayer: false, heavy: true });
+    enemy.status.exposed = { rounds: MINIGAME_SETTINGS.boss.exposed.rounds };
+    return dmg;
+}
+
+// Briser la garde réussi : la garde n'est pas posée ; parfait, elle s'ouvre même (statut « exposé »).
+function applyGuardBreak(enemy, outcome) {
+    if (outcome === 'perfect') enemy.status.exposed = { rounds: MINIGAME_SETTINGS.boss.exposed.rounds };
+}
+
+// Coup de grâce : l'épreuve dépend de la dernière attaque. Le boss est de toute façon achevé (il n'y a pas de pénalité) ; seul un Parfait
+// ouvre l'objet signature. Renvoie vrai si l'épreuve a été ouverte (l'appelant ne conclut pas le combat lui-même).
+function offerCoupDeGrace(enemy) {
+    if (!enemy.isBoss || enemy.finisherDone || !minigameIsInteractive()) return false;
+    enemy.finisherDone = true;
+    const kinds = { ranged: 'target', unarmed: 'choke' };
+    const kind = kinds[gameState.lastAttackKind] || 'timing';
+    const base = { label: 'Coup de grâce', icon: '💀', hint: 'Un dernier effort : visez juste !', boss: true, allowPerfect: false, autoRates: bossAutoRates(gameState.skills.weapon.level) };
+    const extra = kind === 'timing' ? { zoneWidth: 0.2, periodMs: 1000 }
+        : kind === 'target' ? { distance: gameState.combatDistance, skillLevel: gameState.skills.weapon.level, durationMs: MINIGAME_SETTINGS.target.durationMs }
+        : {};
+    logEvent(`💀 Coup de grâce ! [${enemy.name}] vacille, à votre merci...`, "danger");
+    startMinigame(buildMinigameSpec(kind, Object.assign(base, extra)), (outcome, detail) => {
+        const perfect = outcome === 'perfect' && !(detail && detail.auto);
+        const trials = ensureBossTrials(enemy);
+        enemy.finisherPerfect = perfect;
+        if (perfect) trials.perfects += 1;
+        playFinisherCinematic(perfect, () => {
+            logEvent(`[${enemy.name}] s'effondre, vaincu !`, "success");
+            winCombat();
+        });
+    });
+    return true;
+}
+
 // Phase dérivée UNIQUEMENT du ratio de PV courant (aucun champ de niveau dédié sur les mobs, comme
 // le reste du moteur) : 100-66% phase 1, 66-33% phase 2, en dessous phase 3 ("folie").
 function getBossPhase(enemy) {
@@ -6637,19 +6720,45 @@ function performBossCounterAttackInner(enemy, onDone) {
         enemy.status.telegraph = null;
         if (tg.type === 'heavy') {
             const boosted = Math.round(enemyAtk * bp.telegraphHeavyMult);
+            let parry = 'fail';
             runPattern([
-                { run: () => strikeAndCheckDeath(boosted, `[${enemy.name}] abat son attaque annoncée et`, undefined, true), delay: rhythm.beatHeavyEvent }
+                // Parade (chantier 6, V3) : fenêtre de timing AVANT le coup — rien ne change sans épreuve ni en cas de Raté.
+                { interactive: true, run: (done) => runBossTrial(enemy, 'parry', (o) => { parry = o; done(); }) },
+                {
+                    run: () => {
+                        if (parry === 'perfect') {
+                            const riposte = parryRiposte(enemy);
+                            logEvent(`🛡️ Parade parfaite ! Vous détournez l'attaque de [${enemy.name}] et ripostez (${riposte} dégâts) : sa garde est ouverte.`, "success");
+                            return;
+                        }
+                        const parried = parry === 'success';
+                        const mult = parried ? MINIGAME_SETTINGS.boss.parry.successDamageMult : 1;
+                        const floor = parried ? gameState.maxHp * config.mobDamageScaling.pressureFloorFrac * mult : undefined; // le plancher de pression suit la réduction
+                        strikeAndCheckDeath(Math.round(boosted * mult), `[${enemy.name}] abat son attaque annoncée${parried ? ', que vous parez à moitié,' : ''} et`, floor, true);
+                    },
+                    delay: rhythm.beatHeavyEvent
+                }
             ]);
             return;
         }
         if (tg.type === 'defBuff') {
-            runPattern([{
-                run: () => {
-                    enemy.status.defBuffed = { rounds: bp.defBuffRounds };
-                    logEvent(`[${enemy.name}] se hérisse : sa garde vient de monter, sans vous frapper ce tour-ci.`, "info");
-                },
-                delay: rhythm.beatHeavyEvent
-            }]);
+            let guard = 'fail';
+            runPattern([
+                // Briser la garde (chantier 6, V3) : un point faible à toucher avant que la garde ne monte.
+                { interactive: true, run: (done) => runBossTrial(enemy, 'guard', (o) => { guard = o; done(); }) },
+                {
+                    run: () => {
+                        if (guard === 'success' || guard === 'perfect') {
+                            applyGuardBreak(enemy, guard);
+                            logEvent(`🔨 Vous brisez la garde de [${enemy.name}] avant qu'elle ne monte${guard === 'perfect' ? ' : sa défense s\'ouvre même !' : '.'}`, "success");
+                            return;
+                        }
+                        enemy.status.defBuffed = { rounds: bp.defBuffRounds };
+                        logEvent(`[${enemy.name}] se hérisse : sa garde vient de monter, sans vous frapper ce tour-ci.`, "info");
+                    },
+                    delay: rhythm.beatHeavyEvent
+                }
+            ]);
             return;
         }
     }
@@ -7033,7 +7142,7 @@ function occasionContext() {
 // Tire l'Occasion du tour courant (une seule fois par tour, au premier rafraîchissement de l'interface de ce tour).
 function rollCombatOccasion() {
     const occ = gameState.occasion;
-    if (!occ || !gameState.inCombat || !gameState.currentEnemy) return;
+    if (!occ || !gameState.inCombat || !gameState.currentEnemy || gameState.currentEnemy.hp <= 0) return; // pas d'Occasion pendant un Coup de grâce
     if (occ.rolledTurn === occ.turn) return;
     occ.rolledTurn = occ.turn;
     occ.current = null;
@@ -7521,7 +7630,7 @@ function winCombat() {
         const itemLevel = gameState.currentFloor + (isLairBoss ? itemBalance.lairBossLevelBonus : 0);
         addLoot({ source: 'boss', itemLevel });
         if (Math.random() * 100 < itemBalance.boss.secondItemChance) addLoot({ source: 'boss', itemLevel });
-        awardBossSignatureItem(defeatedEnemy, itemLevel);
+        awardBossSignatureItem(defeatedEnemy, itemLevel, { perfectFinisher: !!defeatedEnemy.finisherPerfect, perfects: defeatedEnemy.trials ? defeatedEnemy.trials.perfects : 0 });
     } else if (!(defeatedEnemy && defeatedEnemy.isBountyHunter) && Math.random() * 100 < 40) { // 40% de chance de loot post-combat (un chasseur de primes paie sa propre récompense, voir onBountyVictory())
         addLoot({ source: defeatedEnemy && isEliteMob(defeatedEnemy) ? 'elite' : 'mob' });
     }

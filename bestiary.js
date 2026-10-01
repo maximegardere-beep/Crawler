@@ -125,9 +125,8 @@ function findMobByName(name) {
     return baseMobs.find(mob => mob.name === name);
 }
 
-// `signatureItem` (chantier "rework combat", Chantier 2) : objet UNIQUE de ce boss précis, garanti à
-// sa PREMIÈRE défaite de la partie puis tiré à itemBalance.boss.signatureRepeatChance (voir
-// awardBossSignatureItem() dans app.js), en plus du loot aléatoire du boss — toujours au palier
+// `signatureItem` (chantier "rework combat", Chantier 2) : objet UNIQUE de ce boss précis, offert UNIQUEMENT par un
+// Coup de grâce parfait (chantier 6, V3 — voir awardBossSignatureItem() dans app.js), en plus du loot aléatoire du boss — toujours au palier
 // Légendaire. baseDmg/baseArmor/baseValue sont des stats de BASE (chantier "refonte des objets") :
 // mises à l'échelle par la rareté et le niveau d'objet (étage) comme tout objet, voir
 // buildSignatureItem() dans generator.js. Pas de qualificatif aléatoire (canEnchant:false), un seul mécanisme
