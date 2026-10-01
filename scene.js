@@ -661,6 +661,14 @@ function spriteAt(markup, x) {
 // Mise en scène d'un rôle, en SVG. Pure : ne dépend que du rôle et de la spécialité (clés inconnues ->
 // premier style du catalogue, voir shopSign/shopCounter/chalkboard dans backdrops.js).
 function composeShopSetpiece(role, specialty, prefix) {
+    if (role === 'arcade') {
+        return `
+        <g class="shop-setpiece" data-role="arcade">
+            ${placedProp('arcadeSign', SHOP_SIGN_POS.x, SHOP_SIGN_POS.y, {})}
+            ${placedProp('arcadeCabinets', 110, SCENE_GROUND_Y, {})}
+            ${placedProp('arcadeCabinets', 196, SCENE_GROUND_Y, {})}
+        </g>`;
+    }
     if (role === 'merchant') {
         const style = SHOP_SIGN_STYLES[specialty] || SHOP_SIGN_STYLES.weapons;
         const opts = { specialty };
@@ -692,8 +700,9 @@ function ensureShopSceneBuilt() {
 }
 
 function renderShopScene(mode) {
-    if (!gameState.pendingShopCityId) return;
-    const city = typeof urbanCityById === 'function' ? urbanCityById(gameState.pendingShopCityId) : null;
+    const cityId = mode === 'arcade' ? gameState.pendingArcadeCityId : gameState.pendingShopCityId;
+    if (!cityId) return;
+    const city = typeof urbanCityById === 'function' ? urbanCityById(cityId) : null;
     if (!city) return;
     ensureShopSceneBuilt();
     renderCrawlerInto(shopSceneUi.crawler);
@@ -701,7 +710,7 @@ function renderShopScene(mode) {
     const key = `${mode}:${city.specialty}`;
     if (lastShopSetpieceKey === key) return;
     shopSceneUi.setpiece.innerHTML = composeShopSetpiece(mode, city.specialty, 'sbd');
-    shopSceneUi.svg.setAttribute('aria-label', mode === 'merchant'
+    shopSceneUi.svg.setAttribute('aria-label', mode === 'arcade' ? "Salle de jeux, bornes d'arcade, vous à droite" : mode === 'merchant'
         ? `Échoppe du marchand (${(SHOP_SIGN_STYLES[city.specialty] || SHOP_SIGN_STYLES.weapons).label.toLowerCase()}), vous à droite`
         : `Salle du professeur (${(TRAINER_BOARD_STYLES[city.specialty] || TRAINER_BOARD_STYLES.weapon).label.toLowerCase()}), vous à droite`);
     lastShopSetpieceKey = key;
@@ -940,13 +949,13 @@ function renderGameOverScene(opts) {
 }
 
 // Point d'entrée unique du rendu des scènes : 'combat' (#combat-zone), 'explore' (scène d'exploration,
-// `opts` = nom de vignette ou { key, enemy, ... }), 'merchant' | 'trainer' (#shop-zone), 'safehouse'
+// `opts` = nom de vignette ou { key, enemy, ... }), 'merchant' | 'trainer' | 'arcade' (#shop-zone), 'safehouse'
 // (#safehouse-choice-zone), 'stairs' (écran d'escalier), 'gameOver' (cadavre vu de dessus, `opts` =
 // { cause }), 'crawlers' (remet à jour le crawler des scènes affichées) ; tout mode inconnu ne fait rien.
 function renderScene(mode, opts) {
     if (mode === 'combat') renderCombatScene();
     else if (mode === 'explore') renderExploreScene(opts);
-    else if (mode === 'merchant' || mode === 'trainer') renderShopScene(mode);
+    else if (mode === 'merchant' || mode === 'trainer' || mode === 'arcade') renderShopScene(mode);
     else if (mode === 'safehouse') renderSafehouseScene();
     else if (mode === 'stairs') renderStairsScene();
     else if (mode === 'gameOver') renderGameOverScene(opts);

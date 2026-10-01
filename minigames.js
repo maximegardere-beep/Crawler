@@ -558,6 +558,95 @@ function signatureReward(perfectFinisher, perfectsInFight) {
     };
 }
 
+// --- V4 : salle de jeux en ville --------------------------------------------------------------------------------------
+// Quatre jeux d'argent, chacun une suite de manches (une épreuve existante par manche). Chaque manche vaut des points
+// (Parfait 2 / Réussi 1 / Raté 0) ; la part des points maximaux fait le palier, donc le gain. La mise est prélevée avant la
+// partie, une partie coûte 1 H. Chiffres de départ, à valider en playtest.
+const ARCADE_SETTINGS = {
+    hoursPerGame: 1,
+    minStake: 1,
+    maxStakePerFloor: 60,                          // plafond de mise = 60 PO × étage (et jamais plus que ses PO)
+    points: { perfect: 2, success: 1, fail: 0 },
+    tiers: { good: 0.5, excellent: 0.75 },         // part des points maximaux
+    multipliers: { lose: 0, good: 1.5, excellent: 3 }, // gain brut = mise × multiplicateur (la mise est comprise)
+    skillXpOnExcellent: 10                         // XP de la compétence liée sur un score excellent
+};
+
+const ARCADE_TIER_LABELS = { lose: 'Perdu', good: 'Bon score', excellent: 'Excellent !' };
+
+// Un jeu = icône, nom, compétence liée, texte d'accueil, et ses manches : `rounds(ctx)` → [{ kind, overrides }], où
+// ctx = { floor, skillLevel }. `stopOnFail` : une manche ratée met fin à la partie (les suivantes valent 0).
+const ARCADE_GAMES = {
+    range: {
+        icon: '🎯', label: 'Stand de tir', skill: 'weapon', stopOnFail: false,
+        blurb: 'Trois cibles, de plus en plus petites.',
+        rounds: ctx => [2, 3, 4].map((distance, i) => ({ kind: 'target',
+            overrides: { distance, skillLevel: ctx.skillLevel, label: `Cible ${i + 1}/3`, hint: 'Touchez quand le réticule est sur la cible.' } }))
+    },
+    ring: {
+        icon: '🥊', label: 'Ring', skill: 'unarmed', stopOnFail: false,
+        blurb: 'Immobilisez, puis étranglez.',
+        rounds: ctx => [
+            { kind: 'grapple', overrides: { zoneWidth: holdZoneWidth('grapple', ctx.skillLevel), label: 'Immobiliser (1/2)' } },
+            { kind: 'choke', overrides: { zoneWidth: holdZoneWidth('choke', ctx.skillLevel), label: 'Étrangler (2/2)' } }
+        ]
+    },
+    safe: {
+        icon: '🔐', label: 'Coffre-fort', skill: 'stealth', stopOnFail: false,
+        blurb: 'Trois serrures, des zones de plus en plus étroites.',
+        rounds: ctx => [[0.30, 1100], [0.22, 950], [0.15, 800]].map(([zoneWidth, periodMs], i) => ({ kind: 'timing',
+            overrides: { zoneWidth: zoneWidth + Math.min(0.06, 0.01 * Math.max(0, ctx.skillLevel - 1)), periodMs, perfectRatio: 0.35,
+                label: `Serrure ${i + 1}/3`, icon: '🔐', hint: 'Arrêtez le curseur dans la zone verte.' } }))
+    },
+    memory: {
+        icon: '🧠', label: 'Mémoire', skill: 'stealth', stopOnFail: true,
+        blurb: 'Des séquences de plus en plus longues. Une erreur et c\'est fini.',
+        rounds: ctx => [3, 4, 5].map((length, i) => ({ kind: 'sequence',
+            overrides: { length, stepMs: Math.min(700, 450 + 40 * Math.max(0, ctx.skillLevel - 1)), label: `Séquence ${i + 1}/3`, icon: '🧠',
+                hint: 'Mémorisez la séquence, puis reproduisez-la.' } }))
+    }
+};
+const ARCADE_GAME_KEYS = Object.keys(ARCADE_GAMES);
+
+// Mise maximale : plafonnée par l'étage et par les PO possédés.
+function arcadeMaxStake(floor, gold) {
+    return Math.max(0, Math.min(Math.floor(gold || 0), ARCADE_SETTINGS.maxStakePerFloor * Math.max(1, floor || 1)));
+}
+
+// Vérifie une mise : renvoie { ok, stake, reason }. La mise est arrondie à l'entier ; hors bornes, elle est refusée.
+function arcadeCheckStake(rawStake, floor, gold) {
+    const stake = Math.floor(Number(rawStake));
+    if (!Number.isFinite(stake) || stake < ARCADE_SETTINGS.minStake) return { ok: false, stake: 0, reason: 'Misez au moins 1 PO.' };
+    if (stake > gold) return { ok: false, stake, reason: "Vous n'avez pas autant de PO." };
+    const max = arcadeMaxStake(floor, gold);
+    if (stake > max) return { ok: false, stake, reason: `Mise maximale ici : ${max} PO.` };
+    return { ok: true, stake, reason: '' };
+}
+
+// Une partie coûte du temps : jamais jouable si elle ferait tomber le temps restant à 0.
+function arcadeCanPlayTime(timeLeft) {
+    return timeLeft > ARCADE_SETTINGS.hoursPerGame;
+}
+
+// Score d'une partie : `outcomes` = issues des manches jouées (les manches non jouées, après un échec d'un jeu
+// `stopOnFail`, comptent 0). Renvoie { points, max, ratio, tier, perfectAll }.
+function arcadeScore(gameKey, outcomes) {
+    const game = ARCADE_GAMES[gameKey];
+    const total = game ? game.rounds({ floor: 1, skillLevel: 1 }).length : outcomes.length;
+    const pts = ARCADE_SETTINGS.points;
+    const points = outcomes.reduce((n, o) => n + (pts[o] || 0), 0);
+    const max = total * pts.perfect;
+    const ratio = max > 0 ? points / max : 0;
+    const tier = ratio >= ARCADE_SETTINGS.tiers.excellent ? 'excellent' : ratio >= ARCADE_SETTINGS.tiers.good ? 'good' : 'lose';
+    const perfectAll = outcomes.length === total && outcomes.every(o => o === 'perfect');
+    return { points, max, ratio, tier, perfectAll };
+}
+
+// Gain brut rendu au joueur (la mise y est comprise) : mise × multiplicateur du palier, arrondi.
+function arcadePayout(stake, tier) {
+    return Math.round(stake * (ARCADE_SETTINGS.multipliers[tier] || 0));
+}
+
 // --- Animations d'issue (spécification pure, jouée par fx.js) ---------------------------------------------------
 // `burst` : clé de FX_IMPACTS (sprites/fx.js) ; `hitstopMs` : gel à l'impact (le long gel et la secousse d'écran
 // `heavy` sont réservés au Parfait) ; `target` : qui reçoit l'éclat en combat ; `haptic` : motif de triggerHaptic().
@@ -646,6 +735,7 @@ if (typeof module !== 'undefined' && module.exports) {
         sequenceOutcome, sequenceShownSymbol, GLYPH_GRID_POINTS, GLYPH_PATTERNS, getGlyphPattern, glyphSegmentDistance, glyphAdvance,
         buildHoldParams, holdZoneWidth, holdZoneCenter, holdInside, holdOutcome, grappleRounds, targetSizeFactor, targetReticlePosition,
         resolveTargetShot, WEAKPOINT_ZONES, OCCASION_TYPES, eligibleOccasions, occasionStillValid, occasionChancePct, decideOccasion,
-        parryOutcome, guardOutcome, bossAutoRates, signatureReward
+        parryOutcome, guardOutcome, bossAutoRates, signatureReward,
+        ARCADE_SETTINGS, ARCADE_TIER_LABELS, ARCADE_GAMES, ARCADE_GAME_KEYS, arcadeMaxStake, arcadeCheckStake, arcadeCanPlayTime, arcadeScore, arcadePayout
     };
 }

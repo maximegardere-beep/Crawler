@@ -193,7 +193,7 @@ function buildFloorMapSvg(floorMap, options = {}) {
 // Couleurs des étages urbains : villes en « plâtre » clair, salles selon leur rôle, routes en asphalte.
 const URBAN_MAP_COLORS = {
     city: '#e7dcc0', cityEdge: '#f5ecd6',
-    rooms: { plaza: '#8a7a55', alley: '#6b6150', inn: '#2f6b4a', merchant: '#7a5a2a', trainer: '#4a4f8a', stairs: '#7f1d1d' },
+    rooms: { plaza: '#8a7a55', alley: '#6b6150', inn: '#2f6b4a', merchant: '#7a5a2a', trainer: '#4a4f8a', arcade: '#8a2f6b', stairs: '#7f1d1d' },
     asphalt: '#3a414d', asphaltDim: '#23282f', lair: '#5a1f1f', lairCleared: '#4b4b4b'
 };
 

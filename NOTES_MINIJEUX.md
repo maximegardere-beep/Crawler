@@ -10,7 +10,7 @@ Décisions et plan complets : `CHANTIERS.md`, chantier 6 (rounds 1 à 6). Ce fic
 | V1 | Crochetage d'un coffre, désamorçage d'un piège, glyphe de sort | **Codé** |
 | V2 | Mains nues (Immobiliser, Étrangler), tir (Cible, Points faibles), Occasion de combat (25 %) | **Codé** |
 | V3 | Boss : Parade, Briser la garde, Coup de grâce (+ arme signature conditionnée au Parfait) | **Codé** |
-| V4 | Salle de jeux en ville (stand de tir, ring) | À cadrer |
+| V4 | Salle de jeux en ville (stand de tir, ring, coffre-fort, mémoire) | **Codé** |
 | Final | `recordRunEvent('minigame')`, succès, piques DeathWatch | À faire |
 
 ## Lot 0 — architecture
@@ -162,7 +162,34 @@ Chiffres (départ, à valider en playtest) dans `MINIGAME_SETTINGS.boss`. Logiqu
 - **Fenêtres** : ±90 ms (Parfait de la Parade) et 450 ms (Briser la garde) à vérifier au doigt sur iPhone.
 - **Boss achevé par un coup non direct** (saignement, compagnon, riposte d'armure) : jamais d'arme signature ; à confirmer que ça n'arrive pas trop souvent.
 
-## Ajouter une épreuve (mode d'emploi pour V1-V3)
+## V4 — salle de jeux en ville
+
+- **Génération** : `ROOM_TYPES.arcade` (🎰, `onEnter: 'arcade'`) ; `generateMetropolis({ arcadeCount })` pose une salle de jeux dans `arcadeCount` villes tirées sans remise
+  parmi les villes autres que celle du départ (`city.hasArcade`, rôle de salle `arcade`) — le hasard n'est consommé que si `arcadeCount > 0`, donc un appel sans
+  l'option génère exactement comme avant. `generateUrbanFloorMap()` demande 1 à 2 salles (`config.urbanFloors.arcadeCitiesMin/Max`). Jamais plus de 5 salles par ville
+  (une ville avec marchand + salle de jeux : place, auberge, marchand, jeux, ruelle). Carte : couleur `URBAN_MAP_COLORS.rooms.arcade`, repère 🎰 une fois visitée.
+- **Moteur** (`app.js`, section « Salle de jeux ») : `enterUrbanRoom()` → `triggerArcade(city)` ; réutilise `shopChoicePending` (blocage) avec `gameState.pendingArcadeCityId`
+  (jamais `pendingShopCityId`, une ville peut être marchand ET salle de jeux) et `gameState.arcadeSession` (partie en cours : `{ game, stake, outcomes }`).
+  `playArcadeGame(clé)` : valide la mise (`arcadeCheckStake()`) et le temps (`arcadeCanPlayTime()` : une partie ne peut jamais amener `timeLeft` à 0), prélève la mise et
+  1 H (régénération normale), enchaîne les manches par `startMinigame()` (`runArcadeRound()`), conclut par `finishArcadeGame()`. « Partir » est refusé pendant une partie.
+- **Règles pures** (`minigames.js`, `ARCADE_SETTINGS`, `ARCADE_GAMES`) : chaque jeu = suite de manches, chacune une épreuve EXISTANTE (aucun nouveau rendu) :
+  stand de tir = 3 × `target` (distances 2/3/4, compétence Arme) ; ring = `grapple` puis `choke` (Mains nues) ; coffre-fort = 3 × `timing` (zones .30/.22/.15, périodes
+  plus rapides, Furtivité) ; mémoire = 3 × `sequence` (3/4/5 symboles, Furtivité, **une erreur arrête la partie**). Points : Parfait 2 / Réussi 1 / Raté 0 ; palier selon la part
+  des points maximaux : ≥ 50 % bon (mise ×1,5), ≥ 75 % excellent (×3 + 10 XP de la compétence liée), sinon perdu ; **tout Parfait = partie parfaite → un lot**
+  (`addLoot({ source: 'treasure' })`). Gain brut = mise × multiplicateur (la mise y est comprise). Mise maximale = 60 PO × étage (et jamais plus que ses PO).
+- **Jet automatique / Réduit** : un jeu se joue épreuve par épreuve comme ailleurs ; en jet automatique l'espérance de gain reste sous la mise (mesurée : tir ≈ 0,41,
+  ring ≈ 0,63, coffre-fort ≈ 0,72, mémoire ≈ 0,14 ; testée < 0,9) — la salle de jeux n'est jamais une machine à PO sans y jouer ; un joueur adroit (Parfaits) gagne jusqu'à ×3.
+- **UI** : `#shop-arcade-content` dans `#shop-zone` (mise numérique + Min/½/Max, 4 boutons de jeu avec compétence liée, pastilles 🟡🟢🔴⚪ des manches, message de
+  résultat) ; scène `renderScene('arcade')` (enseigne néon « SALLE DE JEUX », bornes d'arcade ; props `arcadeSign`/`arcadeCabinets`). Hors combat, seules les épreuves
+  d'exploration (`target: 'prop'`) jouent un éclat : en salle de jeux, le retour est la bannière d'issue + l'haptique + le message.
+
+### À surveiller en playtest (V4)
+
+- **Plafond de mise** (60 PO × étage = 180 PO à l'étage 3) et multiplicateurs (×1,5 / ×3) : posés sans données. Un joueur adroit enchaîne les Parfaits : à surveiller si
+  l'argent ne perd plus toute valeur (1 H par partie est le seul frein ; le temps d'un étage, 130 H +5/étage, reste large).
+- Fréquence des salles de jeux (1 à 2 villes sur 6-8) et valeur de l'objet de la partie parfaite (palier « trésor ») ; difficulté réelle au doigt du coffre-fort (zone .15).
+
+## Ajouter une épreuve (mode d'emploi pour V1-V4)
 
 1. Une entrée de `MINIGAME_KINDS` (`minigames.js`), avec ses `autoRates`.
 2. Son rendu dans `MINIGAME_RENDERERS` (`minigames-ui.js`).

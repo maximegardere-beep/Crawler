@@ -152,6 +152,10 @@ const gameState = {
     pendingShowAfterPact: null,
     // Mini-jeu ouvert (chantier 6, minigames-ui.js) : { kind, boss } — bloque les actions le temps de l'épreuve.
     pendingMinigame: null,
+    // Salle de jeux (chantier 6, V4) : ville dont on visite la salle (reprend le blocage de shopChoicePending) et partie
+    // en cours { game, stake, outcomes } — voir triggerArcade()/playArcadeGame().
+    pendingArcadeCityId: null,
+    arcadeSession: null,
     // Occasions de combat (chantier 6, V2) : { current: { type } | null, turn, rolledTurn, lastOfferTurn, pity } — voir rollCombatOccasion().
     occasion: { current: null, turn: 0, rolledTurn: -1, lastOfferTurn: -9, pity: 0 },
     // Journal des N dernières épitaphes (voir generateEpitaph()/recordEpitaph()), plus récente en
@@ -397,6 +401,8 @@ const config = {
         // Chance qu'une ville normale (ni départ, ni escalier/Sortie) devienne spécialisée
         // (marchand/professeur, 50/50 ensuite) — voir generateUrbanFloorMap()/triggerShopEncounter().
         specializedCityChance: 18,
+        arcadeCitiesMin: 1,         // Salles de jeux (V4) : 1 à 2 villes par étage urbain, jamais la ville de départ
+        arcadeCitiesMax: 2,
         // Nombre de routes marquées "repaire" par étage urbain (voir generateUrbanFloorMap()) :
         // toujours 1, sauf à l'étage final où un second, plus généreux, s'ajoute.
         lairRoadsPerFloor: 1,
@@ -787,6 +793,12 @@ const ui = {
     shopTrainerInfo: document.getElementById('shop-trainer-info'),
     btnTrainSkill: document.getElementById('btn-train-skill'),
     btnLeaveShop: document.getElementById('btn-leave-shop'),
+    shopArcadeContent: document.getElementById('shop-arcade-content'),
+    arcadeStake: document.getElementById('arcade-stake'),
+    arcadeStakeInfo: document.getElementById('arcade-stake-info'),
+    arcadeGames: document.getElementById('arcade-games'),
+    arcadeRounds: document.getElementById('arcade-rounds'),
+    arcadeMessage: document.getElementById('arcade-message'),
     lairChoiceZone: document.getElementById('lair-choice-zone'),
     btnDiveLair: document.getElementById('btn-dive-lair'),
     btnDeclineLair: document.getElementById('btn-decline-lair'),
@@ -1028,6 +1040,8 @@ function restoreSaveForName(name) {
     gameState.pendingTravel = null;
     gameState.shopChoicePending = false;
     gameState.pendingShopCityId = null;
+    gameState.pendingArcadeCityId = null;
+    gameState.arcadeSession = null;
     gameState.lairChoicePending = false;
     gameState.pendingLairId = null;
     gameState.pendingLairDive = null;
@@ -2725,6 +2739,10 @@ function listFloorLandmarks() {
         }
         if (room.type === 'shop' || room.type === 'trainer') {
             if (room.visited) marks.push({ roomId: room.id, kind: room.type, icon: room.type === 'shop' ? '🛒' : '🎓', label: `${room.type === 'shop' ? "Marchand" : "Professeur"}${inCity}` });
+            return;
+        }
+        if (room.type === 'arcade') {
+            if (room.visited) marks.push({ roomId: room.id, kind: 'arcade', icon: '🎰', label: `Salle de jeux${inCity}` });
             return;
         }
         if (room.type === 'lair') {
@@ -4636,7 +4654,8 @@ function generateUrbanFloorMap() {
     const metro = generateMetropolis({
         cityCount: 6 + Math.floor(floor / 9), // Légère croissance avec la profondeur
         lairCount: isFinal ? config.urbanFloors.lairRoadsFinalFloor : config.urbanFloors.lairRoadsPerFloor,
-        specializedChance: config.urbanFloors.specializedCityChance
+        specializedChance: config.urbanFloors.specializedCityChance,
+        arcadeCount: config.urbanFloors.arcadeCitiesMin + Math.floor(Math.random() * (config.urbanFloors.arcadeCitiesMax - config.urbanFloors.arcadeCitiesMin + 1))
     });
     const namePool = [...URBAN_CITY_NAMES];
     const citiesById = {};
@@ -4701,6 +4720,10 @@ function enterUrbanRoom(room, firstVisit) {
     }
     if ((room.type === 'shop' || room.type === 'trainer') && city) {
         triggerShopEncounter(city);
+        return true;
+    }
+    if (room.type === 'arcade' && city) {
+        triggerArcade(city);
         return true;
     }
     if (room.type === 'lair') {
@@ -4904,8 +4927,10 @@ function trainSkill() {
 
 // Referme l'écran marchand/professeur et rend la main normalement (Carte Urbaine, actions standards).
 function leaveShop() {
+    if (gameState.arcadeSession) return; // une partie est en cours : on la termine d'abord
     gameState.shopChoicePending = false;
     gameState.pendingShopCityId = null;
+    gameState.pendingArcadeCityId = null;
     ui.shopZone.classList.add('hidden');
     updateUI();
 }
@@ -4913,10 +4938,14 @@ function leaveShop() {
 // Reconstruit le contenu dynamique de l'écran marchand/professeur (stock/prix, ou compétence à
 // former) selon le rôle de la ville actuellement visitée — n'affiche rien si aucune n'est en cours.
 function updateShopUI() {
-    if (!ui.shopZone || !gameState.pendingShopCityId) return;
+    if (!ui.shopZone) return;
+    if (gameState.pendingArcadeCityId) { updateArcadeUI(); return; }
+    if (!gameState.pendingShopCityId) return;
     const city = urbanCityById(gameState.pendingShopCityId);
     if (!city) return;
 
+    ui.shopArcadeContent.classList.add('hidden');
+    ui.shopArcadeContent.classList.remove('flex');
     const isMerchant = city.role === 'merchant';
     ui.shopMerchantContent.classList.toggle('hidden', !isMerchant);
     ui.shopMerchantContent.classList.toggle('flex', isMerchant);
@@ -5003,6 +5032,163 @@ function updateShopUI() {
     }
 }
 
+// ---------- Salle de jeux (chantier 6, V4 — voir NOTES_MINIJEUX.md) ----------
+// Quatre jeux d'argent (ARCADE_GAMES, minigames.js) : une partie = quelques manches, chacune une épreuve existante
+// lancée par startMinigame(). Mise libre (plafonnée, arcadeMaxStake()), prélevée avant la partie ; 1 H par partie ; gain =
+// mise × multiplicateur du palier ; un score excellent donne aussi de l'XP de compétence, une partie entièrement Parfaite un
+// objet. Parties illimitées. Réutilise le blocage de la boutique (shopChoicePending) : on joue jusqu'à « Partir ».
+let arcadeMessage = { text: "", tone: "info" };
+const ARCADE_PIPS = { perfect: '🟡', success: '🟢', fail: '🔴' };
+
+function arcadeSetMessage(text, tone = 'info') {
+    arcadeMessage = { text, tone };
+    if (ui.arcadeMessage) {
+        ui.arcadeMessage.innerText = text;
+        ui.arcadeMessage.className = `text-[11px] min-h-[1.5rem] ${tone === 'danger' ? 'text-red-400' : tone === 'success' ? 'text-emerald-300' : 'text-gray-300'}`;
+    }
+}
+
+function triggerArcade(city) {
+    gameState.shopChoicePending = true;
+    gameState.pendingShopCityId = null;
+    gameState.pendingArcadeCityId = city.id;
+    gameState.arcadeSession = null;
+    arcadeMessage = { text: "", tone: "info" };
+    city.arcadeVisited = true;
+    setSceneHeader('🎰', city.name, 'Salle de jeux');
+    logEvent(`Les bornes clignotent dans la salle de jeux de ${city.name}. Ici, on mise ses PO sur son adresse — et le Donjon encaisse le reste.`, "info");
+    ui.shopZone.classList.remove('hidden');
+    updateShopUI();
+    updateUI();
+}
+
+function arcadeSkillLevel(skillKey) {
+    const skill = gameState.skills && gameState.skills[skillKey];
+    return skill ? skill.level : 1;
+}
+
+// Lit la mise saisie (champ numérique) et la borne.
+function arcadeReadStake() {
+    return arcadeCheckStake(ui.arcadeStake ? ui.arcadeStake.value : 0, gameState.currentFloor, gameState.gold);
+}
+
+function setArcadeStakePreset(kind) {
+    if (!ui.arcadeStake) return;
+    const max = arcadeMaxStake(gameState.currentFloor, gameState.gold);
+    const v = kind === 'min' ? ARCADE_SETTINGS.minStake : kind === 'half' ? Math.max(ARCADE_SETTINGS.minStake, Math.floor(max / 2)) : max;
+    ui.arcadeStake.value = String(Math.min(Math.max(v, ARCADE_SETTINGS.minStake), Math.max(max, ARCADE_SETTINGS.minStake)));
+    updateArcadeUI();
+}
+
+function updateArcadeUI() {
+    if (!ui.shopArcadeContent || !gameState.pendingArcadeCityId) return;
+    ui.shopMerchantContent.classList.add('hidden');
+    ui.shopMerchantContent.classList.remove('flex');
+    ui.shopTrainerContent.classList.add('hidden');
+    ui.shopTrainerContent.classList.remove('flex');
+    ui.shopArcadeContent.classList.remove('hidden');
+    ui.shopArcadeContent.classList.add('flex');
+    renderScene('arcade');
+    const busy = !!gameState.arcadeSession;
+    const max = arcadeMaxStake(gameState.currentFloor, gameState.gold);
+    const check = arcadeReadStake();
+    const timeOk = arcadeCanPlayTime(gameState.timeLeft);
+    ui.arcadeStakeInfo.innerText = `Vous avez ${gameState.gold} PO · mise maximale : ${max} PO · bon score ×${ARCADE_SETTINGS.multipliers.good}, excellent ×${ARCADE_SETTINGS.multipliers.excellent}`;
+    ui.arcadeStake.disabled = busy;
+    ui.arcadeGames.innerHTML = '';
+    ARCADE_GAME_KEYS.forEach(key => {
+        const game = ARCADE_GAMES[key];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.arcadeGame = key;
+        const disabled = busy || !check.ok || !timeOk;
+        btn.disabled = disabled;
+        btn.className = "flex flex-col items-start gap-0.5 px-2 py-2 min-h-[44px] bg-gray-900 border border-pink-700/70 hover:border-pink-400 hover:bg-pink-950/20 rounded text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed";
+        btn.innerHTML = `<span class="text-xs text-pink-300 font-bold">${game.icon} ${game.label}</span><span class="text-[9px] text-gray-500">${game.blurb}</span><span class="text-[9px] text-gray-600">${skillLabel(game.skill)} niv. ${arcadeSkillLevel(game.skill)}</span>`;
+        btn.addEventListener('click', () => playArcadeGame(key));
+        ui.arcadeGames.appendChild(btn);
+    });
+    if (!busy) {
+        ui.arcadeRounds.innerHTML = '';
+        if (!arcadeMessage.text) {
+            if (!timeOk) arcadeSetMessage("Plus assez de temps pour une partie.", 'danger');
+            else if (!check.ok) arcadeSetMessage(check.reason, 'danger');
+        }
+    }
+    ui.btnLeaveShop.disabled = busy;
+}
+
+// Affiche les manches déjà jouées (pastilles) et celles qui restent (cercles vides).
+function renderArcadeRounds(total, outcomes) {
+    if (!ui.arcadeRounds) return;
+    const pips = [];
+    for (let i = 0; i < total; i++) pips.push(outcomes[i] ? ARCADE_PIPS[outcomes[i]] : '⚪');
+    ui.arcadeRounds.innerText = pips.join(' ');
+}
+
+// Lance une partie : valide la mise et le temps, prélève la mise et 1 H, puis enchaîne les manches.
+function playArcadeGame(gameKey) {
+    const game = ARCADE_GAMES[gameKey];
+    if (!game || !gameState.pendingArcadeCityId || gameState.arcadeSession || gameState.pendingMinigame) return false;
+    const check = arcadeReadStake();
+    if (!check.ok) { arcadeSetMessage(check.reason, 'danger'); updateArcadeUI(); return false; }
+    if (!arcadeCanPlayTime(gameState.timeLeft)) { arcadeSetMessage("Plus assez de temps pour une partie.", 'danger'); updateArcadeUI(); return false; }
+    gameState.gold -= check.stake;
+    gameState.timeLeft -= ARCADE_SETTINGS.hoursPerGame;
+    applyTimeElapsedRegen(ARCADE_SETTINGS.hoursPerGame);
+    gameState.arcadeSession = { game: gameKey, stake: check.stake, outcomes: [] };
+    logEvent(`${game.icon} ${game.label} : vous misez ${check.stake} PO (−${ARCADE_SETTINGS.hoursPerGame} H).`, "info");
+    arcadeSetMessage(`${game.icon} ${game.label} — mise : ${check.stake} PO.`, 'info');
+    updateUI();
+    updateArcadeUI();
+    runArcadeRound();
+    return true;
+}
+
+function runArcadeRound() {
+    const session = gameState.arcadeSession;
+    if (!session) return;
+    const game = ARCADE_GAMES[session.game];
+    const rounds = game.rounds({ floor: gameState.currentFloor, skillLevel: arcadeSkillLevel(game.skill) });
+    const round = rounds[session.outcomes.length];
+    if (!round) { finishArcadeGame(); return; }
+    renderArcadeRounds(rounds.length, session.outcomes);
+    const spec = buildMinigameSpec(round.kind, round.overrides);
+    startMinigame(spec, (outcome) => {
+        if (gameState.arcadeSession !== session) return; // partie abandonnée (restauration de sauvegarde, remise à zéro)
+        session.outcomes.push(outcome);
+        renderArcadeRounds(rounds.length, session.outcomes);
+        if ((game.stopOnFail && outcome === 'fail') || session.outcomes.length >= rounds.length) finishArcadeGame();
+        else runArcadeRound();
+    });
+}
+
+// Conclut la partie : score, palier, gain (la mise y est comprise), XP de compétence sur excellent, objet sur Parfait partout.
+function finishArcadeGame() {
+    const session = gameState.arcadeSession;
+    if (!session) return;
+    const game = ARCADE_GAMES[session.game];
+    gameState.arcadeSession = null;
+    const score = arcadeScore(session.game, session.outcomes);
+    const payout = arcadePayout(session.stake, score.tier);
+    gameState.gold += payout;
+    const net = payout - session.stake;
+    const label = ARCADE_TIER_LABELS[score.tier];
+    let text = `${game.icon} ${label} ${score.points}/${score.max} points — `;
+    if (score.tier === 'lose') text += `la mise (${session.stake} PO) est perdue.`;
+    else text += `vous empochez ${payout} PO (${net >= 0 ? '+' : ''}${net} net).`;
+    logEvent(text, score.tier === 'lose' ? "danger" : "success");
+    arcadeSetMessage(text, score.tier === 'lose' ? 'danger' : 'success');
+    if (score.tier === 'excellent') gainSkillXp(game.skill, ARCADE_SETTINGS.skillXpOnExcellent);
+    if (score.perfectAll) {
+        logEvent("🎰 Partie parfaite : le gérant, blême, sort un lot de derrière le comptoir.", "success");
+        arcadeSetMessage(`${text} Partie parfaite : un lot en prime !`, 'success');
+        addLoot({ source: 'treasure' });
+    }
+    updateUI();
+    updateArcadeUI();
+}
+
 // ---------- Carte stylisée des étages classiques (chantier 5, voir NOTES_CARTE.md) ----------
 // Rendu pur dans floormap.js (buildFloorMapSvg()) ; ici, le panneau : vue (zoom + caméra, préférences
 // d'affichage — variables de module comme mapPanelOpen, jamais sauvegardées), salle sélectionnée et bulle
@@ -5029,7 +5215,7 @@ function describeFloorMapTravel(roomId) {
 // Légende sous la carte, selon le type d'étage.
 const FLOOR_MAP_LEGENDS = {
     classic: "Plein = visité · pointillé « ? » = aperçu · 👑 boss · 🪜 escalier · 🟡 vous · avenues : trajets deux fois plus rapides et plus sûrs",
-    urban: "Plein = visité · pointillé « ? » = aperçu · villes calmes, routes dangereuses · 🛒 marchand · 🎓 professeur · 👑 gardien · 🪜 escalier · 💀 repaire · 🟡 vous"
+    urban: "Plein = visité · pointillé « ? » = aperçu · villes calmes, routes dangereuses · 🛒 marchand · 🎓 professeur · 🎰 salle de jeux · 👑 gardien · 🪜 escalier · 💀 repaire · 🟡 vous"
 };
 
 function updateFloorMapUI() {
@@ -8127,6 +8313,13 @@ if (ui.btnCloseAchievements) ui.btnCloseAchievements.addEventListener('click', c
 // Clics sur l'écran marchand/professeur (ville spécialisée)
 ui.btnTrainSkill.addEventListener('click', trainSkill);
 ui.btnLeaveShop.addEventListener('click', leaveShop);
+if (ui.arcadeStake) {
+    ui.arcadeStake.addEventListener('input', () => { arcadeMessage = { text: "", tone: "info" }; if (ui.arcadeMessage) ui.arcadeMessage.innerText = ""; updateArcadeUI(); });
+    ui.shopArcadeContent.addEventListener('click', e => {
+        const btn = e.target && e.target.closest ? e.target.closest('[data-arcade-stake]') : null;
+        if (btn) setArcadeStakePreset(btn.dataset.arcadeStake);
+    });
+}
 
 // Clics sur le choix "plonger/poursuivre" d'un repaire repéré sur la route
 ui.btnDiveLair.addEventListener('click', diveIntoLair);

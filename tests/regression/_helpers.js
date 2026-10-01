@@ -88,6 +88,8 @@ function resetTransientState() {
     gameState.gold = 0;
     gameState.shopChoicePending = false;
     gameState.pendingShopCityId = null;
+    gameState.pendingArcadeCityId = null; // Salle de jeux (V4)
+    gameState.arcadeSession = null;
     gameState.lairChoicePending = false;
     gameState.pendingLairId = null;
     gameState.pendingLairDive = null;

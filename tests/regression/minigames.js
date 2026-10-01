@@ -1582,3 +1582,208 @@ function captureLog(fn) {
     delete global.requestAnimationFrame;
     resetTransientState();
 }
+
+// =====================================================================================================
+// V4 : salle de jeux en ville (ARCADE_GAMES, floorgen.js 'arcade', triggerArcade()/playArcadeGame())
+// =====================================================================================================
+
+// --- Catalogue et règles pures ---
+{
+    assert(ARCADE_GAME_KEYS.length === 4, "Salle de jeux : quatre jeux (stand de tir, ring, coffre-fort, mémoire)");
+    ARCADE_GAME_KEYS.forEach(key => {
+        const game = ARCADE_GAMES[key];
+        assert(game.icon && game.label && game.blurb && gameState.skills[game.skill], `Jeu ${key} : icône, nom, texte et compétence réelle du joueur`);
+        const rounds = game.rounds({ floor: 3, skillLevel: 1 });
+        assert(rounds.length >= 2 && rounds.length <= 3, `Jeu ${key} : 2 à 3 manches`);
+        rounds.forEach((r, i) => {
+            const spec = buildMinigameSpec(r.kind, r.overrides);
+            assert(spec && MINIGAME_RENDERERS[r.kind], `Jeu ${key} / manche ${i + 1} : une épreuve existante avec son rendu`);
+            assert(spec.label === r.overrides.label, `Jeu ${key} / manche ${i + 1} : libellé propre à la manche`);
+        });
+        assert(arcadeScore(key, rounds.map(() => 'perfect')).perfectAll, `Jeu ${key} : toutes les manches Parfaites = partie parfaite`);
+        assert(arcadeScore(key, rounds.map(() => 'fail')).tier === 'lose', `Jeu ${key} : tout raté = perdu`);
+    });
+    // Le coffre-fort rétrécit ses zones, la mémoire allonge ses séquences, le stand de tir éloigne ses cibles.
+    const widths = ARCADE_GAMES.safe.rounds({ floor: 3, skillLevel: 1 }).map(r => r.overrides.zoneWidth);
+    assert(widths[0] > widths[1] && widths[1] > widths[2], "Coffre-fort : zones de plus en plus étroites");
+    const lengths = ARCADE_GAMES.memory.rounds({ floor: 3, skillLevel: 1 }).map(r => r.overrides.length);
+    assert(lengths.join() === '3,4,5', "Mémoire : séquences de 3, 4 puis 5 symboles");
+    const dists = ARCADE_GAMES.range.rounds({ floor: 3, skillLevel: 1 }).map(r => r.overrides.distance);
+    assert(dists[0] < dists[1] && dists[1] < dists[2], "Stand de tir : cibles de plus en plus lointaines (donc petites)");
+    assert(ARCADE_GAMES.ring.rounds({ floor: 3, skillLevel: 1 }).map(r => r.kind).join() === 'grapple,choke', "Ring : Immobiliser puis Étrangler");
+    assert(ARCADE_GAMES.memory.stopOnFail && !ARCADE_GAMES.range.stopOnFail, "Mémoire : une erreur arrête la partie");
+
+    // Mise : bornée par les PO et par le plafond d'étage.
+    assert(arcadeMaxStake(3, 1000) === 180 && arcadeMaxStake(3, 50) === 50 && arcadeMaxStake(3, 0) === 0, "Mise maximale : 60 PO × étage, jamais plus que ses PO");
+    assert(arcadeCheckStake(10, 3, 100).ok && arcadeCheckStake('12.7', 3, 100).stake === 12, "Mise valide, arrondie à l'entier");
+    assert(!arcadeCheckStake(0, 3, 100).ok && !arcadeCheckStake(-5, 3, 100).ok && !arcadeCheckStake('abc', 3, 100).ok && !arcadeCheckStake('', 3, 100).ok, "Mise nulle, négative ou illisible refusée");
+    assert(!arcadeCheckStake(101, 3, 100).ok && !arcadeCheckStake(181, 3, 1000).ok, "Mise au-delà des PO ou du plafond refusée");
+    assert(arcadeCanPlayTime(2) && !arcadeCanPlayTime(1) && !arcadeCanPlayTime(0), "Une partie ne peut jamais amener le temps à 0");
+
+    // Points, paliers, gains (3 manches : max 6 points ; 2 manches : max 4).
+    assert(arcadeScore('safe', ['perfect', 'perfect', 'success']).tier === 'excellent', "5/6 points : excellent");
+    assert(arcadeScore('safe', ['perfect', 'success', 'fail']).tier === 'good' && arcadeScore('safe', ['perfect', 'success', 'fail']).points === 3, "3/6 points : bon score");
+    assert(arcadeScore('safe', ['success', 'fail', 'fail']).tier === 'lose', "1/6 point : perdu");
+    assert(arcadeScore('ring', ['perfect', 'success']).tier === 'excellent' && arcadeScore('ring', ['success', 'success']).tier === 'good', "Ring : 3/4 excellent, 2/4 bon");
+    assert(arcadeScore('memory', ['perfect']).max === 6 && arcadeScore('memory', ['perfect']).points === 2 && !arcadeScore('memory', ['perfect']).perfectAll, "Mémoire arrêtée : les manches non jouées valent 0, pas de partie parfaite");
+    assert(arcadePayout(100, 'lose') === 0 && arcadePayout(100, 'good') === 150 && arcadePayout(100, 'excellent') === 300 && arcadePayout(7, 'good') === 11, "Gains : ×0 / ×1,5 / ×3, arrondis");
+
+    // Jet automatique : l'espérance de gain reste sous la mise pour chaque jeu (jamais une machine à PO).
+    ARCADE_GAME_KEYS.forEach(key => {
+        const game = ARCADE_GAMES[key];
+        let ev = 0;
+        const N = 4000;
+        const rng = (() => { let s = 12345; return () => (s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296; })();
+        for (let i = 0; i < N; i++) {
+            const outs = [];
+            for (const r of game.rounds({ floor: 3, skillLevel: 1 })) {
+                const o = minigameAutoResult(buildMinigameSpec(r.kind, r.overrides, rng), rng).outcome;
+                outs.push(o);
+                if (game.stopOnFail && o === 'fail') break;
+            }
+            ev += arcadePayout(100, arcadeScore(key, outs).tier) / 100;
+        }
+        assert(ev / N < 0.9, `Jeu ${key} : en jet automatique, le gain moyen reste sous la mise (${(ev / N).toFixed(2)})`);
+    });
+}
+
+// --- Génération : salles de jeux dans 1 à 2 villes, jamais le départ ---
+{
+    let withArcade = 0, bad = 0, total = 0, overlaps = 0, disconnected = 0;
+    for (let n = 0; n < 150; n++) {
+        const count = 1 + (n % 2);
+        const floor = generateMetropolis({ cityCount: 6 + (n % 3), lairCount: 1, specializedChance: 18, arcadeCount: count });
+        const arcades = Object.values(floor.roomsById).filter(r => r.type === 'arcade');
+        total++;
+        if (arcades.length === count) withArcade++;
+        if (arcades.some(r => r.cityId === floor.cities[0].id) || arcades.some(r => roomsCityHas(floor, r) === false)) bad++;
+        const m = measureMetropolis(floor);
+        overlaps += m.overlaps;
+        if (!m.connected) disconnected++;
+        floor.cities.forEach(c => { if (c.roomIds.length > 5) bad++; });
+    }
+    function roomsCityHas(floor, room) { const c = floor.cities.find(x => x.id === room.cityId); return !!c && c.roomIds.includes(room.id) && c.hasArcade; }
+    assert(withArcade === total, "Génération : arcadeCount salles de jeux exactement");
+    assert(bad === 0, "Génération : jamais dans la ville de départ, jamais plus de 5 salles par ville");
+    assert(overlaps === 0 && disconnected === 0, "Génération : les salles de jeux ne chevauchent rien et restent connectées");
+    const none = generateMetropolis({ cityCount: 6, lairCount: 1 });
+    assert(!Object.values(none.roomsById).some(r => r.type === 'arcade'), "Sans option arcadeCount : aucune salle de jeux (génération inchangée)");
+    assert(ROOM_TYPES.arcade && ROOM_TYPES.arcade.onEnter === 'arcade', "ROOM_TYPES.arcade existe");
+
+    // Moteur : generateUrbanFloorMap() pose 1 à 2 salles de jeux.
+    for (let n = 0; n < 20; n++) {
+        resetTransientState();
+        gameState.currentFloor = 3 + 3 * (n % 3);
+        generateUrbanFloorMap();
+        const arcades = Object.values(gameState.floorMap.roomsById).filter(r => r.type === 'arcade');
+        assert(arcades.length >= 1 && arcades.length <= 2, `Étage urbain ${gameState.currentFloor} : 1 à 2 salles de jeux (${arcades.length})`);
+        assert(arcades.every(r => r.cityId !== gameState.floorMap.roomsById[gameState.floorMap.startRoomId].cityId), "Jamais dans la ville de départ");
+    }
+}
+
+// --- Entrée, mise, parties (sans interface : jet automatique) ---
+{
+    const enterArcade = () => {
+        resetTransientState();
+        gameState.currentFloor = 3;
+        generateUrbanFloorMap();
+        const room = Object.values(gameState.floorMap.roomsById).find(r => r.type === 'arcade');
+        ui.shopZone.classList.add('hidden');
+        moveToFloorRoom(room);
+        enterRoom(room);
+        return room;
+    };
+    const room = enterArcade();
+    assert(gameState.shopChoicePending === true && gameState.pendingArcadeCityId === room.cityId && gameState.pendingShopCityId === null, "enterRoom() : la salle de jeux ouvre l'écran de la salle de jeux");
+    assert(isActionBlocked() === true && !ui.shopZone.classList.contains('hidden'), "Salle de jeux : actions bloquées, panneau affiché");
+    assert(!ui.shopArcadeContent.classList.contains('hidden') && ui.shopMerchantContent.classList.contains('hidden') && ui.shopTrainerContent.classList.contains('hidden'), "Salle de jeux : seul son contenu est visible");
+    assert(ui.arcadeGames.children.length === ARCADE_GAME_KEYS.length, "Salle de jeux : un bouton par jeu");
+    assert(listFloorLandmarks().some(m => m.kind === 'arcade' && m.roomId === room.id), "Carte : repère 🎰 sur la salle de jeux visitée");
+
+    // Mise refusée : aucune partie, rien de prélevé.
+    gameState.gold = 50; gameState.timeLeft = 100;
+    ui.arcadeStake.value = '999';
+    assert(playArcadeGame('range') === false && gameState.gold === 50 && gameState.timeLeft === 100 && gameState.arcadeSession === null, "Mise trop haute : refusée sans rien prélever");
+    ui.arcadeStake.value = '0';
+    assert(playArcadeGame('range') === false && gameState.gold === 50, "Mise nulle : refusée");
+    gameState.gold = 0; ui.arcadeStake.value = '5';
+    assert(playArcadeGame('range') === false, "Sans PO : refusée");
+    gameState.gold = 50; gameState.timeLeft = 1;
+    assert(playArcadeGame('range') === false && gameState.timeLeft === 1, "Temps insuffisant : refusée, le temps ne tombe jamais à 0");
+    assert(playArcadeGame('inconnu') === false, "Jeu inconnu : ignoré");
+
+    // Partie : mise prélevée, 1 H, issue du palier (Math.random figé -> jet automatique déterministe).
+    const play = (key, rand, stake = 10) => {
+        gameState.gold = 100; gameState.timeLeft = 100; gameState.hp = gameState.maxHp;
+        ui.arcadeStake.value = String(stake);
+        const original = Math.random;
+        Math.random = () => rand;
+        let ok;
+        try { ok = playArcadeGame(key); } finally { Math.random = original; }
+        return ok;
+    };
+    assert(play('safe', 0.999) === true, "Partie lancée");
+    assert(gameState.arcadeSession === null && gameState.timeLeft === 99 && gameState.gold === 90, "Tout raté : mise perdue, 1 H passée, partie close");
+    assert(isActionBlocked() === true && gameState.shopChoicePending, "On reste dans la salle de jeux après une partie");
+    play('safe', 0.05);
+    assert(gameState.arcadeSession === null && gameState.gold === 100 - 10 + 30, `Jet automatique Parfait partout : mise ×3 empochée (${gameState.gold})`);
+    // Parties illimitées : on peut rejouer tant qu'on a PO et temps.
+    gameState.gold = 100; gameState.timeLeft = 100;
+    let played = 0;
+    for (let i = 0; i < 5; i++) if (play('memory', 0.999, 5)) played++;
+    assert(played === 5, "Parties illimitées");
+
+    // Lot : une partie parfaite partout donne un objet (jet automatique : forcé par un rng qui donne Parfait à chaque manche).
+    const ev = (key, outcomes) => {
+        gameState.gold = 100; gameState.timeLeft = 100; gameState.inventory = [];
+        ui.arcadeStake.value = '10';
+        const seq = outcomes.slice();
+        const realStart = startMinigame;
+        startMinigame = (spec, cb) => cb(seq.shift());
+        try { playArcadeGame(key); } finally { startMinigame = realStart; }
+    };
+    ev('range', ['perfect', 'perfect', 'perfect']);
+    assert(gameState.gold === 120, `Partie parfaite : 10 PO misés, 30 PO rendus (${gameState.gold})`);
+    assert(gameState.inventory.length + gameState.spellbook.length >= 1, "Partie parfaite : un lot en prime");
+    const xpBefore = gameState.skills.stealth.xp + gameState.skills.stealth.level * 1000;
+    ev('safe', ['perfect', 'perfect', 'success']);
+    assert(gameState.gold === 120 && gameState.skills.stealth.xp + gameState.skills.stealth.level * 1000 > xpBefore, "Excellent score : gain ×3 et XP de la compétence liée");
+    ev('safe', ['perfect', 'success', 'fail']);
+    assert(gameState.gold === 105, `Bon score : ×1,5 (${gameState.gold})`);
+    ev('safe', ['fail', 'fail', 'fail']);
+    assert(gameState.gold === 90, "Raté partout : mise perdue");
+    ev('memory', ['success', 'fail']);
+    assert(gameState.arcadeSession === null && gameState.gold === 90, "Mémoire : une erreur arrête la partie (aucune manche suivante)");
+
+    // Partir ferme la salle ; impossible en pleine partie.
+    gameState.arcadeSession = { game: 'safe', stake: 1, outcomes: [] };
+    leaveShop();
+    assert(gameState.shopChoicePending === true, "Partir est refusé pendant une partie");
+    gameState.arcadeSession = null;
+    leaveShop();
+    assert(gameState.shopChoicePending === false && gameState.pendingArcadeCityId === null && !isActionBlocked(), "Partir : l'écran se ferme et le jeu se débloque");
+    resetTransientState();
+}
+
+// --- Partie interactive simulée : Passer fait jouer le jet automatique, les manches s'enchaînent ---
+{
+    resetTransientState();
+    gameState.currentFloor = 3;
+    generateUrbanFloorMap();
+    const room = Object.values(gameState.floorMap.roomsById).find(r => r.type === 'arcade');
+    moveToFloorRoom(room);
+    enterRoom(room);
+    gameState.gold = 100; gameState.timeLeft = 100;
+    ui.arcadeStake.value = '10';
+    global.requestAnimationFrame = () => 1;
+    setMinigameMode('play');
+    assert(playArcadeGame('safe') === true && gameState.pendingMinigame && gameState.pendingMinigame.kind === 'timing', "Interactif : la première manche s'ouvre dans la bande du bas");
+    assert(playArcadeGame('ring') === false, "Interactif : pas de seconde partie pendant la première");
+    assert(leaveShop() === undefined && gameState.shopChoicePending, "Interactif : impossible de partir pendant la partie");
+    let manches = 0;
+    while (gameState.arcadeSession && manches < 5) { manches++; skipMinigame(); }
+    assert(gameState.arcadeSession === null && manches === 3, `Interactif : trois manches enchaînées puis la partie se conclut (${manches})`);
+    assert(gameState.pendingMinigame === null, "Interactif : plus aucune épreuve ouverte");
+    delete global.requestAnimationFrame; setMinigameMode('auto');
+    resetTransientState();
+}
