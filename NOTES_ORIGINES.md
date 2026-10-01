@@ -29,7 +29,8 @@ puis **le cahier des charges des 6 corps dessinés par Vibe** (lot 4).
 - **Cumul multiplicatif** (Troll + Bagarreur + Boxeur du chantier 14, jusqu'à ×1,65 avant le ×2 du buff de départ) et Goule + Sac de frappe (PV ×1,32).
 - **Conditions de déblocage** (runs courts : seuils de 1 à 4) : vérifier que les 3 cartes reflètent bien la façon de jouer, et que le remplissage n'impose pas de classes injouables.
 - **Disparition** contre les boss à frappes multiples (toute la riposte esquivée), **Fendre** et **Tir de barrage** face aux boss, lisibilité du bouton de capacité sur mobile.
-- **Armure par corps** : l'armure est dessinée une seule fois ; à ajuster dès que les corps de Vibe arrivent (`anchors.armor`, non codé).
+- **Armure par corps** : l'armure est dessinée une seule fois ; à ajuster dès que les corps de Vibe arrivent (`anchors.armor`, non codé). **Goule livrée** (`sprites/race-ghoul.js`) : les 8 premières armures s'alignent correctement sur son corps (vérifié à l'écran) — à revérifier pour chaque nouveau corps (troll et nain, plus larges, sont les plus à risque).
+- **Corps livrés** : Goule ✅ — Gobelin, Troll, Elfe, Nain, Cafard en attente.
 - **Piques DeathWatch** : 17 nouvelles, une seule émission les affiche (étage 3) ; juger leur dosage et leur ton au playtest.
 - Effets visuels des capacités sans coup volontairement sobres (éclat « self » seul).
 
@@ -37,7 +38,7 @@ puis **le cahier des charges des 6 corps dessinés par Vibe** (lot 4).
 
 ### État du code (livré)
 - `sprites/crawler-races.js` : `CRAWLER_RACE_LOOKS` (teintes peau/cheveux du corps humain, **actives dès maintenant** pour 6 races), `CRAWLER_RACE_BODIES`
-  (corps dessinés, **vide** : à remplir par les livraisons de Vibe), `crawlerRaceBody()`/`crawlerRaceLook()`/`tintCrawlerMarkup()`.
+  (corps dessinés, remplis par les livraisons de Vibe, un fichier `sprites/race-<clé>.js` par race : Goule livrée), `crawlerRaceBody()`/`crawlerRaceLook()`/`tintCrawlerMarkup()`.
 - `scene.js` : `composeCrawler()` lit le corps de la race (couches, bras par posture, points d'accroche des objets rangés), `crawlerFrontExtent()`
   (extension avant du corps courant, lue par `distanceToX()`/`computeRangeBands()`/`fx.js`), `buildRacePortraitSvg()` (cartes de choix et fiche d'origine),
   `crawlerCorpseMarkup()` (Game Over).
