@@ -33,7 +33,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
   calibrées au mieux par simulation. Les points à vérifier sont regroupés plus bas (« À playtester »).
 - **PR #32 mergée** (chantiers 9, 10 et 11) : tag `v32` et release à créer (convention 6 de `CLAUDE.md`).
 - **Chantier 12 (villes explorables) codé** sur la branche, avec deux correctifs (crawler mort non restaurable,
-  barre du bas agrandie) : une seule PR à ouvrir. Ensuite : 13 (race et classe à l'étage 3) et 6 (mini-jeux),
+  barre du bas agrandie) : une seule PR à ouvrir. Ensuite : 13 (race et classe à l'étage 3, **planifié** le 01/10/2026) et 6 (mini-jeux),
   cadrés.
 
 ## Vue d'ensemble
@@ -45,7 +45,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Codé (à playtester) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
-| 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage, en pause) | liste chiffrée à valider |
+| 13 | Race et classe choisies à l'étage 3 | L | Planifié (prêt à coder) | dessins des 7 corps (prompts Gemini) pour le lot 4 |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 
 ### Codés (à playtester)
@@ -270,7 +270,7 @@ gardien de l'escalier et de la Sortie par le choix de boss existant, repaires en
 carte, retrait de l'ancien réseau (`urbanMap`, `travelToCity()`, Carte Urbaine, `renderGraphMiniMap()`),
 migration des sauvegardes — voir `NOTES_VILLES.md`.
 
-## 13. Race et classe à l'étage 3 — L — Exploré (cadrage)
+## 13. Race et classe à l'étage 3 — L — Planifié (prêt à coder)
 
 **Demande** : un système de race et de classe à choisir « au niveau 3 ».
 
@@ -295,8 +295,41 @@ premier étage urbain.
 (menu débloqué par la façon de jouer), **silhouettes dédiées par race** (dessins à part, prompts Gemini comme
 le bestiaire).
 
-**⏸ En pause** (à la demande de l'utilisateur, on avance sur le chantier 6). Reste à faire : liste chiffrée des
-6 races / 6 classes (bonus, capacités actives, conditions de déblocage) à valider, puis plan en lots.
+**Décidé (round 4, liste validée)** :
+- **7 races** (le Raton-laveur est écarté : aucune vente avant l'étage 3, bonus de PO marginal) et **6 classes**. Chiffres = valeurs de départ, à playtester.
+- **Déblocage** : « conditions remplies d'abord » — jusqu'à 3 propositions dont la condition est remplie, complétées au hasard parmi les autres (toujours 3 cartes).
+- **Capacité active** : **1 fois par combat**, prend le tour, rechargée à chaque nouveau combat ; contre un boss, effets de statut réduits ou ignorés.
+- **Silhouettes** : **corps complet par race** (7 corps dont l'Humain actuel), armure, bras par posture et effets à recaler pour chaque corps.
+- **Flux** : **deux écrans successifs** (race puis classe), donc deux états bloquants distincts. Choix **définitif pour le run**.
+
+| Race | Bonus | Défaut | Proposée si… |
+|---|---|---|---|
+| Humain·e « Moyen·ne mais motivé·e » | XP +10 % | aucun | toujours éligible (choix de base) |
+| Goule | PV max +20 %, saignement −50 % | soins reçus −20 % | `clutchWins ≥ 1` ou `damageTaken ≥ 100` |
+| Gobelin de caniveau | Furtivité +10 pts, fuite +15 pts, pièges −25 % | PV max −10 % | `sneakKills ≥ 1` ou `flees ≥ 2` |
+| Troll de bureau | PV max +25 %, mains nues +15 % | Furtivité −10 pts | `unarmedKills ≥ 3` |
+| Elfe de salon | mana max +25, sorts +10 %, backfire −3 pts | DEF −1 | `spellKills ≥ 2` ou un sort appris |
+| Nain de chantier | DEF +2, armure portée +15 % | fuite −15 pts | une armure équipée |
+| Cafard mutant | « Increvable » : 1 fois par étage, un coup mortel laisse 1 PV | PV max −15 % | `flees ≥ 1` ou `clutchWins ≥ 1` |
+
+| Classe | Capacité active (1/combat) | Style passif | Proposée si… |
+|---|---|---|---|
+| Bagarreur | Uppercut du dimanche : mains nues ×2 + étourdit 1 tour | mains nues +15 % | `unarmedKills ≥ 3` |
+| Duelliste | Fendre : ×1,8, ignore 50 % de la DEF | arme +10 % | compétence Arme ≥ 3 |
+| Franc-tireur | Tir de barrage : 2 tirs à ×0,8, à toute distance | tir +10 % | `rangedKills ≥ 3` (nouveau compteur de chronique) |
+| Occultiste de foire | Surcharge : prochain sort gratuit, ×1,6, sans backfire | coût en mana −10 % | `spellKills ≥ 2` |
+| Filou | Disparition : prochaine riposte esquivée + prochaine attaque ×2 | Furtivité +1 niveau | `sneakKills ≥ 1` ou `flees ≥ 2` |
+| Sac de frappe | Encaisser : DEF ×2 sur la riposte, renvoie 50 % des dégâts reçus | PV max +10 % | `damageTaken ≥ 150` |
+
+**Plan en lots** (chaque lot : `npm test`, `npm run test:long` dès que la boucle de jeu est touchée) :
+- **Lot 0 — données pures** : `origins.js` (`ORIGIN_RACES`, `ORIGIN_CLASSES`, conditions, `pickOriginOffers(kind, state, rng)` pure à hasard injectable), compteur `rangedKills` dans `createEmptyRunStats()`, ajout aux DEUX listes de scripts (`index.html`, `GAME_FILES`) ; tests des conditions et du tirage (toujours 3 cartes, conditions remplies d'abord).
+- **Lot 1 — passifs de race** : `gameState.race` (sauvegardé ; absent = aucune race, jamais de rétro-activation), `config.origins`, un seul point de lecture par effet (`recomputeMaxHp()`, `gainXp()`, `rollDamage()`, `getStealthChance()`/fuite, `applyPlayerHeal()`, piège, saignement, mana, `getEffectiveDef()`, Increvable dans `applyPlayerDamage()`) ; tests de chaque race.
+- **Lot 2 — écrans de choix** : `raceChoicePending` puis `classChoicePending` (deux overlays, même famille que `#pact-choice-zone`), déclenchés par `advanceToNextFloor()` à l'étage 3 AVANT le Pacte et l'émission (la généralisation de `pendingShowAfterPact` en attente commune est à faire), `resetTransientState()`, `KNOWN_GAMESTATE_KEYS`, résolveur de `long_playthrough.js`, badge et fiche.
+- **Lot 3 — classes** : `gameState.crawlerClass`, passifs de style, bouton `#btn-class-ability` (grisé une fois utilisé, remis à zéro dans `initiateCombat()`), 6 capacités via les points d'entrée existants (`performPlayerAttack()`, `resolveEnemyReaction()`…), effets visuels dans `fx.js`.
+- **Lot 4 — sprites** : prompts Gemini pour 6 corps, `composeCrawler()` par race, armures et bras par posture recalés, icônes des cartes de choix. **Peut démarrer dès le lot 0** (je prépare les prompts), puisque les dessins viennent de l'extérieur.
+- **Lot 5 — habillage** : piques DeathWatch par race/classe, succès, épitaphe, chronique ; `NOTES_ORIGINES.md` et `CLAUDE.md`.
+
+**À surveiller en playtest** : Cafard (Increvable à chaque étage : très fort), cumul Troll/Bagarreur et Goule/Sac de frappe, fréquence réelle des conditions à l'étage 3 (runs courts : seuils bas à confirmer), interaction avec le Boxeur du chantier 14, lisibilité du bouton de capacité.
 
 ## 7. Salles spéciales à choix narratif — M — Idée (ancien backlog de `CLAUDE.md`)
 
