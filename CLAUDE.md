@@ -371,8 +371,8 @@ Tailwind CDN, **aucun build step**.
   Pique en retour / Provocation / Insulte en direct (jet d20 + popularité `getShowPopularity()` contre
   8/12/16 : boîte Bronze/Argent/Or via `openAchievementBox()`, sinon −2 H jamais mortelles / combat élite /
   +20 prime et chasseur de primes), ou Refuser.
-- **Mini-jeux** (chantier 6, lot 0 codé — voir `NOTES_MINIJEUX.md` ; le reste du chantier est planifié dans
-  `CHANTIERS.md`) : toute épreuve passe par UN point d'entrée, `startMinigame(spec, onResult)` (minigames-ui.js), par
+- **Mini-jeux** (chantier 6, lot 0 et V1 codés — crochetage d'un coffre, désamorçage d'un piège, glyphe de sort ; voir
+  `NOTES_MINIJEUX.md` ; le reste du chantier est planifié dans `CHANTIERS.md`) : toute épreuve passe par UN point d'entrée, `startMinigame(spec, onResult)` (minigames-ui.js), par
   callback (jamais de Promise, comme `runCombatBeats()`). Trois issues communes `perfect`/`success`/`fail`. Sans
   interface interactive (réglage « Jet automatique », `prefers-reduced-motion` par défaut, tests Node sans
   `requestAnimationFrame`), l'épreuve est résolue par `minigameAutoOutcome()` et `onResult` est appelé avant le retour ;
@@ -381,7 +381,13 @@ Tailwind CDN, **aucun build step**.
   L'issue se joue par `playMinigameOutcomeFx()` (fx.js, acteur `mini`, spécification pure `minigameOutcomeFxSpec()` :
   gel d'impact et secousse d'écran réservés au Parfait) puis enchaîne sans fenêtre de résultat. `runCombatBeats()`
   accepte une étape `{ interactive: true, run(done) }`. **Ajouter une épreuve** : entrée de `MINIGAME_KINDS`, rendu dans
-  `MINIGAME_RENDERERS`, entrée de `MINIGAME_KIND_FX` (exigés par `tests/regression/minigames.js`).
+  `MINIGAME_RENDERERS`, entrée de `MINIGAME_KIND_FX` (exigés par `tests/regression/minigames.js`) ; un tap passe par
+  `bindTap()` (pointerdown PUIS click : jamais deux écouteurs bruts). **V1** : un « Trésor » sur deux est un coffre verrouillé
+  (`openLockedChest()` : 3 goupilles, butin selon le nombre — `LOCKPICK_REWARDS`), un piège sur deux se désamorce
+  (`openTrapDisarm()` : séquence de 4 symboles ; raté = `springTrap()` comme avant) et `attackMagic()` propose un glyphe aux sorts
+  offensifs (`maybeGlyphSpec()` puis `castEquippedSpell()` ; renfort `config.magicBalance.glyph*`, raté = sort normal). Le jet
+  automatique d'une épreuve peut avoir sa propre résolution (`autoResolve`). Tout helper pur de `minigames.js` partage l'espace
+  global avec `floorgen.js` : en préfixer le nom (une collision sur `pointSegmentDistance` avait supprimé les repaires).
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF

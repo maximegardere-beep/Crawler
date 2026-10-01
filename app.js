@@ -499,7 +499,11 @@ const config = {
         atkPerLevel: 0.015,
         backfireBase: 15,
         backfirePerLevel: -1.5,
-        backfireMin: 3
+        backfireMin: 3,
+        // Glyphe réussi (chantier 6, minigames.js) : le sort offensif est renforcé — dégâts ×1,25 et risque de raté
+        // divisé par 2. Un glyphe raté, passé ou résolu en jet automatique n'a aucun effet (sort normal, jamais de malus).
+        glyphDamageMult: 1.25,
+        glyphBackfireMult: 0.5
     },
 
     // Budget temps par étage (chantier "QoL/équilibrage" — voir advanceToNextFloor()) : grandit avec
@@ -2374,6 +2378,71 @@ function getZoneEventTable() {
     return config[ZONE_EVENT_TABLES[zone.eventTable] || 'chances'];
 }
 
+// PO trouvées en explorant (événement « goldFind », et lot de consolation d'un coffre crocheté à moitié).
+function rollGoldAmount() {
+    const baseGold = Math.floor(Math.random() * 16) + 5; // 5 à 20 PO
+    const strikerMult = hasActiveCompanion('strike') ? 1 + config.companions.striker.goldBonusPct / 100 : 1; // Frappe d'appoint : il a l'œil pour les pièces
+    return Math.round(baseGold * (1 + gameState.currentFloor * 0.15) * (gameState.anomalyEffects.goldGainMult || 1) * strikerMult); // Proportionnel à l'étage, ECONOMIE_AUSTERE (anomalies.js)
+}
+
+// Le piège se déclenche : dégâts, journal, mort éventuelle (cause 'trap').
+function springTrap(trap) {
+    const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
+    applyPlayerDamage(dmg);
+    setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
+    logEvent(`${trap.text} (-${dmg} PV)`, "danger");
+    recordRunEvent('trap');
+    if (gameState.hp <= 0) {
+        gameOver(false, 'trap');
+    }
+}
+
+// Niveau de Furtivité du crawler (règle la difficulté du crochetage et du désamorçage).
+function stealthSkillLevel() {
+    return (gameState.skills && gameState.skills.stealth && gameState.skills.stealth.level) || 1;
+}
+
+// Coffre verrouillé (chantier 6, V1) : trois goupilles à crocheter ; le butin dépend du nombre réussi
+// (LOCKPICK_REWARDS : rien / quelques PO / butin normal / butin d'un palier de rareté de plus).
+function openLockedChest() {
+    setSceneHeader('🔒', 'Coffre Verrouillé', 'Butin', 'treasure');
+    logEvent("Un coffre verrouillé, planqué sous des gravats. Votre crochet de fortune fera l'affaire.", "info");
+    const spec = buildMinigameSpec('lockpick', { zoneWidth: lockpickZoneWidth(gameState.currentFloor, stealthSkillLevel()) });
+    startMinigame(spec, (outcome, detail) => {
+        resolveLockedChestReward((detail && detail.pins) || 0);
+        updateUI();
+    });
+}
+
+function resolveLockedChestReward(pins) {
+    const reward = lockpickReward(pins);
+    if (reward === 'treasure') {
+        logEvent(`🔓 ${pins}/3 goupilles : la serrure cède, le coffre déborde !`, "success");
+        addLoot({ source: 'treasure' }); // Un palier de rareté de plus (voir rollLootRarity())
+    } else if (reward === 'explore') {
+        logEvent(`🔓 ${pins}/3 goupilles : la serrure s'ouvre de justesse.`, "success");
+        addLoot({ source: 'explore' });
+    } else if (reward === 'gold') {
+        const gold = rollGoldAmount();
+        gameState.gold += gold;
+        logEvent(`🔓 ${pins}/3 goupille : le coffre ne livre que quelques pièces (+${gold} PO).`, "info");
+    } else {
+        logEvent("🔒 Aucune goupille ne cède. Le coffre garde ses secrets, et vous gardez vos ongles.", "danger");
+    }
+}
+
+// Piège désamorçable (chantier 6, V1) : séquence de symboles à reproduire ; réussie, le piège est évité ; ratée, il se déclenche.
+function openTrapDisarm(trap) {
+    setSceneHeader('⚠️', 'Piège Détecté', 'Danger', 'trap');
+    logEvent("Un mécanisme à pression, à peine caché. Un geste de travers et il se déclenche.", "info");
+    const spec = buildMinigameSpec('sequence', disarmOverrides(gameState.currentFloor, stealthSkillLevel()));
+    startMinigame(spec, (outcome) => {
+        if (outcome === 'fail') springTrap(trap);
+        else logEvent("🧰 Piège désamorcé. Personne n'applaudit, mais vous êtes entier.", "success");
+        updateUI();
+    });
+}
+
 function resolveCardEvent() {
     // L'escalier et les salles sécurisées ne sont plus tirés ici : ce sont des pièces fixes du
     // graphe de l'étage (voir generateFloorMap() et enterRoom()). Cette fonction ne résout plus
@@ -2403,6 +2472,9 @@ function resolveCardEvent() {
     // Découverte d'objet (générateur procédural)
     cumulative += table.loot;
     if (d100 < cumulative) {
+        // Une « Trésor » sur deux est un coffre verrouillé (chantier 6, mini-jeu de crochetage) ; l'autre moitié reste
+        // le butin ramassé tel quel.
+        if (Math.random() * 100 < MINIGAME_SETTINGS.lockedChestPct) { openLockedChest(); return; }
         setSceneHeader('💰', 'Trésor', 'Butin', 'treasure');
         logEvent("Vous trébuchez sur quelque chose de brillant...", "info");
         addLoot({ source: 'explore' });
@@ -2419,15 +2491,9 @@ function resolveCardEvent() {
             logEvent(`${gameState.companion.name} repère le piège à temps : vous l'enjambez sans une égratignure.`, "success");
             return;
         }
-        const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
-        applyPlayerDamage(dmg);
-        setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
-        logEvent(`${trap.text} (-${dmg} PV)`, "danger");
-        recordRunEvent('trap');
-        if (gameState.hp <= 0) {
-            gameOver(false, 'trap');
-            return;
-        }
+        // Un piège sur deux se désamorce (chantier 6, mini-jeu de séquence) ; l'autre se déclenche comme avant.
+        if (Math.random() * 100 < MINIGAME_SETTINGS.trapDisarmPct) { openTrapDisarm(trap); return; }
+        springTrap(trap);
         return;
     }
 
@@ -2458,9 +2524,7 @@ function resolveCardEvent() {
     // NOUVEAU : Quelques PO trouvées (voir sellItem() pour l'autre source de revenu)
     cumulative += table.goldFind;
     if (d100 < cumulative) {
-        const baseGold = Math.floor(Math.random() * 16) + 5; // 5 à 20 PO
-        const strikerMult = hasActiveCompanion('strike') ? 1 + config.companions.striker.goldBonusPct / 100 : 1; // Frappe d'appoint : il a l'œil pour les pièces
-        const gold = Math.round(baseGold * (1 + gameState.currentFloor * 0.15) * (gameState.anomalyEffects.goldGainMult || 1) * strikerMult); // Proportionnel à l'étage, ECONOMIE_AUSTERE (anomalies.js)
+        const gold = rollGoldAmount();
         gameState.gold += gold;
         setSceneHeader('💰', 'Pièces d\'Or', 'Butin', 'gold');
         logEvent(`${pick(flavorText.goldFind)} (+${gold} PO)`, "success");
@@ -7059,6 +7123,33 @@ function attackMagic() {
         logEvent(`Mana insuffisant pour lancer [${spell.spellName}] (${manaCost} requis).`, "danger");
         return;
     }
+    // Glyphe (chantier 6, V1) : OPTIONNEL, proposé APRÈS les vérifications (jamais de glyphe gâché sur un sort impossible) et
+    // avant l'action. Réussi, il renforce le sort ; raté, passé ou en jet automatique : sort normal, sans aucun malus.
+    const glyphSpec = anyRange ? null : maybeGlyphSpec(spell);
+    if (glyphSpec) {
+        startMinigame(glyphSpec, (outcome, detail) => {
+            if (!gameState.inCombat || !gameState.currentEnemy) return; // le combat s'est terminé entre-temps
+            castEquippedSpell(spell, manaCost, !(detail && detail.auto) && outcome !== 'fail');
+        });
+        return;
+    }
+    castEquippedSpell(spell, manaCost, false);
+}
+
+// Glyphe proposé pour ce sort ? Seulement avec une interface interactive et selon le réglage (Réduit : plus rarement) ;
+// jamais pour un sort utilitaire ni un sort sans motif.
+function maybeGlyphSpec(spell) {
+    if (!minigameIsInteractive()) return null;
+    const pattern = getGlyphPattern(spell);
+    if (!pattern) return null;
+    const chance = MINIGAME_SETTINGS.glyph.chancePct[getMinigameMode()] || 0;
+    if (Math.random() * 100 >= chance) return null;
+    return buildMinigameSpec('glyph', { pattern, label: `Glyphe : ${spell.spellName}` });
+}
+
+// Lance le sort équipé (après vérifications et glyphe éventuel). `glyphBoost` : glyphe réussi.
+function castEquippedSpell(spell, manaCost, glyphBoost) {
+    const anyRange = spell.spellCategory === 'any';
     if (!tryPlayerAction()) return;
     gameState.lastAttackKind = 'magic'; // Posture du crawler (scene.js) : paume ouverte, lueur du sort
 
@@ -7078,7 +7169,12 @@ function attackMagic() {
     if (channeled) backfireChance = Math.max(1, backfireChance - channeled.bonus);
     const stutter = getItemQualifierValues(spell, 'stutter', 'spell');
     if (stutter) backfireChance += stutter.bonus;
-    const atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
+    let atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
+    if (glyphBoost) {
+        atkMultiplier *= mb.glyphDamageMult;
+        backfireChance *= mb.glyphBackfireMult;
+        logEvent(`✍️ Le glyphe renforce [${spell.spellName}] (dégâts +${Math.round((mb.glyphDamageMult - 1) * 100)} %, risque de raté ÷${Math.round(1 / mb.glyphBackfireMult)}).`, "success");
+    }
 
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");

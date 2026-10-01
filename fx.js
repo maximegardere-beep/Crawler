@@ -33,7 +33,9 @@ function fxJitter() {
     return fxJitterSeed / 0x7fffffff - 0.5;
 }
 
-function fxLayer() { return document.getElementById('scene-fx'); }
+// Calque d'effets de la scène affichée : celui du combat, sauf pendant l'issue d'un mini-jeu d'exploration (fxLayerOverride).
+let fxLayerOverride = null;
+function fxLayer() { return document.getElementById(fxLayerOverride || 'scene-fx'); }
 function fxAnimated() {
     return typeof requestAnimationFrame === 'function' && typeof document.createElementNS === 'function' && !!fxLayer();
 }
@@ -722,18 +724,23 @@ function playMobAttackFx(enemy, opts, onImpact) {
 function playMinigameOutcomeFx(spec, onDone) {
     let called = false;
     const done = () => { if (called) return; called = true; if (onDone) onDone(); };
-    if (!spec || !gameState.inCombat || !fxAnimated()) { done(); return; }
+    // Hors combat, seule une épreuve d'exploration (cible « prop » : coffre, piège) joue un effet, sur le calque de la
+    // scène d'exploration ; un effet générique sans cible d'exploration n'a rien à montrer.
+    const exploring = !gameState.inCombat;
+    if (!spec || (exploring && spec.target !== 'prop') || !fxAnimated()) { done(); return; }
     const reduced = fxReducedMotion();
-    const [x, y] = (spec.target === 'crawler' || !gameState.currentEnemy) ? fxCrawlerHitPoint() : fxMobHitPoint();
+    let x, y;
+    if (exploring && spec.at) [x, y] = spec.at;
+    else [x, y] = (spec.target === 'crawler' || spec.target === 'prop' || !gameState.currentEnemy) ? fxCrawlerHitPoint() : fxMobHitPoint();
     let burst = null;
     runFx('mini', {
         impactAt: 0,
         duration: spec.durationMs || 340,
         hitstopMs: spec.hitstopMs,
-        start() { burst = fxBurst(spec.burst, spec.color, x, y, { big: !!spec.heavy, reduced }); },
+        start() { if (exploring) fxLayerOverride = 'explore-fx'; burst = fxBurst(spec.burst, spec.color, x, y, { big: !!spec.heavy, reduced }); },
         update(t) { if (burst) burst.update(t); },
         impact() { if (spec.heavy && typeof triggerHeavyImpact === 'function') triggerHeavyImpact(); },
-        cleanup() { if (burst) fxRemove(burst.el); done(); }
+        cleanup() { if (burst) fxRemove(burst.el); fxLayerOverride = null; done(); }
     }, null);
 }
 

@@ -65,6 +65,22 @@ function markMinigameHintSeen(kind) {
 }
 
 // --- Rendus par épreuve -----------------------------------------------------------------------------------------
+// Lie un geste « tap » à un élément : réaction immédiate au toucher (pointerdown), mais un tap fait AUSSI naître un `click` — ignoré
+// s'il suit de près un pointerdown, pour ne jamais compter deux fois. Un `click` seul (clavier, lecteur d'écran) fonctionne.
+const MINIGAME_TAP_DEDUP_MS = 700;
+function bindTap(el, fn) {
+    let lastPointerAt = -Infinity;
+    el.addEventListener('pointerdown', e => {
+        if (e && e.preventDefault) e.preventDefault();
+        lastPointerAt = minigameClock();
+        fn();
+    });
+    el.addEventListener('click', () => {
+        if (minigameClock() - lastPointerAt < MINIGAME_TAP_DEDUP_MS) return;
+        fn();
+    });
+}
+
 // `mount(root, spec, api)` construit l'interface dans `root` et renvoie { primary(), update(elapsedMs), destroy() }.
 // `api` : { finish(outcome, detail), elapsed() }. Toute cible tactile fait au moins 44 px.
 const MINIGAME_RENDERERS = {
@@ -87,8 +103,7 @@ const MINIGAME_RENDERERS = {
             btn.textContent = 'Stop';
             const position = () => timingCursorPosition(api.elapsed(), spec.periodMs);
             const stop = () => { const pos = position(); api.finish(resolveTimingStop(pos, spec), { position: pos }); };
-            btn.addEventListener('pointerdown', e => { if (e && e.preventDefault) e.preventDefault(); stop(); });
-            btn.addEventListener('click', stop); // clavier / lecteur d'écran ; sans effet si pointerdown a déjà conclu
+            bindTap(btn, stop);
             root.appendChild(bar); root.appendChild(btn);
             return {
                 primary: stop,
@@ -96,6 +111,154 @@ const MINIGAME_RENDERERS = {
                 destroy() { /* le hôte vide `root` */ }
             };
         }
+    }
+};
+
+// Crochetage : trois goupilles à caler tour à tour. Chaque arrêt (réussi ou non) passe à la goupille suivante ; le temps écoulé
+// compte les goupilles restantes comme manquées (renderer.timeout, appelé par l'hôte).
+MINIGAME_RENDERERS.lockpick = {
+    mount(root, spec, api) {
+        const pct = v => `${(Math.max(0, Math.min(1, v)) * 100).toFixed(1)}%`;
+        const mk = (tag, cls) => { const el = document.createElement(tag); el.className = cls; return el; };
+        const pinsRow = mk('div', 'flex justify-center gap-2 mb-2');
+        const dots = [];
+        for (let i = 0; i < spec.pins; i++) { const d = mk('span', 'w-4 h-4 rounded-full border border-gray-600 bg-gray-800'); dots.push(d); pinsRow.appendChild(d); }
+        const bar = mk('div', 'relative h-11 rounded bg-gray-900 border border-gray-700 overflow-hidden');
+        const half = spec.zoneWidth / 2;
+        const zone = mk('div', 'absolute top-0 bottom-0 bg-emerald-700/50 border-x border-emerald-400');
+        const core = mk('div', 'absolute top-0 bottom-0 bg-yellow-400/60');
+        const cursor = mk('div', 'absolute top-0 bottom-0 w-1.5 -ml-0.5 bg-amber-200 shadow-[0_0_8px_rgba(253,230,138,0.9)]');
+        bar.appendChild(zone); bar.appendChild(core); bar.appendChild(cursor);
+        const btn = mk('button', 'mt-2 w-full min-h-[48px] rounded border border-amber-500 bg-amber-900/40 text-amber-200 text-sm font-bold uppercase tracking-widest');
+        btn.textContent = 'Crocheter';
+        let pin = 0, hits = 0, perfects = 0, pinStart = api.elapsed();
+        const placeZone = () => {
+            const c = spec.pinCenters[pin];
+            zone.style.left = pct(c - half); zone.style.width = pct(spec.zoneWidth);
+            core.style.left = pct(c - half * spec.perfectRatio); core.style.width = pct(spec.zoneWidth * spec.perfectRatio);
+        };
+        const position = () => timingCursorPosition(api.elapsed() - pinStart, spec.periodMs);
+        const conclude = (extra) => api.finish(lockpickOutcome(hits, perfects, spec.pins), Object.assign({ pins: hits, perfects }, extra));
+        const stop = () => {
+            const r = resolveTimingStop(position(), { zoneCenter: spec.pinCenters[pin], zoneWidth: spec.zoneWidth, perfectRatio: spec.perfectRatio });
+            if (r !== 'fail') hits++;
+            if (r === 'perfect') perfects++;
+            dots[pin].className = `w-4 h-4 rounded-full border ${r === 'fail' ? 'border-red-500 bg-red-700' : 'border-emerald-300 bg-emerald-500'}`;
+            pin++;
+            if (pin >= spec.pins) { conclude({}); return; }
+            pinStart = api.elapsed();
+            placeZone();
+        };
+        bindTap(btn, stop);
+        placeZone();
+        root.appendChild(pinsRow); root.appendChild(bar); root.appendChild(btn);
+        return {
+            primary: stop,
+            update() { cursor.style.left = pct(position()); },
+            timeout() { conclude({ timeout: true }); },
+            destroy() {}
+        };
+    }
+};
+
+// Désamorçage : phase de présentation (un symbole à la fois), puis saisie. Une erreur conclut tout de suite par un Raté.
+MINIGAME_RENDERERS.sequence = {
+    mount(root, spec, api) {
+        const mk = (tag, cls) => { const el = document.createElement(tag); el.className = cls; return el; };
+        const stage = mk('div', 'h-16 flex items-center justify-center text-5xl font-black mb-2 rounded bg-gray-900 border border-gray-700');
+        const progress = mk('div', 'text-center text-[11px] text-gray-400 mb-2');
+        const row = mk('div', 'grid grid-cols-4 gap-2');
+        const inputs = [];
+        let phase = 'show';
+        let inputStart = 0;
+        const buttons = SEQUENCE_SYMBOLS.map((sym, i) => {
+            const b = mk('button', 'min-h-[56px] rounded border border-gray-600 bg-gray-900 text-3xl font-black');
+            b.style.color = sym.color;
+            b.textContent = sym.icon;
+            b.setAttribute('aria-label', sym.name);
+            bindTap(b, () => press(i));
+            row.appendChild(b);
+            return b;
+        });
+        function press(i) {
+            if (phase !== 'input') return; // pas de saisie pendant la présentation
+            inputs.push(i);
+            const status = sequenceInputStatus(spec.sequence, inputs);
+            progress.innerText = `${inputs.length} / ${spec.sequence.length}`;
+            if (status === 'wrong') api.finish('fail', { mistake: true });
+            else if (status === 'done') api.finish(sequenceOutcome(spec, api.elapsed() - inputStart), { inputs: inputs.slice() });
+        }
+        progress.innerText = 'Observez…';
+        root.appendChild(stage); root.appendChild(progress); root.appendChild(row);
+        return {
+            // Pas de `primary` : Espace/Entrée activent normalement le bouton de symbole qui a le focus.
+            update(el) {
+                if (phase === 'show') {
+                    if (el >= spec.showMs) { phase = 'input'; inputStart = el; stage.innerText = '?'; stage.style.color = ''; progress.innerText = `0 / ${spec.sequence.length}`; return; }
+                    const sym = sequenceShownSymbol(spec, el);
+                    stage.innerText = sym !== null && sym !== undefined ? SEQUENCE_SYMBOLS[sym].icon : '';
+                    if (sym !== null && sym !== undefined) stage.style.color = SEQUENCE_SYMBOLS[sym].color;
+                }
+            },
+            // Accès pour les tests : phase courante et appui direct sur un symbole.
+            press, phaseNow: () => phase,
+            destroy() {}
+        };
+    }
+};
+
+// Glyphe : relier des points d'une grille 3 x 3 dans l'ordre, au doigt. Lever le doigt avant la fin repart de zéro (dans le temps
+// imparti) ; la fin du tracé conclut (Parfait si rapide). Le tracé est testable sans DOM via renderer.pointer().
+MINIGAME_RENDERERS.glyph = {
+    mount(root, spec, api) {
+        const NS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('viewBox', '0 0 100 100');
+        svg.setAttribute('class', 'mx-auto block w-full max-w-[240px] touch-none select-none');
+        svg.setAttribute('role', 'img');
+        svg.setAttribute('aria-label', 'Grille de glyphe : reliez les points numérotés dans l\'ordre');
+        const order = new Map(spec.pattern.map((idx, n) => [idx, n + 1]));
+        const faint = spec.pattern.map(i => `${GLYPH_GRID_POINTS[i].x},${GLYPH_GRID_POINTS[i].y}`).join(' ');
+        const dotsMarkup = GLYPH_GRID_POINTS.map((p, i) => {
+            const n = order.get(i);
+            return `<circle cx="${p.x}" cy="${p.y}" r="${n ? 7 : 3}" fill="${n ? '#312e81' : '#374151'}" stroke="${n ? '#a78bfa' : '#4b5563'}" stroke-width="1.2" data-dot="${i}"/>` +
+                (n ? `<text x="${p.x}" y="${p.y + 2.6}" text-anchor="middle" font-size="7.5" font-weight="900" fill="#e0e7ff">${n}</text>` : '');
+        }).join('');
+        svg.innerHTML = `<polyline points="${faint}" fill="none" stroke="#6d28d9" stroke-width="1" stroke-dasharray="2 2" opacity="0.55"/>` +
+            `<polyline id="mg-glyph-trace" points="" fill="none" stroke="#c4b5fd" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>` + dotsMarkup;
+        const trace = svg.querySelector('#mg-glyph-trace');
+        root.appendChild(svg);
+
+        let progress = 0, last = null, drawing = false, finished = false;
+        const reached = [];
+        const redraw = () => { if (trace && trace.setAttribute) trace.setAttribute('points', reached.map(i => `${GLYPH_GRID_POINTS[i].x},${GLYPH_GRID_POINTS[i].y}`).join(' ')); };
+        const toLocal = e => {
+            const r = svg.getBoundingClientRect ? svg.getBoundingClientRect() : { left: 0, top: 0, width: 100, height: 100 };
+            return { x: (e.clientX - r.left) / (r.width || 100) * 100, y: (e.clientY - r.top) / (r.height || 100) * 100 };
+        };
+        // `type` : 'down' | 'move' | 'up' ; (x, y) dans le repère 0..100.
+        function pointer(type, x, y) {
+            if (finished) return;
+            if (type === 'up') { if (progress < spec.pattern.length) { progress = 0; reached.length = 0; redraw(); } drawing = false; last = null; return; }
+            const pt = { x, y };
+            if (type === 'down') { drawing = true; last = pt; }
+            if (!drawing) return;
+            const before = progress;
+            progress = glyphAdvance(spec.pattern, progress, last || pt, pt, spec.hitRadius);
+            for (let k = before; k < progress; k++) reached.push(spec.pattern[k]);
+            last = pt;
+            if (progress > before) redraw();
+            if (progress >= spec.pattern.length) {
+                finished = true;
+                const quick = api.elapsed() <= spec.durationMs * MINIGAME_SETTINGS.glyph.perfectTimeRatio;
+                api.finish(quick ? 'perfect' : 'success', { traced: true });
+            }
+        }
+        svg.addEventListener('pointerdown', e => { if (e.preventDefault) e.preventDefault(); if (svg.setPointerCapture && e.pointerId !== undefined) { try { svg.setPointerCapture(e.pointerId); } catch (err) { /* sans capture : le tracé suit quand même */ } } const p = toLocal(e); pointer('down', p.x, p.y); });
+        svg.addEventListener('pointermove', e => { const p = toLocal(e); pointer('move', p.x, p.y); });
+        svg.addEventListener('pointerup', () => pointer('up'));
+        svg.addEventListener('pointercancel', () => pointer('up'));
+        return { update() {}, pointer, progressNow: () => progress, destroy() {} };
     }
 };
 
@@ -111,7 +274,8 @@ function startMinigame(specOrKind, onResult) {
     const renderer = MINIGAME_RENDERERS[spec.kind];
     // Jet automatique : réglage, pas d'interface (Node), épreuve sans rendu, ou une autre épreuve déjà ouverte.
     if (minigameRuntime || !renderer || !minigameIsInteractive()) {
-        settleMinigame(spec, minigameAutoOutcome(spec), { auto: true }, onResult);
+        const auto = minigameAutoResult(spec);
+        settleMinigame(spec, auto.outcome, Object.assign({}, auto.detail, { auto: true }), onResult);
         return;
     }
 
@@ -140,7 +304,12 @@ function minigameTick() {
     const rt = minigameRuntime;
     if (!rt) return;
     const el = minigameElapsed();
-    if (el >= rt.spec.durationMs) { finishMinigame('fail', { timeout: true }); return; }
+    if (el >= rt.spec.durationMs) {
+        // Une épreuve peut compter ce qui a été réussi avant la fin du temps (goupilles) ; sinon : Raté.
+        if (rt.renderer && rt.renderer.timeout) rt.renderer.timeout();
+        if (minigameRuntime === rt) finishMinigame('fail', { timeout: true });
+        return;
+    }
     ui.minigameTimerBar.style.width = `${((1 - el / rt.spec.durationMs) * 100).toFixed(1)}%`;
     if (rt.renderer && rt.renderer.update) rt.renderer.update(el);
     rt.rafId = requestAnimationFrame(minigameTick);
@@ -154,7 +323,8 @@ function minigamePrimaryAction() {
 // « Passer » / Échap : l'épreuve se résout par le jet automatique.
 function skipMinigame() {
     if (!minigameRuntime) return;
-    finishMinigame(minigameAutoOutcome(minigameRuntime.spec), { auto: true, skipped: true });
+    const auto = minigameAutoResult(minigameRuntime.spec);
+    finishMinigame(auto.outcome, Object.assign({}, auto.detail, { auto: true, skipped: true }));
 }
 
 function finishMinigame(outcome, detail = {}) {
@@ -166,8 +336,12 @@ function finishMinigame(outcome, detail = {}) {
     gameState.pendingMinigame = null;
     if (ui.minigameStrip) ui.minigameStrip.classList.add('hidden');
     if (ui.minigameBody) ui.minigameBody.innerHTML = '';
-    if (rt.lockedByHost) setCombatInputLocked(false);
-    settleMinigame(rt.spec, outcome, detail, rt.onResult);
+    // Les boutons de combat ne sont rendus qu'au moment de rappeler onResult (fin de l'animation d'issue) : pas de double action
+    // pendant l'éclat. Si onResult lance une action, sa riposte les reverrouille aussitôt.
+    settleMinigame(rt.spec, outcome, detail, (o, d) => {
+        if (rt.lockedByHost) setCombatInputLocked(false);
+        if (rt.onResult) rt.onResult(o, d);
+    });
 }
 
 // Rend l'issue : une ligne de journal, l'haptique, la bannière et l'animation, puis appelle onResult. Aucun
@@ -176,7 +350,9 @@ function settleMinigame(spec, outcome, detail, onResult) {
     if (!MINIGAME_OUTCOMES.includes(outcome)) outcome = 'fail';
     const fx = minigameOutcomeFxSpec(spec.kind, outcome);
     const prefix = detail && detail.auto ? '🎲 ' : '';
-    logEvent(`${prefix}${spec.icon} ${spec.label} : ${fx.label} ${pickMinigameLine(outcome)}`, outcome === 'fail' ? 'danger' : 'success');
+    if (!(detail && detail.auto && spec.quietAuto)) { // le jet automatique d'un glyphe équivaut à « pas de glyphe » : rien à écrire
+        logEvent(`${prefix}${spec.icon} ${spec.label} : ${fx.label} ${pickMinigameLine(outcome)}`, outcome === 'fail' ? 'danger' : 'success');
+    }
     if (!(detail && detail.auto)) {
         triggerHaptic(fx.haptic);
         showMinigameBanner(fx);
@@ -216,7 +392,7 @@ function initMinigameUi() {
     document.addEventListener('keydown', e => {
         if (!minigameRuntime) return;
         if (e.key === 'Escape') { e.preventDefault(); skipMinigame(); }
-        else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); minigamePrimaryAction(); }
+        else if ((e.key === ' ' || e.key === 'Enter') && minigameRuntime.renderer && minigameRuntime.renderer.primary) { e.preventDefault(); minigamePrimaryAction(); }
     });
     // Onglet masqué : la minuterie s'arrête et reprend au retour (l'épreuve ne se perd pas dans le dos du joueur).
     document.addEventListener('visibilitychange', () => {

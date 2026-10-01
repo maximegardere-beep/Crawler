@@ -196,7 +196,9 @@ function makeCompanion(type = 'strike', overrides = {}) {
     withRandom([0.70, 0, 0, 0], () => resolveCardEvent());
     assert(gameState.hp === 80, "Éclaireur : évite le piège quand le jet réussit");
     gameState.companion = null;
-    withRandom([0.70, 0, 0, 0], () => resolveCardEvent());
+    // Sans Éclaireur : d100, puis le choix du piège, puis le jet « piège désamorçable » (0,99 : hors des 50 % désamorçables — sinon
+    // le mini-jeu s'ouvre, voir tests/regression/minigames.js).
+    withRandom([0.70, 0, 0.99, 0], () => resolveCardEvent());
     assert(gameState.hp < 80, "Contrôle : sans Éclaireur, le même tirage déclenche bien le piège");
 }
 
