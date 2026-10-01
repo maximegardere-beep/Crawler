@@ -50,7 +50,9 @@ const ROOM_TYPES = {
     shop: { key: 'shop', label: 'Boutique', mapIcon: '🛒', mapStyle: 'shop', onEnter: 'shop' },
     trainer: { key: 'trainer', label: 'Professeur', mapIcon: '🎓', mapStyle: 'shop', onEnter: 'shop' },
     stairs: { key: 'stairs', label: 'Escalier', mapIcon: '🪜', mapStyle: 'boss', onEnter: 'stairs' },
-    lair: { key: 'lair', label: 'Repaire', mapIcon: '💀', mapStyle: 'lair', onEnter: 'lair' }
+    lair: { key: 'lair', label: 'Repaire', mapIcon: '💀', mapStyle: 'lair', onEnter: 'lair' },
+    // Salle de jeux (chantier 6, V4) : mini-jeux d'argent dans certaines villes (hors départ).
+    arcade: { key: 'arcade', label: 'Salle de jeux', mapIcon: '🎰', mapStyle: 'shop', onEnter: 'arcade' }
 };
 
 // Zones. `eventTable` : clé de config.eventTables (app.js) ; `travelMult` : multiplicateur du temps ET du
@@ -480,7 +482,7 @@ function pointSegmentDistance(p, a, b) {
 }
 
 /**
- * Génère un étage urbain (PUR). options : { rng, cityCount, lairCount, specializedChance (%), layout }.
+ * Génère un étage urbain (PUR). options : { rng, cityCount, lairCount, specializedChance (%), arcadeCount, layout }.
  * Renvoie { kind: 'urban', geometry: { width, height, cities, roads }, roomsById, startRoomId, stairsRoomId,
  * cities: [{ id, index, gx, gy, x, y, w, h, cx, cy, role, isStairs, plazaRoomId, roomIds }], lairs: [{ id,
  * roomId, roadId }] } — salles au même format que generateBorough() (zone 'city' | 'road' | 'lair', quadrant
@@ -513,7 +515,7 @@ function generateMetropolis(options = {}) {
         return {
             id: `city${index}`, index, gx: c.gx, gy: c.gy, cx: center.x, cy: center.y,
             x: center.x - L.cityHalf, y: center.y - L.cityHalf, w: 2 * L.cityHalf, h: 2 * L.cityHalf,
-            role: null, isStairs: false, plazaRoomId: null, roomIds: [], roadDirs: []
+            role: null, isStairs: false, hasArcade: false, plazaRoomId: null, roomIds: [], roadDirs: []
         };
     });
     const others = fgShuffle(rng, cities.slice(1));
@@ -525,6 +527,11 @@ function generateMetropolis(options = {}) {
     services.slice(2).forEach(city => {
         if (rng() * 100 < (options.specializedChance || 0)) city.role = rng() < 0.5 ? 'merchant' : 'trainer';
     });
+    // Salles de jeux (V4) : dans `arcadeCount` villes autres que le départ, tirées sans remise. Le hasard n'est
+    // consommé que si on en demande (les appels sans option génèrent exactement comme avant).
+    if ((options.arcadeCount || 0) > 0) {
+        fgShuffle(rng, cities.slice(1)).slice(0, options.arcadeCount).forEach(city => { city.hasArcade = true; });
+    }
     roadPairs.forEach(([i, j]) => {
         cities[i].roadDirs.push(Math.atan2(cities[j].cy - cities[i].cy, cities[j].cx - cities[i].cx));
         cities[j].roadDirs.push(Math.atan2(cities[i].cy - cities[j].cy, cities[i].cx - cities[j].cx));
@@ -542,6 +549,7 @@ function generateMetropolis(options = {}) {
         if (city.role === 'merchant') kinds.push({ type: 'shop', role: 'merchant' });
         if (city.role === 'trainer') kinds.push({ type: 'trainer', role: 'trainer' });
         if (city.isStairs) kinds.push({ type: 'stairs', role: 'stairs' });
+        if (city.hasArcade) kinds.push({ type: 'arcade', role: 'arcade' });
         const [minRooms, maxRooms] = L.roomsPerCity;
         const total = Math.max(kinds.length + 1, fgRandInt(rng, minRooms, maxRooms));
         while (kinds.length + 1 < total) kinds.push({ type: 'normal', role: 'alley' });

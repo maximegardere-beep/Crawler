@@ -662,7 +662,7 @@ function generateItem(options = {}) {
  * l'échelle par le niveau d'objet comme tout objet, mais sans aléa ni qualificatif aléatoire (son
  * mécanisme thématique est fixe, au rang maximal de sa rareté).
  */
-function buildSignatureItem(template, itemLevel, rarityKey = getSignatureRarity(currentFloorForLoot()).key) {
+function buildSignatureItem(template, itemLevel, rarityKey = getSignatureRarity(currentFloorForLoot()).key, options = {}) {
     const rarity = getRarityByKey(rarityKey) || itemRarities[itemRarities.length - 1];
     const item = JSON.parse(JSON.stringify(template));
     applyRarity(item, rarity);
@@ -673,6 +673,18 @@ function buildSignatureItem(template, itemLevel, rarityKey = getSignatureRarity(
     // Son mécanisme thématique fixe, au rang maximal de sa rareté — le nom de l'objet reste celui du boss.
     const rank = Math.max(1, rarity.maxRank);
     item.qualifiers = (item.mechanics || []).map(key => ({ key, rank }));
+    // Forgée par un Coup de grâce parfait (chantier 6, V3) avec 3 Parfaits ou plus dans le combat : un qualificatif de plus, tiré parmi
+    // ceux que cette cible n'a pas déjà, au rang maximal de la rareté. Le nom de l'objet reste celui du boss.
+    if (options.extraQualifier) {
+        const target = qualifierTarget(item.category);
+        const pool = Object.keys(itemQualifiers).filter(key => target && itemQualifiers[key][target] && itemQualifiers[key].kind !== 'malus' && !item.qualifiers.some(q => q.key === key));
+        if (pool.length) {
+            const key = pool[Math.floor(Math.random() * pool.length)];
+            item.qualifiers.push({ key, rank });
+            item.mechanics = (item.mechanics || []).concat(key);
+            item.forgedByPerfect = true;
+        }
+    }
     item.value = computeItemValue(template.baseValue, rarity.key, item.itemLevel, countValuableQualifiers(item.qualifiers));
     return item;
 }

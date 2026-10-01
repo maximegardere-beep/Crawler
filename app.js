@@ -58,8 +58,8 @@ const gameState = {
     // `inventory` (voir spells.js/generateSpellScroll()) : un sort ne compte pas dans maxInventory,
     // pas plus qu'un consommable. Le sort actuellement équipé n'y figure jamais (voir equipSpell()).
     spellbook: [],
-    // Boss (nom de base) dont l'objet signature a déjà été obtenu dans cette partie : le premier est
-    // garanti, les suivants seulement à itemBalance.boss.signatureRepeatChance (voir awardBossSignatureItem()).
+    // Boss (nom de base) dont l'objet signature a déjà été obtenu dans cette partie (succès « collectionneur ») : l'objet n'est
+    // plus garanti — il exige un Coup de grâce PARFAIT (chantier 6, V3, voir awardBossSignatureItem()).
     signaturesAwarded: [],
     // Écart de distance courant (0 = corps à corps). Aucune notion de posture : la distance de
     // départ dépend uniquement de la nature du mob (mob.ranged), et n'évolue ensuite que via les
@@ -150,6 +150,14 @@ const gameState = {
     showChoicePending: false,
     pendingShow: null,
     pendingShowAfterPact: null,
+    // Mini-jeu ouvert (chantier 6, minigames-ui.js) : { kind, boss } — bloque les actions le temps de l'épreuve.
+    pendingMinigame: null,
+    // Salle de jeux (chantier 6, V4) : ville dont on visite la salle (reprend le blocage de shopChoicePending) et partie
+    // en cours { game, stake, outcomes } — voir triggerArcade()/playArcadeGame().
+    pendingArcadeCityId: null,
+    arcadeSession: null,
+    // Occasions de combat (chantier 6, V2) : { current: { type } | null, turn, rolledTurn, lastOfferTurn, pity } — voir rollCombatOccasion().
+    occasion: { current: null, turn: 0, rolledTurn: -1, lastOfferTurn: -9, pity: 0 },
     // Journal des N dernières épitaphes (voir generateEpitaph()/recordEpitaph()), plus récente en
     // premier, plafonné à NECROLOGIE_MAX_ENTRIES. Persistant en save (aucun système de lecture dédié
     // pour l'instant, préparé pour un futur "journal" consultable). Absent d'une sauvegarde antérieure :
@@ -393,6 +401,8 @@ const config = {
         // Chance qu'une ville normale (ni départ, ni escalier/Sortie) devienne spécialisée
         // (marchand/professeur, 50/50 ensuite) — voir generateUrbanFloorMap()/triggerShopEncounter().
         specializedCityChance: 18,
+        arcadeCitiesMin: 1,         // Salles de jeux (V4) : 1 à 2 villes par étage urbain, jamais la ville de départ
+        arcadeCitiesMax: 2,
         // Nombre de routes marquées "repaire" par étage urbain (voir generateUrbanFloorMap()) :
         // toujours 1, sauf à l'étage final où un second, plus généreux, s'ajoute.
         lairRoadsPerFloor: 1,
@@ -497,7 +507,11 @@ const config = {
         atkPerLevel: 0.015,
         backfireBase: 15,
         backfirePerLevel: -1.5,
-        backfireMin: 3
+        backfireMin: 3,
+        // Glyphe réussi (chantier 6, minigames.js) : le sort offensif est renforcé — dégâts ×1,25 et risque de raté
+        // divisé par 2. Un glyphe raté, passé ou résolu en jet automatique n'a aucun effet (sort normal, jamais de malus).
+        glyphDamageMult: 1.25,
+        glyphBackfireMult: 0.5
     },
 
     // Budget temps par étage (chantier "QoL/équilibrage" — voir advanceToNextFloor()) : grandit avec
@@ -708,6 +722,15 @@ const ui = {
     achievementToast: document.getElementById('achievement-toast'),
     bountyStatus: document.getElementById('bounty-status'),
     showZone: document.getElementById('show-zone'),
+    minigameStrip: document.getElementById('minigame-strip'),
+    minigameTitle: document.getElementById('minigame-title'),
+    minigameHint: document.getElementById('minigame-hint'),
+    minigameTimerBar: document.getElementById('minigame-timer-bar'),
+    minigameBody: document.getElementById('minigame-body'),
+    minigameSkip: document.getElementById('minigame-skip'),
+    minigameBanner: document.getElementById('minigame-banner'),
+    minigameModeSelect: document.getElementById('minigame-mode-select'),
+    btnDevMinigame: document.getElementById('btn-dev-minigame'),
     showHost: document.getElementById('show-host'),
     showTaunt: document.getElementById('show-taunt'),
     showPopularity: document.getElementById('show-popularity'),
@@ -770,6 +793,12 @@ const ui = {
     shopTrainerInfo: document.getElementById('shop-trainer-info'),
     btnTrainSkill: document.getElementById('btn-train-skill'),
     btnLeaveShop: document.getElementById('btn-leave-shop'),
+    shopArcadeContent: document.getElementById('shop-arcade-content'),
+    arcadeStake: document.getElementById('arcade-stake'),
+    arcadeStakeInfo: document.getElementById('arcade-stake-info'),
+    arcadeGames: document.getElementById('arcade-games'),
+    arcadeRounds: document.getElementById('arcade-rounds'),
+    arcadeMessage: document.getElementById('arcade-message'),
     lairChoiceZone: document.getElementById('lair-choice-zone'),
     btnDiveLair: document.getElementById('btn-dive-lair'),
     btnDeclineLair: document.getElementById('btn-decline-lair'),
@@ -795,6 +824,9 @@ const ui = {
     btnSprint: document.getElementById('btn-sprint'),
     btnRetreat: document.getElementById('btn-retreat'),
     btnEngage: document.getElementById('btn-engage'),
+    btnOccasion: document.getElementById('btn-occasion'),
+    finisherCinema: document.getElementById('finisher-cinema'),
+    finisherCinemaText: document.getElementById('finisher-cinema-text'),
     btnFlee: document.getElementById('btn-flee'),
     distanceTensionLabel: document.getElementById('distance-tension-label'),
     equippedRanged: document.getElementById('equipped-ranged'),
@@ -991,6 +1023,8 @@ function restoreSaveForName(name) {
     gameState.showChoicePending = false;
     gameState.pendingShow = null;
     gameState.pendingShowAfterPact = null;
+    abortMinigame(); // Mini-jeu (chantier 6) ouvert à la sauvegarde : jamais restauré
+    gameState.occasion = Object.assign(createOccasionState(), { pity: (saved.occasion && saved.occasion.pity) || 0 }); // Occasion en cours : jamais restaurée, la garantie oui
 
     // Nettoyage de l'état transitoire/bloquant
     gameState.inCombat = false;
@@ -1006,6 +1040,8 @@ function restoreSaveForName(name) {
     gameState.pendingTravel = null;
     gameState.shopChoicePending = false;
     gameState.pendingShopCityId = null;
+    gameState.pendingArcadeCityId = null;
+    gameState.arcadeSession = null;
     gameState.lairChoicePending = false;
     gameState.pendingLairId = null;
     gameState.pendingLairDive = null;
@@ -1468,6 +1504,8 @@ function updateUI() {
             ui.btnEngage.classList.toggle('opacity-40', !engageUsable);
             ui.btnEngage.classList.toggle('pointer-events-none', !engageUsable);
         }
+        rollCombatOccasion(); // Une fois par tour (chantier 6, V2)
+        updateOccasionButton();
         // Un mob "alerted" (échec de furtivité, voir attemptStealthEvasion()) ne laisse plus fuir.
         if (ui.btnFlee) {
             const fleeUsable = !gameState.currentEnemy || !gameState.currentEnemy.alerted;
@@ -1480,6 +1518,7 @@ function updateUI() {
         ui.advanceHint.classList.toggle('hidden', isActionBlocked());
         ui.advanceHint.innerText = "👆 Touchez la scène pour explorer (-1H)";
         if (ui.exploreScene) ui.exploreScene.setAttribute('aria-label', "Explorer (-1H)");
+        updateOccasionButton();
         ui.combatZone.classList.add('hidden');
         ui.exploreStage.classList.remove('hidden');
         // Salle sécurisée et ville spécialisée ont leur propre scène (au-dessus de leurs boutons) : la
@@ -2126,7 +2165,8 @@ function buildItemInspectHtml(item, options = {}) {
         : `<p class="text-gray-500 italic">${item.category === 'consumables' ? 'Un consommable ne porte jamais de qualificatif.' : 'Aucun qualificatif.'}</p>`);
 
     const value = getItemValue(item);
-    const valueHtml = `<p class="text-gray-400">💰 Valeur : <span class="text-yellow-300 font-bold">${value} PO</span> · revente <span class="text-emerald-300 font-bold">${getSellPrice(item)} PO</span></p>`;
+    const forgedHtml = item.forgedByPerfect ? `<p class="text-amber-300 italic">🔥 Forgée par un combat parfait : un qualificatif de plus.</p>` : '';
+    const valueHtml = forgedHtml + `<p class="text-gray-400">💰 Valeur : <span class="text-yellow-300 font-bold">${value} PO</span> · revente <span class="text-emerald-300 font-bold">${getSellPrice(item)} PO</span></p>`;
     const priceHtml = options.priceLine ? `<p class="text-gray-300 font-bold">${options.priceLine}</p>` : '';
 
     const compareHtml = compareTo
@@ -2362,6 +2402,71 @@ function getZoneEventTable() {
     return config[ZONE_EVENT_TABLES[zone.eventTable] || 'chances'];
 }
 
+// PO trouvées en explorant (événement « goldFind », et lot de consolation d'un coffre crocheté à moitié).
+function rollGoldAmount() {
+    const baseGold = Math.floor(Math.random() * 16) + 5; // 5 à 20 PO
+    const strikerMult = hasActiveCompanion('strike') ? 1 + config.companions.striker.goldBonusPct / 100 : 1; // Frappe d'appoint : il a l'œil pour les pièces
+    return Math.round(baseGold * (1 + gameState.currentFloor * 0.15) * (gameState.anomalyEffects.goldGainMult || 1) * strikerMult); // Proportionnel à l'étage, ECONOMIE_AUSTERE (anomalies.js)
+}
+
+// Le piège se déclenche : dégâts, journal, mort éventuelle (cause 'trap').
+function springTrap(trap) {
+    const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
+    applyPlayerDamage(dmg);
+    setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
+    logEvent(`${trap.text} (-${dmg} PV)`, "danger");
+    recordRunEvent('trap');
+    if (gameState.hp <= 0) {
+        gameOver(false, 'trap');
+    }
+}
+
+// Niveau de Furtivité du crawler (règle la difficulté du crochetage et du désamorçage).
+function stealthSkillLevel() {
+    return (gameState.skills && gameState.skills.stealth && gameState.skills.stealth.level) || 1;
+}
+
+// Coffre verrouillé (chantier 6, V1) : trois goupilles à crocheter ; le butin dépend du nombre réussi
+// (LOCKPICK_REWARDS : rien / quelques PO / butin normal / butin d'un palier de rareté de plus).
+function openLockedChest() {
+    setSceneHeader('🔒', 'Coffre Verrouillé', 'Butin', 'treasure');
+    logEvent("Un coffre verrouillé, planqué sous des gravats. Votre crochet de fortune fera l'affaire.", "info");
+    const spec = buildMinigameSpec('lockpick', { zoneWidth: lockpickZoneWidth(gameState.currentFloor, stealthSkillLevel()) });
+    startMinigame(spec, (outcome, detail) => {
+        resolveLockedChestReward((detail && detail.pins) || 0);
+        updateUI();
+    });
+}
+
+function resolveLockedChestReward(pins) {
+    const reward = lockpickReward(pins);
+    if (reward === 'treasure') {
+        logEvent(`🔓 ${pins}/3 goupilles : la serrure cède, le coffre déborde !`, "success");
+        addLoot({ source: 'treasure' }); // Un palier de rareté de plus (voir rollLootRarity())
+    } else if (reward === 'explore') {
+        logEvent(`🔓 ${pins}/3 goupilles : la serrure s'ouvre de justesse.`, "success");
+        addLoot({ source: 'explore' });
+    } else if (reward === 'gold') {
+        const gold = rollGoldAmount();
+        gameState.gold += gold;
+        logEvent(`🔓 ${pins}/3 goupille : le coffre ne livre que quelques pièces (+${gold} PO).`, "info");
+    } else {
+        logEvent("🔒 Aucune goupille ne cède. Le coffre garde ses secrets, et vous gardez vos ongles.", "danger");
+    }
+}
+
+// Piège désamorçable (chantier 6, V1) : séquence de symboles à reproduire ; réussie, le piège est évité ; ratée, il se déclenche.
+function openTrapDisarm(trap) {
+    setSceneHeader('⚠️', 'Piège Détecté', 'Danger', 'trap');
+    logEvent("Un mécanisme à pression, à peine caché. Un geste de travers et il se déclenche.", "info");
+    const spec = buildMinigameSpec('sequence', disarmOverrides(gameState.currentFloor, stealthSkillLevel()));
+    startMinigame(spec, (outcome) => {
+        if (outcome === 'fail') springTrap(trap);
+        else logEvent("🧰 Piège désamorcé. Personne n'applaudit, mais vous êtes entier.", "success");
+        updateUI();
+    });
+}
+
 function resolveCardEvent() {
     // L'escalier et les salles sécurisées ne sont plus tirés ici : ce sont des pièces fixes du
     // graphe de l'étage (voir generateFloorMap() et enterRoom()). Cette fonction ne résout plus
@@ -2391,6 +2496,9 @@ function resolveCardEvent() {
     // Découverte d'objet (générateur procédural)
     cumulative += table.loot;
     if (d100 < cumulative) {
+        // Une « Trésor » sur deux est un coffre verrouillé (chantier 6, mini-jeu de crochetage) ; l'autre moitié reste
+        // le butin ramassé tel quel.
+        if (Math.random() * 100 < MINIGAME_SETTINGS.lockedChestPct) { openLockedChest(); return; }
         setSceneHeader('💰', 'Trésor', 'Butin', 'treasure');
         logEvent("Vous trébuchez sur quelque chose de brillant...", "info");
         addLoot({ source: 'explore' });
@@ -2407,15 +2515,9 @@ function resolveCardEvent() {
             logEvent(`${gameState.companion.name} repère le piège à temps : vous l'enjambez sans une égratignure.`, "success");
             return;
         }
-        const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
-        applyPlayerDamage(dmg);
-        setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
-        logEvent(`${trap.text} (-${dmg} PV)`, "danger");
-        recordRunEvent('trap');
-        if (gameState.hp <= 0) {
-            gameOver(false, 'trap');
-            return;
-        }
+        // Un piège sur deux se désamorce (chantier 6, mini-jeu de séquence) ; l'autre se déclenche comme avant.
+        if (Math.random() * 100 < MINIGAME_SETTINGS.trapDisarmPct) { openTrapDisarm(trap); return; }
+        springTrap(trap);
         return;
     }
 
@@ -2446,9 +2548,7 @@ function resolveCardEvent() {
     // NOUVEAU : Quelques PO trouvées (voir sellItem() pour l'autre source de revenu)
     cumulative += table.goldFind;
     if (d100 < cumulative) {
-        const baseGold = Math.floor(Math.random() * 16) + 5; // 5 à 20 PO
-        const strikerMult = hasActiveCompanion('strike') ? 1 + config.companions.striker.goldBonusPct / 100 : 1; // Frappe d'appoint : il a l'œil pour les pièces
-        const gold = Math.round(baseGold * (1 + gameState.currentFloor * 0.15) * (gameState.anomalyEffects.goldGainMult || 1) * strikerMult); // Proportionnel à l'étage, ECONOMIE_AUSTERE (anomalies.js)
+        const gold = rollGoldAmount();
         gameState.gold += gold;
         setSceneHeader('💰', 'Pièces d\'Or', 'Butin', 'gold');
         logEvent(`${pick(flavorText.goldFind)} (+${gold} PO)`, "success");
@@ -2609,7 +2709,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending || !!gameState.pendingMinigame;
 }
 
 // ---------- Voyage sur carte (chantier 5, M1 + P1 — remplace les anciens « Lieux connus ») ----------
@@ -2639,6 +2739,10 @@ function listFloorLandmarks() {
         }
         if (room.type === 'shop' || room.type === 'trainer') {
             if (room.visited) marks.push({ roomId: room.id, kind: room.type, icon: room.type === 'shop' ? '🛒' : '🎓', label: `${room.type === 'shop' ? "Marchand" : "Professeur"}${inCity}` });
+            return;
+        }
+        if (room.type === 'arcade') {
+            if (room.visited) marks.push({ roomId: room.id, kind: 'arcade', icon: '🎰', label: `Salle de jeux${inCity}` });
             return;
         }
         if (room.type === 'lair') {
@@ -3372,6 +3476,21 @@ function recordRunEvent(type, data = {}) {
         case 'overflowSold': s.overflowSold += 1; break;
         case 'bounty': s.maxBounty = Math.max(s.maxBounty || 0, data.value || 0); break;
         case 'hunterKilled': s.huntersKilled += 1; break;
+        case 'minigame': // épreuve JOUÉE (jamais le jet automatique : il n'a ni mérite ni échec)
+            if (data.auto) break;
+            s.minigamesPlayed += 1;
+            if (data.outcome === 'perfect') {
+                s.minigamePerfects += 1;
+                s.perfectStreak += 1;
+                s.maxPerfectStreak = Math.max(s.maxPerfectStreak, s.perfectStreak);
+            } else s.perfectStreak = 0;
+            break;
+        case 'arcade': // partie conclue à la salle de jeux
+            s.arcadeGames += 1;
+            if (data.perfectAll) s.arcadePerfectGames += 1;
+            s.arcadeNet += (data.payout || 0) - (data.stake || 0);
+            if (data.tier === 'lose') s.arcadeLost += data.stake || 0;
+            break;
         default: break; // 'explore', 'equip', 'itemStored', 'loyalty', 'death', 'victory'… : simple réévaluation
     }
     evaluateAchievements({ type, ...data });
@@ -3674,6 +3793,8 @@ function buildShowContext(lastFloor = {}) {
         succes: countUnlockedAchievements(),
         niveau: gameState.level,
         or: gameState.gold,
+        parfaits: rs.minigamePerfects || 0,
+        mises: rs.arcadeLost || 0,
         mainsNues: rs.unarmedKills || 0,
         maxHp: gameState.maxHp,
         pvPct: gameState.maxHp > 0 ? Math.round(gameState.hp / gameState.maxHp * 100) : 0
@@ -4241,19 +4362,21 @@ function getOverflowSellPrice(item) {
     return Math.max(1, Math.round(getSellPrice(item) * LOOT_OVERFLOW_SELL_RATIO));
 }
 
-// Objet signature d'un boss précis (bestiary.js, districtBosses.*.signatureItem) : garanti à la
-// PREMIÈRE défaite de ce boss dans la partie (gameState.signaturesAwarded), puis seulement à
-// itemBalance.boss.signatureRepeatChance — plusieurs quartiers d'un même type reviennent au fil des
-// étages, un objet signature garanti à chaque fois inonderait le joueur. Sa rareté suit l'étage courant
-// (Rare, Épique, Légendaire dès l'étage 10 — getSignatureRarity()), au niveau d'objet du butin du boss
-// (voir buildSignatureItem() dans generator.js).
-function awardBossSignatureItem(boss, itemLevel = gameState.currentFloor) {
+// Objet signature d'un boss précis (bestiary.js, districtBosses.*.signatureItem) : depuis le chantier 6 (V3), il n'est plus garanti
+// à la première victoire — il tombe à 100 % si le Coup de grâce a été PARFAIT, jamais sinon (jet automatique, mini-jeux désactivés,
+// Coup de grâce raté ou seulement réussi, boss achevé autrement : pas d'objet signature). Avec 3 Parfaits ou plus dans le combat
+// (Coup de grâce compris), l'arme gagne un qualificatif de plus (signatureReward()). Sa rareté suit l'étage courant (Rare, Épique,
+// Légendaire dès l'étage 10 — getSignatureRarity()), au niveau d'objet du butin du boss (voir buildSignatureItem() dans generator.js).
+function awardBossSignatureItem(boss, itemLevel = gameState.currentFloor, outcome = {}) {
     if (!boss || !boss.signatureItem) return;
+    const reward = signatureReward(!!outcome.perfectFinisher, outcome.perfects || 0);
+    if (!reward.awarded) {
+        logEvent(`🗡️ Sans Coup de grâce parfait, l'objet signature de ${boss.name} vous échappe.`, "info");
+        return;
+    }
     const key = boss.baseName || boss.name;
-    const alreadyAwarded = gameState.signaturesAwarded.includes(key);
-    if (alreadyAwarded && Math.random() * 100 >= itemBalance.boss.signatureRepeatChance) return;
-    if (!alreadyAwarded) gameState.signaturesAwarded.push(key);
-    storeLootItem(buildSignatureItem(boss.signatureItem, itemLevel, getSignatureRarity(gameState.currentFloor).key), "✨ Objet signature — ");
+    if (!gameState.signaturesAwarded.includes(key)) gameState.signaturesAwarded.push(key);
+    storeLootItem(buildSignatureItem(boss.signatureItem, itemLevel, getSignatureRarity(gameState.currentFloor).key, { extraQualifier: reward.extraQualifier }), "✨ Objet signature — ");
 }
 
 // Point de passage UNIQUE pour toute perte de PV du joueur (piège, saignement, riposte ennemie...) —
@@ -4548,7 +4671,8 @@ function generateUrbanFloorMap() {
     const metro = generateMetropolis({
         cityCount: 6 + Math.floor(floor / 9), // Légère croissance avec la profondeur
         lairCount: isFinal ? config.urbanFloors.lairRoadsFinalFloor : config.urbanFloors.lairRoadsPerFloor,
-        specializedChance: config.urbanFloors.specializedCityChance
+        specializedChance: config.urbanFloors.specializedCityChance,
+        arcadeCount: config.urbanFloors.arcadeCitiesMin + Math.floor(Math.random() * (config.urbanFloors.arcadeCitiesMax - config.urbanFloors.arcadeCitiesMin + 1))
     });
     const namePool = [...URBAN_CITY_NAMES];
     const citiesById = {};
@@ -4613,6 +4737,10 @@ function enterUrbanRoom(room, firstVisit) {
     }
     if ((room.type === 'shop' || room.type === 'trainer') && city) {
         triggerShopEncounter(city);
+        return true;
+    }
+    if (room.type === 'arcade' && city) {
+        triggerArcade(city);
         return true;
     }
     if (room.type === 'lair') {
@@ -4816,8 +4944,10 @@ function trainSkill() {
 
 // Referme l'écran marchand/professeur et rend la main normalement (Carte Urbaine, actions standards).
 function leaveShop() {
+    if (gameState.arcadeSession) return; // une partie est en cours : on la termine d'abord
     gameState.shopChoicePending = false;
     gameState.pendingShopCityId = null;
+    gameState.pendingArcadeCityId = null;
     ui.shopZone.classList.add('hidden');
     updateUI();
 }
@@ -4825,10 +4955,14 @@ function leaveShop() {
 // Reconstruit le contenu dynamique de l'écran marchand/professeur (stock/prix, ou compétence à
 // former) selon le rôle de la ville actuellement visitée — n'affiche rien si aucune n'est en cours.
 function updateShopUI() {
-    if (!ui.shopZone || !gameState.pendingShopCityId) return;
+    if (!ui.shopZone) return;
+    if (gameState.pendingArcadeCityId) { updateArcadeUI(); return; }
+    if (!gameState.pendingShopCityId) return;
     const city = urbanCityById(gameState.pendingShopCityId);
     if (!city) return;
 
+    ui.shopArcadeContent.classList.add('hidden');
+    ui.shopArcadeContent.classList.remove('flex');
     const isMerchant = city.role === 'merchant';
     ui.shopMerchantContent.classList.toggle('hidden', !isMerchant);
     ui.shopMerchantContent.classList.toggle('flex', isMerchant);
@@ -4915,6 +5049,164 @@ function updateShopUI() {
     }
 }
 
+// ---------- Salle de jeux (chantier 6, V4 — voir NOTES_MINIJEUX.md) ----------
+// Quatre jeux d'argent (ARCADE_GAMES, minigames.js) : une partie = quelques manches, chacune une épreuve existante
+// lancée par startMinigame(). Mise libre (plafonnée, arcadeMaxStake()), prélevée avant la partie ; 1 H par partie ; gain =
+// mise × multiplicateur du palier ; un score excellent donne aussi de l'XP de compétence, une partie entièrement Parfaite un
+// objet. Parties illimitées. Réutilise le blocage de la boutique (shopChoicePending) : on joue jusqu'à « Partir ».
+let arcadeMessage = { text: "", tone: "info" };
+const ARCADE_PIPS = { perfect: '🟡', success: '🟢', fail: '🔴' };
+
+function arcadeSetMessage(text, tone = 'info') {
+    arcadeMessage = { text, tone };
+    if (ui.arcadeMessage) {
+        ui.arcadeMessage.innerText = text;
+        ui.arcadeMessage.className = `text-[11px] min-h-[1.5rem] ${tone === 'danger' ? 'text-red-400' : tone === 'success' ? 'text-emerald-300' : 'text-gray-300'}`;
+    }
+}
+
+function triggerArcade(city) {
+    gameState.shopChoicePending = true;
+    gameState.pendingShopCityId = null;
+    gameState.pendingArcadeCityId = city.id;
+    gameState.arcadeSession = null;
+    arcadeMessage = { text: "", tone: "info" };
+    city.arcadeVisited = true;
+    setSceneHeader('🎰', city.name, 'Salle de jeux');
+    logEvent(`Les bornes clignotent dans la salle de jeux de ${city.name}. Ici, on mise ses PO sur son adresse — et le Donjon encaisse le reste.`, "info");
+    ui.shopZone.classList.remove('hidden');
+    updateShopUI();
+    updateUI();
+}
+
+function arcadeSkillLevel(skillKey) {
+    const skill = gameState.skills && gameState.skills[skillKey];
+    return skill ? skill.level : 1;
+}
+
+// Lit la mise saisie (champ numérique) et la borne.
+function arcadeReadStake() {
+    return arcadeCheckStake(ui.arcadeStake ? ui.arcadeStake.value : 0, gameState.currentFloor, gameState.gold);
+}
+
+function setArcadeStakePreset(kind) {
+    if (!ui.arcadeStake) return;
+    const max = arcadeMaxStake(gameState.currentFloor, gameState.gold);
+    const v = kind === 'min' ? ARCADE_SETTINGS.minStake : kind === 'half' ? Math.max(ARCADE_SETTINGS.minStake, Math.floor(max / 2)) : max;
+    ui.arcadeStake.value = String(Math.min(Math.max(v, ARCADE_SETTINGS.minStake), Math.max(max, ARCADE_SETTINGS.minStake)));
+    updateArcadeUI();
+}
+
+function updateArcadeUI() {
+    if (!ui.shopArcadeContent || !gameState.pendingArcadeCityId) return;
+    ui.shopMerchantContent.classList.add('hidden');
+    ui.shopMerchantContent.classList.remove('flex');
+    ui.shopTrainerContent.classList.add('hidden');
+    ui.shopTrainerContent.classList.remove('flex');
+    ui.shopArcadeContent.classList.remove('hidden');
+    ui.shopArcadeContent.classList.add('flex');
+    renderScene('arcade');
+    const busy = !!gameState.arcadeSession;
+    const max = arcadeMaxStake(gameState.currentFloor, gameState.gold);
+    const check = arcadeReadStake();
+    const timeOk = arcadeCanPlayTime(gameState.timeLeft);
+    ui.arcadeStakeInfo.innerText = `Vous avez ${gameState.gold} PO · mise maximale : ${max} PO · bon score ×${ARCADE_SETTINGS.multipliers.good}, excellent ×${ARCADE_SETTINGS.multipliers.excellent}`;
+    ui.arcadeStake.disabled = busy;
+    ui.arcadeGames.innerHTML = '';
+    ARCADE_GAME_KEYS.forEach(key => {
+        const game = ARCADE_GAMES[key];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.arcadeGame = key;
+        const disabled = busy || !check.ok || !timeOk;
+        btn.disabled = disabled;
+        btn.className = "flex flex-col items-start gap-0.5 px-2 py-2 min-h-[44px] bg-gray-900 border border-pink-700/70 hover:border-pink-400 hover:bg-pink-950/20 rounded text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed";
+        btn.innerHTML = `<span class="text-xs text-pink-300 font-bold">${game.icon} ${game.label}</span><span class="text-[9px] text-gray-500">${game.blurb}</span><span class="text-[9px] text-gray-600">${skillLabel(game.skill)} niv. ${arcadeSkillLevel(game.skill)}</span>`;
+        btn.addEventListener('click', () => playArcadeGame(key));
+        ui.arcadeGames.appendChild(btn);
+    });
+    if (!busy) {
+        ui.arcadeRounds.innerHTML = '';
+        if (!arcadeMessage.text) {
+            if (!timeOk) arcadeSetMessage("Plus assez de temps pour une partie.", 'danger');
+            else if (!check.ok) arcadeSetMessage(check.reason, 'danger');
+        }
+    }
+    ui.btnLeaveShop.disabled = busy;
+}
+
+// Affiche les manches déjà jouées (pastilles) et celles qui restent (cercles vides).
+function renderArcadeRounds(total, outcomes) {
+    if (!ui.arcadeRounds) return;
+    const pips = [];
+    for (let i = 0; i < total; i++) pips.push(outcomes[i] ? ARCADE_PIPS[outcomes[i]] : '⚪');
+    ui.arcadeRounds.innerText = pips.join(' ');
+}
+
+// Lance une partie : valide la mise et le temps, prélève la mise et 1 H, puis enchaîne les manches.
+function playArcadeGame(gameKey) {
+    const game = ARCADE_GAMES[gameKey];
+    if (!game || !gameState.pendingArcadeCityId || gameState.arcadeSession || gameState.pendingMinigame) return false;
+    const check = arcadeReadStake();
+    if (!check.ok) { arcadeSetMessage(check.reason, 'danger'); updateArcadeUI(); return false; }
+    if (!arcadeCanPlayTime(gameState.timeLeft)) { arcadeSetMessage("Plus assez de temps pour une partie.", 'danger'); updateArcadeUI(); return false; }
+    gameState.gold -= check.stake;
+    gameState.timeLeft -= ARCADE_SETTINGS.hoursPerGame;
+    applyTimeElapsedRegen(ARCADE_SETTINGS.hoursPerGame);
+    gameState.arcadeSession = { game: gameKey, stake: check.stake, outcomes: [] };
+    logEvent(`${game.icon} ${game.label} : vous misez ${check.stake} PO (−${ARCADE_SETTINGS.hoursPerGame} H).`, "info");
+    arcadeSetMessage(`${game.icon} ${game.label} — mise : ${check.stake} PO.`, 'info');
+    updateUI();
+    updateArcadeUI();
+    runArcadeRound();
+    return true;
+}
+
+function runArcadeRound() {
+    const session = gameState.arcadeSession;
+    if (!session) return;
+    const game = ARCADE_GAMES[session.game];
+    const rounds = game.rounds({ floor: gameState.currentFloor, skillLevel: arcadeSkillLevel(game.skill) });
+    const round = rounds[session.outcomes.length];
+    if (!round) { finishArcadeGame(); return; }
+    renderArcadeRounds(rounds.length, session.outcomes);
+    const spec = buildMinigameSpec(round.kind, round.overrides);
+    startMinigame(spec, (outcome) => {
+        if (gameState.arcadeSession !== session) return; // partie abandonnée (restauration de sauvegarde, remise à zéro)
+        session.outcomes.push(outcome);
+        renderArcadeRounds(rounds.length, session.outcomes);
+        if ((game.stopOnFail && outcome === 'fail') || session.outcomes.length >= rounds.length) finishArcadeGame();
+        else runArcadeRound();
+    });
+}
+
+// Conclut la partie : score, palier, gain (la mise y est comprise), XP de compétence sur excellent, objet sur Parfait partout.
+function finishArcadeGame() {
+    const session = gameState.arcadeSession;
+    if (!session) return;
+    const game = ARCADE_GAMES[session.game];
+    gameState.arcadeSession = null;
+    const score = arcadeScore(session.game, session.outcomes);
+    const payout = arcadePayout(session.stake, score.tier);
+    gameState.gold += payout;
+    const net = payout - session.stake;
+    const label = ARCADE_TIER_LABELS[score.tier];
+    let text = `${game.icon} ${label} ${score.points}/${score.max} points — `;
+    if (score.tier === 'lose') text += `la mise (${session.stake} PO) est perdue.`;
+    else text += `vous empochez ${payout} PO (${net >= 0 ? '+' : ''}${net} net).`;
+    logEvent(text, score.tier === 'lose' ? "danger" : "success");
+    arcadeSetMessage(text, score.tier === 'lose' ? 'danger' : 'success');
+    if (score.tier === 'excellent') gainSkillXp(game.skill, ARCADE_SETTINGS.skillXpOnExcellent);
+    if (score.perfectAll) {
+        logEvent("🎰 Partie parfaite : le gérant, blême, sort un lot de derrière le comptoir.", "success");
+        arcadeSetMessage(`${text} Partie parfaite : un lot en prime !`, 'success');
+        addLoot({ source: 'treasure' });
+    }
+    recordRunEvent('arcade', { game: session.game, stake: session.stake, payout, tier: score.tier, perfectAll: score.perfectAll });
+    updateUI();
+    updateArcadeUI();
+}
+
 // ---------- Carte stylisée des étages classiques (chantier 5, voir NOTES_CARTE.md) ----------
 // Rendu pur dans floormap.js (buildFloorMapSvg()) ; ici, le panneau : vue (zoom + caméra, préférences
 // d'affichage — variables de module comme mapPanelOpen, jamais sauvegardées), salle sélectionnée et bulle
@@ -4941,7 +5233,7 @@ function describeFloorMapTravel(roomId) {
 // Légende sous la carte, selon le type d'étage.
 const FLOOR_MAP_LEGENDS = {
     classic: "Plein = visité · pointillé « ? » = aperçu · 👑 boss · 🪜 escalier · 🟡 vous · avenues : trajets deux fois plus rapides et plus sûrs",
-    urban: "Plein = visité · pointillé « ? » = aperçu · villes calmes, routes dangereuses · 🛒 marchand · 🎓 professeur · 👑 gardien · 🪜 escalier · 💀 repaire · 🟡 vous"
+    urban: "Plein = visité · pointillé « ? » = aperçu · villes calmes, routes dangereuses · 🛒 marchand · 🎓 professeur · 🎰 salle de jeux · 👑 gardien · 🪜 escalier · 💀 repaire · 🟡 vous"
 };
 
 function updateFloorMapUI() {
@@ -5359,6 +5651,9 @@ function renderEnemyStatusBadges(enemy) {
     const add = (active, icon, title) => { if (active) badges.push({ icon, title }); };
     add(status.bleed && status.bleed.rounds > 0, "🔥", "Saignement");
     add(status.stunned, "💫", "Étourdi");
+    add(status.immobilized && status.immobilized.rounds > 0, "🤼", "Immobilisé (ne peut pas riposter)");
+    add(status.weakened && status.weakened.rounds > 0, "💪", "Affaibli (ATQ réduite)");
+    add(status.exposed && status.exposed.rounds > 0, "🎯", "Exposé (DEF −30 %)");
     add(status.slowed && status.slowed.rounds > 0, "🐌", "Ralenti");
     add(status.blinded && status.blinded.rounds > 0, "✨", "Ébloui");
     add(status.corroded && status.corroded.rounds > 0, "🧪", "Corrodé (DEF réduite)");
@@ -5458,6 +5753,8 @@ function initiateCombat(forcedEnemy = null) {
     if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
+    // Occasions de combat (chantier 6, V2) : état remis à zéro ; la garantie compte un combat de plus sans Occasion.
+    gameState.occasion = Object.assign(createOccasionState(), { pity: ((gameState.occasion && gameState.occasion.pity) || 0) + 1 });
 
     // En-tête de la scène d'exploration : toujours posé ici, quel que soit le chemin d'entrée en combat (embuscade
     // de trajet, compagnon qui se retourne contre vous, rencontre furtive ratée...). Avant ce correctif,
@@ -5478,7 +5775,7 @@ function initiateCombat(forcedEnemy = null) {
         // telegraph/defBuffed/frenzied : uniquement lus/écrits côté boss (voir performBossCounterAttack()
         // dans app.js, Chantier 2 du rework combat) — restent toujours neutres sur un mob normal/élite.
         // enraged/enrageCooldown : Chantier 3 (enrage distance), tous mobs confondus, boss inclus.
-        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, distracted: null, telegraph: null, defBuffed: null, frenzied: false, enraged: null, enrageCooldown: null };
+        enemy.status = { bleed: null, stunned: false, slowed: null, blinded: null, corroded: null, feared: null, distracted: null, telegraph: null, defBuffed: null, frenzied: false, enraged: null, enrageCooldown: null, immobilized: null, weakened: null, exposed: null };
         enemy.maxHp = enemy.hp; // Référence pour l'anneau de vie (pourcentage de PV restants)
         // Compteur de tours de kiting (Chantier 3) : un boss démarre à 1 (s'enrage plus vite qu'un
         // mob normal, voir NOTES_COMBAT.md Chantier 2) plutôt qu'à 0.
@@ -5808,6 +6105,8 @@ function getEffectiveDef() {
 // agir ce tour-ci (combat terminé entre-temps, ou étourdi).
 function tryPlayerAction() {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
+    // Une action = un tour : l'Occasion proposée (chantier 6, V2) s'éteint, que le joueur l'ait prise ou non.
+    if (gameState.occasion) { gameState.occasion.current = null; gameState.occasion.turn += 1; }
     // Un skip demandé pendant le tour précédent ne doit jamais escamoter l'effet de CETTE attaque (fx.js).
     combatSkipRequested = false;
 
@@ -5934,6 +6233,14 @@ function performPlayerAttack(attackerAtk, options, label) {
         if (enemy.status.corroded.rounds <= 0) enemy.status.corroded = null;
     }
 
+    // Exposé (Parade ou garde brisée parfaite, chantier 6 V3) : DEF effective réduite de 30 % pendant `rounds` coups.
+    const enemyWasExposed = enemy.status && enemy.status.exposed && enemy.status.exposed.rounds > 0;
+    if (enemyWasExposed) {
+        effectiveEnemyDef = Math.round(effectiveEnemyDef * MINIGAME_SETTINGS.boss.exposed.defMult);
+        enemy.status.exposed.rounds -= 1;
+        if (enemy.status.exposed.rounds <= 0) enemy.status.exposed = null;
+    }
+
     // Boss phase 2 "il se hérisse" (voir performBossCounterAttack()) : DEF effective AUGMENTÉE tant
     // que le buff est actif — symétrique aux réductions ébloui/corrodé ci-dessus.
     const enemyWasDefBuffed = enemy.status && enemy.status.defBuffed && enemy.status.defBuffed.rounds > 0;
@@ -6015,12 +6322,14 @@ function performPlayerAttack(attackerAtk, options, label) {
     // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
     // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
     // pure redite de ce que les badges du Chantier 2 montrent déjà sans rapport avec CE coup précis).
-    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
+    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyWasExposed ? " (garde ouverte)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
 
     // Appui du compagnon : sort donné, Frappe d'appoint ou coup d'opportunité (voir companionCombatSupport())
     companionCombatSupport(enemy);
 
     if (enemy.hp <= 0) {
+        // Coup de grâce (chantier 6, V3) : le coup fatal porté à un boss ouvre d'abord l'épreuve (si une interface la permet).
+        if (offerCoupDeGrace(enemy)) return true;
         setTimeout(() => {
             logEvent(`[${enemy.name}] s'effondre, vaincu !`, "success");
             winCombat();
@@ -6215,6 +6524,13 @@ function consumeEnemyAttackDebuffs(enemy) {
         status.feared.rounds -= 1;
         if (status.feared.rounds <= 0) status.feared = null;
     }
+    // Bras touché (Point faible, chantier 6 V2) : ATQ réduite quelques tours.
+    if (status.weakened && status.weakened.rounds > 0) {
+        mult *= status.weakened.mult;
+        note += " (bras touché)";
+        status.weakened.rounds -= 1;
+        if (status.weakened.rounds <= 0) status.weakened = null;
+    }
     return { mult, note };
 }
 
@@ -6294,7 +6610,7 @@ const COMBAT_BEAT_MS = config.combatRhythm.beatActionToRiposte;
 
 // Empêche de spammer les boutons de combat pendant la petite pause entre deux actions
 function setCombatInputLocked(locked) {
-    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnRetreat, ui.btnEngage, ui.btnFlee].forEach(btn => {
+    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnRetreat, ui.btnEngage, ui.btnFlee, ui.btnOccasion].forEach(btn => {
         if (!btn) return;
         btn.disabled = locked;
         btn.classList.toggle('opacity-40', locked);
@@ -6333,6 +6649,7 @@ let combatSkipRequested = false;
 // (enemyCounterAttack()/triggerMobEnrage()), pour qu'un clic qui a démarré ce tour-ci (bulle jusqu'à
 // #combat-zone) ne "pré-skippe" jamais le tour SUIVANT.
 function requestCombatSkip() {
+    if (gameState.pendingMinigame) return; // Espace/Entrée appartiennent alors à l'épreuve ouverte (minigames-ui.js)
     if (gameState.inCombat) combatSkipRequested = true;
 }
 
@@ -6343,6 +6660,10 @@ function runCombatBeats(steps, onDone) {
             return;
         }
         const step = steps[index];
+        // Étape interactive (chantier 6, mini-jeux) : `run(done)` ouvre une épreuve et rappelle `done` à sa fin
+        // (tout de suite en jet automatique) ; le tour reprend alors, sans délai ni skip de combat (le joueur
+        // a la main, le skip de l'épreuve est le sien : Passer / Échap).
+        if (step.interactive) { step.run(() => playStep(index + 1)); return; }
         const skip = combatSkipRequested && step.skippable !== false;
         setTimeout(() => {
             step.run();
@@ -6378,6 +6699,73 @@ function enemyCounterAttack() {
 // modélisation spatiale (voir config.bossPhases). Chemin totalement séparé du mob normal/élite
 // (resolveEnemyCounterAttack ci-dessous) : isEliteMob() exclut déjà les boss, donc aucun
 // recouvrement avec le scaling élite du Chantier 1.
+
+// ==========================================
+// ÉPREUVES DE BOSS (chantier 6, V3 — voir NOTES_MINIJEUX.md)
+// ==========================================
+// Trois moments : la Parade (exécution d'un coup lourd télégraphié), Briser la garde (exécution de « il se hérisse ») et le Coup de
+// grâce (coup fatal). 3 épreuves de télégraphe au plus par boss (MINIGAME_SETTINGS.boss.trialCap), puis le comportement d'avant ; le Coup
+// de grâce s'y ajoute (4 au plus). Un Raté n'ajoute AUCUNE pénalité : le boss fait ce qu'il aurait fait sans épreuve. Sans interface
+// (tests Node, simulation longue) : jamais d'épreuve, comportement strictement inchangé. Avec interface mais en mode « Jet automatique »
+// ou via « Passer » : réussite tirée selon la compétence d'Arme, jamais de Parfait (bossAutoRates()).
+function ensureBossTrials(enemy) {
+    if (!enemy.trials) enemy.trials = { count: 0, perfects: 0 };
+    return enemy.trials;
+}
+
+// Joue une épreuve de télégraphe puis rappelle `cb(outcome)` ('fail' sans épreuve : plafond atteint ou pas d'interface).
+function runBossTrial(enemy, kind, cb) {
+    const trials = ensureBossTrials(enemy);
+    if (typeof requestAnimationFrame !== 'function' || trials.count >= MINIGAME_SETTINGS.boss.trialCap) { cb('fail'); return; }
+    trials.count += 1;
+    const spec = buildMinigameSpec(kind, { boss: true, allowPerfect: false, autoRates: bossAutoRates(gameState.skills.weapon.level) });
+    startMinigame(spec, (outcome, detail) => {
+        if (outcome === 'perfect' && !(detail && detail.auto)) trials.perfects += 1;
+        cb(outcome);
+    });
+}
+
+// Parade parfaite : le coup est détourné, le crawler riposte (x1,5, sans jamais achever le boss : le coup fatal reste le sien) et la garde
+// du boss s'ouvre un tour (statut « exposé »).
+function parryRiposte(enemy) {
+    const gear = gameState.equipment.weapon || gameState.equipment.ranged;
+    const atk = gameState.atk + (gear ? (gear.baseDmg || 0) : 0);
+    const dmg = Math.max(0, Math.min(enemy.hp - 1, rollDamage(atk, enemy.def, { atkMultiplier: MINIGAME_SETTINGS.boss.parry.perfectRiposteMult, varianceRange: 0.15, defReduction: 0 })));
+    enemy.hp -= dmg;
+    if (dmg > 0) showFloatingDamage(ui.sceneMobAnchor, dmg, { toPlayer: false, heavy: true });
+    enemy.status.exposed = { rounds: MINIGAME_SETTINGS.boss.exposed.rounds };
+    return dmg;
+}
+
+// Briser la garde réussi : la garde n'est pas posée ; parfait, elle s'ouvre même (statut « exposé »).
+function applyGuardBreak(enemy, outcome) {
+    if (outcome === 'perfect') enemy.status.exposed = { rounds: MINIGAME_SETTINGS.boss.exposed.rounds };
+}
+
+// Coup de grâce : l'épreuve dépend de la dernière attaque. Le boss est de toute façon achevé (il n'y a pas de pénalité) ; seul un Parfait
+// ouvre l'objet signature. Renvoie vrai si l'épreuve a été ouverte (l'appelant ne conclut pas le combat lui-même).
+function offerCoupDeGrace(enemy) {
+    if (!enemy.isBoss || enemy.finisherDone || !minigameIsInteractive()) return false;
+    enemy.finisherDone = true;
+    const kinds = { ranged: 'target', unarmed: 'choke' };
+    const kind = kinds[gameState.lastAttackKind] || 'timing';
+    const base = { label: 'Coup de grâce', icon: '💀', hint: 'Un dernier effort : visez juste !', boss: true, allowPerfect: false, autoRates: bossAutoRates(gameState.skills.weapon.level) };
+    const extra = kind === 'timing' ? { zoneWidth: 0.2, periodMs: 1000 }
+        : kind === 'target' ? { distance: gameState.combatDistance, skillLevel: gameState.skills.weapon.level, durationMs: MINIGAME_SETTINGS.target.durationMs }
+        : {};
+    logEvent(`💀 Coup de grâce ! [${enemy.name}] vacille, à votre merci...`, "danger");
+    startMinigame(buildMinigameSpec(kind, Object.assign(base, extra)), (outcome, detail) => {
+        const perfect = outcome === 'perfect' && !(detail && detail.auto);
+        const trials = ensureBossTrials(enemy);
+        enemy.finisherPerfect = perfect;
+        if (perfect) trials.perfects += 1;
+        playFinisherCinematic(perfect, () => {
+            logEvent(`[${enemy.name}] s'effondre, vaincu !`, "success");
+            winCombat();
+        });
+    });
+    return true;
+}
 
 // Phase dérivée UNIQUEMENT du ratio de PV courant (aucun champ de niveau dédié sur les mobs, comme
 // le reste du moteur) : 100-66% phase 1, 66-33% phase 2, en dessous phase 3 ("folie").
@@ -6536,19 +6924,45 @@ function performBossCounterAttackInner(enemy, onDone) {
         enemy.status.telegraph = null;
         if (tg.type === 'heavy') {
             const boosted = Math.round(enemyAtk * bp.telegraphHeavyMult);
+            let parry = 'fail';
             runPattern([
-                { run: () => strikeAndCheckDeath(boosted, `[${enemy.name}] abat son attaque annoncée et`, undefined, true), delay: rhythm.beatHeavyEvent }
+                // Parade (chantier 6, V3) : fenêtre de timing AVANT le coup — rien ne change sans épreuve ni en cas de Raté.
+                { interactive: true, run: (done) => runBossTrial(enemy, 'parry', (o) => { parry = o; done(); }) },
+                {
+                    run: () => {
+                        if (parry === 'perfect') {
+                            const riposte = parryRiposte(enemy);
+                            logEvent(`🛡️ Parade parfaite ! Vous détournez l'attaque de [${enemy.name}] et ripostez (${riposte} dégâts) : sa garde est ouverte.`, "success");
+                            return;
+                        }
+                        const parried = parry === 'success';
+                        const mult = parried ? MINIGAME_SETTINGS.boss.parry.successDamageMult : 1;
+                        const floor = parried ? gameState.maxHp * config.mobDamageScaling.pressureFloorFrac * mult : undefined; // le plancher de pression suit la réduction
+                        strikeAndCheckDeath(Math.round(boosted * mult), `[${enemy.name}] abat son attaque annoncée${parried ? ', que vous parez à moitié,' : ''} et`, floor, true);
+                    },
+                    delay: rhythm.beatHeavyEvent
+                }
             ]);
             return;
         }
         if (tg.type === 'defBuff') {
-            runPattern([{
-                run: () => {
-                    enemy.status.defBuffed = { rounds: bp.defBuffRounds };
-                    logEvent(`[${enemy.name}] se hérisse : sa garde vient de monter, sans vous frapper ce tour-ci.`, "info");
-                },
-                delay: rhythm.beatHeavyEvent
-            }]);
+            let guard = 'fail';
+            runPattern([
+                // Briser la garde (chantier 6, V3) : un point faible à toucher avant que la garde ne monte.
+                { interactive: true, run: (done) => runBossTrial(enemy, 'guard', (o) => { guard = o; done(); }) },
+                {
+                    run: () => {
+                        if (guard === 'success' || guard === 'perfect') {
+                            applyGuardBreak(enemy, guard);
+                            logEvent(`🔨 Vous brisez la garde de [${enemy.name}] avant qu'elle ne monte${guard === 'perfect' ? ' : sa défense s\'ouvre même !' : '.'}`, "success");
+                            return;
+                        }
+                        enemy.status.defBuffed = { rounds: bp.defBuffRounds };
+                        logEvent(`[${enemy.name}] se hérisse : sa garde vient de monter, sans vous frapper ce tour-ci.`, "info");
+                    },
+                    delay: rhythm.beatHeavyEvent
+                }
+            ]);
             return;
         }
     }
@@ -6662,6 +7076,16 @@ function resolveEnemyCounterAttack(onDone) {
         enemy.status.stunned = false;
         showDie(ui.combatEnemyDie, "😴");
         // Plus de updateUI() explicite ici (Chantier 7) : onDone() le fait déjà, centralisé.
+        if (onDone) onDone();
+        return;
+    }
+
+    // Immobilisé (action spéciale Immobiliser, chantier 6 V2) : il ne peut pas riposter, pendant `rounds` de ses tours.
+    if (enemy.status && enemy.status.immobilized && enemy.status.immobilized.rounds > 0) {
+        enemy.status.immobilized.rounds -= 1;
+        if (enemy.status.immobilized.rounds <= 0) enemy.status.immobilized = null;
+        logEvent(`[${enemy.name}] est immobilisé et ne peut pas riposter !`, "info");
+        showDie(ui.combatEnemyDie, "🤼");
         if (onDone) onDone();
         return;
     }
@@ -6895,6 +7319,151 @@ function attackUnarmed() {
     if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
 }
 
+// ==========================================
+// OCCASIONS DE COMBAT (chantier 6, V2 — voir NOTES_MINIJEUX.md)
+// ==========================================
+// Une Occasion est une action SPÉCIALE proposée de façon aléatoire au début d'un tour (25 % en mode Jouer, un peu plus avec le
+// niveau de la compétence liée) : un bouton mis en avant, valable CE tour seulement. La prendre consomme le tour ; un échec =
+// tour perdu, sans autre pénalité. Mains nues au contact : Immobiliser (puis Étrangler, proposé à coup sûr sur un mob immobilisé
+// ou étourdi, jamais un boss). À distance avec une arme à distance : Cible de précision ou Point faible. Jamais en mode « Jet
+// automatique » ni sans interface interactive (tests Node, simulation longue). La décision est pure : decideOccasion() (minigames.js).
+function createOccasionState() {
+    return { current: null, turn: 0, rolledTurn: -1, lastOfferTurn: -9, pity: 0 };
+}
+
+function occasionContext() {
+    const enemy = gameState.currentEnemy;
+    const st = (enemy && enemy.status) || {};
+    return {
+        distance: gameState.combatDistance || 0,
+        hasRanged: !!gameState.equipment.ranged,
+        disarmed: !!(gameState.status.disarmed && gameState.status.disarmed.rounds > 0),
+        isBoss: !!(enemy && enemy.isBoss),
+        immobilized: !!(st.stunned || (st.immobilized && st.immobilized.rounds > 0))
+    };
+}
+
+// Tire l'Occasion du tour courant (une seule fois par tour, au premier rafraîchissement de l'interface de ce tour).
+function rollCombatOccasion() {
+    const occ = gameState.occasion;
+    if (!occ || !gameState.inCombat || !gameState.currentEnemy || gameState.currentEnemy.hp <= 0) return; // pas d'Occasion pendant un Coup de grâce
+    if (occ.rolledTurn === occ.turn) return;
+    occ.rolledTurn = occ.turn;
+    occ.current = null;
+    if (!minigameIsInteractive()) return;
+    const type = decideOccasion({
+        ctx: occasionContext(), mode: getMinigameMode(),
+        skillLevels: { unarmed: gameState.skills.unarmed.level, weapon: gameState.skills.weapon.level },
+        turn: occ.turn, lastOfferTurn: occ.lastOfferTurn, pity: occ.pity
+    });
+    if (!type) return;
+    occ.current = { type };
+    occ.lastOfferTurn = occ.turn;
+    occ.pity = 0;
+}
+
+// Bouton « ✨ Occasion » : visible seulement si une Occasion est proposée ET encore possible (la situation a pu changer pendant la riposte).
+function updateOccasionButton() {
+    const btn = ui.btnOccasion;
+    if (!btn) return;
+    const occ = gameState.occasion;
+    const cur = gameState.inCombat && gameState.currentEnemy && occ && occ.current;
+    const valid = !!cur && occasionStillValid(cur.type, occasionContext());
+    btn.classList.toggle('hidden', !valid);
+    if (valid) {
+        const t = OCCASION_TYPES[cur.type];
+        const label = `✨ Occasion : ${t.icon} ${t.label}`;
+        if (btn.innerText !== label) btn.innerText = label;
+    }
+}
+
+function buildOccasionSpec(type) {
+    const unarmed = gameState.skills.unarmed.level, weapon = gameState.skills.weapon.level;
+    switch (type) {
+        case 'immobilize': return buildMinigameSpec('grapple', { zoneWidth: holdZoneWidth('grapple', unarmed) });
+        case 'strangle': return buildMinigameSpec('choke', { zoneWidth: holdZoneWidth('choke', unarmed) });
+        case 'target': return buildMinigameSpec('target', { distance: gameState.combatDistance, skillLevel: weapon });
+        default: return buildMinigameSpec('weakpoint');
+    }
+}
+
+function startOccasion() {
+    const occ = gameState.occasion;
+    if (!occ || !occ.current || !gameState.inCombat || !gameState.currentEnemy) return;
+    if (gameState.pendingMinigame || (ui.btnOccasion && ui.btnOccasion.disabled)) return; // épreuve déjà ouverte, ou tour de l'ennemi en cours
+    const type = occ.current.type;
+    if (!occasionStillValid(type, occasionContext())) { occ.current = null; updateOccasionButton(); return; }
+    occ.current = null;
+    updateOccasionButton();
+    startMinigame(buildOccasionSpec(type), (outcome, detail) => {
+        if (!gameState.inCombat || !gameState.currentEnemy) return; // le combat s'est terminé entre-temps
+        resolveOccasion(type, outcome, detail || {});
+    });
+}
+
+// Applique l'issue d'une Occasion. Échec = tour perdu (la riposte suit normalement), sans autre pénalité.
+function resolveOccasion(type, outcome, detail) {
+    if (!tryPlayerAction()) return; // saignement mortel ou joueur étourdi : le tour est déjà réglé par tryPlayerAction()
+    const enemy = gameState.currentEnemy;
+    const failed = outcome === 'fail';
+    const mg = MINIGAME_SETTINGS;
+    const t = OCCASION_TYPES[type];
+    const lostTurn = (msg) => {
+        showDie(ui.combatPlayerDie, "✗");
+        logEvent(msg, "danger");
+        gainSkillXp(t.skill, SKILL_XP_PER_USE); // on apprend même de ses échecs, comme pour un sort raté
+        resolveEnemyReaction();
+    };
+
+    if (type === 'immobilize') {
+        gameState.lastAttackKind = 'unarmed'; // Posture du crawler : garde du boxeur
+        if (failed) { lostTurn(`🤼 [${enemy.name}] se dégage de votre prise. Tour perdu.`); return; }
+        const rounds = grappleRounds(outcome, !!enemy.isBoss);
+        enemy.status.immobilized = { rounds };
+        showDie(ui.combatPlayerDie, "🤼");
+        logEvent(`🤼 Vous plaquez [${enemy.name}] : immobilisé ${rounds} tour${rounds > 1 ? 's' : ''}${enemy.isBoss ? " (un boss ne résiste pas plus d'un tour)" : ''}.`, "success");
+        gainSkillXp('unarmed', SKILL_XP_PER_USE);
+        resolveEnemyReaction();
+        return;
+    }
+
+    if (type === 'strangle') {
+        gameState.lastAttackKind = 'unarmed';
+        if (failed) { lostTurn(`🪢 [${enemy.name}] se débat et vous échappe. Tour perdu.`); return; }
+        const skill = gameState.skills.unarmed;
+        const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1));
+        const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * mg.choke.damageMult, varianceRange: 0.10, defReduction }, "en l'étranglant");
+        if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
+        return;
+    }
+
+    // Tir : Cible de précision ou Point faible, avec l'arme à distance équipée.
+    gameState.lastAttackKind = 'ranged';
+    const gear = gameState.equipment.ranged;
+    if (failed || !gear) { lostTurn(type === 'target' ? "🎯 Votre tir passe à côté de la cible. Tour perdu." : "🦴 Vous hésitez trop longtemps : l'occasion est passée. Tour perdu."); return; }
+    let mult = 1;
+    let label = "d'un tir ajusté";
+    if (type === 'target') {
+        mult = outcome === 'perfect' ? mg.target.perfectMult : mg.target.successMult;
+        label = outcome === 'perfect' ? "en plein centre de la cible" : "d'un tir ajusté";
+    } else {
+        const zone = WEAKPOINT_ZONES[detail.zone] || WEAKPOINT_ZONES.head;
+        mult = zone.dmgMult;
+        label = `sur le point faible (${zone.label.toLowerCase()})`;
+        // Les effets s'appliquent AVANT le coup : la riposte qui suit en tient compte.
+        if (zone.weaken) { enemy.status.weakened = { mult: zone.weaken.mult, rounds: zone.weaken.rounds }; logEvent(`💪 Le bras de [${enemy.name}] est touché : son ATQ baisse.`, "info"); }
+        if (zone.push) { setCombatDistance(gameState.combatDistance + zone.push); logEvent(`🦵 La jambe de [${enemy.name}] cède : il recule d'un cran.`, "info"); }
+    }
+    const skill = gameState.skills.weapon;
+    const atkMultiplier = (1.0 + 0.04 * (skill.level - 1)) * mult;
+    const effectiveAtk = gameState.atk + (gear.baseDmg || 0);
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier, varianceRange: 0.15, defReduction: 0, gear }, label);
+    if (landed) {
+        gainSkillXp('weapon', SKILL_XP_PER_USE);
+        applyWeaponMechanic(gear);
+    }
+}
+
 // S'approcher : action dédiée au rapprochement, à la place d'une attaque. Toujours disponible dès
 // qu'un écart sépare les deux camps (distance > 0 — grisé sinon, voir updateUI()), quel que soit le
 // type de mob. Ne porte JAMAIS de dégâts et ne déclenche aucune mécanique d'arme ni XP de
@@ -7042,6 +7611,33 @@ function attackMagic() {
         logEvent(`Mana insuffisant pour lancer [${spell.spellName}] (${manaCost} requis).`, "danger");
         return;
     }
+    // Glyphe (chantier 6, V1) : OPTIONNEL, proposé APRÈS les vérifications (jamais de glyphe gâché sur un sort impossible) et
+    // avant l'action. Réussi, il renforce le sort ; raté, passé ou en jet automatique : sort normal, sans aucun malus.
+    const glyphSpec = anyRange ? null : maybeGlyphSpec(spell);
+    if (glyphSpec) {
+        startMinigame(glyphSpec, (outcome, detail) => {
+            if (!gameState.inCombat || !gameState.currentEnemy) return; // le combat s'est terminé entre-temps
+            castEquippedSpell(spell, manaCost, !(detail && detail.auto) && outcome !== 'fail');
+        });
+        return;
+    }
+    castEquippedSpell(spell, manaCost, false);
+}
+
+// Glyphe proposé pour ce sort ? Seulement avec une interface interactive et selon le réglage (Réduit : plus rarement) ;
+// jamais pour un sort utilitaire ni un sort sans motif.
+function maybeGlyphSpec(spell) {
+    if (!minigameIsInteractive()) return null;
+    const pattern = getGlyphPattern(spell);
+    if (!pattern) return null;
+    const chance = MINIGAME_SETTINGS.glyph.chancePct[getMinigameMode()] || 0;
+    if (Math.random() * 100 >= chance) return null;
+    return buildMinigameSpec('glyph', { pattern, label: `Glyphe : ${spell.spellName}` });
+}
+
+// Lance le sort équipé (après vérifications et glyphe éventuel). `glyphBoost` : glyphe réussi.
+function castEquippedSpell(spell, manaCost, glyphBoost) {
+    const anyRange = spell.spellCategory === 'any';
     if (!tryPlayerAction()) return;
     gameState.lastAttackKind = 'magic'; // Posture du crawler (scene.js) : paume ouverte, lueur du sort
 
@@ -7061,7 +7657,12 @@ function attackMagic() {
     if (channeled) backfireChance = Math.max(1, backfireChance - channeled.bonus);
     const stutter = getItemQualifierValues(spell, 'stutter', 'spell');
     if (stutter) backfireChance += stutter.bonus;
-    const atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
+    let atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
+    if (glyphBoost) {
+        atkMultiplier *= mb.glyphDamageMult;
+        backfireChance *= mb.glyphBackfireMult;
+        logEvent(`✍️ Le glyphe renforce [${spell.spellName}] (dégâts +${Math.round((mb.glyphDamageMult - 1) * 100)} %, risque de raté ÷${Math.round(1 / mb.glyphBackfireMult)}).`, "success");
+    }
 
     if (Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
@@ -7233,7 +7834,7 @@ function winCombat() {
         const itemLevel = gameState.currentFloor + (isLairBoss ? itemBalance.lairBossLevelBonus : 0);
         addLoot({ source: 'boss', itemLevel });
         if (Math.random() * 100 < itemBalance.boss.secondItemChance) addLoot({ source: 'boss', itemLevel });
-        awardBossSignatureItem(defeatedEnemy, itemLevel);
+        awardBossSignatureItem(defeatedEnemy, itemLevel, { perfectFinisher: !!defeatedEnemy.finisherPerfect, perfects: defeatedEnemy.trials ? defeatedEnemy.trials.perfects : 0 });
     } else if (!(defeatedEnemy && defeatedEnemy.isBountyHunter) && Math.random() * 100 < 40) { // 40% de chance de loot post-combat (un chasseur de primes paie sa propre récompense, voir onBountyVictory())
         addLoot({ source: defeatedEnemy && isEliteMob(defeatedEnemy) ? 'elite' : 'mob' });
     }
@@ -7675,6 +8276,7 @@ if (ui.btnManageSavesRestoreBackup) ui.btnManageSavesRestoreBackup.addEventListe
 ui.btnAttackWeapon.addEventListener('click', attackWeapon);
 ui.btnAttackRanged.addEventListener('click', attackRanged);
 ui.btnAttackUnarmed.addEventListener('click', attackUnarmed);
+if (ui.btnOccasion) ui.btnOccasion.addEventListener('click', startOccasion);
 ui.btnAttackMagic.addEventListener('click', attackMagic);
 if (ui.btnSprint) ui.btnSprint.addEventListener('click', attemptSprint);
 if (ui.btnRetreat) ui.btnRetreat.addEventListener('click', attemptRetreat);
@@ -7729,6 +8331,13 @@ if (ui.btnCloseAchievements) ui.btnCloseAchievements.addEventListener('click', c
 // Clics sur l'écran marchand/professeur (ville spécialisée)
 ui.btnTrainSkill.addEventListener('click', trainSkill);
 ui.btnLeaveShop.addEventListener('click', leaveShop);
+if (ui.arcadeStake) {
+    ui.arcadeStake.addEventListener('input', () => { arcadeMessage = { text: "", tone: "info" }; if (ui.arcadeMessage) ui.arcadeMessage.innerText = ""; updateArcadeUI(); });
+    ui.shopArcadeContent.addEventListener('click', e => {
+        const btn = e.target && e.target.closest ? e.target.closest('[data-arcade-stake]') : null;
+        if (btn) setArcadeStakePreset(btn.dataset.arcadeStake);
+    });
+}
 
 // Clics sur le choix "plonger/poursuivre" d'un repaire repéré sur la route
 ui.btnDiveLair.addEventListener('click', diveIntoLair);
@@ -7758,6 +8367,8 @@ if (ui.btnFloorMapRecenter) ui.btnFloorMapRecenter.addEventListener('click', rec
 // Clic sur le kit de test (bouton discret)
 ui.btnDevTestKit.addEventListener('click', giveTestKit);
 ui.btnDevJumpUrban.addEventListener('click', devJumpToUrbanFloor);
+if (ui.btnDevMinigame) ui.btnDevMinigame.addEventListener('click', devTestMinigame);
+initMinigameUi(); // Mini-jeux (chantier 6) : réglage, clavier, pause d'onglet
 
 // Lancement du jeu
 generateFloorMap();

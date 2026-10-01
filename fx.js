@@ -18,7 +18,7 @@ const FX_MAX_IMPACT_MS = 260;
 const FX_SAFETY_MS = 600; // filet si requestAnimationFrame est suspendu (onglet masqué)
 const FX_SVG_NS = 'http://www.w3.org/2000/svg';
 const FX_PROJECTILE_SCALE = 1.5; // les projectiles sont dessinés petits : agrandis dans la scène
-const activeFx = { crawler: null, mob: null };
+const activeFx = { crawler: null, mob: null, mini: null }; // mini : issue d'un mini-jeu (chantier 6)
 
 // --- Outils -------------------------------------------------------------------------------------------
 const fxClamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
@@ -33,7 +33,9 @@ function fxJitter() {
     return fxJitterSeed / 0x7fffffff - 0.5;
 }
 
-function fxLayer() { return document.getElementById('scene-fx'); }
+// Calque d'effets de la scène affichée : celui du combat, sauf pendant l'issue d'un mini-jeu d'exploration (fxLayerOverride).
+let fxLayerOverride = null;
+function fxLayer() { return document.getElementById(fxLayerOverride || 'scene-fx'); }
 function fxAnimated() {
     return typeof requestAnimationFrame === 'function' && typeof document.createElementNS === 'function' && !!fxLayer();
 }
@@ -197,12 +199,13 @@ function runFx(actor, fx, onImpact) {
     let start = null;
     let paused = 0;
     let freezeAt = 0;
+    const hitstop = typeof fx.hitstopMs === 'number' ? fx.hitstopMs : FX_HITSTOP_MS; // Parfait d'un mini-jeu : gel plus long
     const tick = now => {
         if (run.done) return;
         if (start === null) start = now;
         if (fxSkipRequested()) { run.finish(); return; }
         if (freezeAt) {
-            if (now - freezeAt < FX_HITSTOP_MS) { requestAnimationFrame(tick); return; }
+            if (now - freezeAt < hitstop) { requestAnimationFrame(tick); return; }
             paused += now - freezeAt;
             freezeAt = 0;
         }
@@ -220,7 +223,7 @@ function runFx(actor, fx, onImpact) {
         requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
-    setTimeout(run.finish, fx.duration + FX_HITSTOP_MS + FX_SAFETY_MS);
+    setTimeout(run.finish, fx.duration + hitstop + FX_SAFETY_MS);
 }
 
 // Fin immédiate de tous les effets en cours (skip, fin de combat).
@@ -714,9 +717,36 @@ function playMobAttackFx(enemy, opts, onImpact) {
     runFx('mob', fx, onImpact);
 }
 
+// Issue d'un mini-jeu (chantier 6) : éclat sur la cible (minigameOutcomeFxSpec(), minigames.js), gel d'impact
+// propre à l'issue et, pour un Parfait, secousse d'écran. `onDone` est appelé UNE fois à la fin de l'effet (filet
+// de sécurité de runFx compris) — ou tout de suite hors combat / sans animation (tests Node) : le jeu n'attend
+// jamais une animation qui n'existe pas.
+function playMinigameOutcomeFx(spec, onDone) {
+    let called = false;
+    const done = () => { if (called) return; called = true; if (onDone) onDone(); };
+    // Hors combat, seule une épreuve d'exploration (cible « prop » : coffre, piège) joue un effet, sur le calque de la
+    // scène d'exploration ; un effet générique sans cible d'exploration n'a rien à montrer.
+    const exploring = !gameState.inCombat;
+    if (!spec || (exploring && spec.target !== 'prop') || !fxAnimated()) { done(); return; }
+    const reduced = fxReducedMotion();
+    let x, y;
+    if (exploring && spec.at) [x, y] = spec.at;
+    else [x, y] = (spec.target === 'crawler' || spec.target === 'prop' || !gameState.currentEnemy) ? fxCrawlerHitPoint() : fxMobHitPoint();
+    let burst = null;
+    runFx('mini', {
+        impactAt: 0,
+        duration: spec.durationMs || 340,
+        hitstopMs: spec.hitstopMs,
+        start() { if (exploring) fxLayerOverride = 'explore-fx'; burst = fxBurst(spec.burst, spec.color, x, y, { big: !!spec.heavy, reduced }); },
+        update(t) { if (burst) burst.update(t); },
+        impact() { if (spec.heavy && typeof triggerHeavyImpact === 'function') triggerHeavyImpact(); },
+        cleanup() { if (burst) fxRemove(burst.el); fxLayerOverride = null; done(); }
+    }, null);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
-        fxCrescentPath, fxStreakPath, fxZigzagPath, fxArcPoint, playerAttackFxSpec, mobAttackFxSpec,
+        playMinigameOutcomeFx, fxCrescentPath, fxStreakPath, fxZigzagPath, fxArcPoint, playerAttackFxSpec, mobAttackFxSpec,
         playPlayerAttackFx, playMobAttackFx, playSpellBackfireFx, finishAllFx, FX_HITSTOP_MS, FX_MAX_IMPACT_MS
     };
 }

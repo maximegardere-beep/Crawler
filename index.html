@@ -391,6 +391,33 @@
         #player-profile > summary::-webkit-details-marker {
             display: none;
         }
+    
+        /* Mini-jeux (chantier 6) : bande en bas de l'écran (jamais un overlay plein écran : la scène reste visible).
+           Hors combat elle se pose au-dessus de la barre d'icônes (#bottom-nav, masquée en combat). */
+        .minigame-strip { position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom) + 84px); z-index: 45; padding: 0 12px; touch-action: none; }
+        .minigame-strip.in-combat { bottom: calc(env(safe-area-inset-bottom) + 8px); }
+        .minigame-banner { position: fixed; top: 34%; left: 50%; transform: translateX(-50%); z-index: 60; pointer-events: none; font-weight: 900; font-size: 1.6rem; letter-spacing: 0.12em; text-transform: uppercase; text-shadow: 0 2px 10px rgba(0,0,0,0.85); animation: minigameBannerPop 0.7s ease-out forwards; }
+        @keyframes minigameBannerPop { 0% { opacity: 0; transform: translateX(-50%) scale(0.7); } 25% { opacity: 1; transform: translateX(-50%) scale(1.12); } 100% { opacity: 0; transform: translateX(-50%) scale(1); } }
+        @media (prefers-reduced-motion: reduce) { .minigame-banner { animation: none; } }
+        .occasion-btn { animation: occasionPulse 1.3s ease-in-out infinite; }
+        @keyframes occasionPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.55); } 50% { box-shadow: 0 0 14px 3px rgba(250, 204, 21, 0.45); } }
+        @media (prefers-reduced-motion: reduce) { .occasion-btn { animation: none; } }
+        /* Coup de grâce (chantier 6, V3) : bandes de cinéma, flash et mention. Sous prefers-reduced-motion : même rendu, sans mouvement. */
+        .finisher-cinema { position: fixed; inset: 0; z-index: 58; pointer-events: none; }
+        .finisher-cinema .cinema-bar { position: absolute; left: 0; right: 0; height: 15vh; background: #000; animation: cinemaBarIn 0.25s ease-out forwards; }
+        .finisher-cinema .cinema-top { top: 0; transform: translateY(-100%); }
+        .finisher-cinema .cinema-bottom { bottom: 0; transform: translateY(100%); animation-name: cinemaBarInBottom; }
+        .finisher-cinema .cinema-flash { position: absolute; inset: 0; background: #fff; opacity: 0; animation: cinemaFlash 0.75s ease-out forwards; }
+        .finisher-cinema.finisher-perfect .cinema-flash { background: #fde047; }
+        .finisher-cinema .cinema-text { position: absolute; left: 0; right: 0; top: 50%; text-align: center; font-weight: 900; letter-spacing: 0.18em; font-size: 1.3rem; color: #fff; text-shadow: 0 2px 12px #000; text-transform: uppercase; }
+        .finisher-cinema.finisher-perfect .cinema-text { color: #facc15; }
+        @keyframes cinemaBarIn { to { transform: translateY(0); } }
+        @keyframes cinemaBarInBottom { to { transform: translateY(0); } }
+        @keyframes cinemaFlash { 0%, 30% { opacity: 0; } 45% { opacity: 0.85; } 100% { opacity: 0; } }
+        @media (prefers-reduced-motion: reduce) {
+            .finisher-cinema .cinema-bar { animation: none; transform: none; }
+            .finisher-cinema .cinema-flash { animation: none; opacity: 0.25; }
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-gray-200 min-h-screen flex justify-center items-center pt-6 pb-32 px-4 selection:bg-blue-900 selection:text-white">
@@ -536,6 +563,7 @@
                 <svg id="explore-scene-svg" viewBox="0 0 360 150" class="absolute inset-0 w-full h-full" aria-hidden="true">
                     <g id="explore-scene-backdrop"></g>
                     <g id="explore-scene-vignette"></g>
+                    <g id="explore-fx" pointer-events="none"></g>
                 </svg>
                 <!-- Repli sans vignette : l'emoji de l'événement, centré sur fond sombre. -->
                 <div id="explore-icon" class="absolute inset-0 flex items-center justify-center text-5xl bg-gray-950">🚪</div>
@@ -705,6 +733,10 @@
                  Charger : alternative agressive à S'approcher (Chantier 3 du rework combat) — ferme
                  l'écart d'un coup ET enchaîne une attaque bonus, au prix d'une DEF divisée par 2 pour
                  la riposte qui suit. Voir attemptEngage(). -->
+            <!-- Occasion (chantier 6, V2) : action spéciale proposée au hasard au début d'un tour (Immobiliser, Étrangler, Cible,
+                 Point faible). Visible ce tour seulement, voir rollCombatOccasion()/startOccasion() dans app.js. -->
+            <button id="btn-occasion" class="hidden occasion-btn w-full min-h-[48px] mb-2 px-3 py-2 bg-yellow-950/50 border-2 border-yellow-400 hover:bg-yellow-900/50 rounded text-sm font-black text-yellow-200 uppercase tracking-widest transition-all"></button>
+
             <div class="grid grid-cols-3 gap-2 mb-2">
                 <button id="btn-sprint" class="min-h-[44px] px-1 py-2 bg-gray-900 border border-amber-700/80 hover:border-amber-400 hover:bg-amber-900/30 rounded text-[11px] leading-tight text-amber-400 uppercase transition-all">
                     <span class="block" aria-hidden="true">🏃</span>S'approcher
@@ -924,6 +956,21 @@
                 </button>
             </div>
 
+            <div id="shop-arcade-content" class="hidden flex-col gap-2">
+                <p class="text-[10px] text-gray-500">Misez, jouez, empochez. Une partie coûte 1 H ; la mise est prélevée avant de jouer.</p>
+                <div class="flex items-center gap-1.5">
+                    <label for="arcade-stake" class="text-[10px] uppercase tracking-widest text-gray-500 shrink-0">Mise (PO)</label>
+                    <input id="arcade-stake" type="number" min="1" step="1" inputmode="numeric" value="10" class="w-20 px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-xs text-yellow-300 text-right">
+                    <button type="button" data-arcade-stake="min" class="px-2 py-1.5 bg-gray-900 border border-gray-700 hover:border-yellow-600 rounded text-[10px] text-gray-400 uppercase">Min</button>
+                    <button type="button" data-arcade-stake="half" class="px-2 py-1.5 bg-gray-900 border border-gray-700 hover:border-yellow-600 rounded text-[10px] text-gray-400">½</button>
+                    <button type="button" data-arcade-stake="max" class="px-2 py-1.5 bg-gray-900 border border-gray-700 hover:border-yellow-600 rounded text-[10px] text-gray-400 uppercase">Max</button>
+                </div>
+                <p id="arcade-stake-info" class="text-[10px] text-gray-500"></p>
+                <div id="arcade-games" class="grid grid-cols-2 gap-2"></div>
+                <div id="arcade-rounds" class="flex items-center justify-center gap-1.5 min-h-[18px] text-sm"></div>
+                <p id="arcade-message" class="text-[11px] text-gray-300 min-h-[1.5rem]"></p>
+            </div>
+
             <button id="btn-leave-shop" class="w-full mt-3 px-3 py-2 bg-gray-900 border border-gray-700 hover:border-gray-400 hover:bg-gray-800/50 rounded text-xs text-gray-400 uppercase tracking-wider transition-all">
                 👋 Partir
             </button>
@@ -951,6 +998,24 @@
         <!-- 6. Menu DEV (repli discret) : outils de développement sans lien avec la progression
              normale d'une run. Kit de Test (giveTestKit()) + saut direct à l'étage 3 pour tester le
              réseau urbain sans traverser les étages précédents (devJumpToUrbanFloor()), voir app.js. -->
+        <!-- Réglages (repli discret) : mini-jeux en Jouer / Réduit (moins souvent) / Jet automatique
+             (résolution par un jet, accessibilité). Voir minigames-ui.js. -->
+        <div class="absolute bottom-2 left-4">
+            <details id="settings-menu">
+                <summary class="text-[10px] text-gray-700 hover:text-gray-400 transition-colors uppercase tracking-widest cursor-pointer list-none select-none">
+                    ⚙️ Réglages
+                </summary>
+                <div class="absolute bottom-full left-0 mb-2 w-52 flex flex-col gap-1 bg-gray-950 border border-gray-800 rounded-lg p-2 shadow-lg z-30">
+                    <label for="minigame-mode-select" class="text-[10px] text-gray-400 uppercase tracking-widest">🎮 Mini-jeux</label>
+                    <select id="minigame-mode-select" class="min-h-[36px] bg-gray-900 border border-gray-700 rounded text-xs text-gray-300 px-2">
+                        <option value="play">Jouer</option>
+                        <option value="reduced">Réduit (moins souvent)</option>
+                        <option value="auto">Jet automatique</option>
+                    </select>
+                </div>
+            </details>
+        </div>
+
         <div class="absolute bottom-2 right-4">
             <details id="dev-menu">
                 <summary class="text-[10px] text-gray-700 hover:text-gray-400 transition-colors uppercase tracking-widest cursor-pointer list-none select-none">
@@ -959,6 +1024,9 @@
                 <div class="absolute bottom-full right-0 mb-2 w-44 flex flex-col gap-1 bg-gray-950 border border-gray-800 rounded-lg p-2 shadow-lg z-30">
                     <button id="btn-dev-testkit" class="text-left text-[10px] text-gray-500 hover:text-gray-300 transition-colors uppercase tracking-widest cursor-pointer py-1">
                         🧪 Kit de Test
+                    </button>
+                    <button id="btn-dev-minigame" class="text-left text-[10px] text-gray-500 hover:text-gray-300 transition-colors uppercase tracking-widest cursor-pointer py-1">
+                        🎮 Essayer un mini-jeu
                     </button>
                     <button id="btn-dev-jump-urban" class="text-left text-[10px] text-gray-500 hover:text-gray-300 transition-colors uppercase tracking-widest cursor-pointer py-1">
                         🏙️ Aller à l'étage 3
@@ -1226,34 +1294,60 @@
     </div>
 
     <!-- Scripts chargés dans le bon ordre : catalogues de données, puis générateur, puis moteur principal -->
-    <script src="bestiary.js?v=45"></script>
-    <script src="items.js?v=45"></script>
-    <script src="spells.js?v=45"></script>
-    <script src="districts.js?v=45"></script>
-    <script src="safehouses.js?v=45"></script>
-    <script src="generator.js?v=45"></script>
-    <script src="anomalies.js?v=45"></script>
-    <script src="achievements.js?v=45"></script>
-    <script src="deathwatch.js?v=45"></script>
-    <script src="floorgen.js?v=45"></script>
-    <script src="floormap.js?v=45"></script>
-    <script src="sprites/crawler.js?v=45"></script>
-    <script src="sprites/npcs.js?v=45"></script>
-    <script src="sprites/mobs.js?v=45"></script>
-    <script src="sprites/mob-details-a.js?v=45"></script>
-    <script src="sprites/mob-details-b.js?v=45"></script>
-    <script src="sprites/mob-auras.js?v=45"></script>
-    <script src="sprites/bosses-a.js?v=45"></script>
-    <script src="sprites/bosses-b.js?v=45"></script>
-    <script src="sprites/items-generic.js?v=45"></script>
-    <script src="sprites/items-melee.js?v=45"></script>
-    <script src="sprites/items-ranged.js?v=45"></script>
-    <script src="sprites/items-armor.js?v=45"></script>
-    <script src="sprites/items-signature.js?v=45"></script>
-    <script src="sprites/fx.js?v=45"></script>
-    <script src="backdrops.js?v=45"></script>
-    <script src="scene.js?v=45"></script>
-    <script src="fx.js?v=45"></script>
-    <script src="app.js?v=45"></script>
+
+    <!-- Mini-jeux (chantier 6) : bande de jeu en bas de l'écran + bannière d'issue, pilotées par minigames-ui.js.
+         Consigne en une icône et quelques mots, jamais de fenêtre de résultat. Échap = Passer. -->
+    <div id="minigame-strip" class="minigame-strip hidden" role="group" aria-label="Mini-jeu">
+        <div class="max-w-xl mx-auto bg-gray-950/95 border border-amber-700/70 rounded-lg p-3 shadow-[0_0_24px_rgba(0,0,0,0.7)]">
+            <div class="flex items-center justify-between gap-2 mb-2">
+                <span id="minigame-title" class="text-xs font-bold text-amber-300 uppercase tracking-widest"></span>
+                <button id="minigame-skip" class="min-h-[44px] px-3 text-[11px] text-gray-400 hover:text-gray-200 border border-gray-700 rounded uppercase tracking-widest">Passer</button>
+            </div>
+            <div class="w-full bg-gray-900 rounded-full h-1.5 border border-gray-800 overflow-hidden mb-2">
+                <div id="minigame-timer-bar" class="bg-amber-500 h-full rounded-full" style="width:100%"></div>
+            </div>
+            <p id="minigame-hint" class="hidden text-[11px] text-gray-400 mb-2"></p>
+            <div id="minigame-body"></div>
+        </div>
+    </div>
+    <div id="minigame-banner" class="minigame-banner hidden" aria-live="polite"></div>
+
+    <!-- Cinématique du Coup de grâce (chantier 6, V3) : jouée par playFinisherCinematic() (minigames-ui.js). -->
+    <div id="finisher-cinema" class="finisher-cinema hidden" aria-hidden="true">
+        <div class="cinema-bar cinema-top"></div><div class="cinema-bar cinema-bottom"></div><div class="cinema-flash"></div>
+        <div id="finisher-cinema-text" class="cinema-text">COUP DE GRÂCE</div>
+    </div>
+
+    <script src="bestiary.js?v=51"></script>
+    <script src="items.js?v=51"></script>
+    <script src="spells.js?v=51"></script>
+    <script src="districts.js?v=51"></script>
+    <script src="safehouses.js?v=51"></script>
+    <script src="generator.js?v=51"></script>
+    <script src="anomalies.js?v=51"></script>
+    <script src="achievements.js?v=51"></script>
+    <script src="deathwatch.js?v=51"></script>
+    <script src="floorgen.js?v=51"></script>
+    <script src="floormap.js?v=51"></script>
+    <script src="minigames.js?v=51"></script>
+    <script src="sprites/crawler.js?v=51"></script>
+    <script src="sprites/npcs.js?v=51"></script>
+    <script src="sprites/mobs.js?v=51"></script>
+    <script src="sprites/mob-details-a.js?v=51"></script>
+    <script src="sprites/mob-details-b.js?v=51"></script>
+    <script src="sprites/mob-auras.js?v=51"></script>
+    <script src="sprites/bosses-a.js?v=51"></script>
+    <script src="sprites/bosses-b.js?v=51"></script>
+    <script src="sprites/items-generic.js?v=51"></script>
+    <script src="sprites/items-melee.js?v=51"></script>
+    <script src="sprites/items-ranged.js?v=51"></script>
+    <script src="sprites/items-armor.js?v=51"></script>
+    <script src="sprites/items-signature.js?v=51"></script>
+    <script src="sprites/fx.js?v=51"></script>
+    <script src="backdrops.js?v=51"></script>
+    <script src="scene.js?v=51"></script>
+    <script src="fx.js?v=51"></script>
+    <script src="minigames-ui.js?v=51"></script>
+    <script src="app.js?v=51"></script>
 </body>
 </html>

@@ -42,10 +42,10 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 
 | # | Chantier | Ampleur | Statut | Bloqué par |
 |---|----------|---------|--------|------------|
-| 6 | Mini-jeux (adresse + glyphes de sorts) | L | Exploré (cadrage) | correctif de bug d'abord |
+| 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Codé (à playtester) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
-| 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage) | correctif de bug d'abord |
+| 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage, en pause) | liste chiffrée à valider |
 
 ### Codés (à playtester)
 
@@ -189,9 +189,69 @@ sort). Épreuves à compétences (→ chantier 7), paris et défis de l'émissio
 **Décidé (round 2)** : glyphe **optionnel, pour renforcer** un sort (réussi = bonus, raté = sort normal ou
 petit risque de backfire).
 
-**À trancher (prochain round)** : échec d'un
-jeu d'adresse = dégâts, temps ou perte du butin ; fréquence ; option d'accessibilité (résolution automatique
-par un jet, comme avant).
+**Décidé (round 3)** : échec d'un jeu d'adresse = **conséquence normale de l'événement** (piège qui se
+déclenche, butin réduit — jamais mortel à lui seul) ; accroche = **événements piège + coffre** existants
+(`resolveCardEvent()`), pas de nouvelle salle ; accessibilité = option **« jet automatique »** (réglage + bouton
+Passer, aussi utilisé par la simulation longue et les tests) ; glyphe = **relier des points dans l'ordre**, propre
+à chaque sort.
+
+**Décidé (round 4 — mini-jeux de combat et compléments)** : en plus du crochetage, du désamorçage et du glyphe :
+- **Mains nues** : **Immobiliser** (prise, mob immobilisé 1-2 tours, 1 tour pour un boss) puis **Étrangler**
+  (finisseur sur mob immobilisé/étourdi, dégâts ×3, jamais sur un boss).
+- **Tir** : **Cible de précision** (cible plus petite quand l'écart est grand) et **Points faibles** (tête = dégâts,
+  bras = −ATQ du mob, jambe = recul d'un cran).
+- **Compléments** : **Parade au télégraphe** (armes de mêlée, attaque lourde annoncée d'un boss) et **stand de tir /
+  ring en ville** (paris de PO, nouveau puits à PO — à cadrer à part, lié au chantier 7).
+- **Déclenchement en combat** : action spéciale **proposée de manière aléatoire** au début (pas de bouton
+  permanent ni de temps de recharge) ; chance et affichage à valider.
+- Ampleur revue à **XL** : à livrer en trois temps — V1 (crochetage, désamorçage, glyphe), V2 (mains nues, tir,
+  parade), V3 (stand / ring).
+
+**Décidé (round 5)** : échec d'une action spéciale de combat = **tour perdu, sans autre pénalité** ; Occasion à
+**25 % par tour** (bouton mis en avant pour ce tour seulement, chance un peu relevée par le niveau de la
+compétence liée) ; Immobiliser = **maintenir le doigt dans une zone mouvante** (~3 s) ; stand de tir et ring =
+**nouvelle salle « salle de jeux »** dans 1 à 2 villes par étage urbain (V3, à cadrer : mises, jeux, gains).
+
+**Décidé (round 6 — mini-jeux de boss, fluidité, animations)** :
+- **Épreuves de boss** (V3) : **Parade au télégraphe**, **Briser la garde** (toucher le point faible quand le boss
+  se hérisse) et **Coup de grâce** (boss sous ~10 % de PV, mini-jeu selon l'arme). Épreuves de transition de phase
+  **non retenues** pour l'instant. **3 à 4 épreuves par boss**, plafonné (les télégraphes suivants se résolvent
+  automatiquement). Issues communes : Parfait / Réussi / Raté ; un raté = **aucune pénalité supplémentaire** (le
+  comportement actuel du boss). Jet automatique possible partout (il ne donne jamais de Parfait).
+- **Récompense d'un Parfait** : l'**arme signature** du boss n'est plus garantie à la 1re victoire mais
+  **100 % avec un Parfait, 0 % sans** ; avec 3 Parfaits ou plus, elle reçoit en plus **un qualificatif
+  supplémentaire**.
+- **Fluidité** (principes retenus) : mini-jeu dans une bande en bas de `#combat-zone` (jamais un overlay plein
+  écran), pas de fenêtre de résultat (l'issue passe par l'animation + une ligne de log), consigne en une icône,
+  durée plafonnée (3 s mob / 5 s boss, temps écoulé = Raté), skip Espace/Entrée/Passer, pause si l'onglet perd le
+  focus, anti-répétition de l'Occasion, réglage Jouer / Réduit / Jet auto, haptique, `startMinigame(spec,
+  onResult)` par callbacks (jamais de Promise) avec une étape « interactive » du séquenceur de beats.
+- **Animations d'issue** : trois issues (Parfait / Réussi / Raté) par épreuve, `minigameOutcomeFxSpec(kind,
+  outcome)` pure et testée (une entrée exigée par épreuve × issue), gel de 120 ms et secousse d'écran réservés à
+  Parfait et à la Parade. Livrées avec chaque mini-jeu.
+- **Succès et piques DeathWatch** liés aux issues : lot final (`recordRunEvent('minigame', …)`).
+- **Plan révisé** : lot 0 (hôte d'épreuve, bande d'UI, réglages, cadre des animations) → V1 (crochetage, désamorçage,
+  glyphe) → V2 (mains nues, tir) → V3 (boss) → V4 (salle de jeux) → lot final (succès, piques, notes, version).
+- **Tranché** : (1) l'arme signature est **strictement conditionnée au Parfait** (pas de plancher : sans Parfait,
+  elle ne tombe pas, même à la 1re victoire) — conséquence assumée : en jet automatique (qui ne donne jamais de
+  Parfait), on ne l'obtient plus ; (2) **le Parfait qui compte est celui du Coup de grâce**. Le qualificatif
+  supplémentaire (3 Parfaits ou plus sur l'ensemble des épreuves du combat) s'ajoute à cette condition.
+  À surveiller en playtest : économie des objets signature, frustration en cas de Coup de grâce raté.
+
+**Livré** : **lot 0** (hôte d'épreuve `startMinigame()`, bande d'UI, réglage Jouer / Réduit / Jet automatique, étape
+interactive du séquenceur, animations d'issue, épreuve de référence `timing`) — voir `NOTES_MINIJEUX.md`.
+**V1 codé** (crochetage, désamorçage, glyphe — chiffres du plan validé, voir `NOTES_MINIJEUX.md` pour les effets sur
+l'équilibrage). **V2 codé** (Occasions de combat à 25 % : Immobiliser, Étrangler, Cible de précision, Point faible — voir `NOTES_MINIJEUX.md`).
+**V3 codé** (Parade, Briser la garde, Coup de grâce + cinématique ; arme signature conditionnée au Coup de grâce parfait — voir `NOTES_MINIJEUX.md`).
+**V4 codé** (salle de jeux en ville : stand de tir, ring, coffre-fort, mémoire ; mise libre, 1 H par partie — voir `NOTES_MINIJEUX.md`).
+**Lot final codé** (chronique `recordRunEvent('minigame'/'arcade')`, 7 succès, 2 piques DeathWatch). Le chantier est codé en entier ; reste le playtest (voir `NOTES_MINIJEUX.md`, « À surveiller »).
+
+**Décidé (round 7 — V4, salle de jeux)** : **4 jeux** — stand de tir (Cible x3), ring (lutte : maintien Immobiliser puis Étrangler), coffre-fort
+(crochetage de zones de plus en plus étroites) et mémoire (séquences de plus en plus longues) ; **mise libre** (plafonnée à ses PO) ; **parties illimitées,
+1 H par partie** (le temps est le frein) ; gains : **PO** (mise x multiplicateur selon le score), **XP de compétence** sur un excellent score, **lot (objet)
+sur un score parfait**. Salle de jeux dans 1 à 2 villes par étage urbain (décidé au round 5).
+
+**Plan proposé** : validé (voir les rounds ci-dessus).
 
 ## 12. Villes explorables (étages urbains sur le modèle de la carte) — XL — Codé (à playtester)
 
@@ -230,9 +290,12 @@ premier étage urbain.
 **Décidé (round 2)** : race = bonus passifs, classe = **capacité active** en combat + bonus de style ; menu
 **selon la partie, façon DCC** (choix débloqués par la façon de jouer + quelques choix de base).
 
-**À trancher (prochain round)** : nombre de races/classes et leur esprit (DCC : races loufoques, classes
-parfois absurdes) ; bonus de stats seulement ou aussi une capacité active ; choix libre ou tiré parmi 3
-propositions ; effet sur le sprite.
+**Décidé (round 3)** : **6 races + 6 classes**, ton **loufoque façon DCC**, choix **tiré parmi 3 propositions**
+(menu débloqué par la façon de jouer), **silhouettes dédiées par race** (dessins à part, prompts Gemini comme
+le bestiaire).
+
+**⏸ En pause** (à la demande de l'utilisateur, on avance sur le chantier 6). Reste à faire : liste chiffrée des
+6 races / 6 classes (bonus, capacités actives, conditions de déblocage) à valider, puis plan en lots.
 
 ## 7. Salles spéciales à choix narratif — M — Idée (ancien backlog de `CLAUDE.md`)
 

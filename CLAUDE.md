@@ -24,6 +24,10 @@ Tailwind CDN, **aucun build step**.
   `METRO_LAYOUT`, `generateMetropolis()`, `measureMetropolis()` ; chargé après `deathwatch.js`
 - `floormap.js` — rendu PUR de la carte stylisée des étages classiques et urbains (`buildFloorMapSvg()`,
   `buildUrbanMapSvg()`, `floorMapHitTest()`, zooms `FLOOR_MAP_ZOOMS`), chargé après `floorgen.js`
+- `minigames.js` — mini-jeux (chantier 6, voir `NOTES_MINIJEUX.md`) : catalogue PUR des épreuves (`MINIGAME_KINDS`),
+  jet automatique, résolution du « timing », spécification des animations d'issue ; chargé après `floormap.js`
+- `minigames-ui.js` — hôte DOM des mini-jeux (`startMinigame()`, bande du bas, minuterie, rendus `MINIGAME_RENDERERS`,
+  réglage Jouer / Réduit / Jet automatique) ; chargé après `fx.js`, avant `app.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
   que le fichier concerné) : `crawler.js` (crawler + cadavre vu de dessus), `npcs.js` (compagnon, marchand,
   professeur), `mobs.js` (10 silhouettes d'archétype avec palette naturelle, couronne de boss),
@@ -46,7 +50,7 @@ Tailwind CDN, **aucun build step**.
 - `tests/` — voir plus bas
 - `CHANTIERS.md` — registre des chantiers (statut, décisions, point d'étape, voir « Chantiers »)
 - `NOTES_*.md` — notes détaillées d'un chantier (diagnostic, chiffres, tests, « À surveiller en playtest ») :
-  `COMPAGNONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, et pour les
+  `COMPAGNONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
   chantiers antérieurs au registre `COMBAT`, `LISIBILITE_COMBAT`, `QOL_EQUILIBRAGE`
 
 ## Architecture (résumé)
@@ -241,8 +245,8 @@ Tailwind CDN, **aucun build step**.
   tour de boss. Récompenses de boss (revues par le chantier "refonte des objets") : un objet garanti
   (`itemBalance.boss` : +1 palier, plancher selon l'étage, second objet à 25 %) et l'objet signature
   du boss, dont la rareté suit l'étage (`getSignatureRarity()` : Rare 1-4, Épique 5-9, Légendaire 10+) (`bestiary.js`, `districtBosses.*.signatureItem`, stats de base mises à l'échelle par
-  `buildSignatureItem()`), garanti à la PREMIÈRE victoire sur ce boss dans la partie
-  (`gameState.signaturesAwarded`) puis à 20 % (`awardBossSignatureItem()`).
+  `buildSignatureItem()`), **exclusivement offert par un Coup de grâce parfait** (chantier 6, V3 : 100 % avec, 0 % sans — ni garantie à la
+  première victoire, ni chance de répétition ; `awardBossSignatureItem()`, `gameState.signaturesAwarded` ne sert plus qu'au succès « collectionneur »).
 - **Enrage distance et engagement** (chantier "rework combat", Chantier 3 — voir `NOTES_COMBAT.md`
   pour le détail des valeurs) : anti-kite générique, tous mobs confondus (boss inclus).
   `enemy.kitingRounds` (base 1 pour un boss, 0 sinon — `mobKitingBaseline()`) s'incrémente à chaque
@@ -367,6 +371,41 @@ Tailwind CDN, **aucun build step**.
   Pique en retour / Provocation / Insulte en direct (jet d20 + popularité `getShowPopularity()` contre
   8/12/16 : boîte Bronze/Argent/Or via `openAchievementBox()`, sinon −2 H jamais mortelles / combat élite /
   +20 prime et chasseur de primes), ou Refuser.
+- **Mini-jeux** (chantier 6, lot 0, V1, V2, V3, V4 et lot final codés — crochetage, désamorçage, glyphe, Occasions de combat, épreuves de boss, salle de jeux ; voir
+  `NOTES_MINIJEUX.md` ; le reste du chantier est planifié dans `CHANTIERS.md`) : toute épreuve passe par UN point d'entrée, `startMinigame(spec, onResult)` (minigames-ui.js), par
+  callback (jamais de Promise, comme `runCombatBeats()`). Trois issues communes `perfect`/`success`/`fail`. Sans
+  interface interactive (réglage « Jet automatique », `prefers-reduced-motion` par défaut, tests Node sans
+  `requestAnimationFrame`), l'épreuve est résolue par `minigameAutoOutcome()` et `onResult` est appelé avant le retour ;
+  sinon `gameState.pendingMinigame` (dans `isActionBlocked()`) et la bande `#minigame-strip` en bas de l'écran (jamais
+  un overlay plein écran), minuterie plafonnée (temps écoulé = Raté), Échap = Passer, Espace/Entrée = geste principal.
+  L'issue se joue par `playMinigameOutcomeFx()` (fx.js, acteur `mini`, spécification pure `minigameOutcomeFxSpec()` :
+  gel d'impact et secousse d'écran réservés au Parfait) puis enchaîne sans fenêtre de résultat. `runCombatBeats()`
+  accepte une étape `{ interactive: true, run(done) }`. **Ajouter une épreuve** : entrée de `MINIGAME_KINDS`, rendu dans
+  `MINIGAME_RENDERERS`, entrée de `MINIGAME_KIND_FX` (exigés par `tests/regression/minigames.js`) ; un tap passe par
+  `bindTap()` (pointerdown PUIS click : jamais deux écouteurs bruts). **V1** : un « Trésor » sur deux est un coffre verrouillé
+  (`openLockedChest()` : 3 goupilles, butin selon le nombre — `LOCKPICK_REWARDS`), un piège sur deux se désamorce
+  (`openTrapDisarm()` : séquence de 4 symboles ; raté = `springTrap()` comme avant) et `attackMagic()` propose un glyphe aux sorts
+  offensifs (`maybeGlyphSpec()` puis `castEquippedSpell()` ; renfort `config.magicBalance.glyph*`, raté = sort normal). Le jet
+  automatique d'une épreuve peut avoir sa propre résolution (`autoResolve`). **V2 (Occasions de combat)** : au début d'un tour,
+  `rollCombatOccasion()` (appelée par `updateUI()`, une fois par tour) tire 25 % (+1 %/niveau de compétence liée, Réduit 10 %, Jet
+  automatique 0, jamais deux d'affilée, garantie au 7e combat sans) via `decideOccasion()` (pure) ; `gameState.occasion` = `{ current,
+  turn, rolledTurn, lastOfferTurn, pity }`, `#btn-occasion` ; toute action (`tryPlayerAction()`) l'éteint. `startOccasion()` →
+  `resolveOccasion()` : Immobiliser (`enemy.status.immobilized`, riposte sautée, 1-2 tours, boss 1), Étrangler (×3, proposé à coup sûr sur un
+  mob non-boss immobilisé/étourdi), Cible de précision (×1,5 / ×1) et Point faible (tête ×1,3 / bras `status.weakened` / jambe recule) ;
+  échec = tour perdu. Jamais d'Occasion sans interface interactive (tests Node, simulation longue). **V3 (boss)** : `runBossTrial()` ouvre une
+  Parade (exécution d'un coup lourd télégraphié : Parfait = coup détourné + riposte x1,5 + garde ouverte, Réussi = dégâts x0,5) ou « Briser la
+  garde » (exécution de « il se hérisse » : la garde ne monte pas), via des étapes `interactive` de `runCombatBeats()` dans
+  `performBossCounterAttackInner()` ; 3 épreuves de télégraphe au plus par boss (`MINIGAME_SETTINGS.boss.trialCap`), un Raté n'ajoute aucune pénalité,
+  jamais d'épreuve sans interface (comportement d'avant). Le coup fatal à un boss ouvre d'abord le **Coup de grâce** (`offerCoupDeGrace()` dans
+  `performPlayerAttack()`, épreuve selon la dernière attaque, cinématique `playFinisherCinematic()`) : seul un Parfait ouvre l'arme signature, et 3
+  Parfaits ou plus dans le combat lui ajoutent un qualificatif (`signatureReward()`, `buildSignatureItem(..., { extraQualifier })`). Statut de
+  boss `exposed` (DEF x0,7 un coup). Les Parfaits des épreuves se comptent dans `enemy.trials`. **V4 (salle de jeux)** : `ROOM_TYPES.arcade`
+  (`generateMetropolis({ arcadeCount })`, 1 à 2 villes par étage urbain, jamais le départ) ; `enterUrbanRoom()` → `triggerArcade()` (blocage `shopChoicePending` +
+  `pendingArcadeCityId`, partie en cours `gameState.arcadeSession`) ; `playArcadeGame()` prélève la mise (`arcadeCheckStake()`, plafond 60 PO × étage) et 1 H puis enchaîne les manches
+  (`ARCADE_GAMES` : stand de tir, ring, coffre-fort, mémoire = épreuves existantes) ; points Parfait 2 / Réussi 1, palier bon ×1,5 / excellent ×3 (+ XP de compétence), tout
+  Parfait = un lot (`arcadeScore()`/`arcadePayout()`). **Chronique** : `settleMinigame()` → `recordRunEvent('minigame')` (épreuves jouées seulement), `finishArcadeGame()` → `recordRunEvent('arcade')` ; 7 succès et 2 familles de piques DeathWatch
+  (`perfect`, `gambler`) y sont liés. Tout helper pur de `minigames.js` partage l'espace
+  global avec `floorgen.js` : en préfixer le nom (une collision sur `pointSegmentDistance` avait supprimé les repaires).
 - **Progression** : `gainXp()` — `xpToNextLevel` croît ×1.25 par niveau (jusqu'ici ×1.4, resserré pour
   éviter le mur de fin de run où les niveaux cessent de tomber pendant que les mobs continuent de
   grimper). Gains à chaque niveau : PV max +15 (fixe), ATQ `2 + floor(niveau/4)`, DEF
@@ -850,7 +889,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests

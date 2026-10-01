@@ -56,8 +56,8 @@ const itemBalance = {
     boss: {
         tierBonus: 1,
         minRarityByFloor: [{ fromFloor: 4, key: "rare" }, { fromFloor: 12, key: "epique" }],
-        secondItemChance: 25,
-        signatureRepeatChance: 20
+        secondItemChance: 25
+        // L'objet signature n'a plus de chance fixe : il exige un Coup de grâce parfait (chantier 6, V3 — voir awardBossSignatureItem()).
     },
     // Rareté de l'objet signature d'un boss selon l'étage : Rare 1-4, Épique 5-9, Légendaire 10+.
     signatureRarityByFloor: [

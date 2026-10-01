@@ -88,6 +88,8 @@ function resetTransientState() {
     gameState.gold = 0;
     gameState.shopChoicePending = false;
     gameState.pendingShopCityId = null;
+    gameState.pendingArcadeCityId = null; // Salle de jeux (V4)
+    gameState.arcadeSession = null;
     gameState.lairChoicePending = false;
     gameState.pendingLairId = null;
     gameState.pendingLairDive = null;
@@ -106,6 +108,9 @@ function resetTransientState() {
     gameState.pendingShow = null;
     gameState.pendingShowAfterPact = null;
     if (ui.showZone) ui.showZone.classList.add('hidden');
+    gameState.pendingMinigame = null; // Mini-jeu ouvert (chantier 6)
+    gameState.occasion = createOccasionState(); // Occasions de combat (chantier 6, V2)
+    abortMinigame();
     if (ui.gameOverOverlay) ui.gameOverOverlay.classList.add('hidden');
 }
 

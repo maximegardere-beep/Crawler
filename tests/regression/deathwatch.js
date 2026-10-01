@@ -36,13 +36,15 @@ function openShow(lastFloor = {}) {
     assert(['retort', 'provoke', 'insult'].every(k => SHOW_REACTIONS.success[k].length && SHOW_REACTIONS.failure[k].length) && SHOW_REACTIONS.polite.length && SHOW_REACTIONS.refuse.length,
         "Une réaction du présentateur pour chaque issue");
     assert(fillShowTemplate("{{crawler}} à l'étage {{etage}} ({{inconnu}})", { crawler: 'Carl', etage: 4 }) === "Carl à l'étage 4 ({{inconnu}})", "Gabarit : trous remplis, trou inconnu laissé tel quel");
-    const base = { fuites: 0, degats: 0, maxHp: 100, pvPct: 100, mobs: 0, pieges: 0, sortsRates: 0, objet: null, compagnon: null, compagnonsPartis: 0, prime: 0, or: 50, etage: 2, succes: 0, niveau: 5, mainsNues: 0 };
+    const base = { fuites: 0, degats: 0, maxHp: 100, pvPct: 100, mobs: 0, pieges: 0, sortsRates: 0, objet: null, compagnon: null, compagnonsPartis: 0, prime: 0, or: 50, etage: 2, succes: 0, niveau: 5, mainsNues: 0, parfaits: 0, mises: 0 };
     assert(!pickShowTaunt(base, () => 0).when, "Rien de notable : pique générique");
     assert(pickShowTaunt({ ...base, fuites: 5 }, () => 0).id === 'flee1', "5 fuites : pique sur les fuites en priorité");
     assert(pickShowTaunt({ ...base, objet: 'Rideau de Douche' }, () => 0).id === 'joke1', "Objet ridicule porté : pique dédiée");
-    const everyTauntFills = SHOW_TAUNTS.every(t => !/\{\{/.test(fillShowTemplate(t.text, { ...base, crawler: 'Carl', objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6 })));
+    assert(pickShowTaunt({ ...base, parfaits: 6 }, () => 0).theme === 'perfect' && pickShowTaunt({ ...base, mises: 120 }, () => 0).theme === 'gambler', "Mini-jeux : piques sur les gestes parfaits et les pertes à la salle de jeux");
+    assert(pickShowTaunt({ ...base, parfaits: 4, mises: 99 }, () => 0).when === undefined, "Mini-jeux : sous les seuils, pique générique");
+    const everyTauntFills = SHOW_TAUNTS.every(t => !/\{\{/.test(fillShowTemplate(t.text, { ...base, crawler: 'Carl', objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6, parfaits: 8, mises: 150 })));
     assert(everyTauntFills, "Chaque pique n'utilise que des trous fournis par le contexte");
-    const fullCtx = { ...base, crawler: 'Carl', objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6 };
+    const fullCtx = { ...base, crawler: 'Carl', objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6, parfaits: 8, mises: 150 };
     const everyReplyFills = Object.values(SHOW_REPLIES).every(byTone => Object.values(byTone).every(lines => lines.every(l => !/\{\{/.test(fillShowTemplate(l, fullCtx)))));
     assert(everyReplyFills, "Chaque réplique n'utilise que des trous fournis par le contexte");
     // Un thème sans compagnon (parti) ne doit jamais citer {{compagnon}}, absent du contexte à ce moment-là.

@@ -898,6 +898,33 @@ const BACKDROP_PROPS = {
         light: () => null
     },
 
+    // --- Salle de jeux (V4) -----------------------------------------------------------------------------
+    // Enseigne néon « SALLE DE JEUX » (magenta). Origine : centre.
+    arcadeSign: {
+        markup: () => `
+            <rect x="-52" y="-13" width="104" height="26" rx="4" fill="#0b0d12" stroke="#05060c" stroke-width="1.5"/>
+            <g class="bd-neon">
+                <text x="0" y="-1" text-anchor="middle" font-size="9" font-weight="bold" letter-spacing="1.5" fill="#f472b6" opacity="0.9">SALLE DE JEUX</text>
+                <text x="0" y="9" text-anchor="middle" font-size="7" letter-spacing="3" fill="#facc15" opacity="0.85">★ ★ ★</text>
+            </g>`,
+        light: () => ({ dx: 0, dy: 0, color: '#f472b6', radius: 46, flicker: false })
+    },
+    // Deux bornes d'arcade à écran allumé. Origine : milieu du bas (au sol).
+    arcadeCabinets: {
+        markup: () => {
+            const cab = (x, screen) => `
+            <g transform="translate(${x} 0)">
+                <path d="M-15 0 V-50 L-11 -60 H11 L15 -50 V0 Z" fill="#2a1f3d" stroke="#05060c" stroke-width="1.5"/>
+                <rect x="-11" y="-52" width="22" height="18" rx="2" fill="#0b0d12" stroke="#05060c" stroke-width="1"/>
+                <rect x="-9" y="-50" width="18" height="14" fill="${screen}" opacity="0.8" class="bd-halo-flicker"/>
+                <rect x="-12" y="-30" width="24" height="6" fill="#3b2f55" stroke="#05060c" stroke-width="1"/>
+                <circle cx="-5" cy="-27" r="1.8" fill="#facc15"/><circle cx="2" cy="-27" r="1.8" fill="#f472b6"/><circle cx="8" cy="-27" r="1.8" fill="#38bdf8"/>
+            </g>`;
+            return cab(-22, '#38bdf8') + cab(22, '#a78bfa');
+        },
+        light: () => ({ dx: 0, dy: -42, color: '#a78bfa', radius: 40, flicker: true })
+    },
+
     // --- Salles sécurisées ---------------------------------------------------------------------------
     // Éclairage chaud et apaisé : aucune couleur rouge, animations lentes (bd-calm-flame / bd-calm-glow),
     // halos qui "respirent" (light.calm) au lieu de vaciller.

@@ -131,8 +131,8 @@ const withRandom = (value, fn) => {
     assert(getSellPrice({ value: 100 }) === Math.round(100 * SELL_VALUE_RATIO) && getSellPrice({ baseValue: 10 }) === Math.round(10 * SELL_VALUE_RATIO), "getSellPrice() : value en priorité, baseValue en repli");
 }
 
-// Butin d'un boss : au moins un objet de rareté >= Rare dès l'étage 4, objet signature garanti la première fois
-// seulement, au niveau d'objet de l'étage (+1 pour le boss d'un repaire).
+// Butin d'un boss : au moins un objet de rareté >= Rare dès l'étage 4, objet signature offert par un Coup de grâce PARFAIT
+// seulement (chantier 6, V3), au niveau d'objet de l'étage (+1 pour le boss d'un repaire).
 {
     resetTransientState();
     gameState.currentFloor = 4;
@@ -141,18 +141,23 @@ const withRandom = (value, fn) => {
     const template = Object.values(districtBosses).find(b => b.signatureItem && b.signatureItem.category === 'weapons');
     const boss = { ...JSON.parse(JSON.stringify(template)), baseName: template.name };
 
-    awardBossSignatureItem(boss, 4);
+    awardBossSignatureItem(boss, 4, { perfectFinisher: true, perfects: 1 });
     const signature = gameState.inventory.find(i => i.signature);
-    assert(signature && signature.rarityKey === 'rare' && signature.itemLevel === 4, "awardBossSignatureItem() : première victoire à l'étage 4 -> objet signature Rare au niveau d'objet demandé");
+    assert(signature && signature.rarityKey === 'rare' && signature.itemLevel === 4, "awardBossSignatureItem() : Coup de grâce parfait à l'étage 4 -> objet signature Rare au niveau d'objet demandé");
     assert(signature.baseDmg === Math.round(template.signatureItem.baseDmg * getRarityByKey('rare').statMult * getItemLevelMult(4)), "buildSignatureItem() : stats de base × rareté × niveau d'objet, sans aléa");
     assert(getSignatureRarity(1).key === 'rare' && getSignatureRarity(5).key === 'epique' && getSignatureRarity(9).key === 'epique' && getSignatureRarity(10).key === 'legendaire' && getSignatureRarity(18).key === 'legendaire', "getSignatureRarity() : Rare 1-4, Épique 5-9, Légendaire 10+");
     assert(gameState.signaturesAwarded.includes(template.name), "awardBossSignatureItem() : boss mémorisé dans signaturesAwarded");
 
+    assert(!signature.forgedByPerfect && signature.qualifiers.length === (template.signatureItem.mechanics || []).length, "Un seul Parfait : l'arme signature garde ses qualificatifs d'origine");
+    // Plus de garantie à la première victoire, plus de chance de répétition : le Parfait est la seule voie, à chaque fois.
     gameState.inventory = [];
-    withRandom(0.99, () => awardBossSignatureItem(boss, 4));
-    assert(gameState.inventory.length === 0, "awardBossSignatureItem() : déjà obtenu -> plus garanti (jet raté)");
-    withRandom(0, () => awardBossSignatureItem(boss, 4));
-    assert(gameState.inventory.length === 1, "awardBossSignatureItem() : déjà obtenu -> reste possible (jet réussi)");
+    awardBossSignatureItem(boss, 4, {});
+    awardBossSignatureItem(boss, 4, { perfectFinisher: false, perfects: 5 });
+    assert(gameState.inventory.length === 0, "awardBossSignatureItem() : sans Coup de grâce parfait, jamais d'objet signature (même avec d'autres Parfaits)");
+    withRandom(0.99, () => awardBossSignatureItem(boss, 4, { perfectFinisher: true, perfects: 1 }));
+    withRandom(0, () => awardBossSignatureItem(boss, 4, { perfectFinisher: true, perfects: 1 }));
+    assert(gameState.inventory.filter(i => i.signature).length === 2, "awardBossSignatureItem() : Coup de grâce parfait = 100 %, aussi pour un boss déjà battu");
+    assert(itemBalance.boss.signatureRepeatChance === undefined, "itemBalance.boss : plus de chance de répétition de l'objet signature");
 
     resetTransientState();
     gameState.currentFloor = 4;
