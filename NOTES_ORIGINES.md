@@ -29,8 +29,8 @@ puis **le cahier des charges des 6 corps dessinés par Vibe** (lot 4).
 - **Cumul multiplicatif** (Troll + Bagarreur + Boxeur du chantier 14, jusqu'à ×1,65 avant le ×2 du buff de départ) et Goule + Sac de frappe (PV ×1,32).
 - **Conditions de déblocage** (runs courts : seuils de 1 à 4) : vérifier que les 3 cartes reflètent bien la façon de jouer, et que le remplissage n'impose pas de classes injouables.
 - **Disparition** contre les boss à frappes multiples (toute la riposte esquivée), **Fendre** et **Tir de barrage** face aux boss, lisibilité du bouton de capacité sur mobile.
-- **Armure par corps** : l'armure est dessinée une seule fois (torse humain) puis recalée par corps via `anchors.armor` (voir « Corps livrés »). Goule : alignement correct sans recalage ; à revérifier pour chaque nouveau corps (le Nain a été recalé ; le Cafard reste à vérifier).
-- **Corps livrés** : Goule ✅, Gobelin ✅ (`sprites/race-goblin.js`, frontExtent 13), Troll ✅ (`sprites/race-troll.js`, frontExtent 19), Elfe ✅ (`sprites/race-elf.js`, frontExtent 14, torse de gabarit humain : armure alignée sans `anchors.armor`) , Nain ✅ (`sprites/race-dwarf.js`, frontExtent 16, `anchors.armor` `0, -46, 1.05` : torse décalé vers le bas) — Cafard en attente. **`anchors.armor`** `{ x, y, scale }` codé (scene.js, `composeCrawler()`) : l'armure est dessinée pour le torse humain (centre `x 0, y -51`, hauteur 36) et recalée par `translate(x y) scale(s) translate(0 51)` ; réglé pour le Gobelin (`-0.5, -45, 0.85`) et le Troll (`0.5, -60, 1.25`), sans effet pour la Goule (gabarit humain). À fournir/ajuster pour chaque nouveau corps.
+- **Armure par corps** : l'armure est dessinée une seule fois (torse humain) puis recalée par corps via `anchors.armor` (voir « Corps livrés »). Goule : alignement correct sans recalage ; à revérifier pour chaque nouveau corps (Gobelin, Troll, Nain et Cafard recalés ; Goule et Elfe alignés d'office).
+- **Corps livrés** : Goule ✅, Gobelin ✅ (`sprites/race-goblin.js`, frontExtent 13), Troll ✅ (`sprites/race-troll.js`, frontExtent 19), Elfe ✅ (`sprites/race-elf.js`, frontExtent 14, torse de gabarit humain : armure alignée sans `anchors.armor`) , Nain ✅ (`sprites/race-dwarf.js`, frontExtent 16, `anchors.armor` `0, -46, 1.05` : torse décalé vers le bas) , Cafard ✅ (`sprites/race-roach.js`, frontExtent 14, `anchors.armor` `-0.5, -46, 0.95`). **Les 6 corps sont livrés.** **`anchors.armor`** `{ x, y, scale }` codé (scene.js, `composeCrawler()`) : l'armure est dessinée pour le torse humain (centre `x 0, y -51`, hauteur 36) et recalée par `translate(x y) scale(s) translate(0 51)` ; réglé pour le Gobelin (`-0.5, -45, 0.85`) et le Troll (`0.5, -60, 1.25`), sans effet pour la Goule (gabarit humain). À fournir/ajuster pour chaque nouveau corps.
 - **Piques DeathWatch** : 17 nouvelles, une seule émission les affiche (étage 3) ; juger leur dosage et leur ton au playtest.
 - Effets visuels des capacités sans coup volontairement sobres (éclat « self » seul).
 
@@ -38,7 +38,7 @@ puis **le cahier des charges des 6 corps dessinés par Vibe** (lot 4).
 
 ### État du code (livré)
 - `sprites/crawler-races.js` : `CRAWLER_RACE_LOOKS` (teintes peau/cheveux du corps humain, **actives dès maintenant** pour 6 races), `CRAWLER_RACE_BODIES`
-  (corps dessinés, remplis par les livraisons de Vibe, un fichier `sprites/race-<clé>.js` par race : Goule livrée), `crawlerRaceBody()`/`crawlerRaceLook()`/`tintCrawlerMarkup()`.
+  (corps dessinés, remplis par les 6 livraisons de Vibe, un fichier `sprites/race-<clé>.js` par race), `crawlerRaceBody()`/`crawlerRaceLook()`/`tintCrawlerMarkup()`.
 - `scene.js` : `composeCrawler()` lit le corps de la race (couches, bras par posture, points d'accroche des objets rangés), `crawlerFrontExtent()`
   (extension avant du corps courant, lue par `distanceToX()`/`computeRangeBands()`/`fx.js`), `buildRacePortraitSvg()` (cartes de choix et fiche d'origine),
   `crawlerCorpseMarkup()` (Game Over).
