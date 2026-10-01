@@ -67,6 +67,14 @@ const POSTURES = Object.keys(CRAWLER_ARMS);
     const sansCorps = Object.keys(CRAWLER_RACE_LOOKS).filter(r => !CRAWLER_RACE_BODIES[r]);
     assert(crawlerFrontExtent(null) === CRAWLER_FRONT_EXTENT && crawlerFrontExtent('race-inconnue') === CRAWLER_FRONT_EXTENT && sansCorps.every(r => crawlerFrontExtent(r) === CRAWLER_FRONT_EXTENT), "Sans corps dessiné : extension commune");
     assert(crawlerFrontExtent('goblin') === CRAWLER_RACE_BODIES.goblin.frontExtent, "Gobelin : extension du corps dessiné lue par crawlerFrontExtent()");
+    {
+        // anchors.armor : l'armure est recalée sur le torse d'un corps dessiné qui le demande, jamais sur un corps sans ancre
+        const armorKey = Object.keys(ITEM_SPRITES).find(k => ITEM_SPRITES[k].kind === 'armor' && ITEM_SPRITES[k].layer !== 'back');
+        const loadout = race => ({ race, posture: 'rest', weapon: null, ranged: null, armor: armorKey, glow: null, ench: {} });
+        const withAnchor = Object.keys(CRAWLER_RACE_BODIES).filter(r => CRAWLER_RACE_BODIES[r].anchors && CRAWLER_RACE_BODIES[r].anchors.armor);
+        assert(withAnchor.length >= 1 && /class="crawler-armor" transform="translate\(/.test(composeCrawler(loadout(withAnchor[0]))), "anchors.armor : l'armure d'un corps ancré est recalée (translate/scale)");
+        assert(!/class="crawler-armor" transform=/.test(composeCrawler(loadout(null))), "Corps humain : armure sans transformation");
+    }
     assert(distanceToX(0, max) === MOB_X_CONTACT && distanceToX(0, max, CRAWLER_FRONT_EXTENT) === MOB_X_CONTACT, "Extension commune : position de contact inchangée");
     [12, 15, 19].forEach(ext => {
         assert(Math.abs(mobContactX(ext) - distanceToX(0, max, ext)) < 1e-9, `Extension ${ext} : distanceToX(0) = position de contact`);

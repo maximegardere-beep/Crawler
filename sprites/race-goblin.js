@@ -60,7 +60,8 @@ Object.assign(CRAWLER_RACE_BODIES, {
         frontExtent: 13,
         anchors: {
             stowedRanged: { x: 12, y: -44, rot: 55, scale: 0.7 },
-            stowedWeapon: { x: 4, y: -27, rot: 160, scale: 0.6 }
+            stowedWeapon: { x: 4, y: -27, rot: 160, scale: 0.6 },
+            armor: { x: -0.5, y: -45, scale: 0.85 }
         },
         corpse: `
     <path d="M-5 8 L-13 36" stroke="#05060c" stroke-width="8" stroke-linecap="round"/>

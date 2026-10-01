@@ -377,7 +377,10 @@ function composeCrawler(l) {
     const stowedWeapon = l.weapon && !holdsWeapon
         ? `<g class="crawler-stowed-weapon" transform="translate(${wAnchor.x} ${wAnchor.y}) rotate(${wAnchor.rot}) scale(${wAnchor.scale})">${itemArt(l.weapon)}</g>` : '';
     const armorSprite = l.armor && ITEM_SPRITES[l.armor];
-    const armorMarkup = l.armor ? `<g class="crawler-armor">${itemArt(l.armor, ench.armor)}</g>` : '';
+    // Armure dessinée pour le torse humain (centre x 0, y -51, hauteur 36) : `anchors.armor` {x, y, scale} la recale sur le torse d'un corps dessiné.
+    const aAnchor = anchors.armor;
+    const armorAt = aAnchor ? ` transform="translate(${aAnchor.x || 0} ${aAnchor.y}) scale(${aAnchor.scale || 1}) translate(0 51)"` : '';
+    const armorMarkup = l.armor ? `<g class="crawler-armor"${armorAt}>${itemArt(l.armor, ench.armor)}</g>` : '';
     const armorBack = armorSprite && armorSprite.layer === 'back' ? armorMarkup : '';
     const armor = armorSprite && armorSprite.layer !== 'back' ? armorMarkup : '';
     let held = '';
