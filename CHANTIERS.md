@@ -46,7 +46,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
 | 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage, en pause) | liste chiffrée à valider |
-| 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Planifié (prêt à coder) | chiffres à valider |
+| 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 
 ### Codés (à playtester)
 
@@ -318,7 +318,7 @@ sur le Sac et le Grimoire.
 **Livré** : fiche du crawler sous le nom, barre 🛡️ / 🎒 / 📖 / 🏆, panneaux, pastilles — voir
 `NOTES_INTERFACE.md`.
 
-## 14. Buff de départ « Foutu pour foutu » (crawler sans arme) — S — Planifié
+## 14. Buff de départ « Foutu pour foutu » (crawler sans arme) — S — Codé (à playtester)
 
 **Demande** : rééquilibrer le départ d'un crawler qui ne reçoit ni arme, ni arme à distance, ni sort au cadeau de bienvenue (cadeau « Armure » 17 % ou « Rien » 5 %, soit 22 % des départs — `WELCOME_GIFT_WEIGHTS`) :
 un buff temporaire, « foutu pour foutu ».
@@ -337,6 +337,7 @@ un buff temporaire, « foutu pour foutu ».
 - Un seul point de lecture par effet : mains nues dans `attackUnarmed()` (et Étrangler dans `resolveOccasion()` via le même helper), dégâts subis dans `applyPlayerDamage()` (arrondi, jamais moins que le montant d'origine).
 - Fin : `endStarterBuff()` appelée par `equipItem()` (slot arme/distance) et `equipSpell()` — `'desperate'` → `null`, `'boxer'` reste ; évolution dans `advanceToNextFloor()`. Badge `#starter-buff-status` (infobulle avec les chiffres), journal sarcastique à l'activation, à l'évolution et à la perte.
 - Tests : activation selon le cadeau, +5 % subis, ×2 mains nues et Étrangler, fin à l'équipement (arme/distance/sort, jamais armure), objet non équipé sans effet, évolution à l'étage 2, sauvegarde/restauration, ancienne sauvegarde sans buff.
+- **Codé** : `starterBuff*()`/`endStarterBuff()`/`evolveStarterBuff()` (app.js, section « BUFF DE DÉPART »), `config.starterBuff`, badge `#starter-buff-status`, `tests/regression/starter-buff.js`. Le malus est appliqué avant bouclier de mana et interception du compagnon (`companionInterceptHit()`), et sur les pièges (`springTrap()`, `triggerCafetRoom()`) et le saignement ; la Charge à mains nues est aussi doublée (l'Étrangler et l'attaque Mains nues, comme décidé).
 - Playtest : fréquence de survie à l'étage 1 d'un crawler sans arme (simulation possible via `tests/long_playthrough.js` en forçant le cadeau « Rien »).
 
 ## 10. Expansion de la banque d'objets — L — Codé (PR #32, ouverte)

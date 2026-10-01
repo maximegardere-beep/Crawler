@@ -149,6 +149,9 @@ const gameState = {
     // de côté quand le Pacte du Crawler passe avant l'émission.
     showChoicePending: false,
     pendingShow: null,
+    // Buff de départ « Foutu pour foutu » (chantier 14, voir NOTES_ITEMS.md/CHANTIERS.md) : null | 'desperate' (cadeau Armure ou Rien :
+    // +5 % de dégâts subis, mains nues ×2) | 'boxer' (évolution à l'étage 2 : mains nues ×1,25, définitif). Absent d'une ancienne sauvegarde : null.
+    starterBuff: null,
     pendingShowAfterPact: null,
     // Mini-jeu ouvert (chantier 6, minigames-ui.js) : { kind, boss } — bloque les actions le temps de l'épreuve.
     pendingMinigame: null,
@@ -502,6 +505,13 @@ const config = {
     // l'arme équivalente ; le backfire reste le prix du chaos, plus punitif à haut niveau qu'avant
     // pour continuer à justifier ce risque une fois la compétence Magie montée. Valeurs de départ, à
     // ajuster par playtest (voir NOTES_COMBAT.md pour la mesure de parité qui a produit ces chiffres).
+    // Buff de départ du crawler sans arme (chantier 14) : voir starterBuffInfo()/endStarterBuff().
+    starterBuff: {
+        damageTakenMult: 1.05,   // 'desperate' : tous les dégâts subis (mobs, boss, pièges, saignement)
+        unarmedMult: 2,          // 'desperate' : attaque Mains nues, Étrangler et Charge à mains nues
+        boxerUnarmedMult: 1.25,  // 'boxer' (évolution à l'étage 2) : mêmes attaques, définitif
+        evolveFloor: 2
+    },
     magicBalance: {
         atkBase: 1.1,
         atkPerLevel: 0.015,
@@ -762,6 +772,7 @@ const ui = {
     floorTransitionAnomalyText: document.getElementById('floor-transition-anomaly-text'),
     btnFloorTransitionContinue: document.getElementById('btn-floor-transition-continue'),
     anomalyStatusBar: document.getElementById('anomaly-status-bar'),
+    starterBuffStatus: document.getElementById('starter-buff-status'),
     pactChoiceOverlay: document.getElementById('pact-choice-overlay'),
     btnPactAtk: document.getElementById('btn-pact-atk'),
     btnPactHp: document.getElementById('btn-pact-hp'),
@@ -1307,6 +1318,7 @@ function updateUI() {
     if (ui.playerGold) ui.playerGold.innerText = gameState.gold;
 
     updateAnomalyStatusUI();
+    updateStarterBuffUI();
 
     // Icônes de statut du joueur
     let playerIcons = "";
@@ -2254,6 +2266,7 @@ function equipItem(index) {
     }
 
     logEvent(`Vous équipez [${formatItemDisplayName(item)}] (${slotLabel}).`, "info");
+    if (slot !== 'armor') endStarterBuff(); // Foutu pour foutu (chantier 14) : saute au premier équipement hors armure
     recordRunEvent('equip', { item });
     if (slot === 'armor') recomputeMaxHp(); // Robuste : les PV max dépendent de l'armure portée
     updateUI();
@@ -2278,6 +2291,7 @@ function equipSpell(index) {
     }
 
     logEvent(`Vous équipez le sort [${formatItemDisplayName(spell)}].`, "info");
+    endStarterBuff(); // Foutu pour foutu (chantier 14)
     updateUI();
     updateSpellbookUI();
 }
@@ -2411,7 +2425,7 @@ function rollGoldAmount() {
 
 // Le piège se déclenche : dégâts, journal, mort éventuelle (cause 'trap').
 function springTrap(trap) {
-    const dmg = Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin;
+    const dmg = applyStarterBuffToDamage(Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin);
     applyPlayerDamage(dmg);
     setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
     logEvent(`${trap.text} (-${dmg} PV)`, "danger");
@@ -3140,6 +3154,7 @@ function checkCompanionDowned() {
 // (strayHitChance). Le compagnon absorbe une part du coup ; son armure réduit ce qu'il perd lui-même.
 // Renvoie { playerDamage, note } — l'appelant log les dégâts puis appelle checkCompanionDowned().
 function companionInterceptHit(damage) {
+    damage = applyStarterBuffToDamage(damage); // Foutu pour foutu (chantier 14) : +5 % de dégâts subis, avant bouclier et interception
     // Bouclier de Mana (sort utilitaire, chantier 11) : réduit le coup AVANT l'éventuelle interception.
     const shield = gameState.status.manaShield;
     let shieldNote = "";
@@ -3948,6 +3963,7 @@ function advanceToNextFloor() {
 
     showFloorArrivalScene();
     logEvent(`--- DÉBUT DE L'ÉTAGE ${gameState.currentFloor} ---`, "info");
+    evolveStarterBuff(); // Foutu pour foutu encore actif à l'étage 2 : devient Boxeur (chantier 14)
     attemptCompanionDeparture(); // Seul moment où un compagnon peu loyal peut partir (voir config.companions.loyalty)
     recordRunEvent('floor');
     if (gameState.activeAnomalies.length > 0) {
@@ -5496,7 +5512,7 @@ function leaveSafehouse() {
 // un piège sévère suivi d'un trésor nettement supérieur à la normale (powerScore maximal). Réutilise
 // exactement applyPlayerDamage()/gameOver()/addLoot(), aucune nouvelle formule de dégâts ou de loot.
 function triggerCafetRoom(room) {
-    const trapDmg = Math.floor(Math.random() * 12) + 10; // 10 à 21 PV : nettement au-dessus d'un piège normal (~5-15)
+    const trapDmg = applyStarterBuffToDamage(Math.floor(Math.random() * 12) + 10); // 10 à 21 PV : nettement au-dessus d'un piège normal (~5-15)
     applyPlayerDamage(trapDmg);
     setSceneHeader('🕯️', 'Cafétéria Assombrie', 'Danger', 'cafeteria');
     logEvent(`Un piège vicieux se déclenche dans l'obscurité de la cafétéria abandonnée ! (-${trapDmg} PV)`, "danger");
@@ -6124,7 +6140,7 @@ function tryPlayerAction() {
 
     // Saignement en cours sur le joueur : tique avant son action
     if (gameState.status.bleed && gameState.status.bleed.rounds > 0) {
-        const dmg = gameState.status.bleed.dmgPerRound;
+        const dmg = applyStarterBuffToDamage(gameState.status.bleed.dmgPerRound);
         applyPlayerDamage(dmg);
         gameState.status.bleed.rounds -= 1;
         if (gameState.status.bleed.rounds <= 0) gameState.status.bleed = null;
@@ -7315,8 +7331,61 @@ function attackUnarmed() {
 
     const skill = gameState.skills.unarmed;
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
-    const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75, varianceRange: 0.10, defReduction }, "à mains nues");
+    const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * starterBuffUnarmedMult(), varianceRange: 0.10, defReduction }, "à mains nues");
     if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
+}
+
+// ==========================================
+// BUFF DE DÉPART « FOUTU POUR FOUTU » (chantier 14 — voir CHANTIERS.md)
+// ==========================================
+// Un crawler dont le cadeau de bienvenue n'est NI une arme, NI une arme à distance, NI un sort (cadeau « Armure » ou « Rien », 22 % des
+// départs) démarre avec `starterBuff = 'desperate'` : +5 % de dégâts subis, dégâts ×2 à mains nues (attaque Mains nues, Étrangler, Charge
+// à mains nues). Il saute dès que le crawler ÉQUIPE une arme, une arme à distance ou un sort (jamais l'armure ; un objet seulement ramassé ou
+// donné à un compagnon ne compte pas) et ne revient jamais. Encore actif à l'arrivée sur l'étage 2, il évolue en 'boxer' : sans le malus,
+// un simple ×1,25 à mains nues, définitif (reste après l'équipement). Chiffres : config.starterBuff.
+function starterBuffUnarmedMult() {
+    const cfg = config.starterBuff;
+    if (gameState.starterBuff === 'desperate') return cfg.unarmedMult;
+    if (gameState.starterBuff === 'boxer') return cfg.boxerUnarmedMult;
+    return 1;
+}
+
+// Dégâts subis après le malus du buff (arrondi, jamais moins que le montant d'origine).
+function applyStarterBuffToDamage(amount) {
+    if (gameState.starterBuff !== 'desperate' || !(amount > 0)) return amount;
+    return Math.max(amount, Math.round(amount * config.starterBuff.damageTakenMult));
+}
+
+function giveStarterBuffForGift(giftType) {
+    gameState.starterBuff = (giftType === 'armor' || giftType === 'nothing') ? 'desperate' : null;
+    if (gameState.starterBuff) logEvent("💢 Foutu pour foutu : sans arme, vous encaissez 5 % de plus, mais vos poings frappent deux fois plus fort — jusqu'au premier équipement.", "info");
+}
+
+// Appelée quand le crawler équipe une arme, une arme à distance ou un sort : le buff de départ saute, le Boxeur (évolué) reste.
+function endStarterBuff() {
+    if (gameState.starterBuff !== 'desperate') return;
+    gameState.starterBuff = null;
+    logEvent("💢 Foutu pour foutu s'arrête : vous voilà équipé. Le Donjon peut reprendre son rythme normal.", "info");
+}
+
+// Arrivée à l'étage `config.starterBuff.evolveFloor` : un buff encore actif devient Boxeur.
+function evolveStarterBuff() {
+    if (gameState.starterBuff !== 'desperate' || gameState.currentFloor < config.starterBuff.evolveFloor) return;
+    gameState.starterBuff = 'boxer';
+    logEvent(`🥊 Vous avez tenu jusqu'à l'étage ${gameState.currentFloor} à mains nues : le public vous sacre Boxeur. Plus de malus, et des poings durablement plus lourds (×${config.starterBuff.boxerUnarmedMult}).`, "success");
+}
+
+function updateStarterBuffUI() {
+    const el = ui.starterBuffStatus;
+    if (!el) return;
+    const cfg = config.starterBuff;
+    const info = gameState.starterBuff === 'desperate'
+        ? { text: '💢 Foutu pour foutu', title: `Foutu pour foutu — dégâts subis +${Math.round((cfg.damageTakenMult - 1) * 100)} %, dégâts à mains nues ×${cfg.unarmedMult} (Étrangler compris). Saute à l'équipement d'une arme, d'une arme à distance ou d'un sort ; évolue à l'étage ${cfg.evolveFloor}.` }
+        : gameState.starterBuff === 'boxer'
+            ? { text: '🥊 Boxeur', title: `Boxeur — dégâts à mains nues ×${cfg.boxerUnarmedMult}, définitif.` }
+            : null;
+    el.classList.toggle('hidden', !info);
+    if (info) { el.innerText = info.text; el.title = info.title; }
 }
 
 // ==========================================
@@ -7432,7 +7501,7 @@ function resolveOccasion(type, outcome, detail) {
         if (failed) { lostTurn(`🪢 [${enemy.name}] se débat et vous échappe. Tour perdu.`); return; }
         const skill = gameState.skills.unarmed;
         const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1));
-        const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * mg.choke.damageMult, varianceRange: 0.10, defReduction }, "en l'étranglant");
+        const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * mg.choke.damageMult * starterBuffUnarmedMult(), varianceRange: 0.10, defReduction }, "en l'étranglant");
         if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
         return;
     }
@@ -7576,7 +7645,7 @@ function attemptEngage() {
     const effectiveAtk = gameState.atk + weaponBonus;
     const defReduction = weapon ? 0 : 0.35; // Pas d'arme équipée : mêmes mains nues qu'attackUnarmed()
     const label = weapon ? "en chargeant à l'arme" : "en chargeant à mains nues";
-    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier: config.engageAction.atkMultiplier, defReduction, gear: weapon }, label);
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier: config.engageAction.atkMultiplier * (weapon ? 1 : starterBuffUnarmedMult()), defReduction, gear: weapon }, label);
     if (landed) {
         gainSkillXp(weapon ? 'weapon' : 'unarmed', SKILL_XP_PER_USE);
         if (weapon) applyWeaponMechanic(weapon);
@@ -8063,6 +8132,7 @@ function confirmPlayerName() {
 function revealWelcomeGift() {
     const type = rollWelcomeGiftType();
     const item = type === 'nothing' ? null : generateWelcomeGiftItem(type);
+    giveStarterBuffForGift(type);
 
     if (type === 'weapon') gameState.equipment.weapon = item;
     else if (type === 'ranged') gameState.equipment.ranged = item;
@@ -8104,6 +8174,7 @@ function giveTestKit() {
     gameState.equipment.ranged = generateTestKitItem('ranged');
     gameState.equipment.spell = generateTestKitSpell();
     gameState.mana = gameState.maxMana;
+    endStarterBuff();
 
     logEvent("🧪 Kit de test : arme, arme à distance et sort légendaires équipés.", "info");
     updateUI();
