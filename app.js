@@ -4288,11 +4288,16 @@ function buildOriginCardHtml(kind, offer, selected) {
     const synergy = kind === 'class' ? originSynergyFor(gameState.race, offer.key) : null;
     const synergyHtml = synergy ? `<p class="mt-1 text-[10px] text-fuchsia-300">✨ Synergie avec votre race — « ${synergy.title} » : ${synergy.effect}</p>` : '';
     const reasonColor = offer.conditionMet ? 'text-gray-400' : 'text-gray-600';
-    return `<button type="button" data-origin-key="${offer.key}" class="origin-card w-full text-left p-3 rounded-lg border-2 transition-all active:scale-[0.99] ${selected ? 'border-amber-400 bg-amber-900/20' : 'border-gray-700 bg-gray-900 hover:border-gray-500'}">
+    // Une carte de race montre le crawler à son aspect (corps teinté ou dessiné, sprites/crawler-races.js).
+    const portrait = kind === 'race' ? `<div class="shrink-0 w-[44px] pt-1">${buildRacePortraitSvg(offer.key, 44)}</div>` : '';
+    return `<button type="button" data-origin-key="${offer.key}" class="origin-card w-full text-left p-3 rounded-lg border-2 transition-all active:scale-[0.99] flex gap-3 ${selected ? 'border-amber-400 bg-amber-900/20' : 'border-gray-700 bg-gray-900 hover:border-gray-500'}">
+            ${portrait}
+            <div class="min-w-0">
             <p class="font-bold text-sm text-gray-100">${entry.icon} ${entry.name}</p>
             <ul class="mt-1 text-[11px] leading-snug space-y-0.5">${lines}</ul>
             ${synergyHtml}
             <p class="mt-1 text-[10px] italic ${reasonColor}">${offer.reason}</p>
+            </div>
         </button>`;
 }
 
@@ -4369,8 +4374,8 @@ function rollDevOrigin() {
 // Fiche d'origine : bonus, défauts, capacité, synergie (HTML interne, rien à échapper).
 function buildOriginSheetHtml() {
     const race = originEntry('race', gameState.race), cls = originEntry('class', gameState.crawlerClass);
-    const raceHtml = race ? `<div><p class="font-bold text-sm text-gray-100">${race.icon} ${race.name}</p>
-            <ul class="mt-1 text-[11px] space-y-0.5">${race.effects.map(e => `<li class="text-emerald-300">＋ ${e}</li>`).join('')}${race.flaw ? `<li class="text-red-300">－ ${race.flaw}</li>` : ''}</ul></div>` : '';
+    const raceHtml = race ? `<div class="flex gap-3"><div class="shrink-0 w-[44px]">${buildRacePortraitSvg(race.key, 44)}</div><div class="min-w-0"><p class="font-bold text-sm text-gray-100">${race.icon} ${race.name}</p>
+            <ul class="mt-1 text-[11px] space-y-0.5">${race.effects.map(e => `<li class="text-emerald-300">＋ ${e}</li>`).join('')}${race.flaw ? `<li class="text-red-300">－ ${race.flaw}</li>` : ''}</ul></div></div>` : '';
     const classHtml = cls ? `<div class="mt-3"><p class="font-bold text-sm text-gray-100">${cls.icon} ${cls.name}</p>
             <ul class="mt-1 text-[11px] space-y-0.5"><li class="text-amber-300">⚡ ${cls.ability} <span class="text-gray-500">(1 fois par combat)</span></li><li class="text-emerald-300">＋ ${cls.style}</li></ul></div>` : '';
     const synergy = race && cls ? originSynergyFor(race.key, cls.key) : null;

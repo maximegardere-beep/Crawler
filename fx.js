@@ -113,7 +113,7 @@ function fxArcPoint(from, to, arc, p) {
 
 // --- Positions dans la scène -----------------------------------------------------------------------------
 function fxMobSprite() { return resolveMobSprite(gameState.currentEnemy); }
-function fxMobX() { return distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance); }
+function fxMobX() { return distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance, crawlerFrontExtent()); }
 function fxMobHitPoint() { return [fxMobX() + 6, SCENE_GROUND_Y + fxMobSprite().top * 0.55]; }
 function fxMobFront() { return [fxMobX() + 14, SCENE_GROUND_Y + fxMobSprite().top * 0.55]; }
 function fxCrawlerHitPoint() { return [CRAWLER_X - 4, SCENE_GROUND_Y - 50]; }

@@ -45,7 +45,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Codé (à playtester) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
-| 13 | Race et classe choisies à l'étage 3 | L | En cours (lots 0 à 3 codés) | dessins des 7 corps (prompts Gemini) pour le lot 4 |
+| 13 | Race et classe choisies à l'étage 3 | L | En cours (lots 0 à 3 codés, lot 4 : infrastructure) | dessins des 6 corps (Vibe) pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 
 ### Codés (à playtester)
@@ -270,7 +270,7 @@ gardien de l'escalier et de la Sortie par le choix de boss existant, repaires en
 carte, retrait de l'ancien réseau (`urbanMap`, `travelToCity()`, Carte Urbaine, `renderGraphMiniMap()`),
 migration des sauvegardes — voir `NOTES_VILLES.md`.
 
-## 13. Race et classe à l'étage 3 — L — En cours (lots 0 à 3 codés)
+## 13. Race et classe à l'étage 3 — L — En cours (lots 0 à 3 codés, lot 4 : infrastructure)
 
 **Demande** : un système de race et de classe à choisir « au niveau 3 ».
 
@@ -292,8 +292,7 @@ premier étage urbain.
 **selon la partie, façon DCC** (choix débloqués par la façon de jouer + quelques choix de base).
 
 **Décidé (round 3)** : **6 races + 6 classes**, ton **loufoque façon DCC**, choix **tiré parmi 3 propositions**
-(menu débloqué par la façon de jouer), **silhouettes dédiées par race** (dessins à part, prompts Gemini comme
-le bestiaire).
+(menu débloqué par la façon de jouer), **silhouettes dédiées par race** (dessins à part, **créés par Vibe**).
 
 **Décidé (round 4, liste validée)** :
 - **7 races** (le Raton-laveur est écarté : aucune vente avant l'étage 3, bonus de PO marginal) et **6 classes**. Chiffres = valeurs de départ, à playtester.
@@ -359,12 +358,14 @@ le bestiaire).
 
 **Lot 3 codé** : `gameState.crawlerClass` + `config.origins.classes` (passifs de style) et `config.origins.synergies` (clé `race+classe`, chaque champ REMPLACE celui de la classe : `originAbilityValues()`), section « CLASSE : PASSIFS DE STYLE ET CAPACITÉS ACTIVES » d'`app.js`. **Passifs** (un point de lecture chacun) : PV max Sac de frappe (`recomputeMaxHp()`), mains nues Bagarreur (`unarmedDamageMult()`), arme Duelliste/tir Franc-tireur (`weaponAttackMultiplier()`), coût en mana Occultiste (`getSpellManaCost()`), Furtivité +1 niveau Filou (`effectiveStealthLevel()`, aussi lue par `stealthSkillLevel()` : crochetage et désamorçage). **Capacité** : `useClassAbility()` (bouton `#btn-class-ability`, bande pleine largeur au-dessus des attaques, grisée avec la raison : `classAbilityStatus()`), **1 fois par combat** (`gameState.classAbilityUsed`, remis à faux dans `initiateCombat()`), prend le tour (`tryPlayerAction()`), la riposte suit. Les 6 (`CLASS_ABILITIES`) : Uppercut (mains nues ×2 + étourdit, via le nouveau crochet `options.onHit` de `performPlayerAttack()` posé AVANT la riposte ; `status.stunned` peut valoir un nombre de tours ; un boss n'est jamais étourdi, « exposé » seulement avec la synergie Troll), Fendre (×1,8, 50 % de DEF ignorée), Tir de barrage (2 tirs à ×0,8 à toute distance, `options.skipReaction` sur le premier : une seule riposte, jamais de second tir sur un ennemi tombé), Surcharge (`status.overcharge` : prochain sort gratuit, ×1,6, jamais de backfire ; Elfe : ×1,8 et +20 mana), Disparition (`status.vanish` : `rollPlayerDodge()` esquive TOUTES les frappes de la riposte, 2 ripostes avec Gobelin ; la prochaine attaque ×2), Encaisser (`status.brace` : DEF ×2 pour la riposte, renvoi de 50 % — 75 % avec Nain — des dégâts réellement subis, `applyBraceReflect()`, l'attaquant garde toujours 1 PV). Chaque capacité fixe `lastAttackKind` quand elle frappe (Coup de grâce normal). Effets visuels : ceux de l'attaque utilisée, plus le dé et le journal pour les capacités sans coup (pas de nouvelle animation dédiée dans `fx.js`, à envisager au lot 5). Tests : `tests/regression/classes.js` ; la simulation longue joue la capacité dès qu'elle est disponible (≈ 70 usages par run).
 
+**Lot 4 (infrastructure) codé** : `sprites/crawler-races.js` (`CRAWLER_RACE_LOOKS` = corps humain **teinté** par race, actif pour les 6 races hors Humain ; `CRAWLER_RACE_BODIES` = corps dessinés, vide tant que Vibe n'en a pas livré), `composeCrawler()` par race (couches, bras par posture, points d'accroche des armes rangées), **extension avant variable** (`crawlerFrontExtent()`, `distanceToX(…, frontExtent)`, `computeRangeBands(…, frontExtent)`, `fx.js`) pour le gabarit légèrement varié, portraits des races sur les cartes de choix et la fiche d'origine (`buildRacePortraitSvg()`), cadavre du Game Over teinté (`crawlerCorpseMarkup()`). `tests/regression/crawler-races.js` valide aussi chaque corps livré (couches, 6 postures, marge d'extension 12-19, interdits `id`/`defs`/dégradés). **Reste** : les 6 dessins de Vibe, puis les brancher (fichiers `sprites/race-<clé>.js`) et ajuster l'armure par corps si besoin (`anchors.armor`, non codé).
+
 **Plan en lots** (chaque lot : `npm test`, `npm run test:long` dès que la boucle de jeu est touchée) :
 - **Lot 0 — données pures (CODÉ)** : `origins.js` (`ORIGIN_RACES`, `ORIGIN_CLASSES`, conditions, `pickOriginOffers(kind, state, rng)` pure à hasard injectable), compteur `rangedKills` dans `createEmptyRunStats()`, ajout aux DEUX listes de scripts (`index.html`, `GAME_FILES`) ; tests des conditions et du tirage (toujours 3 cartes, conditions remplies d'abord).
 - **Lot 1 — passifs de race (CODÉ)** : `gameState.race` (sauvegardé ; absent = aucune race, jamais de rétro-activation), `config.origins`, un seul point de lecture par effet (`recomputeMaxHp()`, `gainXp()`, `rollDamage()`, `getStealthChance()`/fuite, `applyPlayerHeal()`, piège, saignement, mana, `getEffectiveDef()`, Increvable dans `applyPlayerDamage()`) ; tests de chaque race.
 - **Lot 2 — écrans de choix (CODÉ)** : `raceChoicePending` puis `classChoicePending` (deux overlays, même famille que `#pact-choice-zone`), déclenchés par `advanceToNextFloor()` à l'étage 3 AVANT le Pacte et l'émission (la généralisation de `pendingShowAfterPact` en attente commune est à faire), `resetTransientState()`, `KNOWN_GAMESTATE_KEYS`, résolveur de `long_playthrough.js`, deux badges sous le nom + fiche d'origine (round 8), saut DEV aléatoire.
 - **Lot 3 — classes (CODÉ)** : `gameState.crawlerClass`, passifs de style, bouton `#btn-class-ability` (grisé une fois utilisé, remis à zéro dans `initiateCombat()`), 6 capacités via les points d'entrée existants (`performPlayerAttack()`, `resolveEnemyReaction()`…), effets visuels dans `fx.js`.
-- **Lot 4 — sprites** : prompts Gemini pour 6 corps (en attendant : corps humain teinté par race, round 8), `composeCrawler()` par race, armures et bras par posture recalés, icônes des cartes de choix. **Peut démarrer dès le lot 0** (je prépare les prompts), puisque les dessins viennent de l'extérieur.
+- **Lot 4 — sprites (infrastructure CODÉE, dessins en attente de Vibe)** : les 6 corps sont dessinés par **Vibe** (cahier des charges : `NOTES_ORIGINES.md`) ; en attendant : corps humain teinté par race (round 8), `composeCrawler()` par race, armures et bras par posture recalés, icônes des cartes de choix. **Peut démarrer dès le lot 0** (je prépare les prompts), puisque les dessins viennent de l'extérieur.
 - **Lot 5 — habillage** : piques DeathWatch par race/classe, succès, épitaphe, chronique ; `NOTES_ORIGINES.md` et `CLAUDE.md`.
 
 **À surveiller en playtest** : Cafard (Increvable à chaque étage : très fort), cumul Troll/Bagarreur et Goule/Sac de frappe, fréquence réelle des conditions à l'étage 3 (runs courts : seuils bas à confirmer), interaction avec le Boxeur du chantier 14, lisibilité du bouton de capacité.

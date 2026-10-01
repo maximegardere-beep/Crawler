@@ -53,7 +53,7 @@ Tailwind CDN, **aucun build step**.
 - `tests/` — voir plus bas
 - `CHANTIERS.md` — registre des chantiers (statut, décisions, point d'étape, voir « Chantiers »)
 - `NOTES_*.md` — notes détaillées d'un chantier (diagnostic, chiffres, tests, « À surveiller en playtest ») :
-  `COMPAGNONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
+  `COMPAGNONS`, `ORIGINES`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
   chantiers antérieurs au registre `COMBAT`, `LISIBILITE_COMBAT`, `QOL_EQUILIBRAGE`
 
 ## Architecture (résumé)
@@ -898,7 +898,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`, `origin-choice.js`, `classes.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`, `origin-choice.js`, `classes.js`, `crawler-races.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests

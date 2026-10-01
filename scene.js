@@ -27,27 +27,37 @@ const CONTACT_GAP = 5;
 
 // Position du centre du mob à l'écart nul (au contact) et à l'écart maximal.
 const MOB_X_CONTACT = CRAWLER_X - CRAWLER_FRONT_EXTENT - CONTACT_GAP - MOB_EXTENT;
+// Extension avant du crawler courant : celle du corps dessiné de sa race (CRAWLER_RACE_BODIES, gabarit légèrement varié), sinon la constante
+// commune. `raceKey` : une race précise, par défaut celle du crawler (chantier 13, lot 4).
+function crawlerFrontExtent(raceKey = (typeof gameState !== 'undefined' ? gameState.race : null)) {
+    const body = crawlerRaceBody(raceKey);
+    return body && body.frontExtent > 0 ? body.frontExtent : CRAWLER_FRONT_EXTENT;
+}
+function mobContactX(frontExtent = CRAWLER_FRONT_EXTENT) {
+    return CRAWLER_X - frontExtent - CONTACT_GAP - MOB_EXTENT;
+}
 const MOB_X_FAR = SCENE_MARGIN + MOB_EXTENT;
 
 // Seule conversion distance de jeu -> abscisse écran. Linéaire et continue : la distance du jeu est
 // entière (0..maxDistance), mais l'axe n'a aucune case — un saut de plusieurs unités d'un coup (dés,
 // Charger, ruée) donne un seul glissement fluide (transition CSS sur transform). Bornée : toute valeur
 // hors plage (ou invalide) est ramenée à [0, maxDistance], donc le mob reste toujours dans la scène.
-function distanceToX(distance, maxDistance) {
+function distanceToX(distance, maxDistance, frontExtent = CRAWLER_FRONT_EXTENT) {
     const max = maxDistance > 0 ? maxDistance : 1;
     const ratio = Math.max(0, Math.min(1, (Number(distance) || 0) / max));
-    return MOB_X_CONTACT - ratio * (MOB_X_CONTACT - MOB_X_FAR);
+    const contact = mobContactX(frontExtent); // = MOB_X_CONTACT pour l'extension commune
+    return contact - ratio * (contact - MOB_X_FAR);
 }
 
 // Bandes de portée au sol, toujours visibles (pure, testée) : "contact" couvre la position du mob à
 // l'écart nul (Arme, Mains nues, sort de corps à corps), "tir" toutes les positions à écart > 0 (Tir,
 // sort à distance — aucune portée maximale dans le jeu). La frontière passe à mi-chemin entre les
 // positions des écarts 0 et 1 ; la bande de contact s'arrête à l'avant du crawler.
-function computeRangeBands(maxDistance) {
-    const boundary = (distanceToX(0, maxDistance) + distanceToX(1, maxDistance)) / 2;
+function computeRangeBands(maxDistance, frontExtent = CRAWLER_FRONT_EXTENT) {
+    const boundary = (distanceToX(0, maxDistance, frontExtent) + distanceToX(1, maxDistance, frontExtent)) / 2;
     return {
         ranged: { x1: SCENE_MARGIN, x2: boundary },
-        contact: { x1: boundary, x2: CRAWLER_X - CRAWLER_FRONT_EXTENT }
+        contact: { x1: boundary, x2: CRAWLER_X - frontExtent }
     };
 }
 
@@ -267,6 +277,7 @@ function enchantColors(item) {
 function crawlerLoadout() {
     const eq = gameState.equipment || {};
     return {
+        race: gameState.race || null, // aspect de la race (sprites/crawler-races.js)
         posture: crawlerPosture(),
         weapon: resolveItemSpriteKey(eq.weapon),
         ranged: resolveItemSpriteKey(eq.ranged),
@@ -278,7 +289,7 @@ function crawlerLoadout() {
 
 function crawlerLoadoutKey(l) {
     const ench = l.ench || {};
-    return [l.posture, l.weapon, l.ranged, l.armor, l.glow, (ench.weapon || []).join(','), (ench.ranged || []).join(','), (ench.armor || []).join(',')].join('|');
+    return [l.race || '', l.posture, l.weapon, l.ranged, l.armor, l.glow, (ench.weapon || []).join(','), (ench.ranged || []).join(','), (ench.armor || []).join(',')].join('|');
 }
 
 // Étincelles d'enchantement autour du `tip` d'un sprite : une par mécanique, à sa couleur, qui
@@ -346,15 +357,25 @@ function itemIconSvg(item, size = 28) {
 // la main de la posture, l'autre arme rangée (mêlée à la hanche, distance en travers du sac), armure en
 // surimpression du torse. Pure : ne dépend que de `loadout`.
 function composeCrawler(l) {
-    const arm = CRAWLER_ARMS[l.posture] || CRAWLER_ARMS.rest;
+    // Corps de la race : un corps dessiné (CRAWLER_RACE_BODIES) remplace couches et bras ; sinon le corps humain, teinté par la race (peau, cheveux).
+    const body = crawlerRaceBody(l.race);
+    const look = crawlerRaceLook(l.race);
+    const tint = (markup) => tintCrawlerMarkup(markup, look);
+    const parts = body ? body.parts : { base: tint(CRAWLER_PARTS.base), torso: tint(CRAWLER_PARTS.torso), head: tint(CRAWLER_PARTS.head) };
+    const armSet = body && body.arms ? Object.assign({}, CRAWLER_ARMS, body.arms) : CRAWLER_ARMS;
+    const baseArm = armSet[l.posture] || armSet.rest;
+    const arm = body ? baseArm : Object.assign({}, baseArm, { arm: tint(baseArm.arm), after: tint(baseArm.after || ''), front: baseArm.front ? tint(baseArm.front) : baseArm.front });
+    const anchors = (body && body.anchors) || {};
+    const rAnchor = Object.assign({ x: 14, y: -54, rot: 55, scale: 0.8 }, anchors.stowedRanged);
+    const wAnchor = Object.assign({ x: 5, y: -36, rot: 160, scale: 0.7 }, anchors.stowedWeapon);
     const [hx, hy] = arm.hand;
     const holdsWeapon = l.posture === 'weapon';
     const holdsRanged = l.posture === 'ranged' || l.posture === 'rangedLowered';
     const ench = l.ench || {};
     const stowedRanged = l.ranged && !holdsRanged
-        ? `<g class="crawler-stowed-ranged" transform="translate(14 -54) rotate(55) scale(0.8)">${itemArt(l.ranged)}</g>` : '';
+        ? `<g class="crawler-stowed-ranged" transform="translate(${rAnchor.x} ${rAnchor.y}) rotate(${rAnchor.rot}) scale(${rAnchor.scale})">${itemArt(l.ranged)}</g>` : '';
     const stowedWeapon = l.weapon && !holdsWeapon
-        ? `<g class="crawler-stowed-weapon" transform="translate(5 -36) rotate(160) scale(0.7)">${itemArt(l.weapon)}</g>` : '';
+        ? `<g class="crawler-stowed-weapon" transform="translate(${wAnchor.x} ${wAnchor.y}) rotate(${wAnchor.rot}) scale(${wAnchor.scale})">${itemArt(l.weapon)}</g>` : '';
     const armorSprite = l.armor && ITEM_SPRITES[l.armor];
     const armorMarkup = l.armor ? `<g class="crawler-armor">${itemArt(l.armor, ench.armor)}</g>` : '';
     const armorBack = armorSprite && armorSprite.layer === 'back' ? armorMarkup : '';
@@ -368,8 +389,21 @@ function composeCrawler(l) {
         const c = l.glow || CRAWLER_DEFAULT_GLOW;
         held = `<g class="crawler-spell-glow"><circle cx="${hx - 3}" cy="${hy - 6}" r="7" fill="${c}" opacity="0.3"/><circle cx="${hx - 3}" cy="${hy - 6}" r="3.2" fill="${c}" opacity="0.85"/></g>`;
     }
-    return `<g class="crawler" data-posture="${l.posture}">${CRAWLER_PARTS.base}${armorBack}${stowedRanged}${stowedWeapon}${CRAWLER_PARTS.torso}${armor}` +
-        `${arm.arm}${held}${arm.after || ''}${CRAWLER_PARTS.head}${arm.front ? `<g class="crawler-front">${arm.front}</g>` : ''}</g>`;
+    return `<g class="crawler" data-posture="${l.posture}"${l.race ? ` data-race="${l.race}"` : ''}>${parts.base}${armorBack}${stowedRanged}${stowedWeapon}${parts.torso}${armor}` +
+        `${arm.arm}${held}${arm.after || ''}${parts.head}${arm.front ? `<g class="crawler-front">${arm.front}</g>` : ''}</g>`;
+}
+
+// Portrait d'une race (sans équipement, au repos), pour les cartes de choix et la fiche d'origine : un <svg> autonome (pure).
+function buildRacePortraitSvg(raceKey, size = 56) {
+    const markup = composeCrawler({ race: raceKey, posture: 'rest', weapon: null, ranged: null, armor: null, glow: null, ench: {} });
+    return `<svg class="origin-portrait" width="${size}" height="${Math.round(size * 98 / 60)}" viewBox="-28 -94 60 98" aria-hidden="true">${markup}</svg>`;
+}
+
+// Cadavre du crawler (écran Game Over) : celui du corps dessiné de sa race s'il existe, sinon le corps humain teinté.
+function crawlerCorpseMarkup(raceKey = gameState.race) {
+    const body = crawlerRaceBody(raceKey);
+    if (body && body.corpse) return body.corpse;
+    return tintCrawlerMarkup(SCENE_CORPSE_TOPDOWN_SVG, crawlerRaceLook(raceKey));
 }
 
 // Crawler de l'état courant, avec sa clé (pour ne redessiner que quand la posture ou l'équipement change).
@@ -401,7 +435,7 @@ function ensureSceneBuilt() {
     placeSceneGroup(sceneUi.crawler, CRAWLER_X, SCENE_GROUND_Y);
     placeSceneGroup(sceneUi.companion, COMPANION_X, SCENE_GROUND_Y);
     placeSceneAnchor(sceneUi.crawlerAnchor, CRAWLER_X, SCENE_GROUND_Y + CRAWLER_TOP + DAMAGE_ANCHOR_DROP);
-    const bands = computeRangeBands(config.rangedCombat.maxDistance);
+    const bands = computeRangeBands(config.rangedCombat.maxDistance, crawlerFrontExtent());
     placeRangeBand(sceneUi.bandContact, sceneUi.bandContactLabel, bands.contact);
     placeRangeBand(sceneUi.bandRanged, sceneUi.bandRangedLabel, bands.ranged);
     sceneBuilt = true;
@@ -481,7 +515,7 @@ function renderSceneMob(enemy) {
         lastMobSpriteKey = spriteKey;
     }
     applySceneTint(sceneUi.mob, sprite.palette);
-    const x = distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance);
+    const x = distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance, crawlerFrontExtent());
     const isNewEnemy = enemy !== lastSceneEnemy;
     if (isNewEnemy) {
         sceneUi.mob.classList.add('scene-no-transition');
@@ -930,7 +964,7 @@ function composeGameOverScene(cause, districtKey, prefix) {
         <g class="go-clue" data-cause="${cause}">${clue}</g>
         <g transform="translate(${b.x} ${b.y}) rotate(${b.angle})">
             <g class="go-blood-spread">${GAME_OVER_BLOOD_POOL}</g>
-            ${SCENE_CORPSE_TOPDOWN_SVG}
+            ${crawlerCorpseMarkup()}
         </g>
         <g transform="translate(${b.x - 58} ${b.y + 44})">${evidenceMarker(1)}</g>
         <g transform="translate(${b.x + 62} ${b.y - 40})">${evidenceMarker(2)}</g>
