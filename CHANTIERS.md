@@ -46,7 +46,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
 | 13 | Race et classe choisies à l'étage 3 | L | Exploré (cadrage, en pause) | liste chiffrée à valider |
-| 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Planifié (1 point à confirmer) | confirmation du sort de l'évolution Boxeur à l'équipement |
+| 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Planifié (prêt à coder) | chiffres à valider |
 
 ### Codés (à playtester)
 
@@ -327,15 +327,15 @@ un buff temporaire, « foutu pour foutu ».
 - **Buff** : **+5 % de dégâts subis** (malus, toutes sources) en échange de **dégâts ×2 à mains nues** — **Étrangler compris** (×3 → ×6 cumulés ; il ne s'applique qu'à un mob non-boss immobilisé/étourdi).
 - **Qui** : tout crawler dont le cadeau est « Armure » ou « Rien » (pas de rétro-activation d'une ancienne sauvegarde : le champ absent = pas de buff).
 - **Fin** : le buff saute dès que le crawler **ÉQUIPE** une arme, une arme à distance ou un sort (`equipItem()`/`equipSpell()`, jamais l'armure). Un objet ramassé mais non équipé ne coupe pas ; un don à un compagnon ne compte pas ; une fois perdu, il ne revient pas.
-- **Évolution** : si le buff est **encore actif à l'arrivée sur l'étage 2** (`advanceToNextFloor()`), il évolue en **« Boxeur »** : passif plus modeste, sans le malus (+5 % subis disparaît), pour récompenser celui qui a tenu. Chiffres à proposer à la validation (départ : ×1,25 mains nues, DEF ennemie ignorée en plus). Message sarcastique + badge qui change.
+- **Évolution** : si le buff est **encore actif à l'arrivée sur l'étage 2** (`advanceToNextFloor()`), il évolue en **« Boxeur »** : passif plus modeste, sans le malus (+5 % subis disparaît), pour récompenser celui qui a tenu. Chiffres à valider (départ : ×1,25 mains nues ; la DEF ennemie ignorée en plus reste une option à trancher au playtest). Message sarcastique + badge qui change.
 
-**Point à confirmer (deux réponses se contredisent)** : « tout saute à l'équipement » (choisi) mais la forme Boxeur « permanent » (choisie) est conçue pour rester après avoir équipé. Lecture proposée : à l'équipement, le buff de départ ET le malus sautent toujours ; le passif Boxeur évolué, lui, ne fait qu'un petit ×1,25 sur l'attaque Mains nues (qui n'a de sens qu'à mains nues) et reste — sinon il disparaît lui aussi. À trancher avant le code.
+**Décidé (round 2)** : à l'équipement d'une arme, d'une arme à distance ou d'un sort, le buff de départ ET son malus sautent toujours ; le **Boxeur reste, en petit** : un simple ×1,25 sur l'attaque Mains nues (sans effet tant qu'on frappe avec l'arme), définitif — récompense d'avoir tenu jusqu'à l'étage 2. `starterBuff` passe donc à `'boxer'` (conservé) au lieu de `null`. Une fois équipé AVANT l'étage 2, rien n'évolue.
 
 **Plan technique (prêt à coder)** :
 - `gameState.starterBuff` : `null | 'desperate' | 'boxer'` (sauvegardé ; absent = `null`). Posé par `revealWelcomeGift()` quand le type tiré est `armor`/`nothing`. À ajouter à `resetTransientState()` et `KNOWN_GAMESTATE_KEYS` (règle des tests méta).
-- Réglages dans `config.starterBuff` : `damageTakenMult` 1,05, `unarmedMult` 2, `chokeStacks` vrai, `boxerUnarmedMult` 1,25, `boxerDefIgnore`.
+- Réglages dans `config.starterBuff` : `damageTakenMult` 1,05, `unarmedMult` 2 (Étrangler compris), `boxerUnarmedMult` 1,25.
 - Un seul point de lecture par effet : mains nues dans `attackUnarmed()` (et Étrangler dans `resolveOccasion()` via le même helper), dégâts subis dans `applyPlayerDamage()` (arrondi, jamais moins que le montant d'origine).
-- Fin : une fonction `endStarterBuff(reason)` appelée par `equipItem()` (slot arme/distance) et `equipSpell()` ; évolution dans `advanceToNextFloor()`. Badge `#starter-buff-status` (infobulle avec les chiffres), journal sarcastique à l'activation, à l'évolution et à la perte.
+- Fin : `endStarterBuff()` appelée par `equipItem()` (slot arme/distance) et `equipSpell()` — `'desperate'` → `null`, `'boxer'` reste ; évolution dans `advanceToNextFloor()`. Badge `#starter-buff-status` (infobulle avec les chiffres), journal sarcastique à l'activation, à l'évolution et à la perte.
 - Tests : activation selon le cadeau, +5 % subis, ×2 mains nues et Étrangler, fin à l'équipement (arme/distance/sort, jamais armure), objet non équipé sans effet, évolution à l'étage 2, sauvegarde/restauration, ancienne sauvegarde sans buff.
 - Playtest : fréquence de survie à l'étage 1 d'un crawler sans arme (simulation possible via `tests/long_playthrough.js` en forçant le cadeau « Rien »).
 
