@@ -48,6 +48,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
+| 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié (lots 0 à 6, rien codé) | images WebP à faire générer par Vibe (consigne au lot 4) |
 
 ### Codés (à playtester)
 
@@ -465,3 +466,50 @@ scénario** (1 fois par étage 1-3, un coup mortel laisse 1 PV, boss compris) ·
 
 **Lot 5 codé** : habillage satirique — 4 thèmes de piques DeathWatch (`trial` sur la Période d'essai, `trialEnd` à l'arrivée à l'étage 4, `plotArmor` après un coup mortel évité, `interim` après un boss intérimaire vaincu ; répliques sur les 4 tons), 2 succès Bronze (« Le scénariste vous aime », « Licenciement sans préavis », catalogue 53 → 55), message de fin de la Convention collective à la première élite croisée (une fois, `gameState.eliteConventionEnded`).
 **À playtester avant merge** : élites encore létales aux étages 3-5 malgré la rampe ; le suspense du tutoriel face à l'Armure de scénario ; la falaise de l'étage 4.
+
+## 16. Entrées en combat (fluidité et lisibilité) — L — Planifié
+
+**Demande** : le début d'un combat est trop instantané. Un écran plein écran statique par mob (rage s'il nous attaque, de dos
+et au loin en cas d'embuscade), images générées par Vibe avec un fichier de consignes, boss d'abord puis mobs les plus puissants ;
+et, en embuscade, pouvoir choisir un départ à distance ou au corps à corps.
+
+**Exploré** : `initiateCombat()` (app.js) bascule d'un coup de la scène d'exploration au combat (en-tête posé, journal, `updateUI()`),
+sans temps mort. Cinq entrées y mènent : rencontre repérée (`handleStealthEncounter()`), esquive ratée (`attemptStealthEvasion()`),
+attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de trajet (`triggerNextAmbushOrArrive()`), boss
+(`triggerBossEncounter()`), chasseur de primes (`maybeSpawnBountyHunter()`). Seule la furtivité non repérée a déjà un écran
+(vignette `stealthUnseen`, petite). L'écart de départ n'a qu'une règle : `mobWantsFar()` → `config.rangedCombat.initialDistance`, sinon 0.
+
+**Décidé (round 1)** : overlay **toujours fermé par un tap** (Espace/Entrée aussi) · variantes **« il t'a vu » (face, rage)**,
+**« tu l'as vu » (dos, au loin, occupé)**, **arrivée de boss** distincte, **chasseur de primes** (affiche RECHERCHÉ) · embuscade :
+**Attaque furtive à 2 boutons** (corps à corps / de loin) · images **WebP dans `assets/mobs/`**.
+
+**Plan** :
+- **Lot 0 — catalogue pur `encounters.js`** (chargé avant `app.js`, ajouté à `index.html` ET `tests/load_game.js`) : `ENCOUNTER_KINDS`
+  (`spotted`, `unseen`, `ambush`, `boss`, `hunter` : titre, réplique sarcastique, couleur d'accent), `encounterArtSlug(nom)`,
+  manifeste `ENCOUNTER_ART` (`{ 'Nom exact': { face, back } }`, mis à jour à chaque livraison de Vibe), `resolveEncounterArt(enemy, kind)`.
+  Test : chaque entrée du manifeste existe sur disque et correspond à un mob/boss réel, aucun slug en double.
+- **Lot 1 — overlay `#encounter-overlay`** : image plein écran (`object-fit: cover`, ancrage haut), bandeau titre + « Toucher pour continuer »,
+  fondu d'entrée, léger zoom lent et secousse à la révélation, coupés sous `prefers-reduced-motion`. **Repli sans image** : le mob actuel
+  (`resolveMobSprite()`, aura comprise) agrandi sur le décor du quartier (`composeBackdrop()`), de face ou de dos — la fonctionnalité marche
+  dès le lot 1, chaque image livrée ne fait qu'améliorer un mob. Image chargée via `<img>` avec repli sur `onerror`.
+- **Lot 2 — branchement** : `initiateCombat(enemy, { intro: 'spotted'|'ambush'|'boss'|'hunter' })` joue l'overlay PUIS démarre le combat
+  (callback, jamais de Promise) ; les étapes de `initiateCombat()` sont découpées en `showEncounterIntro()` → `beginCombat()`. Écran « tu l'as vu »
+  (`unseen`) avant les boutons Esquiver / Attaque furtive. Blocage `gameState.encounterIntroPending` (`isActionBlocked()`, `resetTransientState()`,
+  `KNOWN_GAMESTATE_KEYS`, résolveur de `tests/long_playthrough.js`). Sans interface (tests Node, `saveEnabled` faux) : appel immédiat du
+  callback, comme les mini-jeux. Pas de rejouage à la restauration d'une sauvegarde.
+- **Lot 3 — départ à distance ou au corps à corps** : `attemptStealthAttack(mode)` avec deux boutons « Surgir au corps à corps » (écart 0) et
+  « Tirer de loin » (écart `initialDistance`, grisé sans arme à distance ni sort offensif à distance). Option `startDistance` de `initiateCombat()`
+  (le `mobWantsFar()` actuel reste le défaut). Le bonus ×2 du premier coup (`pendingSneakAttack`) s'applique à l'attaque choisie ; un mob de
+  mêlée tenu à distance perd donc des tours à avancer (déjà géré par les règles d'écart et la ruée). Aucune modification des formules.
+- **Lot 4 — consigne Vibe `prompts/vibe-rencontres.md`** (modèle de `gemini-boss.md`) : format 750×1334 portrait, WebP q≈80 (~100 Ko), style du
+  bestiaire, deux plans par mob — *face* (le mob fixe le joueur, hostile, caméra au niveau du crawler) et *dos* (de dos, loin, occupé à une
+  activité propre à son archétype) —, boss : un seul plan face, plus imposant, avec son objet signature ; décor du quartier d'origine ; aucun texte.
+  Nommage `assets/mobs/<slug>-face.webp` / `-back.webp`, liste ordonnée des 13 boss.
+- **Lot 5 — vagues d'images** : 13 boss → mobs les plus puissants (les élites étant des modificateurs, on classe par stats de base d'étage tardif) → le reste (39 mobs
+  × 2 plans). Chaque livraison = images + lignes du manifeste ; un mob sans image garde le repli du lot 1. Poids total visé ≈ 10 Mo, chargées à la demande (jamais au démarrage).
+- **Lot 6 — habillage** : réglage de durée facultatif, vibration (`navigator.vibrate`) à la révélation d'un boss, réplique DeathWatch pour l'arrivée d'un chasseur,
+  succès éventuel « Surpris en train de bailler » (se faire attaquer à dos tourné).
+
+**Chiffres à valider (convention 5, rien d'appliqué)** : bonus ×2 de l'attaque furtive identique au corps à corps et à distance ? · l'écart de « Tirer de loin » = écart de
+départ des mobs à distance (actuel) ? · le tap obligatoire sur chaque rencontre (surtout les mobs ordinaires aux étages tardifs) est-il lassant ? (option envisagée si oui : tap dès le 1er étage, auto-fermeture
+~3 s ensuite, à décider au playtest).
