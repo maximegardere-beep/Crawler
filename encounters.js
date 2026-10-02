@@ -99,6 +99,10 @@ const ENCOUNTER_ART = {
     'Photocopieuse Carnivore': { face: 'svg', back: 'svg' },
     'Stagiaire Démoniaque': { face: 'svg', back: 'svg' },
     'Garde-Chiourme Bureaucrate': { face: 'svg', back: 'svg' },
+    // Usine de Transformation Alimentaire
+    'Saucisse Vivante': { face: 'svg', back: 'svg' },
+    'Fromage qui Pue': { face: 'svg', back: 'svg' },
+    'Ouvrier à la Chaîne': { face: 'svg', back: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';
