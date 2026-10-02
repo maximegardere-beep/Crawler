@@ -47,6 +47,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
+| 15 | Rééquilibrage du début de partie (étages 1-3) | M | Planifié (le 02/10/2026) | `NOTES_DEBUT_DE_PARTIE.md` — attend « Go lot 0 » |
 
 ### Codés (à playtester)
 
@@ -437,3 +438,17 @@ terreur) et sorts utilitaires utilisables à toute distance, liste et chiffres *
 sort utilitaire **consomme le tour**.
 
 **Livré** : 7 sorts à effet et 3 sorts utilitaires, effets visuels — voir `NOTES_SORTS.md`.
+
+## 15. Rééquilibrage du début de partie (étages 1-3) — M — Planifié
+
+**Demande** : le jeu est très difficile jusqu'à l'obtention d'un équipement fiable. Pistes de l'utilisateur : PV des mobs, dégâts des mobs ; **pas de hausse de la puissance
+des armes** ; correctifs au caractère satirique dans le ton de DCC. Diagnostic chiffré et plan complet : `NOTES_DEBUT_DE_PARTIE.md`.
+
+**Constats (mesurés)** : cadeau de départ négligeable (+2,4 ATQ) ; un combat ordinaire à l'étage 1 coûte 55 % (N1) / 42 % (N2) des PV, 18 % / 10 % de mort ; les **élites 💀** (7 % des
+mobs) tuent 59 à 85 % du temps aux étages 1-3 ; les boss d'escalier exigent le niveau 7 (87 %) alors que le niveau 7 demande ~24 combats.
+
+**Décisions (rounds 1 et 2)** : périmètre étages 1-3 · **Convention collective du Donjon** (aucune élite aux étages 1-2, rampe ×1,3/×1,5/×1,65 aux étages 3-5) · **Remplaçant
+intérimaire** (boss ×0,75 PV et ATQ, étages 1-3) · **Période d'essai** (−40 % de dégâts subis au N1, fondu jusqu'au N7, tous dégâts directs, arrêt à l'étage 4) · **Armure de
+scénario** (1 fois par étage 1-3, un coup mortel laisse 1 PV, boss compris) · cible : combat ordinaire N1-N2 étage 1 ≈ 35 % des PV, mort ≤ 5 %. Écartés : Bonus Premier Sang (XP), Trousse du sponsor.
+
+**Plan** : lots 0 (outil `sim:early`) à 5 (habillage), voir `NOTES_DEBUT_DE_PARTIE.md`. Branche `claude/chantier-15-reequilibrage`, empilée sur celle du chantier 13.
