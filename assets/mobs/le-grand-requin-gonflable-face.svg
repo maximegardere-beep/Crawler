@@ -21,6 +21,15 @@
     <circle cx="650" cy="930" r="52" fill="#c94f3d" opacity="0.8"/>
     <circle cx="650" cy="930" r="26" fill="#274b5e"/>
     <path d="M560 860 q20 -60 60 -80 M600 780 l20 20" fill="none"/>
+    <!-- Panneau de profondeur, illisible (formes, aucune lettre) -->
+    <path d="M60 640 v-60" stroke-width="8"/>
+    <rect x="20" y="540" width="120" height="52" rx="8" fill="#274b5e"/>
+    <path d="M36 560 h88 M36 576 h64" stroke="#7dd3fc" stroke-width="8"/>
+    <!-- Ligne de flotteurs de course, ternes -->
+    <path d="M620 620 h100" stroke="#3a5f66" stroke-width="7"/>
+    <circle cx="640" cy="620" r="10" fill="#c94f3d" opacity="0.5"/>
+    <circle cx="680" cy="620" r="10" fill="#e8e4d8" opacity="0.4"/>
+    <circle cx="710" cy="620" r="10" fill="#c94f3d" opacity="0.5"/>
   </g>
   <ellipse cx="375" cy="720" rx="340" ry="270" fill="#2a5062" opacity="0.4"/>
   <ellipse cx="140" cy="330" rx="120" ry="90" fill="#7dd3fc" opacity="0.06"/>
@@ -33,13 +42,19 @@
   </g>
   <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
   <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
-  <ellipse cx="375" cy="640" rx="320" ry="420" fill="#ef4444" opacity="0.08"/>
-  <ellipse cx="375" cy="640" rx="240" ry="330" fill="#ef4444" opacity="0.11"/>
-  <ellipse cx="375" cy="640" rx="160" ry="220" fill="#ef4444" opacity="0.13"/>
+    <!-- ===== AURA BLEED vivante : halo irrégulier + gouttes modestes (#ef4444, jamais gore) ===== -->
+  <path d="M375 280 C555 300 655 465 638 655 C622 840 530 955 375 973 C220 955 128 840 112 655 C95 465 195 300 375 280 Z" fill="#ef4444" opacity="0.08"/>
+  <path d="M375 375 C505 395 575 520 562 645 C550 770 475 845 375 858 C275 845 200 770 188 645 C175 520 245 395 375 375 Z" fill="#ef4444" opacity="0.11"/>
   <g fill="#ef4444" stroke="#05060c" stroke-width="4">
-    <path d="M190 440 q-7 20 0 26 q7 -6 0 -26 z" opacity="0.65"/>
-    <path d="M555 500 q-7 20 0 26 q7 -6 0 -26 z" opacity="0.6"/>
+    <path d="M190 440 q-9 26 0 33 q9 -7 0 -33 z" opacity="0.7"/>
+    <path d="M555 500 q-9 26 0 33 q9 -7 0 -33 z" opacity="0.65"/>
+    <path d="M242 850 q-8 22 0 28 q8 -6 0 -28 z" opacity="0.6"/>
+    <path d="M510 380 q-7 20 0 25 q7 -5 0 -25 z" opacity="0.5"/>
   </g>
+  <g fill="#ef4444" stroke="none" opacity="0.3">
+    <circle cx="230" cy="560" r="10"/><circle cx="530" cy="600" r="8"/><circle cx="260" cy="800" r="7"/>
+  </g>
+
   <ellipse cx="375" cy="1050" rx="240" ry="28" fill="#05060c" opacity="0.45"/>
   <g stroke="#05060c" stroke-linejoin="round" stroke-width="12">
     <path d="M375 1000 C300 980 260 920 280 860 C295 815 340 800 370 825" fill="none" stroke-width="46"/>

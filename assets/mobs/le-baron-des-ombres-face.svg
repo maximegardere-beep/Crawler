@@ -27,6 +27,20 @@
   <ellipse cx="375" cy="680" rx="340" ry="280" fill="#2c2540" opacity="0.45"/>
   <path d="M120 900 q-10 -90 40 -110 q50 18 40 110 Z" fill="#1c1826" stroke="#05060c" stroke-width="5"/>
   <path d="M640 920 q-12 -80 36 -100 q46 16 38 100 Z" fill="#1c1826" stroke="#05060c" stroke-width="5"/>
+    <!-- Enseigne de boutique du marché noir, illisible (formes, aucune lettre) -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="300" y="240" width="140" height="58" rx="10" fill="#1f1a2c"/>
+    <rect x="316" y="258" width="108" height="22" rx="6" fill="#332c48"/>
+    <circle cx="330" cy="269" r="6" fill="#ffd76a" opacity="0.7"/>
+    <path d="M370 96 v26" stroke-width="5"/>
+  </g>
+  <!-- Caisse de contrebande entrouverte -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="90" y="880" width="120" height="90" rx="6" fill="#2a2438"/>
+    <path d="M90 880 l30 -30 h120 l-30 30 Z" fill="#332c48"/>
+    <path d="M210 850 v90" stroke-width="5"/>
+    <circle cx="150" cy="925" r="10" fill="#3a3352"/>
+  </g>
   <rect x="0" y="1040" width="750" height="294" fill="#241f30"/>
   <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
   <g fill="none" stroke="#1e1a28" stroke-width="6">
@@ -34,10 +48,19 @@
   </g>
   <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
   <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
-  <ellipse cx="375" cy="620" rx="320" ry="420" fill="#fde047" opacity="0.09"/>
-  <ellipse cx="375" cy="620" rx="240" ry="330" fill="#fde047" opacity="0.12"/>
-  <ellipse cx="375" cy="620" rx="160" ry="220" fill="#fde047" opacity="0.15"/>
-  <path d="M195 400 l-16 -22 l16 -8 l-14 -20 M555 450 l16 -22 l-16 -8 l14 -20" fill="none" stroke="#fde047" stroke-width="7" stroke-linecap="round" opacity="0.8"/>
+    <!-- ===== AURA STUN vivante : halo irrégulier + éclats et étincelles (#fde047) ===== -->
+  <path d="M375 260 C555 280 655 445 638 640 C622 830 530 945 375 963 C220 945 128 830 112 640 C95 445 195 280 375 260 Z" fill="#fde047" opacity="0.09"/>
+  <path d="M375 360 C505 380 575 505 562 635 C550 765 475 840 375 853 C275 840 200 765 188 635 C175 505 245 380 375 360 Z" fill="#fde047" opacity="0.12"/>
+  <g stroke="#fde047" stroke-linecap="round" fill="none">
+    <path d="M195 400 l-16 -22 l16 -8 l-14 -20" stroke-width="8" opacity="0.85"/>
+    <path d="M555 450 l16 -22 l-16 -8 l14 -20" stroke-width="8" opacity="0.85"/>
+    <path d="M175 770 l-20 -16 l14 -14" stroke-width="7" opacity="0.7"/>
+    <path d="M575 790 l20 -14 l-12 -14" stroke-width="7" opacity="0.7"/>
+  </g>
+  <g fill="#fde047" stroke="#05060c" stroke-width="3">
+    <circle cx="238" cy="540" r="9" opacity="0.8"/><circle cx="515" cy="580" r="7" opacity="0.75"/>
+  </g>
+
   <ellipse cx="375" cy="1058" rx="160" ry="22" fill="#05060c" opacity="0.4"/>
   <g stroke="#05060c" stroke-linejoin="round" stroke-width="11">
     <path d="M255 600 C220 710 230 860 265 935 C315 905 345 935 375 910 C405 935 435 905 485 935 C520 860 530 710 495 600 C460 565 425 555 375 555 C325 555 290 565 255 600 Z" fill="#4a4460" opacity="0.95"/>

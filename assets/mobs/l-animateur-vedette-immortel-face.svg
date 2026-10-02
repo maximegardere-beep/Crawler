@@ -26,6 +26,19 @@
     <circle cx="245" cy="600" r="16" fill="#1a2430"/>
     <circle cx="608" cy="600" r="30" fill="#26233c"/>
     <circle cx="608" cy="600" r="12" fill="#c94f3d"/>
+    <!-- Écrans de contrôle du studio, à visage de surveillants -->
+    <rect x="600" y="470" width="110" height="70" rx="8" fill="#26233c"/>
+    <circle cx="630" cy="500" r="11" fill="#fde047" opacity="0.7"/>
+    <circle cx="678" cy="500" r="11" fill="#fde047" opacity="0.7"/>
+    <path d="M620 524 q34 10 66 0" fill="none" stroke="#fde047" stroke-width="5" opacity="0.5"/>
+  </g>
+  <!-- Table de télé-achat couverte de produits absurdes (formes, aucune lettre) -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="40" y="760" width="150" height="20" rx="6" fill="#33304e"/>
+    <path d="M60 760 v-30 M140 760 v-24" stroke-width="8"/>
+    <ellipse cx="75" cy="718" rx="20" ry="14" fill="#3a3652"/>
+    <rect x="118" y="708" width="34" height="26" rx="6" fill="#4a4460"/>
+    <circle cx="135" cy="720" r="8" fill="#fde047" opacity="0.6"/>
   </g>
   <path d="M120 300 q60 -60 110 -10 M520 280 q70 -50 110 0" fill="none" stroke="#3a3652" stroke-width="6"/>
   <path d="M170 268 l8 -16 l16 12 l14 -18 l6 22 l16 4" fill="none" stroke="#fde047" stroke-width="5" opacity="0.5"/>
@@ -36,13 +49,21 @@
   </g>
   <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
   <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
-  <ellipse cx="375" cy="640" rx="320" ry="420" fill="#c084fc" opacity="0.10"/>
-  <ellipse cx="375" cy="640" rx="240" ry="330" fill="#c084fc" opacity="0.13"/>
-  <ellipse cx="375" cy="640" rx="160" ry="220" fill="#c084fc" opacity="0.16"/>
-  <g fill="none" stroke="#c084fc" stroke-width="7" opacity="0.7">
-    <path d="M195 430 a16 16 0 1 1 16 16 a11 11 0 1 0 -16 -16"/>
-    <path d="M558 490 a16 16 0 1 1 16 16 a11 11 0 1 0 -16 -16"/>
+  <!-- ===== AURA CONFUSION vivante : halo irrégulier + spirales et confettis (#c084fc) ===== -->
+  <path d="M375 280 C555 300 655 465 638 655 C622 840 530 955 375 973 C220 955 128 840 112 655 C95 465 195 300 375 280 Z" fill="#c084fc" opacity="0.10"/>
+  <path d="M375 375 C505 395 575 520 562 645 C550 770 475 845 375 858 C275 845 200 770 188 645 C175 520 245 395 375 375 Z" fill="#c084fc" opacity="0.13"/>
+  <g fill="none" stroke="#c084fc" stroke-linecap="round">
+    <path d="M195 430 a19 19 0 1 1 19 19 a12 12 0 1 0 -19 -19" stroke-width="8" opacity="0.75"/>
+    <path d="M558 490 a19 19 0 1 1 19 19 a12 12 0 1 0 -19 -19" stroke-width="8" opacity="0.75"/>
+    <path d="M250 840 a15 15 0 1 1 15 15" stroke-width="7" opacity="0.65"/>
   </g>
+  <!-- Confettis de plateau télé -->
+  <g fill="#c084fc" stroke="none" opacity="0.5">
+    <circle cx="240" cy="520" r="8"/><circle cx="530" cy="560" r="7"/><circle cx="300" cy="780" r="6"/>
+    <rect x="420" y="700" width="14" height="14" rx="2" transform="rotate(24 427 707)"/>
+    <rect x="210" y="660" width="12" height="12" rx="2" transform="rotate(-18 216 666)"/>
+  </g>
+
   <ellipse cx="375" cy="1048" rx="200" ry="26" fill="#05060c" opacity="0.45"/>
   <g stroke="#05060c" stroke-linejoin="round" stroke-width="11">
     <path d="M255 525 C222 570 205 660 198 780 C192 895 190 975 188 1050 L562 1050 C560 975 558 895 552 780 C545 660 528 570 495 525 C462 498 432 490 375 490 C318 490 288 498 255 525 Z" fill="#2b2b4a"/>

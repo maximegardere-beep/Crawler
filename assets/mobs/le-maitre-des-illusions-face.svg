@@ -33,6 +33,15 @@
     <rect x="166" y="538" width="44" height="22" rx="4" fill="#3d3560" transform="rotate(-10 190 548)"/>
   </g>
   <path d="M560 700 h80 l-16 -36 h-48 Z M610 664 h-20 l10 36" fill="none" stroke="#3d3560" stroke-width="8"/>
+    <!-- Affiche de spectacle illusionniste, illisible (formes, aucune lettre) -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="58" y="420" width="120" height="90" rx="8" fill="#2a2340" transform="rotate(-6 118 465)"/>
+    <circle cx="118" cy="450" r="24" fill="none" stroke="#7c3aed" stroke-width="7"/>
+    <path d="M96 480 h44 M104 494 h28" stroke="#54427e" stroke-width="7"/>
+  </g>
+  <!-- Lanterne penchée impossible -->
+  <path d="M330 66 q40 -22 66 20" fill="none" stroke="#332c48" stroke-width="7"/>
+  <circle cx="396" cy="86" r="13" fill="#ffd76a" opacity="0.6" stroke="#05060c" stroke-width="5"/>
   <rect x="0" y="1040" width="750" height="294" fill="#282138"/>
   <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
   <g fill="none" stroke="#221c33" stroke-width="6">
@@ -41,13 +50,19 @@
   </g>
   <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
   <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
-  <ellipse cx="375" cy="620" rx="320" ry="420" fill="#c084fc" opacity="0.10"/>
-  <ellipse cx="375" cy="620" rx="240" ry="330" fill="#c084fc" opacity="0.13"/>
-  <ellipse cx="375" cy="620" rx="160" ry="220" fill="#c084fc" opacity="0.16"/>
-  <g fill="none" stroke="#c084fc" stroke-width="7" opacity="0.75">
-    <path d="M205 410 a18 18 0 1 1 18 18 a12 12 0 1 0 -18 -18"/>
-    <path d="M555 460 a18 18 0 1 1 18 18 a12 12 0 1 0 -18 -18"/>
+    <!-- ===== AURA CONFUSION vivante : halo irrégulier + spirales qui virevoltent (#c084fc) ===== -->
+  <path d="M375 260 C560 280 665 450 645 650 C630 840 535 955 375 973 C215 955 120 840 105 650 C85 450 190 280 375 260 Z" fill="#c084fc" opacity="0.10"/>
+  <path d="M375 360 C510 380 585 510 570 645 C556 780 475 855 375 868 C275 855 194 780 180 645 C165 510 240 380 375 360 Z" fill="#c084fc" opacity="0.13"/>
+  <g fill="none" stroke="#c084fc" stroke-linecap="round">
+    <path d="M205 400 a20 20 0 1 1 20 20 a13 13 0 1 0 -20 -20" stroke-width="8" opacity="0.8"/>
+    <path d="M560 450 a20 20 0 1 1 20 20 a13 13 0 1 0 -20 -20" stroke-width="8" opacity="0.8"/>
+    <path d="M250 830 a16 16 0 1 1 16 16" stroke-width="7" opacity="0.7"/>
+    <path d="M520 850 a16 16 0 1 1 -16 16" stroke-width="7" opacity="0.7"/>
   </g>
+  <g fill="#c084fc" stroke="none" opacity="0.45">
+    <circle cx="240" cy="520" r="9"/><circle cx="530" cy="560" r="7"/><circle cx="300" cy="780" r="6"/>
+  </g>
+
   <ellipse cx="375" cy="1058" rx="170" ry="24" fill="#05060c" opacity="0.4"/>
   <g stroke="#05060c" stroke-linejoin="round" stroke-width="11">
     <path d="M225 560 L300 520 L460 520 L535 560 L560 950 L520 900 L495 945 L465 900 L440 950 L415 900 L390 945 L360 900 L335 945 L310 900 L285 945 L255 900 L225 950 Z" fill="#5b21b6" stroke-width="10"/>
