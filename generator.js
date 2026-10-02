@@ -328,6 +328,15 @@ function generateBoss(districtName) {
     return boss;
 }
 
+// Période d'essai (chantier 15, lot 3) : multiplicateur de dégâts subis selon le niveau et l'étage (1 = aucun effet). −startReduction au niveau 1,
+// dégressif linéaire jusqu'à 0 au niveau fadeLevel ; arrêt net au-delà de config.earlyGame.maxFloor. Dérivé du niveau et de l'étage : aucun état sauvegardé. Pure.
+function trialDamageMult(level, floor) {
+    const eg = typeof config !== 'undefined' ? config.earlyGame : null;
+    if (!eg || !eg.enabled || !eg.trial || floor > eg.maxFloor || level >= eg.trial.fadeLevel) return 1;
+    const lvl = Math.max(1, level);
+    return 1 - eg.trial.startReduction * (eg.trial.fadeLevel - lvl) / (eg.trial.fadeLevel - 1);
+}
+
 // Multiplicateurs PV / ATQ d'un boss intérimaire à cet étage (config.earlyGame.interimBoss, étages ≤ maxFloor), ou null. Pure.
 function earlyInterimBossScale(floor) {
     const eg = typeof config !== 'undefined' ? config.earlyGame : null;

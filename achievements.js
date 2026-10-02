@@ -23,6 +23,7 @@ function createEmptyRunStats() {
         rangedKills: 0, // victoires à l'arme à distance (chantier 13 : condition du Franc-tireur)
         flawlessWins: 0, clutchWins: 0,
         damageTaken: 0,
+        trialAvoided: 0, // PV épargnés par la Période d'essai (chantier 15) : réajoutés à la facilité des victoires, pour ne pas gonfler la prime des chasseurs
         flees: 0,
         trapsThisFloor: 0,
         rests: 0,

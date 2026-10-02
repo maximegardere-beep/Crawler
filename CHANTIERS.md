@@ -47,7 +47,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
-| 15 | Rééquilibrage du début de partie (étages 1-3) | M | Lots 0 à 2 codés (outil `sim:early`, Convention collective, Remplaçant intérimaire) | `NOTES_DEBUT_DE_PARTIE.md` — attend « Go lot 3 » |
+| 15 | Rééquilibrage du début de partie (étages 1-3) | M | Lots 0 à 3 codés (outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai) | `NOTES_DEBUT_DE_PARTIE.md` — attend « Go lot 4 » |
 
 ### Codés (à playtester)
 
@@ -439,7 +439,7 @@ sort utilitaire **consomme le tour**.
 
 **Livré** : 7 sorts à effet et 3 sorts utilitaires, effets visuels — voir `NOTES_SORTS.md`.
 
-## 15. Rééquilibrage du début de partie (étages 1-3) — M — Lots 0 à 2 codés
+## 15. Rééquilibrage du début de partie (étages 1-3) — M — Lots 0 à 3 codés
 
 **Demande** : le jeu est très difficile jusqu'à l'obtention d'un équipement fiable. Pistes de l'utilisateur : PV des mobs, dégâts des mobs ; **pas de hausse de la puissance
 des armes** ; correctifs au caractère satirique dans le ton de DCC. Diagnostic chiffré et plan complet : `NOTES_DEBUT_DE_PARTIE.md`.
@@ -458,3 +458,5 @@ scénario** (1 fois par étage 1-3, un coup mortel laisse 1 PV, boss compris) ·
 **Lot 1 codé** : Convention collective du Donjon — aucune élite aux étages 1-2 (re-tirage dans `generateMob()`), rampe des dégâts d'élite ×1,3 / ×1,5 aux étages 3-4 (`eliteDamageMultForFloor()`), chasseurs de primes exemptés. `sim:early` (moteur) : mêmes chiffres que la baseline.
 
 **Lot 2 codé** : Remplaçant intérimaire — boss des étages 1-3 (gardien d'escalier, quartier, repaire) à ×0,75 en PV et ATQ, nom suffixé « (intérimaire) », réplique d'accueil ; récompenses inchangées. `sim:early` (moteur) : mêmes chiffres que la baseline.
+
+**Lot 3 codé** : Période d'essai — −40 % de dégâts subis au niveau 1, dégressif jusqu'au niveau 7, étages 1-3, tous dégâts directs (coup encaissé, pièges, saignement) ; badge `#trial-status` ; facilité des victoires protégée (les chasseurs de primes ne sont pas attirés plus vite) ; message de fin à l'étage 4.

@@ -827,6 +827,7 @@ const ui = {
     btnFloorTransitionContinue: document.getElementById('btn-floor-transition-continue'),
     anomalyStatusBar: document.getElementById('anomaly-status-bar'),
     starterBuffStatus: document.getElementById('starter-buff-status'),
+    trialStatus: document.getElementById('trial-status'),
     raceStatus: document.getElementById('race-status'),
     classStatus: document.getElementById('class-status'),
     raceChoiceOverlay: document.getElementById('race-choice-overlay'),
@@ -1397,6 +1398,7 @@ function updateUI() {
 
     updateAnomalyStatusUI();
     updateStarterBuffUI();
+    updateTrialStatusUI();
     updateOriginUI();
 
     // Icônes de statut du joueur
@@ -2505,7 +2507,7 @@ function rollGoldAmount() {
 
 // Le piège se déclenche : dégâts, journal, mort éventuelle (cause 'trap').
 function springTrap(trap) {
-    const dmg = applyStarterBuffToDamage(applyRaceDamageMods(Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin, 'trap'));
+    const dmg = applyTrialToDamage(applyStarterBuffToDamage(applyRaceDamageMods(Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin, 'trap')));
     applyPlayerDamage(dmg);
     setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
     logEvent(`${trap.text} (-${dmg} PV)`, "danger");
@@ -3235,7 +3237,7 @@ function checkCompanionDowned() {
 // (strayHitChance). Le compagnon absorbe une part du coup ; son armure réduit ce qu'il perd lui-même.
 // Renvoie { playerDamage, note } — l'appelant log les dégâts puis appelle checkCompanionDowned().
 function companionInterceptHit(damage) {
-    damage = applyStarterBuffToDamage(damage); // Foutu pour foutu (chantier 14) : +5 % de dégâts subis, avant bouclier et interception
+    damage = applyTrialToDamage(applyStarterBuffToDamage(damage)); // Foutu pour foutu (chantier 14) : +5 % de dégâts subis, puis Période d'essai (chantier 15), avant bouclier et interception
     // Bouclier de Mana (sort utilitaire, chantier 11) : réduit le coup AVANT l'éventuelle interception.
     const shield = gameState.status.manaShield;
     let shieldNote = "";
@@ -3544,7 +3546,9 @@ function recordRunEvent(type, data = {}) {
             if (track.playerAttacks === 1) s.oneShotKills += 1;
             if (hpLost === 0) s.flawlessWins += 1;
             if (gameState.hp > 0 && gameState.hp <= gameState.maxHp * 0.05) s.clutchWins += 1;
-            s.recentWins.push({ ease: computeWinEase(hpLost, gameState.maxHp) });
+            // Facilité : sans la Période d'essai (chantier 15) — les PV qu'elle a épargnés pendant ce combat sont réajoutés, pour ne pas gonfler la prime des chasseurs.
+            const trialAvoided = Math.max(0, (s.trialAvoided || 0) - (track.startTrialAvoided ?? (s.trialAvoided || 0)));
+            s.recentWins.push({ ease: computeWinEase(hpLost + trialAvoided, gameState.maxHp) });
             if (s.recentWins.length > DOMINANCE_WINDOW) s.recentWins.splice(0, s.recentWins.length - DOMINANCE_WINDOW);
             break;
         }
@@ -4060,6 +4064,10 @@ function advanceToNextFloor() {
     showFloorArrivalScene();
     logEvent(`--- DÉBUT DE L'ÉTAGE ${gameState.currentFloor} ---`, "info");
     evolveStarterBuff(); // Foutu pour foutu encore actif à l'étage 2 : devient Boxeur (chantier 14)
+    // Fin de la Période d'essai (chantier 15) : annoncée une fois, à l'arrivée sur l'étage suivant le dernier étage protégé, si elle protégeait encore.
+    if (config.earlyGame.enabled && gameState.currentFloor === config.earlyGame.maxFloor + 1 && trialDamageMult(gameState.level, config.earlyGame.maxFloor) < 1) {
+        logEvent("🎟️ Votre contrat de stagiaire expire. Fin de la période d'essai : à partir d'ici, plus aucune remise sur la douleur.", "danger");
+    }
     attemptCompanionDeparture(); // Seul moment où un compagnon peu loyal peut partir (voir config.companions.loyalty)
     recordRunEvent('floor');
     if (gameState.activeAnomalies.length > 0) {
@@ -5789,7 +5797,7 @@ function leaveSafehouse() {
 // un piège sévère suivi d'un trésor nettement supérieur à la normale (powerScore maximal). Réutilise
 // exactement applyPlayerDamage()/gameOver()/addLoot(), aucune nouvelle formule de dégâts ou de loot.
 function triggerCafetRoom(room) {
-    const trapDmg = applyStarterBuffToDamage(applyRaceDamageMods(Math.floor(Math.random() * 12) + 10, 'trap')); // 10 à 21 PV : nettement au-dessus d'un piège normal (~5-15)
+    const trapDmg = applyTrialToDamage(applyStarterBuffToDamage(applyRaceDamageMods(Math.floor(Math.random() * 12) + 10, 'trap'))); // 10 à 21 PV : nettement au-dessus d'un piège normal (~5-15)
     applyPlayerDamage(trapDmg);
     setSceneHeader('🕯️', 'Cafétéria Assombrie', 'Danger', 'cafeteria');
     logEvent(`Un piège vicieux se déclenche dans l'obscurité de la cafétéria abandonnée ! (-${trapDmg} PV)`, "danger");
@@ -6055,7 +6063,7 @@ function initiateCombat(forcedEnemy = null) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
     // Suivi du combat pour la chronique (chantier 2) : dégâts subis au départ, ouverture furtive, nombre
     // d'attaques portées (victoire en un coup) — voir recordRunEvent('win').
-    if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
+    if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, startTrialAvoided: gameState.runStats ? (gameState.runStats.trialAvoided || 0) : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
     if (enemy && enemy.isInterim) logEvent(interimBossLine(enemy), "info"); // Remplaçant intérimaire (chantier 15, lot 2)
@@ -6437,7 +6445,7 @@ function tryPlayerAction() {
 
     // Saignement en cours sur le joueur : tique avant son action
     if (gameState.status.bleed && gameState.status.bleed.rounds > 0) {
-        const dmg = applyStarterBuffToDamage(applyRaceDamageMods(gameState.status.bleed.dmgPerRound, 'bleed'));
+        const dmg = applyTrialToDamage(applyStarterBuffToDamage(applyRaceDamageMods(gameState.status.bleed.dmgPerRound, 'bleed')));
         applyPlayerDamage(dmg);
         gameState.status.bleed.rounds -= 1;
         if (gameState.status.bleed.rounds <= 0) gameState.status.bleed = null;
@@ -7914,6 +7922,32 @@ function starterBuffUnarmedMult() {
 function applyStarterBuffToDamage(amount) {
     if (gameState.starterBuff !== 'desperate' || !(amount > 0)) return amount;
     return Math.max(amount, Math.round(amount * config.starterBuff.damageTakenMult));
+}
+
+// Période d'essai (chantier 15, lot 3, config.earlyGame.trial) : l'émission protège ses débutants — dégâts subis réduits aux étages 1-3, de moins en moins avec le niveau
+// (trialDamageMult(), generator.js). Appliquée AUX MÊMES points que le buff de départ (coup encaissé, pièges, saignement) pour que journal et PV restent d'accord.
+// Les PV épargnés sont comptés (runStats.trialAvoided) et réajoutés à la facilité des victoires : la Période d'essai ne doit pas faire monter la prime des chasseurs.
+function applyTrialToDamage(amount) {
+    if (!(amount > 0)) return amount;
+    const mult = trialDamageMult(gameState.level, gameState.currentFloor);
+    if (mult >= 1) return amount;
+    const reduced = Math.min(amount, Math.max(1, Math.round(amount * mult)));
+    if (reduced < amount && gameState.runStats) gameState.runStats.trialAvoided = (gameState.runStats.trialAvoided || 0) + (amount - reduced);
+    return reduced;
+}
+
+// Badge « Période d'essai » : visible tant que la réduction est active (étages 1-3, niveau sous le seuil), avec le pourcentage courant et la règle en infobulle.
+function updateTrialStatusUI() {
+    const el = ui.trialStatus;
+    if (!el) return;
+    const eg = config.earlyGame;
+    const mult = trialDamageMult(gameState.level, gameState.currentFloor);
+    const active = mult < 1;
+    el.classList.toggle('hidden', !active);
+    if (!active) return;
+    const pct = Math.round((1 - mult) * 100);
+    el.innerText = `🎟️ Période d'essai −${pct} %`;
+    el.title = `Période d'essai — l'émission protège ses débutants : −${pct} % de dégâts subis (combat, pièges, saignement), de moins en moins à chaque niveau, jusqu'au niveau ${eg.trial.fadeLevel} ; prend fin à l'arrivée sur l'étage ${eg.maxFloor + 1}.`;
 }
 
 function giveStarterBuffForGift(giftType) {

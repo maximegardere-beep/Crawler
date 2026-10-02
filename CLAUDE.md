@@ -219,6 +219,9 @@ Tailwind CDN, **aucun build step**.
   `resolveEnemyCounterAttack()` — jamais pour un chasseur de primes (ses stats sont calées sur ×1,65). `config.earlyGame.enabled = false` redonne le comportement d'avant.
   **Remplaçant intérimaire** (lot 2) : `generateBoss()` applique `earlyInterimBossScale()` (PV et ATQ ×0,75, étages ≤ `config.earlyGame.maxFloor`, DEF/XP/récompenses inchangées) et pose `boss.isInterim` + le suffixe « (intérimaire) » au nom
   (`baseName` inchangé : sprite et objet signature) — gardien d'escalier, boss de quartier et boss de repaire d'un coup ; `initiateCombat()` affiche une réplique d'accueil (`interimBossLine()`).
+  **Période d'essai** (lot 3) : `trialDamageMult(level, floor)` (generator.js, pure) = `1 − 0,40 × (7 − niveau)/6` aux étages ≤ `maxFloor` (aucun état sauvegardé), appliquée par `applyTrialToDamage()` (app.js) AUX MÊMES points que le buff de
+  départ — coup encaissé (`companionInterceptHit()`), pièges, saignement — pour que journal et PV restent d'accord ; badge `#trial-status` (`updateTrialStatusUI()`), message de fin à l'arrivée sur l'étage 4. Les PV épargnés
+  sont comptés (`runStats.trialAvoided`) et réajoutés à la facilité des victoires (`recordRunEvent('win')`) : la prime des chasseurs ne grimpe pas plus vite. Dans les tests, la réduction est NEUTRALISÉE par défaut (`_helpers.js`) et réactivée par `withTrial()`.
 - **Scaling des dégâts mobs** (chantier "rework combat", voir `NOTES_COMBAT.md` pour le détail des
   valeurs et un écart signalé sur le critère d'acceptation) : `config.mobDamageScaling` remplace
   l'ancien `floorScaling.atk` pour les mobs — `getFloorScaling()` (generator.js) calcule désormais

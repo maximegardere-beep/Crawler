@@ -1,7 +1,7 @@
 // early-game.js — tests régression : chantier 15, rééquilibrage du début de partie (voir NOTES_DEBUT_DE_PARTIE.md).
 // Lot 0 : forme et valeurs validées de `config.earlyGame`, et garde du modèle de joueur de l'outil `npm run sim:early`
 // (les gains par niveau de gainXp() ne doivent pas dériver sans que l'outil le sache). Les lots 1 à 4 ajoutent leurs sections ici.
-const { assert, resetTransientState } = require('./_helpers.js');
+const { assert, resetTransientState, withTrial, EARLY_GAME_TRIAL_DEFAULTS } = require('./_helpers.js');
 
 // --- Réglages validés par l'utilisateur (rounds 1 et 2) ---
 {
@@ -12,7 +12,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(eg.elites.damageRamp[3] === 1.3 && eg.elites.damageRamp[4] === 1.5 && !(5 in eg.elites.damageRamp), "Rampe des élites : ×1,3 (étage 3), ×1,5 (étage 4), puis inchangé dès le 5");
     assert(eg.elites.damageRamp[4] < config.mobDamageScaling.eliteDamageMult, "La rampe reste sous le multiplicateur d'élite normal (×1,65)");
     assert(eg.interimBoss.hpMult === 0.75 && eg.interimBoss.atkMult === 0.75, "Remplaçant intérimaire : PV et ATQ ×0,75");
-    assert(eg.trial.startReduction === 0.40 && eg.trial.fadeLevel === 7, "Période d'essai : −40 % au niveau 1, éteinte au niveau 7");
+    assert(EARLY_GAME_TRIAL_DEFAULTS.startReduction === 0.40 && eg.trial.fadeLevel === 7, "Période d'essai : −40 % au niveau 1, éteinte au niveau 7 (valeurs validées ; réduction neutralisée par défaut dans les tests, voir _helpers.js)");
     assert(eg.plotArmor.leaveHp === 1, "Armure de scénario : un coup mortel laisse 1 PV");
 }
 
@@ -146,5 +146,120 @@ const { assert, resetTransientState } = require('./_helpers.js');
         initiateCombat(bossAt(districtNames[0], 4, true));
         assert(!lines.some(l => /Remplaçant intérimaire/.test(l)), "Boss normal : aucune réplique d'intérimaire");
     } finally { logEvent = originalLog; }
+    resetTransientState();
+}
+
+// ===================================================================
+// Lot 3 — Période d'essai : −40 % de dégâts subis au niveau 1, dégressif jusqu'au niveau 7, étages 1-3 seulement
+// ===================================================================
+{
+    const eg = config.earlyGame;
+    const near = (a, b) => Math.abs(a - b) < 1e-9;
+    const withRand = (v, fn) => { const o = Math.random; Math.random = () => v; try { return fn(); } finally { Math.random = o; } };
+    const fresh = (level, floor) => {
+        resetTransientState();
+        gameState.level = level; gameState.currentFloor = floor;
+        gameState.baseMaxHp = 1000; recomputeMaxHp(); gameState.hp = gameState.maxHp;
+        gameState.def = 0; gameState.starterBuff = null; gameState.race = null;
+    };
+
+    withTrial(() => {
+        // Courbe (pure)
+        assert(near(trialDamageMult(1, 1), 0.6), "trialDamageMult() : −40 % au niveau 1");
+        assert(near(trialDamageMult(4, 2), 0.8), "trialDamageMult() : −20 % au niveau 4 (milieu de la courbe)");
+        assert(near(trialDamageMult(7, 1), 1) && trialDamageMult(12, 3) === 1, "trialDamageMult() : plus aucun effet dès le niveau 7");
+        let monotone = true; for (let l = 1; l < 7; l++) if (!(trialDamageMult(l, 1) < trialDamageMult(l + 1, 1))) monotone = false;
+        assert(monotone, "trialDamageMult() : la protection décroît à chaque niveau");
+        assert(trialDamageMult(1, 3) < 1 && trialDamageMult(1, 4) === 1 && trialDamageMult(1, 9) === 1, "trialDamageMult() : étages 1 à 3 seulement, arrêt net à l'étage 4");
+        eg.enabled = false;
+        assert(trialDamageMult(1, 1) === 1, "trialDamageMult() : paquet coupé -> aucun effet");
+        eg.enabled = true;
+
+        // Piège (100 de dégâts bruts) : 60 PV perdus au niveau 1, 100 au niveau 7 ou à l'étage 4
+        fresh(1, 1); withRand(0, () => springTrap({ dmgMin: 100, dmgMax: 100, text: "Piège" }));
+        assert(gameState.maxHp - gameState.hp === 60, `Piège au niveau 1 : 60 PV au lieu de 100 (${gameState.maxHp - gameState.hp})`);
+        fresh(7, 1); withRand(0, () => springTrap({ dmgMin: 100, dmgMax: 100, text: "Piège" }));
+        assert(gameState.maxHp - gameState.hp === 100, "Piège au niveau 7 : plein tarif");
+        fresh(1, 4); withRand(0, () => springTrap({ dmgMin: 100, dmgMax: 100, text: "Piège" }));
+        assert(gameState.maxHp - gameState.hp === 100, "Piège à l'étage 4 : plein tarif");
+
+        // Saignement (10 par tour) : 6 au niveau 1
+        fresh(1, 1);
+        withRand(0.5, () => initiateCombat({ name: "Cobaye", hp: 99999, maxHp: 99999, atk: 1, def: 0, xpReward: 1, status: {}, effect: null }));
+        gameState.status.bleed = { rounds: 3, dmgPerRound: 10 };
+        const hp0 = gameState.hp;
+        withRand(0.5, () => tryPlayerAction());
+        assert(hp0 - gameState.hp === 6, `Saignement au niveau 1 : 6 PV au lieu de 10 (${hp0 - gameState.hp})`);
+
+        // Riposte de mob ordinaire (ATQ 100, DEF nulle, à distance 0 : ×1,1 « collé ») : ×0,6
+        const riposte = (level, floor) => {
+            fresh(level, floor);
+            gameState.inCombat = true; gameState.combatDistance = 0;
+            gameState.currentEnemy = { name: "Cobaye", isBoss: false, hp: 100, maxHp: 100, atk: 100, def: 5, threatMultiplier: 1, status: {} };
+            withRand(0.5, () => resolveEnemyCounterAttack());
+            return gameState.maxHp - gameState.hp;
+        };
+        const glued = Math.round(100 * config.distanceEnrage.meleeGluedDamageMult);
+        assert(riposte(1, 1) === Math.round(glued * 0.6), `Riposte d'un mob au niveau 1, étage 1 : ×0,6 (${riposte(1, 1)})`);
+        assert(riposte(1, 3) === Math.round(glued * 0.6), "Riposte à l'étage 3 : encore protégé");
+        assert(riposte(1, 4) === glued, "Riposte à l'étage 4 : plein tarif");
+        assert(riposte(7, 1) === glued, "Riposte au niveau 7 : plein tarif");
+
+        // Cumul avec « Foutu pour foutu » (+5 % subis) : 100 -> 105 -> 63
+        fresh(1, 1); gameState.starterBuff = 'desperate'; withRand(0, () => springTrap({ dmgMin: 100, dmgMax: 100, text: "Piège" }));
+        assert(gameState.maxHp - gameState.hp === 63, `Cumul avec Foutu pour foutu : 100 -> 105 -> 63 (${gameState.maxHp - gameState.hp})`);
+
+        // Jamais moins de 1 PV de dégâts
+        fresh(1, 1); assert(applyTrialToDamage(1) === 1 && applyTrialToDamage(0) === 0, "Un coup de 1 reste à 1 (jamais 0) ; 0 reste 0");
+
+        // La protection est comptée, et réajoutée à la facilité des victoires (la prime des chasseurs ne doit pas grimper plus vite)
+        fresh(1, 1);
+        gameState.runStats = createEmptyRunStats();
+        assert(applyTrialToDamage(100) === 60 && gameState.runStats.trialAvoided === 40, "runStats.trialAvoided compte les PV épargnés (40)");
+        const easeOfFight = (trialOn) => {
+            fresh(1, 1);
+            gameState.runStats = createEmptyRunStats();
+            eg.trial.startReduction = trialOn ? EARLY_GAME_TRIAL_DEFAULTS.startReduction : 0;
+            gameState.baseMaxHp = 100; recomputeMaxHp(); gameState.hp = gameState.maxHp;
+            gameState.inCombat = true; gameState.combatDistance = 0;
+            const enemy = { name: "Cobaye", isBoss: false, hp: 100, maxHp: 100, atk: 20, def: 5, threatMultiplier: 1, status: {} };
+            gameState.currentEnemy = enemy;
+            enemy.runTrack = { startDamageTaken: gameState.runStats.damageTaken, startTrialAvoided: gameState.runStats.trialAvoided || 0, sneak: false, playerAttacks: 3 };
+            withRand(0.5, () => resolveEnemyCounterAttack());
+            withRand(0.5, () => resolveEnemyCounterAttack());
+            const lost = gameState.maxHp - gameState.hp;
+            recordRunEvent('win', { enemy, kind: 'weapon' });
+            return { ease: gameState.runStats.recentWins[gameState.runStats.recentWins.length - 1].ease, lost };
+        };
+        const on = easeOfFight(true), off = easeOfFight(false);
+        eg.trial.startReduction = EARLY_GAME_TRIAL_DEFAULTS.startReduction;
+        assert(on.lost < off.lost, `Même combat : la Période d'essai épargne des PV (${on.lost} contre ${off.lost})`);
+        assert(Math.abs(on.ease - off.ease) < 0.03, `Facilité de la victoire inchangée par la Période d'essai (${on.ease.toFixed(3)} contre ${off.ease.toFixed(3)})`);
+        assert(normalizeRunStats({}).trialAvoided === 0 && normalizeRunStats({ kills: 3 }).trialAvoided === 0, "Ancienne sauvegarde sans trialAvoided : complétée à 0");
+
+        // Badge : visible au niveau 1 étages 1-3, masqué ensuite
+        fresh(1, 1); updateUI();
+        assert(!ui.trialStatus.classList.contains('hidden') && /−40 %/.test(ui.trialStatus.innerText) && /étage 4/.test(ui.trialStatus.title), "Badge « Période d'essai » : −40 % au niveau 1, infobulle avec la fin à l'étage 4");
+        fresh(4, 2); updateUI();
+        assert(/−20 %/.test(ui.trialStatus.innerText), "Badge : le pourcentage suit le niveau (−20 % au niveau 4)");
+        fresh(7, 1); updateUI();
+        assert(ui.trialStatus.classList.contains('hidden'), "Badge masqué dès le niveau 7");
+        fresh(1, 4); updateUI();
+        assert(ui.trialStatus.classList.contains('hidden'), "Badge masqué à l'étage 4");
+
+        // Message de fin : une fois, à l'arrivée sur l'étage 4, seulement si la protection jouait encore
+        const lines = [];
+        const originalLog = logEvent; logEvent = (m) => { lines.push(String(m)); };
+        try {
+            fresh(2, 3); advanceToNextFloor();
+            assert(gameState.currentFloor === 4 && lines.filter(l => /période d'essai/i.test(l)).length === 1, "Arrivée à l'étage 4 au niveau 2 : message de fin de la Période d'essai, une seule fois");
+            lines.length = 0;
+            fresh(8, 3); advanceToNextFloor();
+            assert(!lines.some(l => /période d'essai/i.test(l)), "Arrivée à l'étage 4 au niveau 8 : rien à annoncer");
+            lines.length = 0;
+            fresh(2, 1); advanceToNextFloor();
+            assert(!lines.some(l => /période d'essai/i.test(l)), "Arrivée à l'étage 2 : pas de message de fin");
+        } finally { logEvent = originalLog; }
+    });
     resetTransientState();
 }
