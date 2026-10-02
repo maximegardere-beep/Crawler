@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Bibliothécaire Fantôme, mob de la Bibliothèque des Oubliés, cadrage « face » : elle fond sur nous en faisant « chut », un pavé prêt à être lancé. Aucun texte. -->
+  <defs>
+    <pattern id="bibliothecaire-fantome-f-wall" width="120" height="100" patternUnits="userSpaceOnUse">
+      <rect width="120" height="100" fill="#2a2119"/>
+      <rect x="4" y="6" width="112" height="42" rx="3" fill="#33281d"/>
+      <rect x="4" y="54" width="112" height="42" rx="3" fill="#30261c"/>
+      <g fill="#3a2d24">
+        <rect x="10" y="12" width="10" height="32" rx="2"/>
+        <rect x="24" y="14" width="8" height="30" rx="2" fill="#33242b"/>
+        <rect x="36" y="11" width="11" height="33" rx="2"/>
+        <rect x="52" y="15" width="7" height="29" rx="2" fill="#262d36"/>
+        <rect x="64" y="12" width="10" height="32" rx="2"/>
+        <path d="M80 44 L90 15 L97 17 L87 44 Z"/>
+        <rect x="100" y="13" width="9" height="31" rx="2" fill="#33242b"/>
+        <rect x="12" y="60" width="9" height="32" rx="2" fill="#262d36"/>
+        <rect x="25" y="63" width="11" height="29" rx="2"/>
+        <rect x="40" y="58" width="8" height="34" rx="2"/>
+        <rect x="52" y="62" width="12" height="30" rx="2" fill="#33242b"/>
+        <rect x="68" y="59" width="8" height="33" rx="2"/>
+        <rect x="80" y="63" width="10" height="29" rx="2"/>
+        <rect x="94" y="60" width="8" height="32" rx="2" fill="#262d36"/>
+      </g>
+    </pattern>
+    <radialGradient id="bibliothecaire-fantome-f-glow">
+      <stop offset="0" stop-color="#ffd76a" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#ffd76a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#bibliothecaire-fantome-f-wall)"/>
+  <rect x="0" y="0" width="750" height="60" fill="#1a120c"/>
+  <path d="M0 60 H750" stroke="#05060c" stroke-width="5"/>
+  <!-- Lustre à bougies -->
+  <circle cx="150" cy="190" r="170" fill="url(#bibliothecaire-fantome-f-glow)"/>
+  <g stroke="#05060c" stroke-width="5" stroke-linecap="round">
+    <path d="M150 60 V140" stroke-width="4"/>
+    <path d="M80 160 Q150 205 220 160" fill="none" stroke="#5a4630" stroke-width="10"/>
+    <path d="M80 160 Q150 205 220 160" fill="none" stroke-width="3"/>
+    <rect x="72" y="132" width="16" height="30" fill="#e8dcc0"/>
+    <rect x="142" y="146" width="16" height="32" fill="#e8dcc0"/>
+    <rect x="212" y="132" width="16" height="30" fill="#e8dcc0"/>
+  </g>
+  <g fill="#ffd76a"><path d="M80 130 q-8 -14 0 -26 q8 12 0 26 Z"/><path d="M150 144 q-8 -14 0 -26 q8 12 0 26 Z"/><path d="M220 130 q-8 -14 0 -26 q8 12 0 26 Z"/></g>
+  <!-- Livres flottants du décor -->
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round" opacity="0.85">
+    <path d="M590 150 L640 132 L660 178 L610 196 Z" fill="#3c2a35"/>
+    <path d="M610 196 L660 178" stroke="#7a6a50" stroke-width="4"/>
+    <path d="M40 470 L84 482 L74 526 L30 514 Z" fill="#2f3d4a"/>
+  </g>
+  <!-- Plancher -->
+  <rect x="0" y="1040" width="750" height="294" fill="#2b2118"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#1a130d" stroke-width="5"><path d="M0 1110 h750 M0 1185 h750 M0 1260 h750 M170 1040 v70 M520 1040 v70 M340 1110 v75 M620 1110 v75 M140 1185 v75 M460 1185 v75"/></g>
+  <rect x="0" y="0" width="60" height="1334" fill="#05060c" opacity="0.25"/>
+  <rect x="690" y="0" width="60" height="1334" fill="#05060c" opacity="0.25"/>
+  <!-- Pile de livres au sol (renversée) -->
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <rect x="560" y="980" width="140" height="34" rx="4" fill="#4a2c22"/>
+    <rect x="580" y="948" width="110" height="32" rx="4" fill="#2f3d4a" transform="rotate(-6 635 964)"/>
+    <rect x="600" y="1014" width="130" height="26" rx="4" fill="#5a4630"/>
+  </g>
+  <!-- Aura ectoplasmique irrégulière -->
+  <path d="M190 360 C150 230 300 130 420 150 C560 160 640 280 630 420 C700 560 720 760 670 900 C560 1000 330 1010 200 960 C110 860 130 650 170 560 C120 500 160 420 190 360 Z" fill="#a9b8e0" opacity="0.10"/>
+  <path d="M240 330 C230 230 340 180 430 190 C540 200 600 300 590 420 C640 560 660 760 610 880 C510 950 340 960 250 920 C190 820 200 640 220 560 C190 480 220 400 240 330 Z" fill="#a9b8e0" opacity="0.12"/>
+  <g fill="#c9d4f0" opacity="0.7"><circle cx="160" cy="300" r="7"/><circle cx="640" cy="250" r="9"/><circle cx="690" cy="620" r="6"/><circle cx="120" cy="760" r="8"/><circle cx="600" cy="960" r="6"/><circle cx="210" cy="220" r="5"/></g>
+  <!-- Lignes de mouvement -->
+  <g stroke="#a9b8e0" stroke-width="6" stroke-linecap="round" opacity="0.45"><path d="M90 880 l-60 30 M120 950 l-70 24 M70 820 l-50 20"/></g>
+  <ellipse cx="420" cy="1050" rx="210" ry="26" fill="#05060c" opacity="0.45"/>
+  <g transform="rotate(5 420 620)" stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Corps-drap : la traîne flotte derrière, en bas à gauche -->
+    <path d="M410 196 C520 196 585 280 580 390 C585 520 610 660 660 820 C620 800 600 860 560 840 C530 890 495 850 470 885 C440 925 405 880 375 915 C345 955 300 920 270 965 C240 1000 200 985 160 1020 C195 930 215 840 235 740 C255 620 250 510 262 410 C270 290 320 196 410 196 Z" fill="#7c8cb8" stroke-width="10" opacity="0.94"/>
+    <path d="M262 410 C250 510 255 620 235 740 C215 840 195 930 160 1020 C200 985 240 1000 270 965 C255 900 280 820 300 720 C320 600 300 500 320 420 Z" fill="#47536e" stroke="none" opacity="0.85"/>
+    <path d="M560 840 C530 890 495 850 470 885 C440 925 405 880 375 915 C345 955 300 920 270 965" fill="none" stroke="#47536e" stroke-width="9"/>
+    <!-- Bras gauche (vers nous) : brandit un gros pavé -->
+    <path d="M300 520 C240 540 190 600 160 660" fill="none" stroke-width="66"/>
+    <path d="M300 520 C240 540 190 600 160 660" fill="none" stroke="#7c8cb8" stroke-width="54"/>
+    <path d="M300 520 C260 540 220 580 196 620" fill="none" stroke="#47536e" stroke-width="12" opacity="0.6"/>
+    <g transform="rotate(-24 120 620)">
+      <rect x="40" y="560" width="170" height="122" rx="8" fill="#5b2d1a" stroke-width="8"/>
+      <rect x="40" y="664" width="170" height="20" rx="4" fill="#e8dcc0" stroke-width="6"/>
+      <path d="M68 560 V682 M182 560 V682" stroke="#caa23a" stroke-width="7"/>
+      <path d="M90 600 h70 M98 624 h54" stroke="#caa23a" stroke-width="6" opacity="0.8"/>
+    </g>
+    <path d="M152 650 C130 640 116 660 128 678 C120 696 140 710 158 698 Z" fill="#7c8cb8" stroke-width="6"/>
+    <!-- Bras droit : l'index dressé devant la bouche, « chut ! » -->
+    <path d="M560 560 C590 500 560 450 500 440" fill="none" stroke-width="54"/>
+    <path d="M560 560 C590 500 560 450 500 440" fill="none" stroke="#7c8cb8" stroke-width="42"/>
+    <path d="M482 418 C468 420 462 446 474 460 L512 462 C524 446 516 420 500 418 Z" fill="#7c8cb8" stroke-width="6"/>
+    <rect x="474" y="340" width="24" height="92" rx="12" fill="#8e9dc6" stroke-width="6" transform="rotate(8 486 420)"/>
+    <!-- Tête -->
+    <path d="M300 300 C320 240 370 210 420 212" fill="none" stroke="#a9b8e0" stroke-width="10" opacity="0.6"/>
+    <!-- Sourcils furieux -->
+    <path d="M330 262 L404 292" stroke-width="16"/>
+    <path d="M520 256 L452 288" stroke-width="16"/>
+    <!-- Yeux jaunes braqués sur nous -->
+    <circle cx="372" cy="326" r="27" fill="#ffd76a" stroke-width="6"/>
+    <circle cx="374" cy="330" r="10" fill="#05060c" stroke="none"/>
+    <circle cx="478" cy="320" r="24" fill="#ffd76a" stroke-width="6"/>
+    <circle cx="476" cy="324" r="9" fill="#05060c" stroke="none"/>
+    <!-- Lunettes rondes sur chaîne -->
+    <circle cx="372" cy="326" r="40" fill="#e8f0ff" fill-opacity="0.12" stroke-width="7"/>
+    <circle cx="478" cy="320" r="36" fill="#e8f0ff" fill-opacity="0.12" stroke-width="7"/>
+    <path d="M412 322 Q426 312 442 320" fill="none" stroke-width="7"/>
+    <path d="M332 330 L310 324" stroke-width="6"/>
+    <path d="M336 344 C290 400 300 470 340 500" fill="none" stroke="#ffd76a" stroke-width="5" stroke-dasharray="2 9" opacity="0.9"/>
+    <path d="M354 304 l14 -6" stroke="#ffffff" stroke-width="5" opacity="0.5"/>
+    <!-- Bouche en cul-de-poule, « CHUUUT » -->
+    <ellipse cx="448" cy="402" rx="15" ry="19" fill="#1a1f30" stroke-width="6"/>
+    <!-- Noeud papillon violet -->
+    <path d="M418 470 L370 446 L374 500 Z" fill="#4a3a5a" stroke-width="6"/>
+    <path d="M418 470 L468 446 L462 500 Z" fill="#4a3a5a" stroke-width="6"/>
+    <rect x="404" y="456" width="28" height="28" rx="6" fill="#5e4a72" stroke-width="6"/>
+  </g>
+  <!-- Ondes du « chut » spectral -->
+  <g fill="none" stroke="#ffd76a" stroke-width="7" stroke-linecap="round" opacity="0.8">
+    <path d="M552 370 q22 34 0 68"/>
+    <path d="M584 350 q34 54 0 108"/>
+    <path d="M618 332 q44 72 0 144" opacity="0.6"/>
+  </g>
+  <!-- Pages arrachées qui volent -->
+  <g stroke="#05060c" stroke-width="4" stroke-linejoin="round">
+    <path d="M90 420 L130 404 L142 444 L102 460 Z" fill="#e8dcc0"/>
+    <path d="M606 700 L640 716 L626 752 L592 736 Z" fill="#e8dcc0"/>
+    <path d="M110 430 l20 -8 M114 442 l18 -7" stroke="#7a6a50" stroke-width="3"/>
+  </g>
+</svg>

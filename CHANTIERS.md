@@ -524,4 +524,5 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 - [x] Jardins Carnivores : Tulipe Géante (s'arrose sous une lampe horticole), Ronce Étrangleuse (étrangle un tuyau d'arrosage), Gobelin Paysagiste (décapite une haie taillée en crawler).
 - [x] Bureaux de l'Administration Pénitentiaire : Photocopieuse Carnivore (mâchonne le stagiaire réparateur), Stagiaire Démoniaque (tournée du café, tour de mugs), Garde-Chiourme Bureaucrate (tamponne une montagne de dossiers).
 - [x] Usine de Transformation Alimentaire : Saucisse Vivante (bronze sous la lampe chauffante), Fromage qui Pue (s'asperge de désodorisant, rat évanoui), Ouvrier à la Chaîne (boulonne les saucisses du tapis).
-- [ ] Bibliothèque · Laboratoire · Rue des Illusions · Catacombes · Marché Noir · Salle des Machines · Parking · Piscine · Studio · puis les 3 chasseurs (face).
+- [x] Bibliothèque des Oubliés : Livre Maudit (le fantôme porte le livre qui dévore un grimoire ; une retouche pour coller au sprite fantôme + livre), Bibliothécaire Fantôme (fait léviter les livres, pointe celui rangé à l'envers), Encre Vivante (repeint en noir les pages d'un livre).
+- [ ] Laboratoire · Rue des Illusions · Catacombes · Marché Noir · Salle des Machines · Parking · Piscine · Studio · puis les 3 chasseurs (face).

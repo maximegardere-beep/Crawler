@@ -103,6 +103,10 @@ const ENCOUNTER_ART = {
     'Saucisse Vivante': { face: 'svg', back: 'svg' },
     'Fromage qui Pue': { face: 'svg', back: 'svg' },
     'Ouvrier à la Chaîne': { face: 'svg', back: 'svg' },
+    // Bibliothèque des Oubliés
+    'Livre Maudit': { face: 'svg', back: 'svg' },
+    'Bibliothécaire Fantôme': { face: 'svg', back: 'svg' },
+    'Encre Vivante': { face: 'svg', back: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';
