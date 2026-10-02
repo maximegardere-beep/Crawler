@@ -48,7 +48,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
-| 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié (lots 0 à 6, rien codé) | images WebP à faire générer par Vibe (consigne au lot 4) |
+| 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié — lot 0 codé (catalogue `encounters.js`), consigne d'évaluation Vibe prête | images WebP à faire générer par Vibe (consigne au lot 4) |
 
 ### Codés (à playtester)
 
@@ -484,7 +484,7 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 **Attaque furtive à 2 boutons** (corps à corps / de loin) · images **WebP dans `assets/mobs/`**.
 
 **Plan** :
-- **Lot 0 — catalogue pur `encounters.js`** (chargé avant `app.js`, ajouté à `index.html` ET `tests/load_game.js`) : `ENCOUNTER_KINDS`
+- **Lot 0 — catalogue pur `encounters.js`** (**codé**, `tests/regression/encounters.js`) (chargé avant `app.js`, ajouté à `index.html` ET `tests/load_game.js`) : `ENCOUNTER_KINDS`
   (`spotted`, `unseen`, `ambush`, `boss`, `hunter` : titre, réplique sarcastique, couleur d'accent), `encounterArtSlug(nom)`,
   manifeste `ENCOUNTER_ART` (`{ 'Nom exact': { face, back } }`, mis à jour à chaque livraison de Vibe), `resolveEncounterArt(enemy, kind)`.
   Test : chaque entrée du manifeste existe sur disque et correspond à un mob/boss réel, aucun slug en double.
@@ -513,3 +513,5 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 **Chiffres à valider (convention 5, rien d'appliqué)** : bonus ×2 de l'attaque furtive identique au corps à corps et à distance ? · l'écart de « Tirer de loin » = écart de
 départ des mobs à distance (actuel) ? · le tap obligatoire sur chaque rencontre (surtout les mobs ordinaires aux étages tardifs) est-il lassant ? (option envisagée si oui : tap dès le 1er étage, auto-fermeture
 ~3 s ensuite, à décider au playtest).
+
+**Évaluation de Vibe** : `prompts/vibe-test-rencontres.md` (à coller dans Vibe) — rapport de capacités d'abord, puis lot de test de 5 images (boss, mob face, même mob de dos, machine non humanoïde, chasseur de primes), page d'aperçu iPhone avec bandeau, auto-évaluation, et rédaction par Vibe de sa propre consigne de série `prompts/vibe-rencontres.md`. Ressources graphiques lues sur `main` (la branche `graphique` est périmée). Le lot 4 du plan s'appuiera sur ce retour.

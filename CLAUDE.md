@@ -29,6 +29,7 @@ Tailwind CDN, **aucun build step**.
   `buildUrbanMapSvg()`, `floorMapHitTest()`, zooms `FLOOR_MAP_ZOOMS`), chargé après `floorgen.js`
 - `minigames.js` — mini-jeux (chantier 6, voir `NOTES_MINIJEUX.md`) : catalogue PUR des épreuves (`MINIGAME_KINDS`),
   jet automatique, résolution du « timing », spécification des animations d'issue ; chargé après `floormap.js`
+- `encounters.js` — écrans plein écran des entrées en combat (chantier 16, lot 0, voir `CHANTIERS.md`) : catalogue PUR (`ENCOUNTER_KINDS` spotted/ambush/unseen/boss/hunter : cadrage `face`/`back`, titres et répliques à `{mob}`, `pickEncounterText()` à hasard injectable), manifeste des images livrées `ENCOUNTER_ART` (nom exact → cadrages, à compléter À CHAQUE livraison de Vibe, le test vérifie que les fichiers de `assets/mobs/<slug>-<cadrage>.webp` existent et que tout fichier est déclaré), `encounterArtSlug()`, `resolveEncounterArt(enemy, kind)` (`fallback: true` = sprite agrandi), `encounterArtTargets()` (liste ordonnée des images à faire : boss, chasseurs, mobs du plus puissant au plus faible) ; pas encore branché dans `app.js` (lots 1-2) ; chargé après `minigames.js`
 - `minigames-ui.js` — hôte DOM des mini-jeux (`startMinigame()`, bande du bas, minuterie, rendus `MINIGAME_RENDERERS`,
   réglage Jouer / Réduit / Jet automatique) ; chargé après `fx.js`, avant `app.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
@@ -901,7 +902,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`, `origin-choice.js`, `classes.js`, `crawler-races.js`, `origins-flavor.js`, `early-game.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`, `origin-choice.js`, `classes.js`, `crawler-races.js`, `origins-flavor.js`, `early-game.js`, `encounters.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests
