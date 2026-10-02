@@ -28,7 +28,7 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
     assert(encounterArtSlug("Le Directeur Général (Édition Cauchemar)") === 'le-directeur-general-edition-cauchemar', "Slug : parenthèses, tirets en double et extrémités supprimés");
     assert(encounterArtSlug("Maître-Nageur Zombifié") === 'maitre-nageur-zombifie' && encounterArtSlug("Cône de Chantier Fou") === 'cone-de-chantier-fou', "Slug : tiret existant et accents");
     assert(encounterArtSlug(null) === '' && encounterArtSlug(undefined) === '', "Slug : entrée vide -> chaîne vide");
-    assert(encounterArtPath("Rat Goulot", 'back') === 'assets/mobs/rat-goulot-back.webp', "encounterArtPath() : dossier, slug, cadrage, extension");
+    assert(encounterArtPath("Mob de Test", 'back') === 'assets/mobs/mob-de-test-back.webp', "encounterArtPath() : dossier, slug, cadrage, extension");
 }
 
 // --- Cibles à produire ---
@@ -70,24 +70,24 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
 
 // --- Résolution de l'image ---
 {
-    const saved = ENCOUNTER_ART['Rat Goulot'], savedBoss = ENCOUNTER_ART['Le Chef de Gare Nécrosé'];
+    const saved = ENCOUNTER_ART['Mob de Test'], savedBoss = ENCOUNTER_ART['Le Chef de Gare Nécrosé'];
     try {
-        const none = resolveEncounterArt({ name: 'Rat Goulot Enflammé', baseName: 'Rat Goulot' }, 'spotted');
-        assert(none.fallback === true && none.src === null && none.name === 'Rat Goulot' && none.view === 'face', "Sans image au manifeste : repli sur le sprite, nom de référence = baseName");
-        ENCOUNTER_ART['Rat Goulot'] = { face: true };
-        const face = resolveEncounterArt({ name: 'Enragé Rat Goulot Enflammé', baseName: 'Rat Goulot' }, 'ambush');
-        assert(!face.fallback && face.src === 'assets/mobs/rat-goulot-face.webp', "Image face déclarée : chemin du WebP");
-        const back = resolveEncounterArt({ name: 'Rat Goulot', baseName: 'Rat Goulot' }, 'unseen');
+        const none = resolveEncounterArt({ name: 'Mob de Test Enflammé', baseName: 'Mob de Test' }, 'spotted');
+        assert(none.fallback === true && none.src === null && none.name === 'Mob de Test' && none.view === 'face', "Sans image au manifeste : repli sur le sprite, nom de référence = baseName");
+        ENCOUNTER_ART['Mob de Test'] = { face: true };
+        const face = resolveEncounterArt({ name: 'Enragé Mob de Test Enflammé', baseName: 'Mob de Test' }, 'ambush');
+        assert(!face.fallback && face.src === 'assets/mobs/mob-de-test-face.webp', "Image face déclarée : chemin du WebP");
+        const back = resolveEncounterArt({ name: 'Mob de Test', baseName: 'Mob de Test' }, 'unseen');
         assert(back.fallback === true && back.view === 'back' && back.src === null, "Cadrage dos non livré : repli, même si la face existe");
-        ENCOUNTER_ART['Rat Goulot'] = { face: true, back: true };
-        assert(resolveEncounterArt({ baseName: 'Rat Goulot' }, 'unseen').src === 'assets/mobs/rat-goulot-back.webp', "Dos livré : chemin du WebP de dos");
-        const old = resolveEncounterArt({ name: 'Rat Goulot Enflammé' }, 'spotted');
-        assert(old.name === 'Rat Goulot' && old.src === 'assets/mobs/rat-goulot-face.webp', "Ancienne sauvegarde sans baseName : plus long nom connu en préfixe");
+        ENCOUNTER_ART['Mob de Test'] = { face: true, back: true };
+        assert(resolveEncounterArt({ baseName: 'Mob de Test' }, 'unseen').src === 'assets/mobs/mob-de-test-back.webp', "Dos livré : chemin du WebP de dos");
+        const old = resolveEncounterArt({ name: 'Mob de Test Enflammé' }, 'spotted');
+        assert(old.name === 'Mob de Test' && old.src === 'assets/mobs/mob-de-test-face.webp', "Ancienne sauvegarde sans baseName : plus long nom connu en préfixe");
         ENCOUNTER_ART['Le Chef de Gare Nécrosé'] = { face: true };
         assert(resolveEncounterArt({ name: 'Le Chef de Gare Nécrosé (intérimaire)', baseName: 'Le Chef de Gare Nécrosé' }, 'boss').src === 'assets/mobs/le-chef-de-gare-necrose-face.webp', "Boss intérimaire : image du boss d'origine");
         assert(resolveEncounterArt(null, 'spotted').fallback === true && resolveEncounterArt({}, 'inconnu').fallback === true, "Ennemi absent ou type inconnu : repli, jamais d'exception");
     } finally {
-        if (saved) ENCOUNTER_ART['Rat Goulot'] = saved; else delete ENCOUNTER_ART['Rat Goulot'];
+        if (saved) ENCOUNTER_ART['Mob de Test'] = saved; else delete ENCOUNTER_ART['Mob de Test'];
         if (savedBoss) ENCOUNTER_ART['Le Chef de Gare Nécrosé'] = savedBoss; else delete ENCOUNTER_ART['Le Chef de Gare Nécrosé'];
     }
 }
@@ -183,40 +183,42 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
         dismissEncounterIntro(true);
         assert(calls === 4, "Callback d'un écran abandonné par un reset jamais rappelé");
         // Image déclarée : posée sur l'<img> ; non déclarée : cachée.
-        ENCOUNTER_ART['Rat Goulot'] = { face: true };
-        showEncounterIntro('spotted', { ...enemy, name: 'Rat Goulot', baseName: 'Rat Goulot' }, null);
-        assert(ui.encounterImg.src === 'assets/mobs/rat-goulot-face.webp', "Image du manifeste chargée dans l'overlay");
+        ENCOUNTER_ART['Mob de Test'] = { face: true };
+        showEncounterIntro('spotted', { ...enemy, name: 'Mob de Test', baseName: 'Mob de Test' }, null);
+        assert(ui.encounterImg.src === 'assets/mobs/mob-de-test-face.webp', "Image du manifeste chargée dans l'overlay");
         dismissEncounterIntro(true);
-        delete ENCOUNTER_ART['Rat Goulot'];
-        showEncounterIntro('spotted', enemy, null);
+        delete ENCOUNTER_ART['Mob de Test'];
+        showEncounterIntro('spotted', { ...enemy, name: 'Mob de Test', baseName: 'Mob de Test' }, null);
         assert(ui.encounterImg.classList.contains('hidden'), "Sans image au manifeste : <img> masquée, sprite de repli visible");
         dismissEncounterIntro(true);
     } finally {
         Date.now = realNow;
         config.encounterIntro.enabled = false;
         delete global.requestAnimationFrame;
-        delete ENCOUNTER_ART['Rat Goulot'];
+        delete ENCOUNTER_ART['Mob de Test'];
         resetTransientState();
     }
 }
 
-// --- Images SVG livrées par Vibe (format 'svg' du manifeste) ---
+// --- Images SVG livrées (format 'svg' du manifeste) ---
 {
     const fsx = require('fs'), pathx = require('path');
     const delivered = Object.entries(ENCOUNTER_ART).filter(([, v]) => v.face === 'svg').map(([n]) => n);
-    assert(delivered.length === Object.values(districtBosses).length && Object.values(districtBosses).every(b => delivered.includes(b.name)), "Manifeste : les 13 boss sont livrés en SVG");
-    assert(encounterArtPath('Le Boucher Sans Visage', 'face') === 'assets/mobs/le-boucher-sans-visage-face.svg' && encounterArtExt('Rat Goulot', 'face') === '.webp', "encounterArtPath() : extension .svg selon le manifeste, .webp par défaut");
+    assert(Object.values(districtBosses).every(b => delivered.includes(b.name)), "Manifeste : les 13 boss sont livrés en SVG");
+    assert(encounterArtPath('Le Boucher Sans Visage', 'face') === 'assets/mobs/le-boucher-sans-visage-face.svg' && encounterArtExt('Mob de Test', 'face') === '.webp', "encounterArtPath() : extension .svg selon le manifeste, .webp par défaut");
     const boss = { name: 'Le Boucher Sans Visage (intérimaire)', baseName: 'Le Boucher Sans Visage', isBoss: true };
     const art = resolveEncounterArt(boss, 'boss');
     assert(!art.fallback && art.src === 'assets/mobs/le-boucher-sans-visage-face.svg', "resolveEncounterArt() : chemin du SVG livré");
     assert(resolveEncounterArt(boss, 'unseen').fallback === true, "Boss livré en face seulement : le dos retombe sur le sprite");
-    assert(encounterArtTargets().filter(t => t.done).length === 13 && encounterArtTargets().filter(t => t.kind === 'boss').every(t => t.done), "Cibles : les 13 boss sont marqués faits, aucun mob");
+    assert(encounterArtTargets().filter(t => t.done).length === Object.values(ENCOUNTER_ART).reduce((n, v) => n + Object.keys(v).length, 0) && encounterArtTargets().filter(t => t.kind === 'boss').every(t => t.done), "Cibles : les 13 boss sont marqués faits, une cible faite par image déclarée");
     delivered.forEach(n => {
-        const f = fsx.readFileSync(pathx.join(__dirname, '..', '..', encounterArtPath(n, 'face')), 'utf8');
-        assert(/<svg[^>]+width="750"[^>]+height="1334"[^>]+viewBox="0 0 750 1334"/.test(f), `SVG « ${n} » : portrait 750 x 1334`);
-        assert(!/<text|<script|<image|href=|onload|onclick/i.test(f), `SVG « ${n} » : aucun texte, script, image externe ni gestionnaire`);
-        assert(/^[\x00-\x7F]*$/.test((f.match(/\b(?:id|url\(#)[^"')]*/g) || []).join('')), `SVG « ${n} » : identifiants ASCII`);
-        assert(f.length < 20000, `SVG « ${n} » : léger (< 20 Ko)`);
+        Object.keys(ENCOUNTER_ART[n]).forEach(view => {
+            const f = fsx.readFileSync(pathx.join(__dirname, '..', '..', encounterArtPath(n, view)), 'utf8');
+            assert(/<svg[^>]+width="750"[^>]+height="1334"[^>]+viewBox="0 0 750 1334"/.test(f), `SVG « ${n} » (${view}) : portrait 750 x 1334`);
+            assert(!/<text|<script|<image|href=|onload|onclick/i.test(f), `SVG « ${n} » (${view}) : aucun texte, script, image externe ni gestionnaire`);
+            assert(/^[\x00-\x7F]*$/.test((f.match(/\b(?:id|url\(#)[^"')]*/g) || []).join('')), `SVG « ${n} » (${view}) : identifiants ASCII`);
+            assert(f.length < 20000, `SVG « ${n} » (${view}) : léger (< 20 Ko)`);
+        });
     });
 }
 

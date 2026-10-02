@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <defs>
+    <pattern id="distributeur-de-snacks-hante-b-tiles" width="44" height="23" patternUnits="userSpaceOnUse">
+      <rect width="44" height="23" fill="#202427"/>
+      <rect x="1" y="1" width="20" height="9.5" rx="1.5" fill="#323738"/>
+      <rect x="23" y="1" width="20" height="9.5" rx="1.5" fill="#363b3c"/>
+      <rect x="-10" y="12" width="20" height="9.5" rx="1.5" fill="#363b3c"/>
+      <rect x="12" y="12" width="20" height="9.5" rx="1.5" fill="#323738"/>
+      <rect x="34" y="12" width="20" height="9.5" rx="1.5" fill="#343939"/>
+    </pattern>
+    <radialGradient id="distributeur-de-snacks-hante-b-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8fd7ff" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#8fd7ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur du fond, plafond, néons, panneau, plan de ligne -->
+  <rect x="0" y="0" width="750" height="580" fill="url(#distributeur-de-snacks-hante-b-tiles)"/>
+  <path d="M0 0 H750 V70 Q375 104 0 70 Z" fill="#121412"/>
+  <path d="M0 46 H750" stroke="#2b2f33" stroke-width="10"/>
+  <g stroke="#05060c" stroke-width="3">
+    <rect x="220" y="92" width="120" height="11" rx="4" fill="#c8d4cc"/>
+    <rect x="470" y="88" width="120" height="11" rx="4" fill="#7c8680"/>
+    <rect x="250" y="160" width="190" height="36" rx="4" fill="#1e3350"/>
+    <rect x="500" y="230" width="100" height="56" rx="3" fill="#2c2e2a"/>
+  </g>
+  <ellipse cx="280" cy="120" rx="120" ry="40" fill="#d8e4dc" opacity="0.07"/>
+  <g fill="#6f7c8c"><rect x="266" y="172" width="30" height="12" rx="2"/><rect x="304" y="172" width="54" height="12" rx="2"/><rect x="366" y="172" width="60" height="12" rx="2"/></g>
+  <path d="M512 270 L536 248 L560 262 L586 240" fill="none" stroke="#7a3e32" stroke-width="4"/>
+  <!-- Voies (fosse) et quai -->
+  <rect x="0" y="560" width="750" height="60" fill="#121314"/>
+  <path d="M0 578 H750 M0 604 H750" stroke="#3d4242" stroke-width="6"/>
+  <rect x="0" y="618" width="750" height="716" fill="#202224"/>
+  <path d="M0 618 H750" stroke="#05060c" stroke-width="5"/>
+  <rect x="0" y="636" width="750" height="12" fill="#5e5222" stroke="#05060c" stroke-width="3"/>
+  <!-- Pilier du quai avec prise murale -->
+  <path d="M600 70 H666 V720 H600 Z" fill="#2c3031" stroke="#05060c" stroke-width="5"/>
+  <path d="M652 70 V720" stroke="#1c1e1a" stroke-width="10"/>
+  <rect x="616" y="546" width="34" height="42" rx="4" fill="#c8c4b4" stroke="#05060c" stroke-width="4"/>
+  
+  <!-- Lueur spectrale qui déborde devant lui (vers le mur) -->
+  <ellipse cx="400" cy="470" rx="250" ry="260" fill="url(#distributeur-de-snacks-hante-b-glow)"/>
+  <ellipse cx="400" cy="704" rx="120" ry="16" fill="#05060c" opacity="0.5"/>
+  <!-- Le distributeur, de trois-quarts dos, branché sur la prise : il recharge et compte ses pièces -->
+  <g transform="translate(400 704) scale(1.3 1.15) translate(-400 -704)" stroke="#05060c" stroke-linejoin="round">
+    <!-- Câble d'alimentation : du dos jusqu'à la prise -->
+    <path d="M438 640 C470 690 520 700 548 660 C566 630 560 600 576 588" fill="none" stroke="#05060c" stroke-width="9"/>
+    <path d="M438 640 C470 690 520 700 548 660 C566 630 560 600 576 588" fill="none" stroke="#3a3e44" stroke-width="4"/>
+    <rect x="570" y="576" width="22" height="18" rx="3" fill="#1b1d20" stroke-width="3"/>
+    <path d="M598 556 l12 -8 l-4 10 l12 -6" fill="none" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/>
+    <path d="M600 610 l12 6 l-10 2 l12 8" fill="none" stroke="#fbbf24" stroke-width="4" stroke-linecap="round"/>
+    <!-- Antenne + voyant ambré -->
+    <path d="M362 368 L352 320 L340 300" fill="none" stroke-width="5"/>
+    <circle cx="338" cy="294" r="20" fill="#fbbf24" opacity="0.25" stroke="none"/>
+    <circle cx="338" cy="294" r="10" fill="#fbbf24" stroke-width="4"/>
+    <!-- Pieds -->
+    <path d="M326 688 L366 688 L366 708 L326 708 Z" fill="#2f4d6b" stroke-width="5"/>
+    <path d="M420 686 L460 686 L460 704 L420 704 Z" fill="#2f4d6b" stroke-width="5"/>
+    <!-- Flanc gauche (on aperçoit la vitrine qui luit sur la tranche) -->
+    <path d="M318 382 L344 370 L346 692 L320 698 Z" fill="#2f4d6b" stroke-width="6"/>
+    <path d="M326 400 L338 396 L340 600 L328 604 Z" fill="#8fd7ff" opacity="0.6" stroke="none"/>
+    <!-- Dos -->
+    <path d="M344 370 L476 364 L478 690 L346 692 Z" fill="#4a7aa8" stroke-width="7"/>
+    <path d="M344 370 L476 364 L476 392 L344 398 Z" fill="#2f4d6b" stroke-width="5"/>
+    <g stroke="#2f4d6b" stroke-width="6" stroke-linecap="round">
+      <path d="M370 430 H450"/><path d="M370 448 H450"/><path d="M370 466 H450"/><path d="M370 484 H450"/>
+    </g>
+    <rect x="372" y="530" width="60" height="40" rx="3" fill="#e8e4d8" stroke-width="4" transform="rotate(-6 402 550)"/>
+    <path d="M382 544 h36 M382 556 h24" stroke="#8a8478" stroke-width="4" transform="rotate(-6 402 550)"/>
+    <g fill="#caa23a" stroke-width="2"><circle cx="356" cy="410" r="4"/><circle cx="464" cy="406" r="4"/><circle cx="358" cy="676" r="4"/><circle cx="466" cy="674" r="4"/></g>
+    <rect x="426" y="630" width="24" height="18" rx="3" fill="#1b1d20" stroke-width="3"/>
+    <rect x="370" y="596" width="64" height="24" rx="4" fill="#16202e" stroke-width="4"/>
+    <rect x="434" y="602" width="6" height="12" fill="#16202e" stroke-width="3"/>
+    <g fill="#fbbf24" stroke="none"><rect x="376" y="601" width="12" height="14"/><rect x="392" y="601" width="12" height="14"/><rect x="408" y="601" width="12" height="14" opacity="0.5"/></g>
+    <!-- Volute spectrale en guise de bras : elle lève une pièce vers le néon pour l'examiner -->
+    <path d="M470 372 C500 330 540 320 530 270 C524 246 500 240 494 222" fill="none" stroke="#8fd7ff" stroke-width="10" stroke-linecap="round" opacity="0.85"/>
+    <circle cx="492" cy="210" r="17" fill="#fbbf24" stroke-width="4"/>
+    <circle cx="492" cy="210" r="8" fill="none" stroke="#caa23a" stroke-width="3"/>
+    <path d="M474 190 l-9 -9 M492 184 v-13 M510 190 l9 -9" stroke="#fde68a" stroke-width="3" stroke-linecap="round"/>
+    <path d="M380 362 C372 330 392 318 384 296" fill="none" stroke="#8fd7ff" stroke-width="6" stroke-linecap="round" opacity="0.5"/>
+  </g>
+  <!-- Piles de pièces bien rangées à côté de lui (le compte du jour) -->
+  <g fill="#caa23a" stroke="#05060c" stroke-width="3">
+    <rect x="262" y="676" width="24" height="8" rx="3"/><rect x="262" y="668" width="24" height="8" rx="3"/><rect x="262" y="660" width="24" height="8" rx="3"/><rect x="262" y="652" width="24" height="8" rx="3"/>
+    <rect x="292" y="680" width="24" height="8" rx="3"/><rect x="292" y="672" width="24" height="8" rx="3"/>
+    <rect x="232" y="684" width="22" height="8" rx="3"/>
+  </g>
+  <!-- Snack tombé, oublié par terre -->
+  <path d="M498 708 L526 702 L530 722 L502 728 Z" fill="#c94f5a" stroke="#05060c" stroke-width="3"/>
+  <!-- Premier plan : cachette derrière un pilier carrelé et une poubelle -->
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.12"/>
+  <path d="M0 0 H200 Q186 600 210 1334 H0 Z" fill="#14171a" stroke="#05060c" stroke-width="6"/>
+  <path d="M186 0 Q174 600 196 1334" fill="none" stroke="#2a2f33" stroke-width="10"/>
+  <g stroke="#0c0e10" stroke-width="4" opacity="0.8"><path d="M0 120 H190 M0 260 H186 M0 400 H184 M0 540 H184 M0 680 H186 M0 820 H190"/><path d="M90 0 V900"/></g>
+  <path d="M560 1040 L740 1030 L750 1334 H540 Z" fill="#121518" stroke="#05060c" stroke-width="6"/>
+  <path d="M552 1040 L746 1028" stroke="#2a2f33" stroke-width="12" stroke-linecap="round"/>
+  <ellipse cx="380" cy="1300" rx="260" ry="40" fill="#05060c" opacity="0.4"/>
+</svg>

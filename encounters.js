@@ -70,8 +70,8 @@ const ENCOUNTER_KINDS = {
 };
 
 // Manifeste des images LIVRÉES : clé = nom exact du mob/boss/chasseur (`baseName`), valeur = cadrages disponibles
-// dans `assets/mobs/`, chacun avec son format : 'svg' (illustration vectorielle livrée par Vibe, ~8 Ko) ou 'webp'
-// (`true` = 'webp'). À compléter à chaque livraison de Vibe (jamais avant que le fichier existe : un test le vérifie).
+// dans `assets/mobs/`, chacun avec son format : 'svg' (illustration vectorielle, ~8-12 Ko) ou 'webp'
+// (`true` = 'webp'). À compléter à chaque livraison (jamais avant que le fichier existe : un test le vérifie).
 const ENCOUNTER_ART = {
     'Le Chef de Gare Nécrosé': { face: 'svg' },
     'La Mère-Liane': { face: 'svg' },
@@ -86,6 +86,11 @@ const ENCOUNTER_ART = {
     'Le Gardien du Parking Éternel': { face: 'svg' },
     'Le Grand Requin Gonflable': { face: 'svg' },
     "L'Animateur Vedette Immortel": { face: 'svg' },
+    // Mobs (face + dos), dessinés quartier par quartier.
+    // Tunnels de Métro Abandonnés
+    'Rat Goulot': { face: 'svg', back: 'svg' },
+    'Distributeur de Snacks Hanté': { face: 'svg', back: 'svg' },
+    'Contrôleur de Billets Zombifié': { face: 'svg', back: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';
