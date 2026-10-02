@@ -876,20 +876,9 @@ Tailwind CDN, **aucun build step**.
 2. `node --check fichier.js` avant tout commit.
 3. Tester avant de pousser (voir `tests/` ci-dessous) — étendre les fichiers existants, ne pas les
    recréer de zéro.
-4. Incrémenter le suffixe `?v=N` sur tous les `<script>` d'`index.html` à chaque changement d'un `.js`.
+4. Incrémenter le suffixe `?v=N` sur tous les `<script>` d'`index.html` à chaque changement d'un `.js` (il ne fait que croître, jamais recalé vers le bas : un navigateur pourrait resservir un fichier en cache).
 5. Un correctif d'équilibrage (stats, taux, formules) se propose en LISTE à valider — jamais appliqué
    directement sans validation explicite.
-6. **Versioning (à chaque merge de PR)** : incrémenter `APP_VERSION` (`app.js`), mettre à jour le
-   `?v=` de TOUS les `<script>` d'`index.html` au même nombre (convention 4 ci-dessus reste valable
-   pour les changements intermédiaires hors merge), puis créer un tag git `v<APP_VERSION.pr>` sur le
-   commit de merge et une GitHub Release portant le même numéro. Non automatisé pour l'instant (pas de
-   script de release) — à faire à la main à chaque merge.
-   **Compteur unique depuis la PR #25** (choix de l'utilisateur) : `APP_VERSION.pr`, le tag, la release et
-   `package.json` valent le numéro de la dernière PR mergée (33 : chantier 12 « villes explorables »). Le
-   `?v=` d'`index.html` ne peut plus suivre ce numéro : les valeurs jusqu'à 34 ont déjà servi (entre deux
-   merges, convention 4) — il ne fait donc que croître (45 à la PR #33), jamais recalé vers le bas,
-   sans quoi un navigateur pourrait resservir un fichier gardé en cache sous une ancienne valeur. En cas de
-   doute sur iPhone, vider le cache du site.
 
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
