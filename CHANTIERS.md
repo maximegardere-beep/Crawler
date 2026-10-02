@@ -31,6 +31,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 - **Tous les chantiers du registre sont codés**, sauf 6, 7 et 8 (pas encore explorés).
 - **Tous les chantiers codés restent « à playtester »** : les chiffres sont des valeurs de départ,
   calibrées au mieux par simulation. Les points à vérifier sont regroupés plus bas (« À playtester »).
+- **Coût en tokens du développement** (02/10/2026) : `app.js` (518 Ko) découpé en `engine/*.js` (21 fichiers contigus, `app.js` = initialisation), `CLAUDE.md` ramené de 101 à 9 Ko (détail dans `docs/*.md`), règles « Économie de tokens » et outils `npm run check`/`where`/`bump`, test `load-order.js`. Mesure de départ : contexte moyen 410 k tokens par appel sur une session de ~5 900 appels (80 % du coût en lectures de cache).
 - **PR #32 mergée** (chantiers 9, 10 et 11) : tag `v32` et release non créés (le versioning par tag/release n'est plus une consigne du projet).
 - **Chantier 12 (villes explorables) codé** sur la branche, avec deux correctifs (crawler mort non restaurable,
   barre du bas agrandie) : une seule PR à ouvrir. Ensuite : 13 (race et classe à l'étage 3, **planifié** le 01/10/2026) et 6 (mini-jeux),

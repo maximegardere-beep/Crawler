@@ -7,6 +7,9 @@
     "test": "node tests/regression.test.js",
     "test:long": "node tests/long_playthrough.js",
     "test:all": "npm test && npm run test:long",
+    "check": "node tests/tools/check.js",
+    "where": "node tests/tools/where.js",
+    "bump": "node tests/tools/bump-version.js",
     "sim:items": "node tests/tools/item-curve.js",
     "sim:floors": "node tests/tools/floor-sim.js",
     "sim:early": "node tests/tools/early-curve.js"

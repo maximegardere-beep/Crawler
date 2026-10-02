@@ -408,7 +408,8 @@ function isRedHex(hex) {
 {
     const fs = require('fs');
     const path = require('path');
-    const appSource = fs.readFileSync(path.join(__dirname, '..', '..', 'app.js'), 'utf8');
+    // Le moteur est découpé en engine/*.js + app.js : on lit tout (GAME_FILES, ordre de chargement).
+    const appSource = require('../load_game.js').GAME_FILES.filter(f => f === 'app.js' || f.startsWith('engine/')).map(f => fs.readFileSync(path.join(__dirname, '..', '..', f), 'utf8')).join('\n');
     const usedKeys = new Set();
     // Noms de vignette = identifiants camelCase (minuscule en tête), jamais un libellé de type affiché.
     (appSource.match(/setSceneHeader\([^\n]*\);/g) || []).forEach(call => {
