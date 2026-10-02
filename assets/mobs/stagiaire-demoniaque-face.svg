@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Stagiaire Démoniaque, mob des Bureaux de l'Administration Pénitentiaire, cadrage « face » : il fonce, mug brandi, agrafeuse levée. Aucun texte. -->
+  <defs>
+    <pattern id="stagiaire-demoniaque-f-wall" width="100" height="70" patternUnits="userSpaceOnUse">
+      <rect width="100" height="70" fill="#2a2a33"/>
+      <rect x="3" y="3" width="44" height="64" rx="3" fill="#34343f"/>
+      <rect x="52" y="3" width="44" height="64" rx="3" fill="#31313c"/>
+      <rect x="3" y="3" width="44" height="8" fill="#3b3b46"/>
+      <rect x="52" y="3" width="44" height="8" fill="#393944"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#stagiaire-demoniaque-f-wall)"/>
+  <rect x="0" y="0" width="750" height="70" fill="#202026"/>
+  <rect x="120" y="30" width="200" height="22" rx="10" fill="#5a6a6a"/>
+  <rect x="470" y="30" width="200" height="22" rx="10" fill="#4a5656"/>
+  <path d="M130 52 L80 520 L380 520 L310 52 Z" fill="#e2f0e6" opacity="0.04"/>
+  <!-- Fenêtre à barreaux, horloge, armoire à dossiers, bureau encombré -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="40" y="150" width="150" height="120" fill="#1a1f24"/>
+    <path d="M78 150 V270 M115 150 V270 M152 150 V270" stroke-width="7"/>
+    <circle cx="640" cy="170" r="48" fill="#3e3e48"/>
+    <circle cx="640" cy="170" r="36" fill="#cbc4ad"/>
+    <path d="M640 170 V142 M640 170 L662 182" stroke-width="5"/>
+    <rect x="20" y="600" width="150" height="430" fill="#33333f"/>
+    <path d="M20 710 h150 M20 820 h150 M20 930 h150" stroke-width="4"/>
+    <rect x="50" y="640" width="90" height="12" rx="4" fill="#45455a"/>
+    <rect x="50" y="750" width="90" height="12" rx="4" fill="#45455a"/>
+    <rect x="50" y="860" width="90" height="12" rx="4" fill="#45455a"/>
+    <rect x="560" y="820" width="200" height="30" fill="#3d3a33"/>
+    <path d="M580 850 V1040 M740 850 V1040" stroke-width="14"/>
+  </g>
+    <rect x="0" y="1040" width="750" height="294" fill="#2f2f37"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#24242b" stroke-width="4"><path d="M120 1120 h500 M80 1200 h590 M60 1280 h630"/></g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <!-- Aura de rage infernale, irrégulière -->
+  <path d="M190 320 Q170 170 330 140 Q480 110 580 220 Q690 330 630 520 Q680 720 590 880 Q530 1010 380 1010 Q220 1000 180 860 Q90 700 150 540 Q110 430 190 320 Z" fill="#c23b3b" opacity="0.08"/>
+  <path d="M250 380 Q260 240 390 226 Q520 240 560 360 Q610 540 548 720 Q500 900 382 940 Q270 900 252 740 Q200 560 250 380 Z" fill="#ff7a3a" opacity="0.07"/>
+  <ellipse cx="390" cy="1040" rx="240" ry="26" fill="#05060c" opacity="0.45"/>
+  <!-- Feuilles volantes et poussière soulevée -->
+  <g stroke="#05060c" stroke-width="4" stroke-linejoin="round">
+    <path d="M96 420 l70 -18 l14 62 l-70 18 Z" fill="#d8d2bf"/>
+    <path d="M610 330 l58 22 l-20 58 l-58 -22 Z" fill="#cfc9b4"/>
+    <path d="M150 920 l60 10 l-8 46 l-60 -10 Z" fill="#d8d2bf"/>
+  </g>
+  <g fill="none" stroke="#7a7464" stroke-width="3"><path d="M114 428 l44 -12 M118 444 l44 -12 M626 350 l34 12 M620 366 l34 12 M162 938 l36 6"/></g>
+  <g fill="#4a4844" stroke="#05060c" stroke-width="3">
+    <circle cx="220" cy="1000" r="10"/><circle cx="560" cy="996" r="8"/><circle cx="250" cy="970" r="5"/><circle cx="530" cy="972" r="6"/>
+  </g>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="rotate(-4 390 1000)">
+    <!-- Jambe arrière -->
+    <path d="M420 780 L494 776 L520 940 L466 948 Z" fill="#2c3854" stroke-width="9"/>
+    <path d="M458 930 L522 924 Q566 936 572 974 L456 978 Z" fill="#1c1f2a" stroke-width="8"/>
+    <!-- Jambe avant -->
+    <path d="M298 790 L392 796 L360 940 L286 946 Z" fill="#3a4a6b" stroke-width="10"/>
+    <path d="M330 812 L362 818 L342 930" fill="none" stroke="#4a5c80" stroke-width="9"/>
+    <path d="M276 922 L362 916 L370 984 Q330 1004 246 1012 Q210 1008 218 980 Q238 952 276 948 Z" fill="#1c1f2a" stroke-width="9"/>
+    <path d="M232 976 q20 -10 40 -6" fill="none" stroke="#3a3e4c" stroke-width="6"/>
+    <!-- Torse : pull vert, col blanc, cravate qui flotte -->
+    <path d="M272 548 Q392 498 508 548 Q546 680 498 806 L296 812 Q244 680 272 548 Z" fill="#8fae5a" stroke-width="11"/>
+    <path d="M508 548 Q546 680 498 806 L470 806 Q512 676 480 552 Z" fill="#74924a" stroke="none"/>
+    <path d="M300 800 L498 800" stroke-width="8"/>
+    <path d="M296 790 L500 790" stroke="#74924a" stroke-width="10"/>
+    <path d="M342 524 L392 586 L440 524 L418 514 L392 548 L366 514 Z" fill="#e8e4d8" stroke-width="6"/>
+    <path d="M384 584 L392 566 L402 584 L460 690 L446 712 L378 612 Z" fill="#3a4a6b" stroke-width="6"/>
+    <!-- Cordon et badge de stagiaire (sans texte lisible) -->
+    <path d="M352 530 Q330 600 336 632 M432 530 Q400 600 380 632" fill="none" stroke="#3a4a6b" stroke-width="7"/>
+    <g transform="rotate(-8 352 664)">
+      <rect x="296" y="630" width="118" height="68" rx="6" fill="#e8e4d8" stroke-width="6"/>
+      <rect x="306" y="642" width="30" height="40" rx="3" fill="#8fae5a" stroke-width="3"/>
+      <path d="M346 650 h56 M346 666 h44 M346 682 h52" stroke="#3a4a6b" stroke-width="6"/>
+    </g>
+    <!-- Bras levé + agrafeuse rouge brandie -->
+    <path d="M292 586 Q210 540 196 370" fill="none" stroke-width="54"/>
+    <path d="M292 586 Q210 540 196 370" fill="none" stroke="#3a4a6b" stroke-width="40"/>
+    <path d="M246 556 Q214 500 204 430" fill="none" stroke="#4a5c80" stroke-width="8"/>
+    <g transform="translate(-12 -56) rotate(-24 204 340)">
+      <path d="M120 300 L292 300 Q300 300 300 312 L300 330 L120 330 Z" fill="#c23b3b" stroke-width="7"/>
+      <path d="M110 336 L300 336 L300 362 L110 362 Z" fill="#3e3e48" stroke-width="7"/>
+      <path d="M130 312 L280 312" stroke="#e05a5a" stroke-width="5"/>
+      <path d="M104 336 L130 318" stroke-width="6"/>
+    </g>
+    <g transform="translate(-12 -50)"><path d="M170 380 Q172 360 192 362 Q210 350 228 362 Q250 362 252 384 Q256 420 214 428 Q172 428 170 380 Z" fill="#8fae5a" stroke-width="8"/>
+    <path d="M190 364 Q188 382 194 396 M210 358 Q208 380 214 396 M230 364 Q232 382 230 398" fill="none" stroke-width="4"/></g>
+    <!-- Agrafes qui volent -->
+    <path d="M86 250 v-12 h16 v12 M60 300 v-10 h14 v10 M120 196 v-10 h14 v10" fill="none" stroke="#c4cad2" stroke-width="4"/>
+    <!-- Bras avancé : le mug de café qui déborde -->
+    <path d="M490 582 Q566 598 594 680" fill="none" stroke-width="58"/>
+    <path d="M490 582 Q566 598 594 680" fill="none" stroke="#3a4a6b" stroke-width="44"/>
+    <path d="M520 600 Q560 616 578 656" fill="none" stroke="#4a5c80" stroke-width="8"/>
+    <path d="M554 676 Q588 650 632 668 Q654 694 632 716 Q594 730 562 712 Z" fill="#8fae5a" stroke-width="8"/>
+    <g transform="rotate(10 620 700)">
+      <path d="M668 660 a34 34 0 1 1 0 72" fill="none" stroke-width="22"/>
+      <path d="M668 660 a34 34 0 1 1 0 72" fill="none" stroke="#e8e4d8" stroke-width="10"/>
+      <rect x="566" y="632" width="104" height="120" rx="12" fill="#e8e4d8" stroke-width="8"/>
+      <path d="M650 640 V744" stroke="#c9c4b4" stroke-width="12"/>
+      <ellipse cx="618" cy="634" rx="50" ry="12" fill="#5a3a22" stroke-width="6"/>
+      <path d="M590 690 h50 M596 710 h36" stroke="#3a4a6b" stroke-width="6"/>
+    </g>
+    <path d="M560 678 l-4 56 M588 690 l2 54 M616 694 l12 44" fill="none" stroke-width="22"/>
+    <path d="M560 678 l-4 56 M588 690 l2 54 M616 694 l12 44" fill="none" stroke="#8fae5a" stroke-width="11"/>
+    <!-- Café éclaboussé vers nous -->
+    <path d="M600 620 Q620 560 680 540 Q660 580 700 600 Q650 610 640 640 Z" fill="#5a3a22" stroke-width="5"/>
+    <g fill="#5a3a22" stroke-width="4"><circle cx="704" cy="520" r="12"/><circle cx="660" cy="498" r="8"/><circle cx="716" cy="574" r="7"/></g>
+    <!-- Tête -->
+    <g transform="rotate(-6 390 400)">
+      <path d="M306 376 L130 300 Q176 388 302 448 Z" fill="#8fae5a" stroke-width="9"/>
+      <path d="M290 390 L178 330 Q212 382 286 424" fill="none" stroke="#5f7a3a" stroke-width="7"/>
+      <path d="M478 372 L652 320 Q608 404 482 444 Z" fill="#8fae5a" stroke-width="9"/>
+      <path d="M494 388 L610 346 Q578 392 494 420" fill="none" stroke="#5f7a3a" stroke-width="7"/>
+      <!-- Petites cornes -->
+      <path d="M336 300 Q300 270 290 220 Q330 236 366 282 Z" fill="#8a4a3a" stroke-width="8"/>
+      <path d="M440 284 Q470 240 512 226 Q506 276 466 304 Z" fill="#8a4a3a" stroke-width="8"/>
+      <path d="M312 240 Q330 262 350 280 M488 240 Q474 262 458 282" fill="none" stroke="#6a3428" stroke-width="5"/>
+      <path d="M300 392 Q296 290 390 282 Q486 286 488 392 Q490 478 440 530 Q394 562 348 532 Q300 486 300 392 Z" fill="#8fae5a" stroke-width="11"/>
+      <path d="M470 326 Q500 420 450 520 Q488 440 480 356 Z" fill="#74924a" stroke="none"/>
+      <!-- Post-it rouge collé sur le front -->
+      <g transform="rotate(12 420 320)">
+        <rect x="390" y="290" width="62" height="58" fill="#c23b3b" stroke-width="5"/>
+        <path d="M440 348 L452 336 L452 348 Z" fill="#8a2a2a" stroke-width="3"/>
+        <path d="M400 306 h40 M400 320 h32 M400 334 h36" stroke="#7a1f1f" stroke-width="5"/>
+      </g>
+      <!-- Yeux rouges braqués sur nous, sourcils froncés -->
+      <ellipse cx="346" cy="400" rx="28" ry="21" fill="#e8e0a0" stroke-width="6"/>
+      <circle cx="352" cy="404" r="11" fill="#c23b3b" stroke-width="3"/>
+      <circle cx="354" cy="405" r="4.5" fill="#05060c" stroke="none"/>
+      <ellipse cx="434" cy="396" rx="32" ry="24" fill="#e8e0a0" stroke-width="6"/>
+      <circle cx="430" cy="402" r="13" fill="#c23b3b" stroke-width="3"/>
+      <circle cx="428" cy="403" r="5" fill="#05060c" stroke="none"/>
+      <path d="M310 364 L376 392" stroke-width="15"/>
+      <path d="M476 356 L408 386" stroke-width="15"/>
+      <!-- Pli de colère rouge (le chevron du sprite) -->
+      <path d="M314 438 l14 14 l-14 12" fill="none" stroke="#c23b3b" stroke-width="7"/>
+      <path d="M394 406 Q438 432 414 466 Q392 474 380 456 Q396 440 394 406 Z" fill="#8fae5a" stroke-width="7"/>
+      <path d="M328 484 Q392 462 466 474 Q456 528 398 534 Q344 530 328 484 Z" fill="#2b1a12" stroke-width="8"/>
+      <path d="M334 486 l10 18 l10 -19 l10 18 l12 -19 l12 17 l12 -18 l12 17 l10 -17 l12 16 l8 -16 Z" fill="#e8e0c8" stroke-width="4"/>
+      <path d="M364 528 Q392 508 420 526 Q392 540 364 528 Z" fill="#a8584a" stroke-width="4"/>
+      <!-- Cernes de stagiaire surmené -->
+      <path d="M324 426 Q346 438 370 426 M408 424 Q434 438 462 422" fill="none" stroke="#5f7a3a" stroke-width="5"/>
+    </g>
+  </g>
+  <!-- Lignes de mouvement -->
+  <g fill="none" stroke="#05060c" stroke-width="6" stroke-linecap="round" opacity="0.7">
+    <path d="M86 540 q-20 30 -14 70 M66 640 q-10 30 0 60 M694 420 q24 20 30 50 M690 800 q20 24 18 56"/>
+  </g>
+  <g fill="#ff7a3a" opacity="0.55"><circle cx="160" cy="560" r="6"/><circle cx="660" cy="470" r="5"/><circle cx="600" cy="900" r="5"/><circle cx="210" cy="820" r="4"/><circle cx="300" cy="180" r="4"/></g>
+</svg>

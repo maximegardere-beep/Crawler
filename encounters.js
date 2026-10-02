@@ -95,6 +95,10 @@ const ENCOUNTER_ART = {
     'Tulipe Géante': { face: 'svg', back: 'svg' },
     'Ronce Étrangleuse': { face: 'svg', back: 'svg' },
     'Gobelin Paysagiste': { face: 'svg', back: 'svg' },
+    // Bureaux de l'Administration Pénitentiaire
+    'Photocopieuse Carnivore': { face: 'svg', back: 'svg' },
+    'Stagiaire Démoniaque': { face: 'svg', back: 'svg' },
+    'Garde-Chiourme Bureaucrate': { face: 'svg', back: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';

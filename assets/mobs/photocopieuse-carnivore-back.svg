@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <defs>
+    <pattern id="photocopieuse-carnivore-b-panels" width="66" height="46" patternUnits="userSpaceOnUse">
+      <rect width="66" height="46" fill="#292b31"/>
+      <rect x="2" y="2" width="29" height="42" rx="2" fill="#33353e"/>
+      <rect x="35" y="2" width="29" height="42" rx="2" fill="#31333b"/>
+      <rect x="2" y="2" width="29" height="5" fill="#3a3d46"/>
+      <rect x="35" y="2" width="29" height="5" fill="#383b44"/>
+    </pattern>
+    <radialGradient id="photocopieuse-carnivore-b-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff5a4a" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#ff5a4a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur du fond : panneaux, néons, fenêtre à barreaux, horloge, panneau rouge, classeurs -->
+  <rect x="0" y="0" width="750" height="600" fill="url(#photocopieuse-carnivore-b-panels)"/>
+  <rect x="0" y="0" width="750" height="50" fill="#1e2025"/>
+  <g stroke="#05060c" stroke-width="3">
+    <rect x="250" y="22" width="150" height="16" rx="7" fill="#c9d6cc"/>
+    <rect x="500" y="22" width="150" height="16" rx="7" fill="#c9d6cc"/>
+  </g>
+  <ellipse cx="420" cy="80" rx="240" ry="60" fill="#e2f0e6" opacity="0.06"/>
+  <g stroke="#05060c" stroke-width="4">
+    <rect x="216" y="120" width="128" height="96" fill="#18202a"/>
+    <path d="M242 120 V216 M268 120 V216 M294 120 V216 M320 120 V216" stroke="#4a4e56" stroke-width="7"/>
+    <rect x="216" y="120" width="128" height="96" fill="none"/>
+    <circle cx="590" cy="150" r="32" fill="#cbc6b4"/>
+    <path d="M590 150 V128 M590 150 L606 160" stroke-width="5" stroke-linecap="round"/>
+    <rect x="560" y="246" width="120" height="38" rx="4" fill="#4a1d1d"/>
+    <rect x="560" y="420" width="70" height="190" fill="#34363f"/>
+    <rect x="630" y="420" width="70" height="190" fill="#31333b"/>
+    <path d="M560 483 h140 M560 546 h140" stroke-width="3"/>
+  </g>
+  <g fill="#8a826c"><rect x="574" y="258" width="28" height="12" rx="2"/><rect x="608" y="258" width="58" height="12" rx="2"/></g>
+  <g fill="#474a55"><rect x="578" y="444" width="34" height="8" rx="3"/><rect x="648" y="444" width="34" height="8" rx="3"/><rect x="578" y="506" width="34" height="8" rx="3"/><rect x="648" y="506" width="34" height="8" rx="3"/></g>
+  <!-- Prise murale -->
+  <rect x="520" y="540" width="22" height="30" rx="3" fill="#bdb8a8" stroke="#05060c" stroke-width="3"/>
+  <!-- Sol carrelé -->
+  <rect x="0" y="600" width="750" height="734" fill="#2a2b2e"/>
+  <path d="M0 600 H750" stroke="#05060c" stroke-width="5"/>
+  <g stroke="#222326" stroke-width="4"><path d="M0 660 H750 M0 740 H750 M0 850 H750 M0 1000 H750 M0 1190 H750"/></g>
+  <!-- Ombre et lueur rouge du scanner -->
+  <ellipse cx="400" cy="646" rx="150" ry="18" fill="#05060c" opacity="0.5"/>
+  <ellipse cx="410" cy="300" rx="130" ry="90" fill="url(#photocopieuse-carnivore-b-glow)"/>
+  <!-- Les copies qu'elle recrache en continu, en tas -->
+  <g stroke="#05060c" stroke-width="3" stroke-linejoin="round">
+    <path d="M196 636 L256 628 L262 646 L200 654 Z" fill="#d6d1c2"/>
+    <path d="M206 626 L262 612 L270 630 L212 644 Z" fill="#e8e4d8"/>
+    <path d="M220 612 L270 604 L276 620 L224 628 Z" fill="#ddd8ca"/>
+    <path d="M150 650 L196 640 L204 660 L156 668 Z" fill="#e8e4d8"/>
+  </g>
+  <!-- LA PHOTOCOPIEUSE, de trois-quarts dos : elle mâchonne le stagiaire venu réparer un bourrage -->
+  <g stroke="#05060c" stroke-linejoin="round">
+    <!-- Câble d'alimentation -->
+    <path d="M470 600 C500 630 510 590 520 560" fill="none" stroke-width="6"/>
+    <!-- Roulettes -->
+    <g fill="#5f6770" stroke-width="4">
+      <rect x="290" y="622" width="30" height="18" rx="3"/><rect x="340" y="630" width="34" height="18" rx="3"/><rect x="462" y="626" width="34" height="18" rx="3"/>
+    </g>
+    <!-- Flanc (côté sortie papier) -->
+    <path d="M282 414 L332 400 L334 642 L286 626 Z" fill="#5f6770" stroke-width="6"/>
+    <path d="M286 500 L262 512 L264 536 L288 526 Z" fill="#3a4047" stroke-width="4"/>
+    <path d="M276 512 L226 540 L238 566 L282 534 Z" fill="#e8e4d8" stroke-width="4"/>
+    <!-- Dos -->
+    <path d="M332 400 L500 392 L504 636 L334 642 Z" fill="#9aa3ad" stroke-width="7"/>
+    <path d="M480 394 L500 392 L504 636 L484 637 Z" fill="#7f8892" stroke="none"/>
+    <g stroke="#5f6770" stroke-width="5" stroke-linecap="round">
+      <path d="M356 430 H470"/><path d="M356 446 H470"/><path d="M356 462 H470"/><path d="M356 478 H470"/>
+    </g>
+    <rect x="360" y="510" width="52" height="30" rx="2" fill="#e8e4d8" stroke-width="3" transform="rotate(-5 386 525)"/>
+    <path d="M368 520 h34 M368 530 h22" stroke="#8a8478" stroke-width="3" transform="rotate(-5 386 525)"/>
+    <g fill="#5f6770" stroke-width="3"><circle cx="440" cy="580" r="10"/><circle cx="472" cy="578" r="10"/></g>
+    <rect x="456" y="598" width="22" height="16" rx="3" fill="#1b1d20" stroke-width="3"/>
+    <!-- Mâchoire vue de profil, entrouverte sur le stagiaire -->
+    <path d="M284 412 L332 400 L344 306 L292 330 Z" fill="#2a0d10" stroke-width="5"/>
+    <path d="M288 410 l6 -14 l8 12 l6 -14 l8 12 l6 -14 l8 12 Z" fill="#e8e4d8" stroke-width="2.5"/>
+    <path d="M294 334 l6 14 l7 -16 l7 14 l7 -16 l7 12 l7 -16 Z" fill="#e8e4d8" stroke-width="2.5"/>
+    <!-- Jambes du stagiaire qui gigotent hors du couvercle -->
+    <path d="M384 316 L364 236 L322 196" fill="none" stroke-width="32" stroke-linecap="round"/>
+    <path d="M384 316 L364 236 L322 196" fill="none" stroke="#33405e" stroke-width="22" stroke-linecap="round"/>
+    <path d="M368 236 L372 300" stroke="#262f46" stroke-width="5"/>
+    <path d="M300 176 L328 172 L340 196 L318 214 L306 206 Z" fill="#141518" stroke-width="5"/>
+    <path d="M322 208 L342 192" stroke="#8a8478" stroke-width="4"/>
+    <path d="M436 316 L452 232 L500 200" fill="none" stroke-width="32" stroke-linecap="round"/>
+    <path d="M436 316 L452 232 L500 200" fill="none" stroke="#33405e" stroke-width="22" stroke-linecap="round"/>
+    <path d="M454 236 L446 296" stroke="#262f46" stroke-width="5"/>
+    <path d="M496 190 C510 176 534 174 538 186 C542 198 520 212 504 214 Z" fill="#e8e4d8" stroke-width="5"/>
+    <path d="M506 194 L516 210" stroke="#c23b3b" stroke-width="5"/>
+    <g fill="none" stroke="#c8ccd2" stroke-width="4" stroke-linecap="round" opacity="0.8">
+      <path d="M290 196 q-12 12 -4 28"/><path d="M548 172 q16 8 12 26"/><path d="M312 158 q-14 -2 -20 10"/><path d="M524 160 q8 -12 22 -10"/>
+    </g>
+    <!-- Couvercle relevé et chargeur de documents -->
+    <path d="M332 400 L500 392 L490 300 L344 306 Z" fill="#5f6770" stroke-width="7"/>
+    <path d="M354 380 L486 374 L480 318 L356 324 Z" fill="#7a828c" stroke-width="4"/>
+    <path d="M366 366 L474 362 L470 334 L368 338 Z" fill="#4a5058" stroke="none"/>
+    <!-- Antenne et voyant rouge -->
+    <path d="M488 330 L512 290 L538 278" fill="none" stroke-width="5"/>
+    <circle cx="544" cy="274" r="22" fill="url(#photocopieuse-carnivore-b-glow)" stroke="none"/>
+    <circle cx="544" cy="274" r="9" fill="#c23b3b" stroke-width="4"/>
+    <!-- Voyant « bourrage » qui clignote -->
+    <circle cx="482" cy="408" r="20" fill="url(#photocopieuse-carnivore-b-glow)" stroke="none"/>
+    <circle cx="482" cy="408" r="7" fill="#c23b3b" stroke-width="3"/>
+  </g>
+  <!-- La chaussure perdue, la caisse à outils renversée, le badge du stagiaire -->
+  <g stroke="#05060c" stroke-width="4" stroke-linejoin="round">
+    <path d="M556 662 L584 652 L596 662 L594 674 L558 676 Z" fill="#141518"/>
+    <path d="M520 640 L566 632 L570 652 L524 660 Z" fill="#6b3030"/>
+    <path d="M524 640 L536 622 L556 618 L566 632" fill="none" stroke-width="5"/>
+    <path d="M574 692 L612 684" stroke="#c8ccd2" stroke-width="6" stroke-linecap="round"/>
+    <path d="M608 685 L626 681" stroke="#caa23a" stroke-width="8" stroke-linecap="round"/>
+    <rect x="232" y="686" width="22" height="28" rx="3" fill="#cbd5e1" transform="rotate(-12 243 700)"/>
+    <path d="M250 688 C270 676 290 690 300 680" fill="none" stroke="#2f6fb0" stroke-width="4"/>
+  </g>
+  <!-- Premier plan : cachette derrière un classeur et une pile de cartons d'archives -->
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.12"/>
+  <path d="M0 0 H178 L186 1334 H0 Z" fill="#16181d" stroke="#05060c" stroke-width="6"/>
+  <path d="M172 0 L180 1334" stroke="#2a2d34" stroke-width="10"/>
+  <g stroke="#0b0c0f" stroke-width="5"><path d="M0 330 H176 M0 660 H180 M0 990 H182"/></g>
+  <g fill="#262930"><rect x="120" y="180" width="40" height="14" rx="5"/><rect x="122" y="510" width="40" height="14" rx="5"/><rect x="124" y="840" width="40" height="14" rx="5"/></g>
+  <g stroke="#05060c" stroke-width="6" stroke-linejoin="round">
+    <path d="M520 1000 L740 984 L750 1334 H510 Z" fill="#14161a"/>
+    <path d="M514 1000 L744 984 L746 1012 L516 1028 Z" fill="#1d2025"/>
+    <path d="M560 1070 L690 1062 L690 1110 L560 1118 Z" fill="#1a1c21"/>
+    <path d="M590 880 L740 870 L742 990 L594 1000 Z" fill="#17191e"/>
+    <path d="M586 880 L742 868 L744 894 L588 906 Z" fill="#20232a"/>
+  </g>
+  <ellipse cx="380" cy="1300" rx="260" ry="40" fill="#05060c" opacity="0.4"/>
+</svg>
