@@ -80,6 +80,12 @@ const ENCOUNTER_ART = {
     'Le Gardien des Mots Perdus': { face: 'svg' },
     'Le Professeur Démentiel': { face: 'svg' },
     'Le Maître des Illusions': { face: 'svg' },
+    'Le Roi des Chaussettes Solitaires': { face: 'svg' },
+    'Le Baron des Ombres': { face: 'svg' },
+    "L'IA Malveillante": { face: 'svg' },
+    'Le Gardien du Parking Éternel': { face: 'svg' },
+    'Le Grand Requin Gonflable': { face: 'svg' },
+    "L'Animateur Vedette Immortel": { face: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';

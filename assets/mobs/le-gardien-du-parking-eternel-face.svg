@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Le Gardien du Parking Éternel, boss du Parking Souterrain Maudit, cadrage « face ». Aucun texte. -->
+  <defs>
+    <pattern id="parking-beton" width="120" height="70" patternUnits="userSpaceOnUse">
+      <rect width="120" height="70" fill="#2c2c30"/>
+      <rect width="120" height="70" fill="#34343a"/>
+      <rect y="68" width="120" height="2" fill="#232327"/>
+      <circle cx="30" cy="20" r="2.5" fill="#232327"/>
+      <circle cx="90" cy="46" r="3" fill="#232327"/>
+      <circle cx="64" cy="12" r="2" fill="#3c3c42"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#parking-beton)"/>
+  <rect x="0" y="0" width="750" height="66" fill="#232327"/>
+  <g fill="none" stroke="#232327" stroke-width="20">
+    <path d="M0 130 H750"/>
+  </g>
+  <path d="M120 130 v40 M360 130 v40 M630 130 v40" stroke="#232327" stroke-width="14"/>
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="60" y="600" width="90" height="380" rx="6" fill="#3a3a40"/>
+    <path d="M60 640 h90 M60 700 h90" stroke="#fbbf24" stroke-width="16"/>
+    <rect x="600" y="560" width="90" height="420" rx="6" fill="#3a3a40"/>
+    <path d="M600 600 h90 M600 660 h90" stroke="#fbbf24" stroke-width="16"/>
+  </g>
+  <g stroke="#4a4a52" stroke-width="8">
+    <path d="M180 1000 v-120 M570 1000 v-120"/>
+  </g>
+  <ellipse cx="375" cy="760" rx="350" ry="260" fill="#3a3a42" opacity="0.4"/>
+  <ellipse cx="140" cy="400" rx="120" ry="85" fill="#fde047" opacity="0.05"/>
+  <ellipse cx="610" cy="400" rx="120" ry="85" fill="#fde047" opacity="0.05"/>
+  <rect x="0" y="1040" width="750" height="294" fill="#26262b"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g fill="#2c2c32" stroke="#05060c" stroke-width="4">
+    <ellipse cx="200" cy="1130" rx="80" ry="14"/>
+    <ellipse cx="540" cy="1210" rx="70" ry="13"/>
+  </g>
+  <g stroke="#3a3a40" stroke-width="5" fill="none">
+    <path d="M80 1180 h180 M520 1120 h150"/>
+  </g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
+  <ellipse cx="375" cy="700" rx="330" ry="360" fill="#fde047" opacity="0.09"/>
+  <ellipse cx="375" cy="700" rx="250" ry="280" fill="#fde047" opacity="0.12"/>
+  <ellipse cx="375" cy="700" rx="170" ry="190" fill="#fde047" opacity="0.15"/>
+  <path d="M185 560 l-16 -24 l16 -8 M565 580 l16 -24 l-16 -8" fill="none" stroke="#fde047" stroke-width="7" stroke-linecap="round" opacity="0.8"/>
+  <ellipse cx="375" cy="1040" rx="270" ry="30" fill="#05060c" opacity="0.5"/>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-width="12">
+    <g>
+      <circle cx="215" cy="990" r="58" fill="#252528" stroke-width="10"/>
+      <circle cx="535" cy="990" r="58" fill="#252528" stroke-width="10"/>
+      <circle cx="215" cy="990" r="22" fill="#3a3a40" stroke-width="7"/>
+      <circle cx="535" cy="990" r="22" fill="#3a3a40" stroke-width="7"/>
+    </g>
+    <path d="M155 960 L155 800 Q155 780 175 775 L240 700 L510 700 L575 775 Q595 780 595 800 L595 960 Z" fill="#a8543a"/>
+    <path d="M560 790 Q580 800 580 820 L580 950 L595 960 L595 800 Q595 780 575 775 Z" fill="#6b3a28" stroke-width="6"/>
+    <path d="M155 870 q60 30 120 10" fill="none" stroke="#6b3a28" stroke-width="9"/>
+    <path d="M200 900 q26 -18 40 -8 M470 905 q30 -14 46 -4" fill="none" stroke="#6b3a28" stroke-width="6"/>
+    <path d="M240 700 L510 700 L540 760 L210 760 Z" fill="#a8543a" stroke-width="9"/>
+    <path d="M225 770 q150 -22 300 0" fill="none" stroke="#6b3a28" stroke-width="8"/>
+    <path d="M250 705 L500 705 L520 755 L230 755 Z" fill="#1a2430" stroke-width="10"/>
+    <circle cx="315" cy="728" r="22" fill="#fde047" stroke-width="8"/>
+    <circle cx="315" cy="728" r="9" fill="#05060c"/>
+    <circle cx="425" cy="728" r="22" fill="#fde047" stroke-width="8"/>
+    <circle cx="425" cy="728" r="9" fill="#05060c"/>
+    <path d="M282 690 L350 708 M458 690 L392 708" stroke="#05060c" stroke-width="13" stroke-linecap="round"/>
+    <path d="M300 790 H450 M310 812 H440" stroke="#252528" stroke-width="10"/>
+    <rect x="322" y="850" width="106" height="44" rx="6" fill="#e8e4d8" stroke-width="7"/>
+    <path d="M338 864 h74 M338 880 h74" stroke="#6b3a28" stroke-width="8"/>
+    <g>
+      <rect x="345" y="660" width="60" height="26" rx="6" fill="#1f2937" stroke-width="7"/>
+      <path d="M352 660 a23 23 0 0 1 46 0 Z" fill="#ef4444" stroke-width="7"/>
+      <path d="M320 640 q-24 -20 -10 -44 M480 640 q24 -20 10 -44" fill="none" stroke="#ef4444" stroke-width="6" opacity="0.6"/>
+    </g>
+    <path d="M175 800 q-40 -10 -46 -50" fill="none" stroke-width="14"/>
+    <circle cx="128" cy="738" r="20" fill="#a8543a" stroke-width="8"/>
+    <g stroke-width="9">
+      <rect x="620" y="470" width="16" height="180" rx="6" fill="#6b3a28" transform="rotate(34 628 560)"/>
+      <g transform="rotate(-24 560 480)">
+        <rect x="470" y="470" width="20" height="360" rx="6" fill="#f5f5f4"/>
+        <rect x="470" y="500" width="20" height="22" fill="#c23b3b" stroke-width="4"/>
+        <rect x="470" y="580" width="20" height="22" fill="#c23b3b" stroke-width="4"/>
+        <rect x="470" y="660" width="20" height="22" fill="#c23b3b" stroke-width="4"/>
+        <rect x="470" y="740" width="20" height="22" fill="#c23b3b" stroke-width="4"/>
+      </g>
+      <circle cx="560" cy="466" r="16" fill="#dc2626" stroke-width="7"/>
+    </g>
+    <path d="M310 640 L320 570 L350 610 L375 550 L400 610 L430 570 L440 640 Z" fill="#caa23a" stroke-width="8"/>
+  </g>
+</svg>

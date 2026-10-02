@@ -202,13 +202,13 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
 {
     const fsx = require('fs'), pathx = require('path');
     const delivered = Object.entries(ENCOUNTER_ART).filter(([, v]) => v.face === 'svg').map(([n]) => n);
-    assert(delivered.length === 7 && delivered.every(n => Object.values(districtBosses).some(b => b.name === n)), "Manifeste : 7 boss livrés en SVG");
+    assert(delivered.length === Object.values(districtBosses).length && Object.values(districtBosses).every(b => delivered.includes(b.name)), "Manifeste : les 13 boss sont livrés en SVG");
     assert(encounterArtPath('Le Boucher Sans Visage', 'face') === 'assets/mobs/le-boucher-sans-visage-face.svg' && encounterArtExt('Rat Goulot', 'face') === '.webp', "encounterArtPath() : extension .svg selon le manifeste, .webp par défaut");
     const boss = { name: 'Le Boucher Sans Visage (intérimaire)', baseName: 'Le Boucher Sans Visage', isBoss: true };
     const art = resolveEncounterArt(boss, 'boss');
     assert(!art.fallback && art.src === 'assets/mobs/le-boucher-sans-visage-face.svg', "resolveEncounterArt() : chemin du SVG livré");
     assert(resolveEncounterArt(boss, 'unseen').fallback === true, "Boss livré en face seulement : le dos retombe sur le sprite");
-    assert(encounterArtTargets().filter(t => t.done).length === 7, "Cibles : 7 images marquées faites");
+    assert(encounterArtTargets().filter(t => t.done).length === 13 && encounterArtTargets().filter(t => t.kind === 'boss').every(t => t.done), "Cibles : les 13 boss sont marqués faits, aucun mob");
     delivered.forEach(n => {
         const f = fsx.readFileSync(pathx.join(__dirname, '..', '..', encounterArtPath(n, 'face')), 'utf8');
         assert(/<svg[^>]+width="750"[^>]+height="1334"[^>]+viewBox="0 0 750 1334"/.test(f), `SVG « ${n} » : portrait 750 x 1334`);
