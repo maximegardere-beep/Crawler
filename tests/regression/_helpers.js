@@ -85,6 +85,7 @@ function resetTransientState() {
     gameState.pendingStairsChoice = null;
     if (ui.safehouseChoiceZone) ui.safehouseChoiceZone.classList.add('hidden');
     gameState.stealthChoicePending = false;
+    gameState.encounterIntroPending = false;
     gameState.pendingStealthEncounter = null;
     gameState.pendingSneakAttack = false; // Même repéré par le test méta que xp/xpToNextLevel ci-dessus
     gameState.companionChoicePending = false;

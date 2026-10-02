@@ -83,6 +83,7 @@ const gameState = {
     pendingSafehouseRoomId: null, // Room id de la salle sécurisée dont le choix est actuellement affiché
     lastAttackKind: null, // 'weapon' | 'ranged' | 'magic' | 'unarmed' : dernière attaque utilisée, fixe la posture du crawler dans les scènes (voir crawlerPosture() dans scene.js)
     stealthChoicePending: false, // Un ennemi non repéré attend une décision (esquiver/attaque furtive)
+    encounterIntroPending: false, // Écran plein écran de rencontre ouvert (chantier 16) : attend un tap, le callback vit hors gameState (jamais sauvegardé)
     pendingStealthEncounter: null, // L'ennemi généré, en attente de cette décision
     pendingSneakAttack: false, // Consommé par le tout premier coup porté (bonus x2)
     pendingBossEncounter: null, // { roomId, guardsStairs } pendant que bossChoicePending est vrai
@@ -777,6 +778,13 @@ const ui = {
     btnSleepSafehouse: document.getElementById('btn-sleep-safehouse'),
     btnLeaveSafehouse: document.getElementById('btn-leave-safehouse'),
     stealthChoiceZone: document.getElementById('stealth-choice-zone'),
+    encounterOverlay: document.getElementById('encounter-overlay'),
+    encounterArt: document.getElementById('encounter-art'),
+    encounterImg: document.getElementById('encounter-img'),
+    encounterTitle: document.getElementById('encounter-title'),
+    encounterLine: document.getElementById('encounter-line'),
+    encounterHint: document.getElementById('encounter-hint'),
+    encounterBanner: document.getElementById('encounter-banner'),
     btnStealthEvade: document.getElementById('btn-stealth-evade'),
     btnStealthAttack: document.getElementById('btn-stealth-attack'),
     gameOverOverlay: document.getElementById('game-over-overlay'),
@@ -2812,7 +2820,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.raceChoicePending || gameState.classChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending || !!gameState.pendingMinigame;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.encounterIntroPending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.raceChoicePending || gameState.classChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending || !!gameState.pendingMinigame;
 }
 
 // ---------- Voyage sur carte (chantier 5, M1 + P1 — remplace les anciens « Lieux connus ») ----------
@@ -8834,6 +8842,86 @@ function giveTestKit() {
     updateSpellbookUI();
 }
 
+// ==========================================
+// ÉCRAN PLEIN ÉCRAN DE RENCONTRE (chantier 16, lot 1)
+// ==========================================
+// Overlay statique qui annonce une altercation (« il t'a vu », embuscade, « tu l'as vu », boss, chasseur) AVANT que
+// le combat ou le choix de furtivité n'apparaisse : image WebP du mob si elle existe (encounters.js), sinon son sprite
+// agrandi sur le décor (scene.js, renderScene('encounter')). Fermé par un tap (ou Espace/Entrée/Échap), toujours :
+// jamais de fermeture automatique. Par callback (jamais de Promise, comme runCombatBeats()/startMinigame()) : sans
+// interface (tests Node sans requestAnimationFrame) le callback est appelé tout de suite et rien ne s'affiche. Le
+// callback vit dans une variable de module, jamais dans gameState (non sauvegardable) ; `encounterIntroPending` bloque
+// les actions (isActionBlocked()). Les branchements dans initiateCombat() et la furtivité viennent au lot 2.
+const ENCOUNTER_INTRO_MIN_MS = 450; // garde-fou : le tap qui a déclenché la rencontre ne la referme jamais
+let encounterIntroCallback = null;
+let encounterIntroOpenedAt = 0;
+
+function encounterIntroAvailable() {
+    return !!(ui.encounterOverlay && typeof requestAnimationFrame === 'function');
+}
+
+function showEncounterIntro(kind, enemy, onContinue) {
+    if (!enemy || !encounterIntroAvailable()) {
+        if (onContinue) onContinue();
+        return false;
+    }
+    const text = pickEncounterText(kind, enemy.name);
+    const art = resolveEncounterArt(enemy, kind);
+    renderScene('encounter', { kind, enemy });
+    if (ui.encounterImg) {
+        ui.encounterImg.classList.add('hidden');
+        if (art.src) {
+            ui.encounterImg.onload = () => ui.encounterImg.classList.remove('hidden');
+            ui.encounterImg.onerror = () => ui.encounterImg.classList.add('hidden'); // le sprite agrandi reste dessous
+            ui.encounterImg.src = art.src;
+        } else {
+            ui.encounterImg.onload = ui.encounterImg.onerror = null;
+        }
+    }
+    ui.encounterTitle.innerText = text.title;
+    ui.encounterTitle.style.color = text.accent;
+    ui.encounterLine.innerText = text.line;
+    ui.encounterHint.innerText = text.hint;
+    ui.encounterBanner.style.borderColor = text.accent;
+    if (typeof document.activeElement !== 'undefined' && document.activeElement && document.activeElement.blur) document.activeElement.blur(); // Entrée ne doit pas réactiver le bouton qui a mené ici
+    closeInventorySheets();
+    gameState.encounterIntroPending = true;
+    encounterIntroCallback = onContinue || null;
+    encounterIntroOpenedAt = Date.now();
+    ui.encounterOverlay.classList.add('enc-enter');
+    ui.encounterOverlay.classList.remove('hidden');
+    ui.encounterArt.classList.remove('enc-play');
+    void ui.encounterOverlay.offsetWidth; // relance les animations à chaque ouverture
+    ui.encounterOverlay.classList.remove('enc-enter');
+    ui.encounterArt.classList.add('enc-play');
+    if (kind === 'boss' && typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(60);
+    return true;
+}
+
+// Ferme l'écran puis enchaîne sur le callback. Ignoré si rien n'est ouvert ou trop tôt (tap résiduel).
+function dismissEncounterIntro(force) {
+    if (!gameState.encounterIntroPending) return false;
+    if (!force && Date.now() - encounterIntroOpenedAt < ENCOUNTER_INTRO_MIN_MS) return false;
+    const cb = encounterIntroCallback;
+    encounterIntroCallback = null;
+    gameState.encounterIntroPending = false;
+    if (ui.encounterOverlay) ui.encounterOverlay.classList.add('hidden');
+    if (ui.encounterArt) ui.encounterArt.classList.remove('enc-play');
+    if (cb) cb();
+    return true;
+}
+
+// DEV : prévisualiser un écran sans déclencher de combat (console du navigateur). Exemple : devPreviewEncounter('unseen', 'Rat Goulot').
+function devPreviewEncounter(kind = 'spotted', mobName = null) {
+    let enemy = null;
+    if (mobName) {
+        const boss = Object.values(districtBosses).find(b => b.name === mobName);
+        const base = boss || findMobByName(mobName) || bountyHunters.find(h => h.name === mobName);
+        if (base) enemy = Object.assign({}, base, { baseName: base.name, hp: base.hp || 1, isBoss: !!boss });
+    }
+    return showEncounterIntro(kind, enemy || generateMob(gameState.currentDistrict), null);
+}
+
 // DEV uniquement (menu déroulant, voir index.html) : saute directement à l'étage 3 (premier étage
 // urbain), pour tester le réseau de villes sans traverser les étages précédents. Réinitialise tout
 // état bloquant en cours (combat/boss/furtivité/compagnon) avant le saut, comme resetTransientState()
@@ -9033,7 +9121,14 @@ if (ui.combatZone) {
         requestCombatSkip();
     });
 }
+// Écran de rencontre : un tap n'importe où, ou Espace/Entrée/Échap, le ferme (jamais de fermeture automatique).
+if (ui.encounterOverlay) bindTap(ui.encounterOverlay, () => dismissEncounterIntro());
 document.addEventListener('keydown', (e) => {
+    if (gameState.encounterIntroPending && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) {
+        if (e.preventDefault) e.preventDefault();
+        dismissEncounterIntro();
+        return;
+    }
     if (e.code !== 'Space' && e.code !== 'Enter') return;
     const activeTag = document.activeElement && document.activeElement.tagName;
     if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return; // ne gêne jamais la saisie (nom du crawler...)

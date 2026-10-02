@@ -2,7 +2,7 @@
 // manifeste des images, résolution, liste ordonnée des images à faire). Voir encounters.js et CHANTIERS.md (chantier 16).
 const fs = require('fs');
 const path = require('path');
-const { assert } = require('./_helpers.js');
+const { assert, resetTransientState } = require('./_helpers.js');
 
 const seq = (values) => { let i = 0; return () => values[i++ % values.length]; };
 
@@ -102,4 +102,98 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
     assert(pickEncounterText('inconnu', 'X', seq([0])).title === "X vous a repéré !" && pickEncounterText('unseen', 'X').view === 'back', "pickEncounterText() : type inconnu -> spotted, hasard par défaut");
     const seen = new Set(); for (let i = 0; i < 50; i++) seen.add(pickEncounterText('boss', 'B', seq([i / 50])).line);
     assert(seen.size === ENCOUNTER_KINDS.boss.lines.length, "pickEncounterText() : toutes les répliques sont atteignables");
+}
+
+// --- Lot 1 : scène de repli (sprite agrandi sur le décor), purement géométrique ---
+{
+    const enemies = [
+        ...baseMobs.map(m => ({ ...m, baseName: m.name })),
+        ...Object.values(districtBosses).map(b => ({ ...b, baseName: b.name, isBoss: true }))
+    ];
+    let ok = true, why = '';
+    for (const e of enemies) {
+        const sprite = resolveMobSprite(e, { aura: true });
+        for (const kind of Object.keys(ENCOUNTER_KINDS)) {
+            const spec = encounterSceneSpec(kind, sprite, !!e.isBoss);
+            const half = Math.max(MOB_EXTENT, sprite.bounds ? Math.max(Math.abs(sprite.bounds[0]), Math.abs(sprite.bounds[1])) : 0) * spec.scale;
+            const topY = spec.y - spec.height;
+            const maxH = spec.view === 'back' ? ENCOUNTER_MOB_HEIGHT.back : (e.isBoss ? ENCOUNTER_MOB_HEIGHT.boss : ENCOUNTER_MOB_HEIGHT.face);
+            if (!(spec.scale > 0 && isFinite(spec.scale))) { ok = false; why = `${e.name}/${kind} échelle`; }
+            else if (spec.x - half < -0.01 || spec.x + half > ENCOUNTER_VIEW.w + 0.01) { ok = false; why = `${e.name}/${kind} déborde en largeur`; }
+            else if (topY < 0) { ok = false; why = `${e.name}/${kind} déborde en haut`; }
+            else if (spec.height > maxH + 0.5) { ok = false; why = `${e.name}/${kind} trop grand`; }
+            else if (spec.y > ENCOUNTER_VIEW.h * 0.78) { ok = false; why = `${e.name}/${kind} sous le bandeau`; }
+            if (!ok) break;
+        }
+        if (!ok) break;
+    }
+    assert(ok, `Scène de rencontre : chaque mob et boss tient dans le cadre portrait, au-dessus du bandeau${why ? ' (' + why + ')' : ''}`);
+    const rat = { ...baseMobs[0], baseName: baseMobs[0].name }, sp = resolveMobSprite(rat, { aura: true });
+    const face = encounterSceneSpec('spotted', sp, false), back = encounterSceneSpec('unseen', sp, false), boss = encounterSceneSpec('boss', sp, true);
+    assert(face.view === 'face' && !face.flip && face.glow && face.y === ENCOUNTER_FACE_GROUND_Y, "Cadrage face : mob de face, halo d'accent, pieds au premier plan");
+    assert(back.view === 'back' && back.flip && !back.glow && back.y < face.y && back.height < face.height, "Cadrage dos : mob retourné, sans halo, plus loin et plus petit");
+    assert(boss.height > face.height - 0.5 || boss.scale <= face.scale + 1e-9, "Boss : au moins aussi imposant qu'un mob (sauf limite de largeur)");
+    assert(encounterSceneSpec('inconnu', sp, false).view === 'face' && encounterSceneSpec('spotted', null, false).scale > 0, "Type inconnu -> face ; sprite absent -> échelle valide");
+}
+
+{
+    const mob = { ...baseMobs[0], baseName: baseMobs[0].name, effect: 'burn' };
+    const boss = { ...Object.values(districtBosses)[0], baseName: Object.values(districtBosses)[0].name, isBoss: true };
+    const faceSvg = composeEncounterScene('spotted', mob, 'Tunnels de Métro Abandonnés', 'xbd');
+    const backSvg = composeEncounterScene('unseen', mob, 'Tunnels de Métro Abandonnés', 'xbd');
+    const bossSvg = composeEncounterScene('boss', boss, 'Jardins Carnivores', 'xbd');
+    assert(!/NaN|undefined/.test(faceSvg + backSvg + bossSvg), "Scène de rencontre : aucun NaN ni undefined dans le SVG");
+    assert(faceSvg.includes('class="enc-glow"') && !backSvg.includes('class="enc-glow"'), "Halo d'accent seulement de face");
+    assert(/scale\(-[\d.]+ [\d.]+\)/.test(backSvg) && !/scale\(-[\d.]+ [\d.]+\)/.test(faceSvg.replace(/scale\(-1 1\)/g, '')), "Mob retourné de dos uniquement");
+    assert(bossSvg.includes('translate(0 ' + (resolveMobSprite(boss, { aura: true }).top - 2) + ')'), "Boss : couronne posée au-dessus du sprite");
+    assert(faceSvg.includes('xbd-enc-vig') && faceSvg.includes('url(#xbd-'), "Identifiants préfixés par scène (jamais ceux du combat 'cbd' ni de l'exploration 'ebd')");
+    assert(composeEncounterScene('spotted', mob, 'Quartier inconnu', 'xbd').length > 500, "Quartier inconnu : décor par défaut");
+}
+
+// --- Lot 1 : ouverture / fermeture de l'overlay ---
+{
+    resetTransientState();
+    let calls = 0;
+    const enemy = { ...baseMobs[0], baseName: baseMobs[0].name };
+    // Sans interface (tests Node, pas de requestAnimationFrame) : callback immédiat, rien d'ouvert.
+    assert(typeof requestAnimationFrame !== 'function', "Prérequis : pas de requestAnimationFrame sous Node");
+    assert(showEncounterIntro('spotted', enemy, () => calls++) === false && calls === 1 && !gameState.encounterIntroPending, "Sans interface : callback appelé tout de suite, aucun blocage");
+    assert(showEncounterIntro('spotted', null, () => calls++) === false && calls === 2, "Ennemi absent : callback appelé, jamais d'exception");
+
+    const realNow = Date.now;
+    let now = 1000000;
+    Date.now = () => now;
+    global.requestAnimationFrame = (fn) => 0;
+    try {
+        assert(showEncounterIntro('spotted', enemy, () => calls++) === true && gameState.encounterIntroPending === true, "Avec interface : l'écran s'ouvre et bloque");
+        assert(isActionBlocked(), "L'écran ouvert bloque les actions (isActionBlocked)");
+        assert(!ui.encounterOverlay.classList.contains('hidden') && ui.encounterTitle.innerText.includes(enemy.name), "Overlay visible, titre au nom du mob");
+        assert(dismissEncounterIntro() === false && gameState.encounterIntroPending && calls === 2, "Tap trop tôt (résiduel) : ignoré");
+        now += ENCOUNTER_INTRO_MIN_MS + 1;
+        assert(dismissEncounterIntro() === true && !gameState.encounterIntroPending && calls === 3, "Tap après le délai : ferme et appelle le callback une fois");
+        assert(ui.encounterOverlay.classList.contains('hidden') && !isActionBlocked(), "Overlay masqué, actions débloquées");
+        assert(dismissEncounterIntro(true) === false && calls === 3, "Une seconde fermeture ne rappelle pas le callback");
+        showEncounterIntro('boss', Object.assign({}, Object.values(districtBosses)[0], { isBoss: true }), () => calls++);
+        assert(dismissEncounterIntro(true) === true && calls === 4, "Fermeture forcée (clavier/test) sans attendre le délai");
+        // Un reset des tests ne laisse jamais l'état bloqué.
+        showEncounterIntro('unseen', enemy, () => calls++);
+        resetTransientState();
+        assert(gameState.encounterIntroPending === false && !isActionBlocked(), "resetTransientState() lève le blocage");
+        dismissEncounterIntro(true);
+        assert(calls === 4, "Callback d'un écran abandonné par un reset jamais rappelé");
+        // Image déclarée : posée sur l'<img> ; non déclarée : cachée.
+        ENCOUNTER_ART['Rat Goulot'] = { face: true };
+        showEncounterIntro('spotted', { ...enemy, name: 'Rat Goulot', baseName: 'Rat Goulot' }, null);
+        assert(ui.encounterImg.src === 'assets/mobs/rat-goulot-face.webp', "Image du manifeste chargée dans l'overlay");
+        dismissEncounterIntro(true);
+        delete ENCOUNTER_ART['Rat Goulot'];
+        showEncounterIntro('spotted', enemy, null);
+        assert(ui.encounterImg.classList.contains('hidden'), "Sans image au manifeste : <img> masquée, sprite de repli visible");
+        dismissEncounterIntro(true);
+    } finally {
+        Date.now = realNow;
+        delete global.requestAnimationFrame;
+        delete ENCOUNTER_ART['Rat Goulot'];
+        resetTransientState();
+    }
 }
