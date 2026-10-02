@@ -74,7 +74,7 @@ Tout dans `config.earlyGame` (valeurs ci-dessus, une seule table) ; un seul poin
 - **Lot 5 — habillage et succès** : piques DeathWatch (thèmes `trial`, `plotArmor` ; l'émission s'ouvre dès l'arrivée à l'étage 2), journal, 1-2 succès satiriques (à proposer), doc.
 - **Tests** : nouveau `tests/regression/early-game.js` (pas d'élite aux étages 1-2 sur des milliers de tirages, rampe, intérimaire, courbe de la Période d'essai, arrêt à l'étage 4,
   facilité inchangée, Armure de scénario : 1 fois par étage, reste du tour absorbé, boss compris, interaction Increvable, sauvegarde) ; `npm run test:long` une fois (boucle de combat touchée).
-- **Branche** : empilée sur `claude/chantier-13-origines` (l'Armure de scénario partage son point d'accroche avec l'Increvable) ; à rebaser sur `main` une fois la PR #36 mergée.
+- **Branche** : la même que le chantier 13, `claude/chantier-13-origines` (PR #36, non mergée) — décision de l'utilisateur ; l'Armure de scénario partage son point d'accroche avec l'Increvable du Cafard.
 
 ## 5. À surveiller en playtest
 

@@ -451,4 +451,4 @@ mobs) tuent 59 à 85 % du temps aux étages 1-3 ; les boss d'escalier exigent le
 intérimaire** (boss ×0,75 PV et ATQ, étages 1-3) · **Période d'essai** (−40 % de dégâts subis au N1, fondu jusqu'au N7, tous dégâts directs, arrêt à l'étage 4) · **Armure de
 scénario** (1 fois par étage 1-3, un coup mortel laisse 1 PV, boss compris) · cible : combat ordinaire N1-N2 étage 1 ≈ 35 % des PV, mort ≤ 5 %. Écartés : Bonus Premier Sang (XP), Trousse du sponsor.
 
-**Plan** : lots 0 (outil `sim:early`) à 5 (habillage), voir `NOTES_DEBUT_DE_PARTIE.md`. Branche `claude/chantier-15-reequilibrage`, empilée sur celle du chantier 13.
+**Plan** : lots 0 (outil `sim:early`) à 5 (habillage), voir `NOTES_DEBUT_DE_PARTIE.md`. Même branche et même PR que le chantier 13 (`claude/chantier-13-origines`, PR #36, non mergée) : le chantier 15 s'y ajoute.
