@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const GAME_FILES = ['bestiary.js', 'items.js', 'spells.js', 'districts.js', 'safehouses.js', 'generator.js', 'anomalies.js', 'achievements.js', 'deathwatch.js', 'floorgen.js', 'floormap.js', 'minigames.js', 'sprites/crawler.js', 'sprites/npcs.js', 'sprites/mobs.js', 'sprites/mob-details-a.js', 'sprites/mob-details-b.js', 'sprites/mob-auras.js', 'sprites/bosses-a.js', 'sprites/bosses-b.js', 'sprites/items-generic.js', 'sprites/items-melee.js', 'sprites/items-ranged.js', 'sprites/items-armor.js', 'sprites/items-signature.js', 'sprites/fx.js', 'backdrops.js', 'scene.js', 'fx.js', 'minigames-ui.js', 'app.js'];
+const GAME_FILES = ['bestiary.js', 'items.js', 'spells.js', 'districts.js', 'safehouses.js', 'generator.js', 'anomalies.js', 'achievements.js', 'origins.js', 'deathwatch.js', 'floorgen.js', 'floormap.js', 'minigames.js', 'sprites/crawler.js', 'sprites/crawler-races.js', 'sprites/race-ghoul.js', 'sprites/race-goblin.js', 'sprites/race-troll.js', 'sprites/race-elf.js', 'sprites/race-dwarf.js', 'sprites/race-roach.js', 'sprites/npcs.js', 'sprites/mobs.js', 'sprites/mob-details-a.js', 'sprites/mob-details-b.js', 'sprites/mob-auras.js', 'sprites/bosses-a.js', 'sprites/bosses-b.js', 'sprites/items-generic.js', 'sprites/items-melee.js', 'sprites/items-ranged.js', 'sprites/items-armor.js', 'sprites/items-signature.js', 'sprites/fx.js', 'backdrops.js', 'scene.js', 'fx.js', 'minigames-ui.js', 'app.js'];
 const REPO_ROOT = path.join(__dirname, '..');
 
 function loadGame() {

@@ -152,6 +152,23 @@ const gameState = {
     // Buff de départ « Foutu pour foutu » (chantier 14, voir NOTES_ITEMS.md/CHANTIERS.md) : null | 'desperate' (cadeau Armure ou Rien :
     // +5 % de dégâts subis, mains nues ×2) | 'boxer' (évolution à l'étage 2 : mains nues ×1,25, définitif). Absent d'une ancienne sauvegarde : null.
     starterBuff: null,
+    // Race du crawler (chantier 13, lot 1 — voir origins.js/CHANTIERS.md) : clé d'ORIGIN_RACES, null = aucune (ancienne sauvegarde, avant l'étage 3).
+    // `raceLastStandFloor` : dernier étage où « Increvable » (Cafard mutant) a servi (1 fois par étage).
+    race: null,
+    raceLastStandFloor: 0,
+    // Armure de scénario (chantier 15, lot 4) : dernier étage où elle a servi (1 fois par étage 1-3). Absent d'une ancienne sauvegarde : 0.
+    plotArmorFloor: 0,
+    // Convention collective du Donjon (chantier 15, lot 5) : message de fin affiché une seule fois, à la première élite croisée. Absent d'une ancienne sauvegarde : vrai si elle a déjà dépassé les étages protégés.
+    eliteConventionEnded: false,
+    // Classe du crawler (chantier 13, lot 2 : choisie à l'étage 3 ; ses effets sont codés au lot 3) : clé d'ORIGIN_CLASSES, null = aucune.
+    crawlerClass: null,
+    classAbilityUsed: false, // capacité active de classe déjà utilisée dans CE combat (remise à faux à chaque nouveau combat)
+    // Choix de l'étage 3 (race puis classe, deux écrans successifs) : `pendingOriginOffers` = { kind, offers, selected } ;
+    // `pendingPactAfterOrigin` = le Pacte du Crawler attend la fin du choix (jamais deux écrans bloquants à la fois).
+    raceChoicePending: false,
+    classChoicePending: false,
+    pendingOriginOffers: null,
+    pendingPactAfterOrigin: false,
     pendingShowAfterPact: null,
     // Mini-jeu ouvert (chantier 6, minigames-ui.js) : { kind, boss } — bloque les actions le temps de l'épreuve.
     pendingMinigame: null,
@@ -505,12 +522,53 @@ const config = {
     // l'arme équivalente ; le backfire reste le prix du chaos, plus punitif à haut niveau qu'avant
     // pour continuer à justifier ce risque une fois la compétence Magie montée. Valeurs de départ, à
     // ajuster par playtest (voir NOTES_COMBAT.md pour la mesure de parité qui a produit ces chiffres).
+    // Rééquilibrage du début de partie (chantier 15, voir NOTES_DEBUT_DE_PARTIE.md) : l'émission protège ses débutants. Valeurs validées
+    // par l'utilisateur (rounds 1 et 2), calibrées par `npm run sim:early`. `enabled: false` rend le jeu tel qu'avant le chantier (sert
+    // aussi au « avant » de l'outil de calibrage). Rien ne lit encore ce bloc au lot 0 : les lots 1 à 4 branchent un mécanisme chacun.
+    earlyGame: {
+        enabled: true,
+        maxFloor: 3,                                        // « tutoriel » : Période d'essai, Armure de scénario et boss intérimaires s'éteignent à l'étage 4
+        elites: { freeFloors: 2, damageRamp: { 3: 1.3, 4: 1.5 } }, // Convention collective : aucune élite aux étages 1-2 ; eliteDamageMult ×1,3 / ×1,5 aux étages 3-4 (puis inchangé)
+        interimBoss: { hpMult: 0.75, atkMult: 0.75 },       // Remplaçant intérimaire : PV et ATQ des boss des étages 1-3 (DEF inchangée)
+        trial: { startReduction: 0.40, fadeLevel: 7 },      // Période d'essai : −40 % de dégâts subis au niveau 1, dégressif jusqu'à 0 au niveau 7
+        plotArmor: { enabled: true, leaveHp: 1 }            // Armure de scénario : un coup mortel laisse ce nombre de PV, 1 fois par étage (`enabled` : interrupteur propre au mécanisme, voir tests/regression/_helpers.js)
+    },
+
     // Buff de départ du crawler sans arme (chantier 14) : voir starterBuffInfo()/endStarterBuff().
     starterBuff: {
         damageTakenMult: 1.05,   // 'desperate' : tous les dégâts subis (mobs, boss, pièges, saignement)
         unarmedMult: 2,          // 'desperate' : attaque Mains nues, Étrangler et Charge à mains nues
         boxerUnarmedMult: 1.25,  // 'boxer' (évolution à l'étage 2) : mêmes attaques, définitif
         evolveFloor: 2
+    },
+    // Passifs de race (chantier 13, lot 1) : valeurs de départ à playtester. Une clé absente = neutre. Lues par originRaceEffects().
+    origins: {
+        // Passifs de classe et capacités actives (chantier 13, lot 3) : valeurs de départ à playtester. Lus par originClassEffects().
+        classes: {
+            brawler: { unarmedMult: 1.15, abilityMult: 2, stunTurns: 1 },
+            duelist: { weaponMult: 1.10, abilityMult: 1.8, abilityDefIgnore: 0.5 },
+            gunslinger: { rangedMult: 1.10, shots: 2, shotMult: 0.8 },
+            occultist: { manaCostMult: 0.9, abilityMult: 1.6 },
+            trickster: { stealthLevels: 1, dodgeTurns: 1, nextAttackMult: 2 },
+            punchingBag: { maxHpMult: 1.10, braceDefMult: 2, reflectPct: 0.5 }
+        },
+        // Synergies race × classe (clé « race+classe », voir ORIGIN_SYNERGIES) : chaque champ REMPLACE celui de la classe quand il existe.
+        synergies: {
+            'troll+brawler': { stunTurns: 2, bossExposed: true },
+            'elf+occultist': { abilityMult: 1.8, manaRefund: 20 },
+            'goblin+trickster': { dodgeTurns: 2 },
+            'dwarf+punchingBag': { reflectPct: 0.75 }
+        },
+        chooseFloor: 3, // étage d'arrivée où s'ouvrent les deux écrans de choix
+        races: {
+            human: { xpMult: 1.10, extraReserve: 1 },
+            ghoul: { maxHpMult: 1.20, bleedMult: 0.5, healMult: 0.8 },
+            goblin: { stealthPts: 10, fleePts: 15, trapMult: 0.75, maxHpMult: 0.90 },
+            troll: { maxHpMult: 1.25, unarmedMult: 1.15, stealthPts: -10 },
+            elf: { maxManaMult: 1.25, spellMult: 1.10, backfirePts: -3, defFlat: -1 },
+            dwarf: { defMult: 1.12, armorMult: 1.15, fleePts: -15 },
+            roach: { maxHpMult: 0.85, lastStand: true }
+        }
     },
     magicBalance: {
         atkBase: 1.1,
@@ -773,6 +831,15 @@ const ui = {
     btnFloorTransitionContinue: document.getElementById('btn-floor-transition-continue'),
     anomalyStatusBar: document.getElementById('anomaly-status-bar'),
     starterBuffStatus: document.getElementById('starter-buff-status'),
+    trialStatus: document.getElementById('trial-status'),
+    raceStatus: document.getElementById('race-status'),
+    classStatus: document.getElementById('class-status'),
+    raceChoiceOverlay: document.getElementById('race-choice-overlay'),
+    classChoiceOverlay: document.getElementById('class-choice-overlay'),
+    raceChoiceCards: document.getElementById('race-choice-cards'),
+    classChoiceCards: document.getElementById('class-choice-cards'),
+    btnRaceConfirm: document.getElementById('btn-race-confirm'),
+    btnClassConfirm: document.getElementById('btn-class-confirm'),
     pactChoiceOverlay: document.getElementById('pact-choice-overlay'),
     btnPactAtk: document.getElementById('btn-pact-atk'),
     btnPactHp: document.getElementById('btn-pact-hp'),
@@ -836,6 +903,7 @@ const ui = {
     btnRetreat: document.getElementById('btn-retreat'),
     btnEngage: document.getElementById('btn-engage'),
     btnOccasion: document.getElementById('btn-occasion'),
+    btnClassAbility: document.getElementById('btn-class-ability'),
     finisherCinema: document.getElementById('finisher-cinema'),
     finisherCinemaText: document.getElementById('finisher-cinema-text'),
     btnFlee: document.getElementById('btn-flee'),
@@ -1020,6 +1088,14 @@ function restoreSaveForName(name) {
     ['urbanMap', 'pendingUrbanTravel', 'pendingUrbanBossEncounter', 'pendingUrbanBossCityId', 'pendingUrbanAdvanceAfterCombat']
         .forEach(key => { delete gameState[key]; });
     if (needsBaseMaxHpMigration) gameState.baseMaxHp = saved.maxHp || gameState.maxHp;
+    // Champs de crawler absents d'une ancienne sauvegarde : jamais ceux du crawler précédemment chargé dans cette page (Object.assign ne les écrase pas).
+    if (saved.starterBuff === undefined) gameState.starterBuff = null;
+    if (saved.raceLastStandFloor === undefined) gameState.raceLastStandFloor = 0;
+    if (saved.plotArmorFloor === undefined) gameState.plotArmorFloor = 0;
+    if (saved.eliteConventionEnded === undefined) gameState.eliteConventionEnded = (saved.currentFloor || 1) > config.earlyGame.maxFloor;
+    if (!saved.race || !config.origins.races[saved.race]) gameState.race = null; // ancienne sauvegarde ou clé inconnue : aucune race
+    if (!saved.crawlerClass || !ORIGIN_CLASSES[saved.crawlerClass]) gameState.crawlerClass = null;
+    recomputeRaceDerived();
     // Compagnon d'une sauvegarde antérieure au rework (leaveChance, pas de loyauté ni d'équipement).
     if (gameState.companion) gameState.companion = normalizeCompanion(gameState.companion);
     // Chronique / succès (chantier 2) : complétés pour une sauvegarde antérieure ou partielle.
@@ -1058,6 +1134,13 @@ function restoreSaveForName(name) {
     gameState.pendingLairDive = null;
     gameState.floorTransitionPending = false;
     gameState.pactChoicePending = false;
+    // Choix de race/classe sauvegardé en cours : l'écran concerné est rouvert à la fin de la restauration (jamais perdu : sans lui le crawler resterait sans origine).
+    gameState.raceChoicePending = false;
+    gameState.classChoicePending = false;
+    gameState.pendingOriginOffers = null;
+    gameState.pendingPactAfterOrigin = false;
+    gameState.classAbilityUsed = false;
+    hideOriginOverlays();
     gameState.pendingNextFloorAnomalies = null;
     gameState.safehouseChoicePending = false;
     gameState.pendingSafehouseRoomId = null;
@@ -1077,6 +1160,8 @@ function restoreSaveForName(name) {
     }
 
     gameState.saveEnabled = true; // Réactive l'autosave après une restauration réussie
+    if (saved.classChoicePending && gameState.race) triggerClassChoice();
+    else if (saved.raceChoicePending || saved.classChoicePending) triggerRaceChoice();
     return true;
 }
 
@@ -1319,6 +1404,8 @@ function updateUI() {
 
     updateAnomalyStatusUI();
     updateStarterBuffUI();
+    updateTrialStatusUI();
+    updateOriginUI();
 
     // Icônes de statut du joueur
     let playerIcons = "";
@@ -1518,6 +1605,7 @@ function updateUI() {
         }
         rollCombatOccasion(); // Une fois par tour (chantier 6, V2)
         updateOccasionButton();
+        updateClassAbilityUI();
         // Un mob "alerted" (échec de furtivité, voir attemptStealthEvasion()) ne laisse plus fuir.
         if (ui.btnFlee) {
             const fleeUsable = !gameState.currentEnemy || !gameState.currentEnemy.alerted;
@@ -2425,7 +2513,7 @@ function rollGoldAmount() {
 
 // Le piège se déclenche : dégâts, journal, mort éventuelle (cause 'trap').
 function springTrap(trap) {
-    const dmg = applyStarterBuffToDamage(Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin);
+    const dmg = applyTrialToDamage(applyStarterBuffToDamage(applyRaceDamageMods(Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin, 'trap')));
     applyPlayerDamage(dmg);
     setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
     logEvent(`${trap.text} (-${dmg} PV)`, "danger");
@@ -2437,7 +2525,7 @@ function springTrap(trap) {
 
 // Niveau de Furtivité du crawler (règle la difficulté du crochetage et du désamorçage).
 function stealthSkillLevel() {
-    return (gameState.skills && gameState.skills.stealth && gameState.skills.stealth.level) || 1;
+    return effectiveStealthLevel();
 }
 
 // Coffre verrouillé (chantier 6, V1) : trois goupilles à crocheter ; le butin dépend du nombre réussi
@@ -2635,13 +2723,14 @@ function resolveCardEvent() {
 // d'équipement si l'arme ou l'armure porte le modificateur "Silencieux" (mechanic 'stealth',
 // jusqu'ici purement cosmétique — première vraie utilité).
 function getStealthChance() {
-    let chance = 15 + (gameState.skills.stealth.level - 1) * 6;
+    let chance = 15 + (effectiveStealthLevel() - 1) * 6;
     if (hasActiveCompanion('scout')) chance += config.companions.scout.stealthBonus;
     // Silencieux (bonus) et Grinçant (défaut de Camelote, bonus négatif) sur tout l'équipement porté.
     chance += sumEquippedQualifier('stealth', 'bonus') + sumEquippedQualifier('squeaky', 'bonus');
     // NOCTURNE (anomalies.js) : détection des mobs accrue (pénalité sur la chance de base) mais
     // plafond relevé d'autant — récompense un fort investissement en Furtivité, punit un faible.
     chance -= gameState.anomalyEffects.detectionBonus || 0;
+    chance += originRaceEffects().stealthPts || 0; // Gobelin +10, Troll −10 (chantier 13)
     return Math.max(0, Math.min(60 + (gameState.anomalyEffects.stealthCapBonus || 0), chance));
 }
 
@@ -2685,7 +2774,7 @@ function attemptStealthEvasion() {
     gameState.pendingStealthEncounter = null;
     if (!enemy) { updateUI(); return; }
 
-    const evadeChance = Math.min(70 + (gameState.anomalyEffects.stealthCapBonus || 0), 40 + (gameState.skills.stealth.level - 1) * 8); // NOCTURNE (anomalies.js)
+    const evadeChance = Math.min(70 + (gameState.anomalyEffects.stealthCapBonus || 0), 40 + (effectiveStealthLevel() - 1) * 8); // NOCTURNE (anomalies.js)
     if (Math.random() * 100 < evadeChance) {
         setSceneHeader('🥷', 'Évitement Réussi', 'Furtivité', { key: 'stealthEvaded', enemy });
         logEvent(`Vous évitez [${enemy.name}] sans un bruit.`, "success");
@@ -2723,7 +2812,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending || !!gameState.pendingMinigame;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.raceChoicePending || gameState.classChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending || !!gameState.pendingMinigame;
 }
 
 // ---------- Voyage sur carte (chantier 5, M1 + P1 — remplace les anciens « Lieux connus ») ----------
@@ -3154,7 +3243,7 @@ function checkCompanionDowned() {
 // (strayHitChance). Le compagnon absorbe une part du coup ; son armure réduit ce qu'il perd lui-même.
 // Renvoie { playerDamage, note } — l'appelant log les dégâts puis appelle checkCompanionDowned().
 function companionInterceptHit(damage) {
-    damage = applyStarterBuffToDamage(damage); // Foutu pour foutu (chantier 14) : +5 % de dégâts subis, avant bouclier et interception
+    damage = applyTrialToDamage(applyStarterBuffToDamage(damage)); // Foutu pour foutu (chantier 14) : +5 % de dégâts subis, puis Période d'essai (chantier 15), avant bouclier et interception
     // Bouclier de Mana (sort utilitaire, chantier 11) : réduit le coup AVANT l'éventuelle interception.
     const shield = gameState.status.manaShield;
     let shieldNote = "";
@@ -3455,14 +3544,18 @@ function recordRunEvent(type, data = {}) {
             const hpLost = Math.max(0, s.damageTaken - (track.startDamageTaken ?? s.damageTaken));
             s.kills += 1;
             if (enemy.isBoss) s.bossKills += 1;
+            if (enemy.isInterim) s.interimKills = (s.interimKills || 0) + 1; // Remplaçant intérimaire vaincu (chantier 15, lot 5)
             else if (typeof isEliteMob === 'function' && isEliteMob(enemy)) s.eliteKills += 1;
             if (data.kind === 'unarmed') s.unarmedKills += 1;
             if (data.kind === 'magic') s.spellKills += 1;
+            if (data.kind === 'ranged') s.rangedKills += 1;
             if (track.sneak) s.sneakKills += 1;
             if (track.playerAttacks === 1) s.oneShotKills += 1;
             if (hpLost === 0) s.flawlessWins += 1;
             if (gameState.hp > 0 && gameState.hp <= gameState.maxHp * 0.05) s.clutchWins += 1;
-            s.recentWins.push({ ease: computeWinEase(hpLost, gameState.maxHp) });
+            // Facilité : sans la Période d'essai (chantier 15) — les PV qu'elle a épargnés pendant ce combat sont réajoutés, pour ne pas gonfler la prime des chasseurs.
+            const trialAvoided = Math.max(0, (s.trialAvoided || 0) - (track.startTrialAvoided ?? (s.trialAvoided || 0)));
+            s.recentWins.push({ ease: computeWinEase(hpLost + trialAvoided, gameState.maxHp) });
             if (s.recentWins.length > DOMINANCE_WINDOW) s.recentWins.splice(0, s.recentWins.length - DOMINANCE_WINDOW);
             break;
         }
@@ -3489,6 +3582,13 @@ function recordRunEvent(type, data = {}) {
             if (data.item && data.item.rarityKey === 'camelote') s.junkGifts += 1;
             break;
         case 'overflowSold': s.overflowSold += 1; break;
+        case 'classAbility': // capacité de classe jouée (chantier 13)
+            s.classAbilities += 1;
+            if (data.boss) s.classAbilityBossUses += 1;
+            if (data.synergy) s.synergyAbilities += 1;
+            break;
+        case 'lastStand': s.lastStands += 1; break; // « Increvable » consommé (chantier 13)
+        case 'plotArmor': s.plotArmorUses = (s.plotArmorUses || 0) + 1; break; // « Armure de scénario » consommée (chantier 15)
         case 'bounty': s.maxBounty = Math.max(s.maxBounty || 0, data.value || 0); break;
         case 'hunterKilled': s.huntersKilled += 1; break;
         case 'minigame': // épreuve JOUÉE (jamais le jet automatique : il n'a ni mérite ni échec)
@@ -3812,7 +3912,21 @@ function buildShowContext(lastFloor = {}) {
         mises: rs.arcadeLost || 0,
         mainsNues: rs.unarmedKills || 0,
         maxHp: gameState.maxHp,
-        pvPct: gameState.maxHp > 0 ? Math.round(gameState.hp / gameState.maxHp * 100) : 0
+        pvPct: gameState.maxHp > 0 ? Math.round(gameState.hp / gameState.maxHp * 100) : 0,
+        // Origine (chantier 13) : piques dédiées juste après le choix de race et de classe (étage d'arrivée).
+        raceKey: gameState.race || null,
+        classKey: gameState.crawlerClass || null,
+        race: (originEntry('race', gameState.race) || {}).short || null,
+        classe: (originEntry('class', gameState.crawlerClass) || {}).name || null,
+        synergie: (() => { const syn = originSynergyFor(gameState.race, gameState.crawlerClass); return syn ? `${syn.race}+${syn.cls}` : null; })(),
+        synergieTitre: (originSynergyFor(gameState.race, gameState.crawlerClass) || {}).title || null,
+        origineFraiche: !!gameState.race && !!gameState.crawlerClass && gameState.currentFloor === config.origins.chooseFloor,
+        // Début de partie (chantier 15, lot 5) : Période d'essai en cours / terminée, Armure de scénario consommée sur l'étage fini, Remplaçants intérimaires vaincus.
+        essai: config.earlyGame.enabled && gameState.currentFloor <= config.earlyGame.maxFloor && trialDamageMult(gameState.level, gameState.currentFloor) < 1,
+        essaiPct: Math.round((1 - trialDamageMult(gameState.level, gameState.currentFloor)) * 100),
+        finEssai: config.earlyGame.enabled && gameState.currentFloor === config.earlyGame.maxFloor + 1,
+        scenario: gameState.plotArmorFloor > 0 && gameState.plotArmorFloor === gameState.currentFloor - 1,
+        interimKills: rs.interimKills || 0
     };
 }
 
@@ -3964,6 +4078,10 @@ function advanceToNextFloor() {
     showFloorArrivalScene();
     logEvent(`--- DÉBUT DE L'ÉTAGE ${gameState.currentFloor} ---`, "info");
     evolveStarterBuff(); // Foutu pour foutu encore actif à l'étage 2 : devient Boxeur (chantier 14)
+    // Fin de la Période d'essai (chantier 15) : annoncée une fois, à l'arrivée sur l'étage suivant le dernier étage protégé, si elle protégeait encore.
+    if (config.earlyGame.enabled && gameState.currentFloor === config.earlyGame.maxFloor + 1 && trialDamageMult(gameState.level, config.earlyGame.maxFloor) < 1) {
+        logEvent("🎟️ Votre contrat de stagiaire expire. Fin de la période d'essai : à partir d'ici, plus aucune remise sur la douleur.", "danger");
+    }
     attemptCompanionDeparture(); // Seul moment où un compagnon peu loyal peut partir (voir config.companions.loyalty)
     recordRunEvent('floor');
     if (gameState.activeAnomalies.length > 0) {
@@ -3973,8 +4091,12 @@ function advanceToNextFloor() {
 
     // PACTE_DU_CRAWLER : choix forcé à l'entrée de l'étage, résolu AVANT de rendre la main au joueur
     // (isActionBlocked() le bloque comme n'importe quel autre choix en attente).
+    // Race puis classe (chantier 13) : à l'arrivée sur l'étage 3, AVANT le Pacte et l'émission, seulement dans une vraie partie.
+    const originDue = originChoiceDue();
+    if (originDue) triggerRaceChoice();
     if (gameState.anomalyEffects.forcedPactChoice) {
-        triggerPactChoice();
+        if (originDue) gameState.pendingPactAfterOrigin = true; // ouvert par finishOriginChoice()
+        else triggerPactChoice();
     }
 
     // Émission DeathWatch (chantier 4) : à chaque nouvel étage dès config.show.firstFloor — après le Pacte
@@ -3982,7 +4104,7 @@ function advanceToNextFloor() {
     // seulement dans une vraie partie (gameState.saveEnabled : nom confirmé), jamais pendant
     // l'initialisation silencieuse ni dans les tests qui ne la demandent pas.
     if (gameState.saveEnabled && gameState.currentFloor >= config.show.firstFloor) {
-        if (gameState.pactChoicePending) gameState.pendingShowAfterPact = lastFloorForShow;
+        if (gameState.pactChoicePending || gameState.raceChoicePending || gameState.classChoicePending) gameState.pendingShowAfterPact = lastFloorForShow;
         else triggerShow(lastFloorForShow);
     }
 
@@ -4171,6 +4293,168 @@ function choosePactBlessing(choice) {
 }
 
 // ==========================================
+// ORIGINES : CHOIX DE LA RACE ET DE LA CLASSE À L'ÉTAGE 3 (chantier 13, lot 2 — voir origins.js et CHANTIERS.md)
+// ==========================================
+// À l'arrivée sur l'étage 3 d'une vraie partie (`gameState.saveEnabled`, comme l'émission DeathWatch), deux écrans successifs : la race puis la
+// classe, chacun avec 3 cartes tirées par pickOriginOffers() (« conditions remplies d'abord »). Toucher une carte la sélectionne, le bouton de
+// confirmation valide : le choix est définitif pour le run. Ordre à l'arrivée : origine, puis Pacte du Crawler (s'il est tiré), puis émission.
+// Un crawler sans race qui a déjà dépassé l'étage 3 (ancienne sauvegarde) n'est jamais concerné. Les effets de classe viennent au lot 3.
+function originChoiceDue() {
+    return !!gameState.saveEnabled && gameState.currentFloor === config.origins.chooseFloor && !gameState.race;
+}
+
+function originEntry(kind, key) {
+    const catalog = kind === 'race' ? ORIGIN_RACES : ORIGIN_CLASSES;
+    return (key && catalog[key]) || null;
+}
+
+function triggerOriginChoice(kind) {
+    gameState.raceChoicePending = kind === 'race';
+    gameState.classChoicePending = kind === 'class';
+    gameState.pendingOriginOffers = { kind, offers: pickOriginOffers(kind, gameState), selected: null };
+    setSceneHeader('🧬', kind === 'race' ? 'Choix de la race' : 'Choix de la classe', 'Origines', 'pact');
+    logEvent(kind === 'race'
+        ? "🧬 Étage 3 : le Donjon exige de savoir ce que vous êtes. Choisissez une race."
+        : "🧬 Maintenant, ce que vous savez faire. Choisissez une classe.", "danger");
+    renderOriginChoice();
+}
+function triggerRaceChoice() { triggerOriginChoice('race'); }
+function triggerClassChoice() { triggerOriginChoice('class'); }
+
+function hideOriginOverlays() {
+    if (ui.raceChoiceOverlay) ui.raceChoiceOverlay.classList.add('hidden');
+    if (ui.classChoiceOverlay) ui.classChoiceOverlay.classList.add('hidden');
+}
+
+// HTML d'une carte de choix (texte interne au jeu : aucune saisie du joueur, donc rien à échapper).
+function buildOriginCardHtml(kind, offer, selected) {
+    const entry = originEntry(kind, offer.key);
+    if (!entry) return '';
+    const lines = kind === 'race'
+        ? entry.effects.map(e => `<li class="text-emerald-300">＋ ${e}</li>`).join('') + (entry.flaw ? `<li class="text-red-300">－ ${entry.flaw}</li>` : '')
+        : `<li class="text-amber-300">⚡ ${entry.ability}</li><li class="text-emerald-300">＋ ${entry.style}</li>`;
+    const synergy = kind === 'class' ? originSynergyFor(gameState.race, offer.key) : null;
+    const synergyHtml = synergy ? `<p class="mt-1 text-[10px] text-fuchsia-300">✨ Synergie avec votre race — « ${synergy.title} » : ${synergy.effect}</p>` : '';
+    const reasonColor = offer.conditionMet ? 'text-gray-400' : 'text-gray-600';
+    // Une carte de race montre le crawler à son aspect (corps teinté ou dessiné, sprites/crawler-races.js).
+    const portrait = kind === 'race' ? `<div class="shrink-0 w-[44px] pt-1">${buildRacePortraitSvg(offer.key, 44)}</div>` : '';
+    return `<button type="button" data-origin-key="${offer.key}" class="origin-card w-full text-left p-3 rounded-lg border-2 transition-all active:scale-[0.99] flex gap-3 ${selected ? 'border-amber-400 bg-amber-900/20' : 'border-gray-700 bg-gray-900 hover:border-gray-500'}">
+            ${portrait}
+            <div class="min-w-0">
+            <p class="font-bold text-sm text-gray-100">${entry.icon} ${entry.name}</p>
+            <ul class="mt-1 text-[11px] leading-snug space-y-0.5">${lines}</ul>
+            ${synergyHtml}
+            <p class="mt-1 text-[10px] italic ${reasonColor}">${offer.reason}</p>
+            </div>
+        </button>`;
+}
+
+function renderOriginChoice() {
+    const pending = gameState.pendingOriginOffers;
+    hideOriginOverlays();
+    if (!pending) return;
+    const kind = pending.kind;
+    const overlay = kind === 'race' ? ui.raceChoiceOverlay : ui.classChoiceOverlay;
+    const cards = kind === 'race' ? ui.raceChoiceCards : ui.classChoiceCards;
+    const confirm = kind === 'race' ? ui.btnRaceConfirm : ui.btnClassConfirm;
+    if (!overlay || !cards || !confirm) return;
+    cards.innerHTML = pending.offers.map(o => buildOriginCardHtml(kind, o, o.key === pending.selected)).join('');
+    const chosen = originEntry(kind, pending.selected);
+    confirm.disabled = !chosen;
+    confirm.innerText = chosen ? `Confirmer : ${chosen.short || chosen.name}` : 'Choisissez une carte';
+    overlay.classList.remove('hidden');
+}
+
+// Sélectionne une carte de l'écran en cours (jamais une origine hors des 3 cartes proposées).
+function selectOrigin(key) {
+    const pending = gameState.pendingOriginOffers;
+    if (!pending || !pending.offers.some(o => o.key === key)) return false;
+    pending.selected = key;
+    renderOriginChoice();
+    return true;
+}
+
+// Valide la carte sélectionnée : la race ouvre l'écran de la classe, la classe termine le choix.
+function confirmOriginChoice() {
+    const pending = gameState.pendingOriginOffers;
+    if (!pending || !pending.selected || !originEntry(pending.kind, pending.selected)) return false;
+    const key = pending.selected;
+    if (pending.kind === 'race') {
+        if (!applyRace(key)) return false;
+        const race = ORIGIN_RACES[key];
+        logEvent(`${race.icon} Vous êtes désormais ${race.name}. ${race.flaw ? `Défaut inclus : ${race.flaw.toLowerCase()}.` : "Aucun défaut : le Donjon est vexé."}`, "success");
+        triggerClassChoice();
+    } else {
+        gameState.crawlerClass = key;
+        const cls = ORIGIN_CLASSES[key];
+        logEvent(`${cls.icon} Classe : ${cls.name}.`, "success");
+        const synergy = originSynergyFor(gameState.race, key);
+        if (synergy) logEvent(`✨ Synergie : « ${synergy.title} » — ${synergy.effect}.`, "success");
+        finishOriginChoice();
+    }
+    updateUI();
+    return true;
+}
+
+// Fin des deux écrans : rend la main, ou ouvre ce qui attendait derrière (Pacte du Crawler, puis émission DeathWatch).
+function finishOriginChoice() {
+    recordRunEvent('origin'); // succès « Pièce d'identité »
+    gameState.raceChoicePending = false;
+    gameState.classChoicePending = false;
+    gameState.pendingOriginOffers = null;
+    hideOriginOverlays();
+    if (gameState.pendingPactAfterOrigin) {
+        gameState.pendingPactAfterOrigin = false;
+        triggerPactChoice();
+    } else if (gameState.pendingShowAfterPact) {
+        const lastFloor = gameState.pendingShowAfterPact;
+        gameState.pendingShowAfterPact = null;
+        triggerShow(lastFloor);
+    }
+}
+
+// Saut DEV (devJumpToUrbanFloor) : tire une race et une classe au hasard au lieu d'ouvrir les deux écrans.
+function rollDevOrigin() {
+    const races = Object.keys(ORIGIN_RACES), classes = Object.keys(ORIGIN_CLASSES);
+    applyRace(races[Math.floor(Math.random() * races.length)]);
+    gameState.crawlerClass = classes[Math.floor(Math.random() * classes.length)];
+}
+
+// Fiche d'origine : bonus, défauts, capacité, synergie (HTML interne, rien à échapper).
+function buildOriginSheetHtml() {
+    const race = originEntry('race', gameState.race), cls = originEntry('class', gameState.crawlerClass);
+    const raceHtml = race ? `<div class="flex gap-3"><div class="shrink-0 w-[44px]">${buildRacePortraitSvg(race.key, 44)}</div><div class="min-w-0"><p class="font-bold text-sm text-gray-100">${race.icon} ${race.name}</p>
+            <ul class="mt-1 text-[11px] space-y-0.5">${race.effects.map(e => `<li class="text-emerald-300">＋ ${e}</li>`).join('')}${race.flaw ? `<li class="text-red-300">－ ${race.flaw}</li>` : ''}</ul></div></div>` : '';
+    const classHtml = cls ? `<div class="mt-3"><p class="font-bold text-sm text-gray-100">${cls.icon} ${cls.name}</p>
+            <ul class="mt-1 text-[11px] space-y-0.5"><li class="text-amber-300">⚡ ${cls.ability} <span class="text-gray-500">(1 fois par combat)</span></li><li class="text-emerald-300">＋ ${cls.style}</li></ul></div>` : '';
+    const synergy = race && cls ? originSynergyFor(race.key, cls.key) : null;
+    const synergyHtml = synergy ? `<div class="mt-3 p-2 rounded border border-fuchsia-800 bg-fuchsia-950/30"><p class="font-bold text-[12px] text-fuchsia-300">✨ « ${synergy.title} »</p><p class="text-[11px] text-fuchsia-200">${synergy.effect}</p></div>` : '';
+    return raceHtml + classHtml + synergyHtml;
+}
+
+function openOriginSheet() {
+    if (!ui.itemInspectOverlay || !(gameState.race || gameState.crawlerClass)) return;
+    ui.itemInspectBody.innerHTML = buildOriginSheetHtml();
+    if (ui.itemInspectPanel) ui.itemInspectPanel.style.borderColor = '#0f766e';
+    renderInspectActions([]);
+    ui.itemInspectOverlay.classList.remove('hidden');
+}
+
+// Badges permanents sous le nom (race, classe) ; un toucher ouvre la fiche d'origine.
+function updateOriginUI() {
+    updateClassAbilityUI(); // masquée hors combat
+    const race = originEntry('race', gameState.race), cls = originEntry('class', gameState.crawlerClass);
+    if (ui.raceStatus) {
+        ui.raceStatus.classList.toggle('hidden', !race);
+        if (race) { ui.raceStatus.innerText = `${race.icon} ${race.short}`; ui.raceStatus.title = `${race.name} — ${race.effects.join(', ')}${race.flaw ? ` · Défaut : ${race.flaw}` : ''}`; }
+    }
+    if (ui.classStatus) {
+        ui.classStatus.classList.toggle('hidden', !cls);
+        if (cls) { ui.classStatus.innerText = `${cls.icon} ${cls.name}`; ui.classStatus.title = `${cls.name} — ${cls.ability} · ${cls.style}`; }
+    }
+}
+
+// ==========================================
 // NÉCROLOGIE (épitaphes sarcastiques)
 // ==========================================
 // gameState.necrologie ne garde que les NECROLOGIE_MAX_ENTRIES dernières entrées (plus récente en
@@ -4273,6 +4557,17 @@ function findRidiculousEquippedItem() {
 // Construit l'épitaphe sarcastique pour le décès en cours, à partir du contexte réel (cause, mob
 // tueur éventuel). Fonction pure hors lecture de gameState/Math.random — appelée uniquement par
 // gameOver().
+// Mention propre à la race du crawler (chantier 13), ajoutée à toute épitaphe : une phrase, jamais tirée au hasard.
+const EPITAPH_RACE_MENTIONS = {
+    human: "Humain·e jusqu'au bout : moyen·ne, mais motivé·e.",
+    ghoul: "La Goule n'aura, pour une fois, eu aucune raison de se plaindre de sa mine.",
+    goblin: "Le Gobelin laisse derrière lui trois égouts, deux mégots et une caméra qu'il jure ne pas avoir volée.",
+    troll: "Le Troll de bureau n'aura jamais rempli sa dernière note de frais.",
+    elf: "L'Elfe de salon repose enfin : le peignoir est plié, les oreilles ne le sont pas.",
+    dwarf: "Le Nain de chantier est tombé casque sur la tête, ce qui, au moins, était réglementaire.",
+    roach: "On dit que le Cafard survit à tout. On dit beaucoup de choses."
+};
+
 function generateEpitaph(deathContext) {
     const { cause, enemyName, bountyHunter } = deathContext;
     const floor = gameState.currentFloor;
@@ -4303,6 +4598,8 @@ function generateEpitaph(deathContext) {
     if (fleesThisRun >= NECROLOGIE_FLEE_THRESHOLD) {
         text += " " + pick(EPITAPH_FLEE_MENTIONS).replace(/\{\{fuites\}\}/g, fleesThisRun);
     }
+    const raceMention = gameState.race && EPITAPH_RACE_MENTIONS[gameState.race];
+    if (raceMention) text += " " + raceMention;
     if (ridiculousItem) {
         text += " " + pick(EPITAPH_RIDICULOUS_ITEM_MENTIONS).replace(/\{\{objetRidicule\}\}/g, ridiculousItem.name);
     }
@@ -4400,11 +4697,16 @@ function awardBossSignatureItem(boss, itemLevel = gameState.currentFloor, outcom
 // d'escalier). Remplace les mutations directes de gameState.hp dispersées dans le code de combat/
 // exploration, pour ne jamais avoir à retrouver tous ces points d'appel séparément (ex : un futur
 // hook d'anomalie qui multiplierait les dégâts subis n'aurait qu'ICI à s'accrocher).
+// Renvoie les PV réellement perdus (après Armure de scénario et Increvable) : les journaux de combat doivent afficher ce montant-là, pas le coup d'origine.
 function applyPlayerDamage(amount) {
-    if (!amount || amount <= 0) return;
+    if (!amount || amount <= 0) return 0;
+    amount = applyPlotArmor(amount); // Armure de scénario (chantier 15, lot 4) : d'abord, pour que l'Increvable du Cafard reste disponible pour la suite
+    amount = applyRaceLastStand(amount); // Cafard mutant : Increvable (chantier 13)
+    if (!(amount > 0)) return 0;
     gameState.hp = Math.max(0, gameState.hp - amount);
     gameState.floorStats.damageTaken += amount;
     recordRunEvent('damageTaken', { amount }); // Chronique de run (chantier 2)
+    return amount;
 }
 
 // Point de passage UNIQUE pour tout gain de PV du joueur (potion, trouvaille, régénération passive,
@@ -4414,7 +4716,7 @@ function applyPlayerDamage(amount) {
 // même quand l'anomalie change le montant affiché.
 function applyPlayerHeal(amount) {
     if (!amount || amount <= 0) return 0;
-    const mult = gameState.anomalyEffects.healingMult || 1;
+    const mult = (gameState.anomalyEffects.healingMult || 1) * (originRaceEffects().healMult || 1); // PEAU_DE_VERRE, Goule (chantier 13)
     const before = gameState.hp;
     gameState.hp = Math.min(gameState.maxHp, gameState.hp + amount * mult);
     return Math.round(gameState.hp - before);
@@ -4429,7 +4731,8 @@ function recomputeMaxHp() {
     // Robuste (qualificatif d'armure) : PV max +%, tant que l'armure est portée.
     const sturdy = getItemQualifierValues(gameState.equipment.armor, 'sturdy', 'armor');
     const gearMult = sturdy ? 1 + sturdy.pct / 100 : 1;
-    gameState.maxHp = Math.max(1, Math.round(gameState.baseMaxHp * mult * gearMult));
+    const raceMult = (originRaceEffects().maxHpMult || 1) * (originClassEffects().maxHpMult || 1); // Goule, Gobelin, Troll, Cafard ; Sac de frappe (chantier 13)
+    gameState.maxHp = Math.max(1, Math.round(gameState.baseMaxHp * mult * gearMult * raceMult));
     if (gameState.hp > gameState.maxHp) gameState.hp = gameState.maxHp;
 }
 
@@ -4438,7 +4741,7 @@ function recomputeMaxHp() {
 // ==========================================
 function gainXp(amount) {
     if (!amount || amount <= 0) return;
-    amount = Math.round(amount * (gameState.anomalyEffects.xpMult || 1)); // MOB_ENRAGE (anomalies.js)
+    amount = Math.round(amount * (gameState.anomalyEffects.xpMult || 1) * (originRaceEffects().xpMult || 1)); // MOB_ENRAGE (anomalies.js), Humain (chantier 13)
     gameState.xp += amount;
     gameState.floorStats.xpGained += amount;
     logEvent(`+${amount} XP`, "success");
@@ -5512,7 +5815,7 @@ function leaveSafehouse() {
 // un piège sévère suivi d'un trésor nettement supérieur à la normale (powerScore maximal). Réutilise
 // exactement applyPlayerDamage()/gameOver()/addLoot(), aucune nouvelle formule de dégâts ou de loot.
 function triggerCafetRoom(room) {
-    const trapDmg = applyStarterBuffToDamage(Math.floor(Math.random() * 12) + 10); // 10 à 21 PV : nettement au-dessus d'un piège normal (~5-15)
+    const trapDmg = applyTrialToDamage(applyStarterBuffToDamage(applyRaceDamageMods(Math.floor(Math.random() * 12) + 10, 'trap'))); // 10 à 21 PV : nettement au-dessus d'un piège normal (~5-15)
     applyPlayerDamage(trapDmg);
     setSceneHeader('🕯️', 'Cafétéria Assombrie', 'Danger', 'cafeteria');
     logEvent(`Un piège vicieux se déclenche dans l'obscurité de la cafétéria abandonnée ! (-${trapDmg} PV)`, "danger");
@@ -5762,13 +6065,39 @@ function announceBossPhaseChange(enemy, phase) {
     }, 900);
 }
 
+// Remplaçant intérimaire (chantier 15, lot 2) : une réplique d'accueil par boss (choisie selon la longueur de son nom, sans hasard), avec le chiffre exact.
+const INTERIM_BOSS_LINES = [
+    "est en congé : c'est son stagiaire qui vous accueille. Il n'a pas l'air de savoir où est le bouton d'alarme.",
+    "a posé un jour de RTT. Son remplaçant vous reçoit, un gobelet de café dans une main, le manuel de procédures dans l'autre.",
+    "est « en réunion ». L'intérimaire se présente, vous serre la patte et vous demande de patienter. Il n'a jamais tué personne."
+];
+function interimBossLine(enemy) {
+    const eg = config.earlyGame.interimBoss;
+    const text = INTERIM_BOSS_LINES[(enemy.baseName || enemy.name || '').length % INTERIM_BOSS_LINES.length];
+    return `🏷️ [${enemy.baseName || enemy.name}] ${text} (Remplaçant intérimaire : −${Math.round((1 - eg.hpMult) * 100)} % de PV, −${Math.round((1 - eg.atkMult) * 100)} % d'ATQ.)`;
+}
+
+// Fin de la « Convention collective du Donjon » (chantier 15, lot 5) : première élite croisée une fois les étages sans élite passés, une seule fois par crawler.
+function announceEliteConventionEnd(enemy) {
+    const eg = config.earlyGame;
+    if (!eg.enabled || gameState.eliteConventionEnded || !isEliteMob(enemy) || enemy.isBountyHunter) return;
+    if (gameState.currentFloor <= eg.elites.freeFloors) return;
+    gameState.eliteConventionEnded = true;
+    const mult = eliteDamageMultForFloor(gameState.currentFloor);
+    const base = config.mobDamageScaling.eliteDamageMult;
+    const detail = mult < base ? ` (Rampe de reprise : dégâts des élites ×${String(mult).replace('.', ',')} à cet étage, ×${String(base).replace('.', ',')} ensuite.)` : '';
+    logEvent(`📜 Fin de la Convention collective du Donjon : les élites ont repris le travail. Elles n'ont pas lu l'article 4 sur le plafonnement des dégâts.${detail}`, "info");
+}
+
 function initiateCombat(forcedEnemy = null) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
     // Suivi du combat pour la chronique (chantier 2) : dégâts subis au départ, ouverture furtive, nombre
     // d'attaques portées (victoire en un coup) — voir recordRunEvent('win').
-    if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
+    if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, startTrialAvoided: gameState.runStats ? (gameState.runStats.trialAvoided || 0) : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
+    if (enemy && enemy.isInterim) logEvent(interimBossLine(enemy), "info"); // Remplaçant intérimaire (chantier 15, lot 2)
+    announceEliteConventionEnd(enemy);
     // Occasions de combat (chantier 6, V2) : état remis à zéro ; la garantie compte un combat de plus sans Occasion.
     gameState.occasion = Object.assign(createOccasionState(), { pity: ((gameState.occasion && gameState.occasion.pity) || 0) + 1 });
 
@@ -5786,7 +6115,8 @@ function initiateCombat(forcedEnemy = null) {
     }
 
     // Statuts remis à zéro à chaque nouveau combat (des deux côtés)
-    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null };
+    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null, plotShield: false };
+    gameState.classAbilityUsed = false; // capacité de classe : une fois par combat (chantier 13)
     if (enemy) {
         // telegraph/defBuffed/frenzied : uniquement lus/écrits côté boss (voir performBossCounterAttack()
         // dans app.js, Chantier 2 du rework combat) — restent toujours neutres sur un mob normal/élite.
@@ -6096,11 +6426,14 @@ function rollDamage(attackerAtk, defenderDef, options = {}) {
 // Réduite de moitié tant que le joueur est ébloui (effet "light"), et encore réduite de 40% tant
 // qu'il est corrodé (effet "corrode") — les deux se cumulent si les deux sont actifs à la fois.
 function getEffectiveDef() {
-    const armorBonus = gameState.equipment.armor ? (gameState.equipment.armor.baseArmor || 0) : 0;
+    const raceFx = originRaceEffects();
+    const armorBonus = gameState.equipment.armor ? Math.round((gameState.equipment.armor.baseArmor || 0) * (raceFx.armorMult || 1)) : 0; // Nain : armure portée +15 %
     const companionBonus = hasActiveCompanion('guard')
         ? Math.round(getCompanionDef(gameState.companion) * config.companions.guard.defShare)
         : 0;
     let effectiveDef = gameState.def + armorBonus + companionBonus;
+    if (raceFx.defMult) effectiveDef += Math.max(1, Math.round(effectiveDef * (raceFx.defMult - 1))); // Nain : DEF +12 % (au moins +1)
+    if (raceFx.defFlat) effectiveDef = Math.max(0, effectiveDef + raceFx.defFlat); // Elfe : DEF −1
     if (gameState.status.blinded && gameState.status.blinded.rounds > 0) {
         effectiveDef = Math.round(effectiveDef * 0.5);
     }
@@ -6113,6 +6446,8 @@ function getEffectiveDef() {
     if (gameState.engageDefHalved) {
         effectiveDef = Math.round(effectiveDef * 0.5);
     }
+    // Encaisser (Sac de frappe, chantier 13) : DEF ×2 pour la riposte qui suit la capacité.
+    if (gameState.status.brace) effectiveDef = Math.round(effectiveDef * (originClassEffects().braceDefMult || 1));
     return effectiveDef;
 }
 
@@ -6132,6 +6467,8 @@ function tryPlayerAction() {
     // Même convention pour "Charger" (Chantier 3, attemptEngage()) : la DEF divisée par 2 ne doit
     // couvrir QUE la riposte qui suit la charge, jamais fuiter sur l'action suivante du joueur.
     gameState.engageDefHalved = false;
+    gameState.status.plotShield = false; // Armure de scénario (chantier 15) : ne couvre que le reste du tour ennemi où elle a servi
+    gameState.status.brace = null; // Encaisser (chantier 13) : ne couvre que la riposte qui suit la capacité
     // Bouclier de Mana (chantier 11) : couvre les ripostes des `rounds` actions suivant le sort.
     if (gameState.status.manaShield) {
         gameState.status.manaShield.rounds -= 1;
@@ -6140,7 +6477,7 @@ function tryPlayerAction() {
 
     // Saignement en cours sur le joueur : tique avant son action
     if (gameState.status.bleed && gameState.status.bleed.rounds > 0) {
-        const dmg = applyStarterBuffToDamage(gameState.status.bleed.dmgPerRound);
+        const dmg = applyTrialToDamage(applyStarterBuffToDamage(applyRaceDamageMods(gameState.status.bleed.dmgPerRound, 'bleed')));
         applyPlayerDamage(dmg);
         gameState.status.bleed.rounds -= 1;
         if (gameState.status.bleed.rounds <= 0) gameState.status.bleed = null;
@@ -6171,6 +6508,8 @@ function tryPlayerAction() {
 function performPlayerAttack(attackerAtk, options, label) {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
     const enemy = gameState.currentEnemy;
+    // `options.skipReaction` : un coup de capacité de classe qui n'est pas le dernier d'une rafale (Tir de barrage) ne déclenche pas la riposte.
+    const react = () => { if (!options.skipReaction) resolveEnemyReaction(); };
 
     // Un joueur confus a une chance de rater complètement son attaque (aucun dégât, tour perdu)
     if (gameState.status.confused && gameState.status.confused.rounds > 0) {
@@ -6179,7 +6518,7 @@ function performPlayerAttack(attackerAtk, options, label) {
         if (Math.random() * 100 < 45) {
             showDie(ui.combatPlayerDie, "❓");
             logEvent(`Désorienté, vous frappez complètement à côté de [${enemy.name}] !`, "danger");
-            resolveEnemyReaction();
+            react();
             return true;
         }
     }
@@ -6193,7 +6532,7 @@ function performPlayerAttack(attackerAtk, options, label) {
     if (wobbly && Math.random() * 100 < wobbly.chance) {
         showDie(ui.combatPlayerDie, "🥴");
         logEvent(`🥴 Votre [${gear.name}] bancal vous glisse des mains : coup complètement raté !`, "danger");
-        resolveEnemyReaction();
+        react();
         return false;
     }
 
@@ -6223,6 +6562,16 @@ function performPlayerAttack(attackerAtk, options, label) {
         adrenalineNote = " (galvanisé)";
         gameState.status.adrenaline.rounds -= 1;
         if (gameState.status.adrenaline.rounds <= 0) gameState.status.adrenaline = null;
+    }
+
+    // Disparition (Filou, chantier 13) : la prochaine attaque après la capacité porte un bonus garanti.
+    let vanishNote = "";
+    const vanish = gameState.status.vanish;
+    if (vanish && vanish.nextAttack) {
+        const vanishMult = originClassEffects().nextAttackMult || 1;
+        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * vanishMult };
+        vanishNote = ` (disparition ×${vanishMult})`;
+        vanish.nextAttack = false;
     }
 
     // Attaque furtive réussie : le tout premier coup de ce combat porte un bonus x2 garanti
@@ -6338,10 +6687,11 @@ function performPlayerAttack(attackerAtk, options, label) {
     // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
     // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
     // pure redite de ce que les badges du Chantier 2 montrent déjà sans rapport avec CE coup précis).
-    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyWasExposed ? " (garde ouverte)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
+    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${vanishNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyWasExposed ? " (garde ouverte)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
 
     // Appui du compagnon : sort donné, Frappe d'appoint ou coup d'opportunité (voir companionCombatSupport())
     companionCombatSupport(enemy);
+    if (enemy.hp > 0 && options.onHit) options.onHit(enemy, playerDamage); // effet de capacité de classe posé AVANT la riposte (ex. étourdissement)
 
     if (enemy.hp <= 0) {
         // Coup de grâce (chantier 6, V3) : le coup fatal porté à un boss ouvre d'abord l'épreuve (si une interface la permet).
@@ -6353,7 +6703,7 @@ function performPlayerAttack(attackerAtk, options, label) {
         return true;
     }
 
-    resolveEnemyReaction();
+    react();
     return true;
 }
 
@@ -6516,6 +6866,13 @@ function applyArmorMechanic(attacker, incomingDamage) {
 
 // Ténébreux (armure) : chance d'esquiver complètement une attaque ennemie.
 function rollPlayerDodge(enemy) {
+    // Disparition (Filou, chantier 13) : toute la riposte de ce tour (toutes ses frappes) est esquivée ; chaque tour esquivé consomme une charge.
+    const vanish = gameState.status.vanish;
+    if (vanish && (vanish.dodging || vanish.turns > 0)) {
+        if (!vanish.dodging) { vanish.turns -= 1; vanish.dodging = true; }
+        logEvent(`🎭 Vous n'êtes déjà plus là : l'attaque de [${enemy.name}] frappe le vide !`, "success");
+        return true;
+    }
     const values = getItemQualifierValues(gameState.equipment.armor, 'darkness', 'armor');
     if (!values || Math.random() * 100 >= values.chance) return false;
     logEvent(`🌑 Vous vous fondez dans l'ombre et esquivez l'attaque de [${enemy.name}] !`, "success");
@@ -6554,7 +6911,9 @@ function consumeEnemyAttackDebuffs(enemy) {
 function getSpellManaCost(spell) {
     if (!spell) return 0;
     const thrifty = getItemQualifierValues(spell, 'thrifty', 'spell');
-    return thrifty ? Math.max(1, Math.round(spell.manaCost * (1 - thrifty.pct / 100))) : spell.manaCost;
+    const cost = thrifty ? Math.max(1, Math.round(spell.manaCost * (1 - thrifty.pct / 100))) : spell.manaCost;
+    const classMult = originClassEffects().manaCostMult; // Occultiste de foire : coût en mana −10 % (style)
+    return classMult ? Math.max(1, Math.round(cost * classMult)) : cost;
 }
 
 // Tente d'appliquer un effet de statut au joueur selon le trait élémentaire du monstre
@@ -6626,7 +6985,7 @@ const COMBAT_BEAT_MS = config.combatRhythm.beatActionToRiposte;
 
 // Empêche de spammer les boutons de combat pendant la petite pause entre deux actions
 function setCombatInputLocked(locked) {
-    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnRetreat, ui.btnEngage, ui.btnFlee, ui.btnOccasion].forEach(btn => {
+    [ui.btnAttackWeapon, ui.btnAttackRanged, ui.btnAttackUnarmed, ui.btnAttackMagic, ui.btnSprint, ui.btnRetreat, ui.btnEngage, ui.btnFlee, ui.btnOccasion, ui.btnClassAbility].forEach(btn => {
         if (!btn) return;
         btn.disabled = locked;
         btn.classList.toggle('opacity-40', locked);
@@ -6704,7 +7063,11 @@ function enemyCounterAttack() {
     if (!gameState.currentEnemy) return; // sécurité si le combat vient d'être résolu
     combatSkipRequested = false; // Chantier 9 : jamais de skip qui fuite d'un tour précédent (ou du clic qui a déclenché celui-ci)
     setCombatInputLocked(true);
-    resolveEnemyCounterAttack(() => { setCombatInputLocked(false); updateUI(); });
+    resolveEnemyCounterAttack(() => {
+        endClassDefenseTurn(); // Disparition / Encaisser : valables pour CETTE riposte seulement
+        setCombatInputLocked(false);
+        updateUI();
+    });
 }
 
 // ==========================================
@@ -6822,10 +7185,11 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
     });
     // Interception par le compagnon (Garde souvent, les autres parfois) — voir companionInterceptHit()
     const intercept = companionInterceptHit(dmg);
-    const playerDamage = intercept.playerDamage;
+    let playerDamage = intercept.playerDamage;
     const companionAbsorbNote = intercept.note;
     const hpBefore = gameState.hp;
-    applyPlayerDamage(playerDamage);
+    playerDamage = applyPlayerDamage(playerDamage); // montant réellement perdu (Armure de scénario / Increvable)
+    applyBraceReflect(enemy, playerDamage); // Encaisser (Sac de frappe, chantier 13)
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
     // Effet d'attaque du mob (fx.js) : chiffre, secousse et flash à l'impact ; `silent` = multi-coups,
     // joué sans élan pour tenir dans beatMultiHit.
@@ -7089,7 +7453,8 @@ function resolveEnemyCounterAttack(onDone) {
     // Étourdissement en cours sur l'ennemi : il rate son tour
     if (enemy.status && enemy.status.stunned) {
         logEvent(`[${enemy.name}] est étourdi et ne peut pas riposter !`, "info");
-        enemy.status.stunned = false;
+        const stunLeft = typeof enemy.status.stunned === 'number' ? enemy.status.stunned - 1 : 0; // Uppercut + synergie Troll : étourdi plusieurs tours
+        enemy.status.stunned = stunLeft > 0 ? stunLeft : false;
         showDie(ui.combatEnemyDie, "😴");
         // Plus de updateUI() explicite ici (Chantier 7) : onDone() le fait déjà, centralisé.
         if (onDone) onDone();
@@ -7159,8 +7524,10 @@ function resolveNonBossCounterAttack(enemy) {
     // des modificateurs aléatoires déjà existants (qui gonflaient surtout les PV) — chantier "rework
     // combat". Jamais sur un boss : isEliteMob() les exclut déjà (ils ont leur propre traitement,
     // voir Chantier 2 du même rework).
+    // Rampe de la Convention collective (chantier 15) : ×1,3 / ×1,5 aux étages 3-4 ; jamais pour un chasseur de primes, dont les stats sont
+    // calées sur le multiplicateur normal (computeBountyHunterStats()).
     if (isEliteMob(enemy)) {
-        enemyAtk = Math.round(enemyAtk * config.mobDamageScaling.eliteDamageMult);
+        enemyAtk = Math.round(enemyAtk * (enemy.isBountyHunter ? config.mobDamageScaling.eliteDamageMult : eliteDamageMultForFloor(gameState.currentFloor)));
     }
 
     // Anti-abus mêlée collée (Chantier 3) : un mob inflige toujours +10% de dégâts à écart nul, pour
@@ -7186,11 +7553,12 @@ function resolveNonBossCounterAttack(enemy) {
     // bonus passif de DEF de la Garde, voir getEffectiveDef()) — voir companionInterceptHit().
     const guardWasActive = hasActiveCompanion('guard');
     const intercept = companionInterceptHit(enemyDamage);
-    const playerDamage = intercept.playerDamage;
+    let playerDamage = intercept.playerDamage;
     const companionAbsorbNote = intercept.note;
 
     const hpBefore = gameState.hp;
-    applyPlayerDamage(playerDamage);
+    playerDamage = applyPlayerDamage(playerDamage); // montant réellement perdu (Armure de scénario / Increvable)
+    applyBraceReflect(enemy, playerDamage); // Encaisser (Sac de frappe, chantier 13)
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
     playMobAttackFx(enemy, { heldPlayerHp: hpBefore }, () => {
         showFloatingDamage(ui.sceneCrawlerAnchor, playerDamage, { toPlayer: true }); // mob normal/élite : jamais "heavy" (réservé aux moments boss/enrage)
@@ -7268,8 +7636,7 @@ function attackWeapon() {
         return;
     }
 
-    const skill = gameState.skills.weapon;
-    const atkMultiplier = 1.0 + 0.04 * (skill.level - 1); // +4% par niveau
+    const atkMultiplier = weaponAttackMultiplier('weaponMult'); // +4 % par niveau d'Arme, × style de classe (Duelliste)
     const equippedGear = gameState.equipment.weapon;
     const weaponBonus = equippedGear ? (equippedGear.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
@@ -7305,8 +7672,7 @@ function attackRanged() {
         return;
     }
 
-    const skill = gameState.skills.weapon; // Même compétence "Arme" que le corps à corps
-    const atkMultiplier = 1.0 + 0.04 * (skill.level - 1);
+    const atkMultiplier = weaponAttackMultiplier('rangedMult'); // Même compétence "Arme" que le corps à corps ; style Franc-tireur
     const equippedGear = gameState.equipment.ranged;
     const weaponBonus = equippedGear ? (equippedGear.baseDmg || 0) : 0;
     const effectiveAtk = gameState.atk + weaponBonus;
@@ -7331,8 +7697,257 @@ function attackUnarmed() {
 
     const skill = gameState.skills.unarmed;
     const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1)); // +3% par niveau, plafonné à 75%
-    const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * starterBuffUnarmedMult(), varianceRange: 0.10, defReduction }, "à mains nues");
+    const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * unarmedDamageMult(), varianceRange: 0.10, defReduction }, "à mains nues");
     if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
+}
+
+// ==========================================
+// RACE : PASSIFS (chantier 13, lot 1 — voir origins.js et CHANTIERS.md)
+// ==========================================
+// `gameState.race` (clé d'ORIGIN_RACES, null = aucune : une ancienne sauvegarde ou un crawler avant l'étage 3 n'a aucun effet) choisit une entrée de
+// `config.origins.races`. UN SEUL point de lecture par effet : PV max (recomputeMaxHp), XP (gainXp), soins (applyPlayerHeal), DEF (getEffectiveDef),
+// mana max (recomputeRaceDerived), réserve (idem), furtivité (getStealthChance), fuite (attemptFlee), pièges et saignement (applyRaceDamageMods),
+// mains nues (unarmedDamageMult), sorts (attackMagic), Increvable (applyPlayerDamage).
+function originRaceEffects() {
+    return (gameState.race && config.origins.races[gameState.race]) || {};
+}
+
+// Choisit la race (une seule fois par run, définitif) : pose `gameState.race` puis recalcule les valeurs dérivées.
+function applyRace(key) {
+    if (!config.origins.races[key]) return false;
+    gameState.race = key;
+    gameState.raceLastStandFloor = 0;
+    recomputeRaceDerived();
+    return true;
+}
+
+// PV max, mana max et emplacements de réserve dépendent de la race : recalculés au choix, à la restauration d'une sauvegarde.
+function recomputeRaceDerived() {
+    const fx = originRaceEffects();
+    const hadMaxMana = gameState.maxMana || 100;
+    gameState.maxMana = Math.round(100 * (fx.maxManaMult || 1));
+    gameState.mana = Math.min(gameState.maxMana, Math.round(gameState.mana * gameState.maxMana / hadMaxMana));
+    gameState.maxInventory = config.inventory.maxEquipment + (fx.extraReserve || 0);
+    recomputeMaxHp();
+}
+
+// Dégâts de pièges et de saignement après la race (Gobelin : pièges −25 %, Goule : saignement −50 %) ; jamais sous 1.
+function applyRaceDamageMods(amount, source) {
+    const fx = originRaceEffects();
+    const mult = source === 'trap' ? fx.trapMult : source === 'bleed' ? fx.bleedMult : null;
+    if (!mult || !(amount > 0)) return amount;
+    return Math.max(1, Math.round(amount * mult));
+}
+
+// Multiplicateur de dégâts à mains nues : buff de départ (chantier 14) × race (Troll).
+function unarmedDamageMult() {
+    return starterBuffUnarmedMult() * (originRaceEffects().unarmedMult || 1) * (originClassEffects().unarmedMult || 1); // + Bagarreur (style)
+}
+
+// Armure de scénario (chantier 15, lot 4, config.earlyGame.plotArmor) : aux étages 1-3, le premier coup mortel de chaque étage laisse `leaveHp` PV (aussi contre un boss), et le
+// reste du tour ennemi en cours est absorbé (`status.plotShield`, uniquement en combat, éteint par la prochaine action du joueur) — jamais deux frappes d'une même rafale d'affilée.
+// Passe AVANT l'Increvable du Cafard : à 1 PV aucun des deux ne rejoue, il n'y a donc pas de double vie sur un même coup.
+function applyPlotArmor(amount) {
+    const eg = config.earlyGame;
+    if (!eg.enabled || !eg.plotArmor.enabled || gameState.currentFloor > eg.maxFloor) return amount;
+    if (gameState.inCombat && gameState.status.plotShield) return 0;
+    if (!(amount >= gameState.hp) || gameState.plotArmorFloor === gameState.currentFloor) return amount;
+    gameState.plotArmorFloor = gameState.currentFloor;
+    if (gameState.inCombat) gameState.status.plotShield = true;
+    recordRunEvent('plotArmor');
+    logEvent("🎬 Armure de scénario : le coup était fatal. Mais l'audience vient de grimper de 40 %, et la production a décidé que vous restiez en vie. (Un coup mortel par étage, jusqu'à l'étage 3.)", "success");
+    return Math.max(0, gameState.hp - eg.plotArmor.leaveHp);
+}
+
+// Increvable (Cafard mutant) : un dégât mortel laisse 1 PV, 1 fois par étage, jamais contre un boss. Renvoie le montant à appliquer.
+function applyRaceLastStand(amount) {
+    const fx = originRaceEffects();
+    if (!fx.lastStand || !(amount >= gameState.hp) || gameState.hp <= 1) return amount;
+    if (gameState.raceLastStandFloor === gameState.currentFloor) return amount;
+    if (gameState.inCombat && gameState.currentEnemy && gameState.currentEnemy.isBoss) return amount;
+    gameState.raceLastStandFloor = gameState.currentFloor;
+    recordRunEvent('lastStand');
+    logEvent("🪳 Increvable : le coup aurait dû vous tuer, mais un cafard, ça se retourne et ça repart. Il vous reste 1 PV.", "success");
+    return gameState.hp - 1;
+}
+
+// ==========================================
+// CLASSE : PASSIFS DE STYLE ET CAPACITÉS ACTIVES (chantier 13, lot 3 — voir origins.js et CHANTIERS.md)
+// ==========================================
+// `gameState.crawlerClass` (clé d'ORIGIN_CLASSES, null = aucune) choisit une entrée de `config.origins.classes` : un passif de style (lu à son point
+// d'usage : PV max, mains nues, arme, tir, coût en mana, niveau de Furtivité) et UNE capacité active, utilisable 1 fois par combat
+// (`gameState.classAbilityUsed`, remis à faux dans initiateCombat()). Une capacité prend le tour : la riposte suit normalement. Les synergies
+// race × classe (`config.origins.synergies`) REMPLACENT certains chiffres de la classe. Contre un boss, les statuts sont réduits (voir chaque capacité).
+function originClassEffects() {
+    return (gameState.crawlerClass && config.origins.classes[gameState.crawlerClass]) || {};
+}
+
+// Chiffres de la capacité en cours : ceux de la classe, remplacés champ par champ par la synergie race × classe éventuelle.
+function originAbilityValues() {
+    const syn = originSynergyFor(gameState.race, gameState.crawlerClass);
+    return Object.assign({}, originClassEffects(), (syn && config.origins.synergies[`${syn.race}+${syn.cls}`]) || {});
+}
+function activeSynergy() {
+    const syn = originSynergyFor(gameState.race, gameState.crawlerClass);
+    return (syn && config.origins.synergies[`${syn.race}+${syn.cls}`]) || null;
+}
+
+function effectiveStealthLevel() {
+    const base = (gameState.skills && gameState.skills.stealth && gameState.skills.stealth.level) || 1;
+    return base + (originClassEffects().stealthLevels || 0); // Filou : Furtivité +1 niveau (style)
+}
+
+// Multiplicateur d'une attaque d'arme (mêlée ou distance) : +4 % par niveau d'Arme, × style de classe (`styleKey` : 'weaponMult' | 'rangedMult').
+function weaponAttackMultiplier(styleKey) {
+    const level = gameState.skills.weapon.level;
+    return (1.0 + 0.04 * (level - 1)) * (originClassEffects()[styleKey] || 1);
+}
+
+// Fin de la riposte : Disparition et Encaisser ne valent que pour elle.
+function endClassDefenseTurn() {
+    const vanish = gameState.status && gameState.status.vanish;
+    if (vanish) { vanish.dodging = false; if (vanish.turns <= 0 && !vanish.nextAttack) gameState.status.vanish = null; }
+    if (gameState.status && gameState.status.brace) gameState.status.brace = null;
+}
+
+// Encaisser : une part des dégâts réellement subis revient à l'attaquant (jamais de coup fatal : l'ennemi garde au moins 1 PV, comme Épineux).
+function applyBraceReflect(enemy, damageTaken) {
+    if (!gameState.status.brace || !(damageTaken > 0) || !enemy) return 0;
+    const pct = originAbilityValues().reflectPct || 0;
+    const back = Math.min(Math.max(0, enemy.hp - 1), Math.max(1, Math.round(damageTaken * pct)));
+    if (back <= 0) return 0;
+    enemy.hp -= back;
+    logEvent(`🛡️ Encaisser : ${back} dégâts renvoyés à [${enemy.name}] (${Math.round(pct * 100)} %).`, "success");
+    return back;
+}
+
+// Disponibilité de la capacité (pure, lue par le bouton et par useClassAbility()) : { usable, reason }.
+function classAbilityStatus() {
+    const cls = originEntry('class', gameState.crawlerClass);
+    if (!cls) return { usable: false, reason: "Aucune classe." };
+    if (!gameState.inCombat || !gameState.currentEnemy) return { usable: false, reason: "Seulement en combat." };
+    if (gameState.classAbilityUsed) return { usable: false, reason: "Déjà utilisée dans ce combat." };
+    const disarmed = gameState.status.disarmed && gameState.status.disarmed.rounds > 0;
+    switch (cls.key) {
+        case 'brawler': if (gameState.combatDistance > 0) return { usable: false, reason: "Trop loin pour frapper." }; break;
+        case 'duelist':
+            if (!gameState.equipment.weapon) return { usable: false, reason: "Aucune arme équipée." };
+            if (disarmed) return { usable: false, reason: "Arme arrachée." };
+            if (gameState.combatDistance > 0) return { usable: false, reason: "Trop loin pour frapper." };
+            break;
+        case 'gunslinger':
+            if (!gameState.equipment.ranged) return { usable: false, reason: "Aucune arme à distance." };
+            if (disarmed) return { usable: false, reason: "Arme arrachée." };
+            break;
+        case 'occultist': if (!gameState.equipment.spell) return { usable: false, reason: "Aucun sort équipé." }; break;
+    }
+    return { usable: true, reason: "" };
+}
+
+// Utilise la capacité de classe. Renvoie vrai si elle a été jouée (un tour consommé).
+function useClassAbility() {
+    const status = classAbilityStatus();
+    if (!status.usable) {
+        if (gameState.inCombat) logEvent(`${status.reason} Capacité indisponible.`, "danger");
+        return false;
+    }
+    const key = gameState.crawlerClass;
+    const run = CLASS_ABILITIES[key];
+    if (!run || !tryPlayerAction()) return false;
+    gameState.classAbilityUsed = true;
+    recordRunEvent('classAbility', { boss: !!(gameState.currentEnemy && gameState.currentEnemy.isBoss), synergy: !!activeSynergy() });
+    run(originAbilityValues());
+    updateUI();
+    return true;
+}
+
+const CLASS_ABILITIES = {
+    // Uppercut du dimanche : mains nues ×2 ; étourdit (1 tour, 2 avec la synergie Troll). Un boss n'est jamais étourdi : il est « exposé » seulement avec la synergie.
+    brawler(v) {
+        gameState.lastAttackKind = 'unarmed';
+        const skill = gameState.skills.unarmed;
+        const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1));
+        const landed = performPlayerAttack(gameState.atk, {
+            atkMultiplier: 0.75 * unarmedDamageMult() * v.abilityMult, varianceRange: 0.10, defReduction,
+            onHit: (enemy) => {
+                if (!enemy.isBoss) {
+                    enemy.status.stunned = v.stunTurns > 1 ? v.stunTurns : true;
+                    logEvent(`💫 Uppercut du dimanche : [${enemy.name}] voit des chandelles${v.stunTurns > 1 ? ` (${v.stunTurns} tours)` : ''} !`, "success");
+                } else if (v.bossExposed) {
+                    enemy.status.exposed = { rounds: 1 };
+                    logEvent(`💫 Uppercut du dimanche : la garde de [${enemy.name}] est ouverte !`, "success");
+                }
+            }
+        }, "avec un Uppercut du dimanche");
+        if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
+    },
+    // Fendre : frappe à l'arme ×1,8 qui ignore la moitié de la DEF.
+    duelist(v) {
+        gameState.lastAttackKind = 'weapon';
+        const gear = gameState.equipment.weapon;
+        const landed = performPlayerAttack(gameState.atk + (gear.baseDmg || 0), {
+            atkMultiplier: weaponAttackMultiplier('weaponMult') * v.abilityMult, varianceRange: 0.15, defReduction: v.abilityDefIgnore, gear
+        }, "en fendant");
+        if (landed) { gainSkillXp('weapon', SKILL_XP_PER_USE); applyWeaponMechanic(gear); }
+    },
+    // Tir de barrage : `shots` tirs à ×0,8 à toute distance, une seule riposte à la fin (jamais de second tir sur un ennemi déjà tombé).
+    gunslinger(v) {
+        gameState.lastAttackKind = 'ranged';
+        const gear = gameState.equipment.ranged;
+        let landedAny = false;
+        for (let i = 0; i < v.shots; i++) {
+            const enemy = gameState.currentEnemy;
+            if (!gameState.inCombat || !enemy || enemy.hp <= 0 || gameState.pendingMinigame) break;
+            const last = i === v.shots - 1;
+            const landed = performPlayerAttack(gameState.atk + (gear.baseDmg || 0), {
+                atkMultiplier: weaponAttackMultiplier('rangedMult') * v.shotMult, varianceRange: 0.15, defReduction: 0, gear, skipReaction: !last
+            }, `en rafale (tir ${i + 1}/${v.shots})`);
+            landedAny = landedAny || landed;
+        }
+        if (landedAny) { gainSkillXp('weapon', SKILL_XP_PER_USE); applyWeaponMechanic(gear); }
+    },
+    // Surcharge : le prochain sort est gratuit, plus fort et ne rate jamais (voir castEquippedSpell()) ; la synergie Elfe rend aussi du mana.
+    occultist(v) {
+        gameState.status.overcharge = true;
+        if (v.manaRefund) gameState.mana = Math.min(gameState.maxMana, gameState.mana + v.manaRefund);
+        showDie(ui.combatPlayerDie, "🔮");
+        playClassAbilityFx('occultist');
+        logEvent(`🔮 Surcharge : votre prochain sort sera gratuit, ×${v.abilityMult} et infaillible${v.manaRefund ? ` (+${v.manaRefund} mana)` : ''}.`, "success");
+        resolveEnemyReaction();
+    },
+    // Disparition : la prochaine riposte (2 avec la synergie Gobelin) est esquivée et l'attaque suivante porte ×2.
+    trickster(v) {
+        gameState.status.vanish = { turns: v.dodgeTurns, nextAttack: true, dodging: false };
+        showDie(ui.combatPlayerDie, "🎭");
+        playClassAbilityFx('trickster');
+        logEvent(`🎭 Disparition : vous vous fondez dans le décor (${v.dodgeTurns} riposte${v.dodgeTurns > 1 ? 's' : ''} esquivée${v.dodgeTurns > 1 ? 's' : ''}, prochaine attaque ×${v.nextAttackMult}).`, "success");
+        resolveEnemyReaction();
+    },
+    // Encaisser : DEF ×2 pour la riposte qui suit, et une part des dégâts reçus revient à l'attaquant.
+    punchingBag(v) {
+        gameState.status.brace = true;
+        showDie(ui.combatPlayerDie, "🛡️");
+        playClassAbilityFx('punchingBag');
+        logEvent(`🛡️ Encaisser : DEF ×${v.braceDefMult} pour la prochaine riposte, ${Math.round(v.reflectPct * 100)} % des dégâts renvoyés.`, "success");
+        resolveEnemyReaction();
+    }
+};
+
+// Bouton de capacité (bande pleine largeur au-dessus des attaques, comme #btn-occasion) : visible en combat avec une classe ; grisé quand
+// la capacité est indisponible, avec la raison. Appelée par updateUI().
+function updateClassAbilityUI() {
+    const btn = ui.btnClassAbility;
+    if (!btn) return;
+    const cls = originEntry('class', gameState.crawlerClass);
+    const show = !!cls && gameState.inCombat && !!gameState.currentEnemy;
+    btn.classList.toggle('hidden', !show);
+    if (!show) return;
+    const status = classAbilityStatus();
+    btn.disabled = !status.usable;
+    btn.classList.toggle('opacity-40', !status.usable);
+    btn.classList.toggle('pointer-events-none', !status.usable);
+    btn.innerHTML = `${cls.icon} ${cls.abilityName}<span class="block text-[9px] font-normal normal-case opacity-80">${status.usable ? 'Capacité de classe · 1 fois par combat' : status.reason}</span>`;
+    btn.title = `${cls.name} — ${cls.ability}`;
 }
 
 // ==========================================
@@ -7354,6 +7969,32 @@ function starterBuffUnarmedMult() {
 function applyStarterBuffToDamage(amount) {
     if (gameState.starterBuff !== 'desperate' || !(amount > 0)) return amount;
     return Math.max(amount, Math.round(amount * config.starterBuff.damageTakenMult));
+}
+
+// Période d'essai (chantier 15, lot 3, config.earlyGame.trial) : l'émission protège ses débutants — dégâts subis réduits aux étages 1-3, de moins en moins avec le niveau
+// (trialDamageMult(), generator.js). Appliquée AUX MÊMES points que le buff de départ (coup encaissé, pièges, saignement) pour que journal et PV restent d'accord.
+// Les PV épargnés sont comptés (runStats.trialAvoided) et réajoutés à la facilité des victoires : la Période d'essai ne doit pas faire monter la prime des chasseurs.
+function applyTrialToDamage(amount) {
+    if (!(amount > 0)) return amount;
+    const mult = trialDamageMult(gameState.level, gameState.currentFloor);
+    if (mult >= 1) return amount;
+    const reduced = Math.min(amount, Math.max(1, Math.round(amount * mult)));
+    if (reduced < amount && gameState.runStats) gameState.runStats.trialAvoided = (gameState.runStats.trialAvoided || 0) + (amount - reduced);
+    return reduced;
+}
+
+// Badge « Période d'essai » : visible tant que la réduction est active (étages 1-3, niveau sous le seuil), avec le pourcentage courant et la règle en infobulle.
+function updateTrialStatusUI() {
+    const el = ui.trialStatus;
+    if (!el) return;
+    const eg = config.earlyGame;
+    const mult = trialDamageMult(gameState.level, gameState.currentFloor);
+    const active = mult < 1;
+    el.classList.toggle('hidden', !active);
+    if (!active) return;
+    const pct = Math.round((1 - mult) * 100);
+    el.innerText = `🎟️ Période d'essai −${pct} %`;
+    el.title = `Période d'essai — l'émission protège ses débutants : −${pct} % de dégâts subis (combat, pièges, saignement), de moins en moins à chaque niveau, jusqu'au niveau ${eg.trial.fadeLevel} ; prend fin à l'arrivée sur l'étage ${eg.maxFloor + 1}.`;
 }
 
 function giveStarterBuffForGift(giftType) {
@@ -7501,7 +8142,7 @@ function resolveOccasion(type, outcome, detail) {
         if (failed) { lostTurn(`🪢 [${enemy.name}] se débat et vous échappe. Tour perdu.`); return; }
         const skill = gameState.skills.unarmed;
         const defReduction = Math.min(0.75, 0.35 + 0.03 * (skill.level - 1));
-        const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * mg.choke.damageMult * starterBuffUnarmedMult(), varianceRange: 0.10, defReduction }, "en l'étranglant");
+        const landed = performPlayerAttack(gameState.atk, { atkMultiplier: 0.75 * mg.choke.damageMult * unarmedDamageMult(), varianceRange: 0.10, defReduction }, "en l'étranglant");
         if (landed) gainSkillXp('unarmed', SKILL_XP_PER_USE);
         return;
     }
@@ -7645,7 +8286,7 @@ function attemptEngage() {
     const effectiveAtk = gameState.atk + weaponBonus;
     const defReduction = weapon ? 0 : 0.35; // Pas d'arme équipée : mêmes mains nues qu'attackUnarmed()
     const label = weapon ? "en chargeant à l'arme" : "en chargeant à mains nues";
-    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier: config.engageAction.atkMultiplier * (weapon ? 1 : starterBuffUnarmedMult()), defReduction, gear: weapon }, label);
+    const landed = performPlayerAttack(effectiveAtk, { atkMultiplier: config.engageAction.atkMultiplier * (weapon ? 1 : unarmedDamageMult()), defReduction, gear: weapon }, label);
     if (landed) {
         gainSkillXp(weapon ? 'weapon' : 'unarmed', SKILL_XP_PER_USE);
         if (weapon) applyWeaponMechanic(weapon);
@@ -7675,7 +8316,7 @@ function attackMagic() {
         logEvent(`Trop près pour lancer [${spell.spellName}] — éloignez-vous !`, "danger");
         return;
     }
-    const manaCost = getSpellManaCost(spell); // Économe (qualificatif de sort) le réduit
+    const manaCost = gameState.status.overcharge ? 0 : getSpellManaCost(spell); // Économe (qualificatif de sort) le réduit ; Surcharge : gratuit
     if (gameState.mana < manaCost) {
         logEvent(`Mana insuffisant pour lancer [${spell.spellName}] (${manaCost} requis).`, "danger");
         return;
@@ -7720,20 +8361,30 @@ function castEquippedSpell(spell, manaCost, glyphBoost) {
     // Le backfire reste le prix du chaos, et devient PLUS punitif à haut niveau qu'avant (plancher
     // abaissé) pour continuer à justifier ce risque une fois la compétence Magie montée.
     const mb = config.magicBalance;
+    // Surcharge (Occultiste de foire, chantier 13) : ce sort est gratuit (coût déjà à 0 chez l'appelant), plus fort et ne rate jamais.
+    const overcharged = !!gameState.status.overcharge;
+    if (overcharged) gameState.status.overcharge = null;
     let backfireChance = Math.max(mb.backfireMin, mb.backfireBase + mb.backfirePerLevel * (skill.level - 1)) + (gameState.anomalyEffects.backfireBonusPct || 0);
     // Qualificatifs de sort : Canalisé réduit le risque d'échec (jamais sous 1 %), Bredouillant l'augmente.
     const channeled = getItemQualifierValues(spell, 'channeled', 'spell');
     if (channeled) backfireChance = Math.max(1, backfireChance - channeled.bonus);
     const stutter = getItemQualifierValues(spell, 'stutter', 'spell');
     if (stutter) backfireChance += stutter.bonus;
-    let atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1); // ZONE_MAGIQUE (anomalies.js)
+    if (originRaceEffects().backfirePts) backfireChance = Math.max(1, backfireChance + originRaceEffects().backfirePts); // Elfe : −3 pts (jamais sous 1 %)
+    let atkMultiplier = (mb.atkBase + mb.atkPerLevel * (skill.level - 1)) * (gameState.anomalyEffects.spellMult || 1) * (originRaceEffects().spellMult || 1); // ZONE_MAGIQUE (anomalies.js), Elfe (chantier 13)
+    if (overcharged) {
+        const boost = (activeSynergy() && activeSynergy().abilityMult) || originClassEffects().abilityMult || 1;
+        atkMultiplier *= boost;
+        backfireChance = 0;
+        logEvent(`🔮 Surcharge : [${spell.spellName}] jaillit, gratuit et ×${boost} !`, "success");
+    }
     if (glyphBoost) {
         atkMultiplier *= mb.glyphDamageMult;
         backfireChance *= mb.glyphBackfireMult;
         logEvent(`✍️ Le glyphe renforce [${spell.spellName}] (dégâts +${Math.round((mb.glyphDamageMult - 1) * 100)} %, risque de raté ÷${Math.round(1 / mb.glyphBackfireMult)}).`, "success");
     }
 
-    if (Math.random() * 100 < backfireChance) {
+    if (!overcharged && Math.random() * 100 < backfireChance) {
         showDie(ui.combatPlayerDie, "✗");
         playSpellBackfireFx(); // la lueur crachote et s'éteint en fumée (fx.js)
         logEvent(`[${spell.spellName}] part de travers et fait un flop retentissant. Aucun dégât (mana quand même dépensé).`, "danger");
@@ -7826,6 +8477,7 @@ function attemptFlee() {
     if (scoutHelps) {
         fleeChance += config.companions.scout.fleeBonus; // Compagnon "Éclaireur" : facilite la fuite
     }
+    else fleeChance += originRaceEffects().fleePts || 0; // Gobelin +15, Nain −15 : jamais contre un chasseur de primes (fixe, chantier 13)
     if (enemy.isBountyHunter) fleeChance = config.bounty.fleeChance; // Chasseur de primes : une fois sur deux, sans aide
 
     if (Math.random() * 100 < fleeChance) {
@@ -7838,7 +8490,7 @@ function attemptFlee() {
         gameState.pendingBossRoomId = null; // Le boss reste vivant, la salle n'est pas marquée vaincue
         gameState.pendingSneakAttack = false; // Ne doit pas se reporter sur un combat futur
         gameState.fleesThisRun = (gameState.fleesThisRun || 0) + 1; // Voir generateEpitaph() : mention spéciale à 3+ fuites
-        gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
+        gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null, plotShield: false }; // Les statuts ne survivent pas au combat
         setSceneHeader('🏃', 'Fuite Réussie', 'Exploration', 'fled');
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
         changeCompanionLoyalty(config.companions.loyalty.flee); // Fuir n'inspire pas confiance à votre compagnon
@@ -7874,7 +8526,7 @@ function winCombat() {
     gameState.currentEnemy = null;
     gameState.inCombat = false;
     gameState.pendingSneakAttack = false;
-    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
+    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null, plotShield: false }; // Les statuts ne survivent pas au combat
 
     if (wasBoss) {
         setSceneHeader('👑', 'Victoire !', 'Boss Vaincu', { key: 'bossVictory', enemy: defeatedEnemy });
@@ -8208,6 +8860,11 @@ function devJumpToUrbanFloor() {
     if (ui.floorTransitionOverlay) ui.floorTransitionOverlay.classList.add('hidden');
     if (ui.pactChoiceOverlay) ui.pactChoiceOverlay.classList.add('hidden');
 
+    if (!gameState.race) rollDevOrigin(); // Race et classe au hasard : jamais les deux écrans de choix (chantier 13)
+    hideOriginOverlays();
+    gameState.raceChoicePending = false;
+    gameState.classChoicePending = false;
+    gameState.pendingOriginOffers = null;
     gameState.currentFloor = 2; // advanceToNextFloor() incrémente : atterrit bien sur l'étage 3 (urbain)
     advanceToNextFloor(); // Raccourci DEV : saute délibérément l'écran d'escalier
     logEvent("🛠️ DEV : saut direct à l'étage 3 (urbain).", "info");
@@ -8318,6 +8975,16 @@ ui.btnWinRestart.addEventListener('click', resetGame);
 // Bouton "Continuer" de l'écran d'escalier (voir continueFromFloorTransition())
 if (ui.btnFloorTransitionContinue) ui.btnFloorTransitionContinue.addEventListener('click', continueFromFloorTransition);
 if (ui.btnPactAtk) ui.btnPactAtk.addEventListener('click', () => choosePactBlessing('atk'));
+[ui.raceChoiceCards, ui.classChoiceCards].forEach(box => {
+    if (box) box.addEventListener('click', (e) => {
+        const card = e.target.closest('[data-origin-key]');
+        if (card) selectOrigin(card.dataset.originKey);
+    });
+});
+if (ui.btnRaceConfirm) ui.btnRaceConfirm.addEventListener('click', confirmOriginChoice);
+if (ui.btnClassConfirm) ui.btnClassConfirm.addEventListener('click', confirmOriginChoice);
+if (ui.raceStatus) ui.raceStatus.addEventListener('click', openOriginSheet);
+if (ui.classStatus) ui.classStatus.addEventListener('click', openOriginSheet);
 if (ui.btnPactHp) ui.btnPactHp.addEventListener('click', () => choosePactBlessing('hp'));
 
 // Écran de départ : nom du crawler (bouton ou touche Entrée), puis révélation du cadeau de bienvenue
@@ -8348,6 +9015,7 @@ ui.btnAttackWeapon.addEventListener('click', attackWeapon);
 ui.btnAttackRanged.addEventListener('click', attackRanged);
 ui.btnAttackUnarmed.addEventListener('click', attackUnarmed);
 if (ui.btnOccasion) ui.btnOccasion.addEventListener('click', startOccasion);
+if (ui.btnClassAbility) ui.btnClassAbility.addEventListener('click', useClassAbility);
 ui.btnAttackMagic.addEventListener('click', attackMagic);
 if (ui.btnSprint) ui.btnSprint.addEventListener('click', attemptSprint);
 if (ui.btnRetreat) ui.btnRetreat.addEventListener('click', attemptRetreat);

@@ -15,6 +15,9 @@ Tailwind CDN, **aucun build step**.
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
 - `achievements.js` — chronique de run et succès (catalogue pur `ACHIEVEMENTS`, paliers, `createEmptyRunStats()`,
   indice de domination `computeDominance()`), chargé juste après `anomalies.js`
+- `origins.js` — races et classes (chantier 13, lot 0, voir `CHANTIERS.md`) : catalogue PUR (`ORIGIN_RACES`, `ORIGIN_CLASSES`,
+  `ORIGIN_SYNERGIES`, conditions de déblocage et de jouabilité) et tirage des 3 cartes d'un écran de choix `pickOriginOffers(kind, state, rng)`
+  (hasard injectable) ; les passifs de race sont branchés dans `app.js` (lot 1, section « RACE : PASSIFS », `config.origins.races`), écrans de choix de la race puis de la classe à l'étage 3 (lot 2 : `triggerOriginChoice()`, `confirmOriginChoice()`, badges `#race-status`/`#class-status`, fiche `openOriginSheet()`, `gameState.race`/`crawlerClass`, états bloquants `raceChoicePending`/`classChoicePending`), passifs de style et capacités actives des classes (lot 3 : `config.origins.classes`/`synergies`, `useClassAbility()`, `CLASS_ABILITIES`, bouton `#btn-class-ability`, `gameState.classAbilityUsed`), habillage (lot 5 : piques DeathWatch prioritaires `priority`, 6 succès, `EPITAPH_RACE_MENTIONS`, `playClassAbilityFx()`) ; chargé après `achievements.js`, avant `deathwatch.js`
 - `deathwatch.js` — émission DeathWatch (catalogue pur : présentateur, piques à trous (avec `theme`),
   répliques par thème de pique et par ton, réactions, `pickShowTaunt()`/`getShowReplyLines()`/
   `fillShowTemplate()`), chargé juste après `achievements.js`
@@ -50,7 +53,7 @@ Tailwind CDN, **aucun build step**.
 - `tests/` — voir plus bas
 - `CHANTIERS.md` — registre des chantiers (statut, décisions, point d'étape, voir « Chantiers »)
 - `NOTES_*.md` — notes détaillées d'un chantier (diagnostic, chiffres, tests, « À surveiller en playtest ») :
-  `COMPAGNONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
+  `COMPAGNONS`, `ORIGINES`, `DEBUT_DE_PARTIE`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
   chantiers antérieurs au registre `COMBAT`, `LISIBILITE_COMBAT`, `QOL_EQUILIBRAGE`
 
 ## Architecture (résumé)
@@ -211,6 +214,18 @@ Tailwind CDN, **aucun build step**.
   (0.5), pour qu'un tank pur (ATQ en baisse, DEF/PV en hausse) pèse plus lourd que le seul produit
   ATQ×PV ne le capturait, sans laisser la DEF dominer le score à elle seule. Au-delà de
   `config.eliteThreatMultiplier`, icône 💀 (jamais sur un boss, qui garde 👑 — voir `isEliteMob()`).
+  **Convention collective du Donjon** (chantier 15, lot 1, `config.earlyGame.elites`, voir `NOTES_DEBUT_DE_PARTIE.md`) : aux étages 1-2 `generateMob()` re-tire le mob tant qu'il serait une élite
+  (`isEarlyEliteFreeFloor()`, tous les chemins de génération couverts d'un coup) ; aux étages 3-4 `eliteDamageMultForFloor()` (generator.js, pure) donne ×1,3 / ×1,5 à la place de ×1,65, lu par
+  `resolveEnemyCounterAttack()` — jamais pour un chasseur de primes (ses stats sont calées sur ×1,65). `config.earlyGame.enabled = false` redonne le comportement d'avant.
+  **Remplaçant intérimaire** (lot 2) : `generateBoss()` applique `earlyInterimBossScale()` (PV et ATQ ×0,75, étages ≤ `config.earlyGame.maxFloor`, DEF/XP/récompenses inchangées) et pose `boss.isInterim` + le suffixe « (intérimaire) » au nom
+  (`baseName` inchangé : sprite et objet signature) — gardien d'escalier, boss de quartier et boss de repaire d'un coup ; `initiateCombat()` affiche une réplique d'accueil (`interimBossLine()`).
+  **Période d'essai** (lot 3) : `trialDamageMult(level, floor)` (generator.js, pure) = `1 − 0,40 × (7 − niveau)/6` aux étages ≤ `maxFloor` (aucun état sauvegardé), appliquée par `applyTrialToDamage()` (app.js) AUX MÊMES points que le buff de
+  départ — coup encaissé (`companionInterceptHit()`), pièges, saignement — pour que journal et PV restent d'accord ; badge `#trial-status` (`updateTrialStatusUI()`), message de fin à l'arrivée sur l'étage 4. Les PV épargnés
+  sont comptés (`runStats.trialAvoided`) et réajoutés à la facilité des victoires (`recordRunEvent('win')`) : la prime des chasseurs ne grimpe pas plus vite. Dans les tests, la réduction est NEUTRALISÉE par défaut (`_helpers.js`) et réactivée par `withTrial()`.
+  **Armure de scénario** (lot 4) : `applyPlotArmor()` (app.js), appelée par `applyPlayerDamage()` AVANT `applyRaceLastStand()` (l'Increvable du Cafard reste disponible : à 1 PV aucun des deux ne rejoue) — aux étages ≤ `maxFloor`, le premier coup mortel de chaque étage
+  (`gameState.plotArmorFloor`, sauvegardé, ancienne sauvegarde → 0) laisse `plotArmor.leaveHp` PV, boss compris ; en combat, le reste du tour ennemi est absorbé (`status.plotShield`, éteint par `tryPlayerAction()` et aux fins/débuts de combat). `applyPlayerDamage()` renvoie désormais
+  les PV réellement perdus et les deux ripostes de combat (mob, `executeBossStrike()`) journalisent ce montant. `recordRunEvent('plotArmor')` → `runStats.plotArmorUses`. Interrupteur propre `plotArmor.enabled`, neutralisé par défaut dans les tests (`withPlotArmor()`).
+  **Habillage** (lot 5) : piques DeathWatch `trial`/`trialEnd`/`plotArmor`/`interim` (champs `essai`, `essaiPct`, `finEssai`, `scenario`, `interimKills` de `buildShowContext()`), succès `plot_armor`/`interim_slain` (`runStats.interimKills`), et `announceEliteConventionEnd()` (message unique à la première élite, `gameState.eliteConventionEnded`).
 - **Scaling des dégâts mobs** (chantier "rework combat", voir `NOTES_COMBAT.md` pour le détail des
   valeurs et un écart signalé sur le critère d'acceptation) : `config.mobDamageScaling` remplace
   l'ancien `floorScaling.atk` pour les mobs — `getFloorScaling()` (generator.js) calcule désormais
@@ -861,20 +876,9 @@ Tailwind CDN, **aucun build step**.
 2. `node --check fichier.js` avant tout commit.
 3. Tester avant de pousser (voir `tests/` ci-dessous) — étendre les fichiers existants, ne pas les
    recréer de zéro.
-4. Incrémenter le suffixe `?v=N` sur tous les `<script>` d'`index.html` à chaque changement d'un `.js`.
+4. Incrémenter le suffixe `?v=N` sur tous les `<script>` d'`index.html` à chaque changement d'un `.js` (il ne fait que croître, jamais recalé vers le bas : un navigateur pourrait resservir un fichier en cache).
 5. Un correctif d'équilibrage (stats, taux, formules) se propose en LISTE à valider — jamais appliqué
    directement sans validation explicite.
-6. **Versioning (à chaque merge de PR)** : incrémenter `APP_VERSION` (`app.js`), mettre à jour le
-   `?v=` de TOUS les `<script>` d'`index.html` au même nombre (convention 4 ci-dessus reste valable
-   pour les changements intermédiaires hors merge), puis créer un tag git `v<APP_VERSION.pr>` sur le
-   commit de merge et une GitHub Release portant le même numéro. Non automatisé pour l'instant (pas de
-   script de release) — à faire à la main à chaque merge.
-   **Compteur unique depuis la PR #25** (choix de l'utilisateur) : `APP_VERSION.pr`, le tag, la release et
-   `package.json` valent le numéro de la dernière PR mergée (33 : chantier 12 « villes explorables »). Le
-   `?v=` d'`index.html` ne peut plus suivre ce numéro : les valeurs jusqu'à 34 ont déjà servi (entre deux
-   merges, convention 4) — il ne fait donc que croître (45 à la PR #33), jamais recalé vers le bas,
-   sans quoi un navigateur pourrait resservir un fichier gardé en cache sous une ancienne valeur. En cas de
-   doute sur iPhone, vider le cache du site.
 
 ## Tests (`/tests`, deux vitesses)
 - `tests/test_stub.js` — stub DOM minimal pour exécuter le jeu sous Node. `tests/load_game.js` —
@@ -889,13 +893,15 @@ Tailwind CDN, **aucun build step**.
 - `npm run sim:items` (`tests/tools/item-curve.js`, outil de calibrage, jamais lancé par la CI) :
   répartition des raretés par étage et source, courbe de puissance selon l'équipement, valeur marchande
   — à relancer avant toute retouche de `itemBalance`/`itemRarities`.
+- `npm run sim:early [n]` (`tests/tools/early-curve.js`, outil de calibrage, jamais lancé par la CI) : coût d'un combat en début de partie (PV perdus, mort, boss) avant/après le paquet `config.earlyGame`
+  (chantier 15, voir `NOTES_DEBUT_DE_PARTIE.md`) — à relancer avant toute retouche de ce bloc ou du scaling des mobs aux étages 1-6.
 - **Rapide** (`npm test`, quelques secondes) : à lancer avant CHAQUE push. `tests/regression.test.js`
   est un AGRÉGATEUR (depuis la Tâche 2 du chantier "fiabilisation" — l'ancien fichier monolithique
   faisait ~172 Ko) : il ne fait que `require()` chaque module de `tests/regression/*.js`, regroupés
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`, `origin-choice.js`, `classes.js`, `crawler-races.js`, `origins-flavor.js`, `early-game.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests

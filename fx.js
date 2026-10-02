@@ -113,7 +113,7 @@ function fxArcPoint(from, to, arc, p) {
 
 // --- Positions dans la scène -----------------------------------------------------------------------------
 function fxMobSprite() { return resolveMobSprite(gameState.currentEnemy); }
-function fxMobX() { return distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance); }
+function fxMobX() { return distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance, crawlerFrontExtent()); }
 function fxMobHitPoint() { return [fxMobX() + 6, SCENE_GROUND_Y + fxMobSprite().top * 0.55]; }
 function fxMobFront() { return [fxMobX() + 14, SCENE_GROUND_Y + fxMobSprite().top * 0.55]; }
 function fxCrawlerHitPoint() { return [CRAWLER_X - 4, SCENE_GROUND_Y - 50]; }
@@ -695,6 +695,23 @@ function playPlayerAttackFx(kind, opts, onImpact) {
     fx.start = () => { if (hold) fxHoldVitals('enemy', opts.heldEnemyHp); };
     fx.impact = () => { if (hold) fxReleaseVitals('enemy'); };
     runFx('crawler', fx, onImpact);
+}
+
+// Spécification PURE de l'effet d'une capacité de classe SANS coup porté (chantier 13) : éclat sur le crawler lui-même, réutilisant le style
+// « self » des sorts utilitaires. Les capacités qui frappent (Uppercut, Fendre, Tir de barrage) jouent l'effet de leur attaque.
+const CLASS_ABILITY_FX = {
+    occultist: { style: 'self', color: '#c084fc', impact: 'shock' },
+    trickster: { style: 'self', color: '#a78bfa', impact: 'splash' },
+    punchingBag: { style: 'self', color: '#60a5fa', impact: 'smash' }
+};
+function classAbilityFxSpec(key) {
+    return CLASS_ABILITY_FX[key] || null;
+}
+function playClassAbilityFx(key) {
+    const spec = classAbilityFxSpec(key);
+    if (!spec || !fxAnimated()) return;
+    renderScene('combat');
+    runFx('crawler', fxPlayerSelfSpell(spec, fxReducedMotion()), null);
 }
 
 function playSpellBackfireFx() {

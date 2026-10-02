@@ -168,7 +168,7 @@ function freshWithGift(type) {
         assert(saved.starterBuff === 'desperate', "Sauvegarde : le buff est écrit avec le crawler");
         delete saved.starterBuff; // ancienne sauvegarde, d'avant le chantier 14
         store[saveKeyForName('Buffy')] = JSON.stringify(saved);
-        gameState.starterBuff = null;
+        gameState.starterBuff = 'desperate'; // reste en mémoire d'un autre crawler : ne doit jamais fuiter dans la sauvegarde ancienne
         restoreSaveForName('Buffy');
         assert(gameState.starterBuff === null, "Ancienne sauvegarde sans le champ : jamais rétro-activée");
         saved.starterBuff = 'boxer';

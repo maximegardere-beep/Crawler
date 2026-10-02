@@ -65,7 +65,7 @@ function applyFloorScaling(mob, floor) {
 // ci-dessous — voir LABYRINTHE dans anomalies.js (mobs rencontrés dans le quartier de l'escalier
 // plus susceptibles d'être élite quand cette anomalie est active), passé par app.js au moment de
 // l'encounter, jamais lu ici directement depuis gameState.
-function generateMob(districtName, eliteBonus = 0) {
+function generateMob(districtName, eliteBonus = 0, _redraw = 0) {
     // 1. Récupération du quartier et d'un nom de monstre autorisé dans ce quartier
     const district = districts[districtName];
     if (!district || !district.mobNames || district.mobNames.length === 0) {
@@ -172,7 +172,36 @@ function generateMob(districtName, eliteBonus = 0) {
     // computeThreatMultiplier() juste en dessous.
     finalMob.threatMultiplier = computeThreatMultiplier(finalMob.atk, finalMob.hp, finalMob.def, preModifierPower, preModifierDef);
 
+    // Convention collective du Donjon (chantier 15) : aucune élite aux étages 1-2 — le mob est re-tiré tant qu'il en serait une
+    // (même seuil que isEliteMob() : `>=`). Le plafond de tentatives n'est qu'un garde-fou : à ~7 % d'élites, 20 échecs de suite n'arrivent pas.
+    if (_redraw < EARLY_ELITE_REDRAW_LIMIT && isEarlyEliteFreeFloor(typeof gameState !== 'undefined' ? gameState.currentFloor : 1)
+        && finalMob.threatMultiplier >= config.eliteThreatMultiplier) {
+        return generateMob(districtName, eliteBonus, _redraw + 1);
+    }
+
     return finalMob;
+}
+
+// ==========================================
+// CONVENTION COLLECTIVE DU DONJON (chantier 15, lot 1 — voir NOTES_DEBUT_DE_PARTIE.md)
+// ==========================================
+// Le paquet de début de partie vit dans config.earlyGame (app.js) ; `enabled: false` redonne le jeu d'avant.
+const EARLY_ELITE_REDRAW_LIMIT = 20;
+
+// Étage sans aucune élite (« le Syndicat des Monstres refuse toute promotion avant l'ancienneté requise »).
+function isEarlyEliteFreeFloor(floor) {
+    const eg = typeof config !== 'undefined' ? config.earlyGame : null;
+    return !!(eg && eg.enabled && eg.elites && floor <= eg.elites.freeFloors);
+}
+
+// Multiplicateur de dégâts d'une élite à cet étage : rampe de la Convention collective (config.earlyGame.elites.damageRamp)
+// aux étages qu'elle nomme, sinon le multiplicateur normal (config.mobDamageScaling.eliteDamageMult). Pure.
+function eliteDamageMultForFloor(floor) {
+    const base = config.mobDamageScaling.eliteDamageMult;
+    const eg = config.earlyGame;
+    if (!eg || !eg.enabled || !eg.elites || !eg.elites.damageRamp) return base;
+    const ramp = eg.elites.damageRamp[floor];
+    return ramp !== undefined ? ramp : base;
 }
 
 // Comparé à config.eliteThreatMultiplier côté app.js pour décider de l'affichage de l'icône 💀 : un
@@ -284,9 +313,35 @@ function generateBoss(districtName) {
         boss.atk = Math.max(1, Math.round(boss.atk * gameState.anomalyEffects.mobAtkMult));
     }
 
+    // Remplaçant intérimaire (chantier 15, lot 2) : aux étages du « tutoriel », le patron est en congé et son stagiaire reçoit à sa place —
+    // PV et ATQ réduits (DEF, XP et récompenses inchangées ; `baseName` inchangé pour le sprite et l'objet signature).
+    const interim = earlyInterimBossScale(typeof gameState !== 'undefined' ? gameState.currentFloor : 1);
+    if (interim) {
+        boss.hp = Math.max(1, Math.round(boss.hp * interim.hpMult));
+        boss.atk = Math.max(1, Math.round(boss.atk * interim.atkMult));
+        boss.isInterim = true;
+        boss.name = `${boss.name} (intérimaire)`;
+    }
+
     boss.isGenerated = true;
     boss.modifiersApplied = []; // Pas de modificateurs aléatoires sur un boss : liste vide pour l'UI
     return boss;
+}
+
+// Période d'essai (chantier 15, lot 3) : multiplicateur de dégâts subis selon le niveau et l'étage (1 = aucun effet). −startReduction au niveau 1,
+// dégressif linéaire jusqu'à 0 au niveau fadeLevel ; arrêt net au-delà de config.earlyGame.maxFloor. Dérivé du niveau et de l'étage : aucun état sauvegardé. Pure.
+function trialDamageMult(level, floor) {
+    const eg = typeof config !== 'undefined' ? config.earlyGame : null;
+    if (!eg || !eg.enabled || !eg.trial || floor > eg.maxFloor || level >= eg.trial.fadeLevel) return 1;
+    const lvl = Math.max(1, level);
+    return 1 - eg.trial.startReduction * (eg.trial.fadeLevel - lvl) / (eg.trial.fadeLevel - 1);
+}
+
+// Multiplicateurs PV / ATQ d'un boss intérimaire à cet étage (config.earlyGame.interimBoss, étages ≤ maxFloor), ou null. Pure.
+function earlyInterimBossScale(floor) {
+    const eg = typeof config !== 'undefined' ? config.earlyGame : null;
+    if (!eg || !eg.enabled || !eg.interimBoss || floor > eg.maxFloor) return null;
+    return { hpMult: eg.interimBoss.hpMult, atkMult: eg.interimBoss.atkMult };
 }
 
 // ==========================================

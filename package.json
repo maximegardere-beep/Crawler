@@ -8,6 +8,7 @@
     "test:long": "node tests/long_playthrough.js",
     "test:all": "npm test && npm run test:long",
     "sim:items": "node tests/tools/item-curve.js",
-    "sim:floors": "node tests/tools/floor-sim.js"
+    "sim:floors": "node tests/tools/floor-sim.js",
+    "sim:early": "node tests/tools/early-curve.js"
   }
 }

@@ -7,6 +7,16 @@ require('../test_stub.js');
 const { loadGame } = require('../load_game.js');
 loadGame();
 
+// Chantier 15 : la Période d'essai (−40 % de dégâts subis au niveau 1, étages 1-3) fausserait tous les tests qui mesurent des dégâts exacts avec le crawler
+// de départ (niveau 1, étage 1) — elle est donc NEUTRALISÉE par défaut ici (réduction nulle) et n'est réactivée que par `withTrial()`, dans tests/regression/early-game.js.
+// Les valeurs validées restent lues sur `EARLY_GAME_TRIAL_DEFAULTS` (copie prise juste après le chargement du jeu).
+const EARLY_GAME_TRIAL_DEFAULTS = Object.assign({}, config.earlyGame.trial);
+config.earlyGame.trial.startReduction = 0;
+function withTrial(fn) {
+    config.earlyGame.trial.startReduction = EARLY_GAME_TRIAL_DEFAULTS.startReduction;
+    try { return fn(); } finally { config.earlyGame.trial.startReduction = 0; }
+}
+
 // Chantier "lisibilité combat" : le séquenceur de tour (runCombatBeats() dans app.js) espace ses
 // étapes via setTimeout plutôt que Promise/async-await (voir NOTES_COMBAT.md — une vraie Promise
 // diffère TOUJOURS sa continuation en microtâche, même résolue en synchrone, ce qu'aucun stub ne
@@ -89,6 +99,19 @@ function resetTransientState() {
     gameState.shopChoicePending = false;
     gameState.pendingShopCityId = null;
     gameState.starterBuff = null; // Buff de départ (chantier 14)
+    gameState.race = null; // Race (chantier 13) : aucune
+    gameState.crawlerClass = null; // Classe (chantier 13, lot 2)
+    gameState.classAbilityUsed = false; // Capacité de classe (chantier 13, lot 3)
+    gameState.raceChoicePending = false; // Choix de race/classe à l'étage 3 (chantier 13, lot 2)
+    gameState.classChoicePending = false;
+    gameState.pendingOriginOffers = null;
+    gameState.pendingPactAfterOrigin = false;
+    hideOriginOverlays();
+    gameState.raceLastStandFloor = 0;
+    gameState.plotArmorFloor = 0;
+    gameState.eliteConventionEnded = true; // le message de fin de la Convention n'est testé que par early-game.js
+    gameState.maxMana = 100;
+    gameState.maxInventory = config.inventory.maxEquipment;
     gameState.pendingArcadeCityId = null; // Salle de jeux (V4)
     gameState.arcadeSession = null;
     gameState.lairChoicePending = false;
@@ -115,4 +138,11 @@ function resetTransientState() {
     if (ui.gameOverOverlay) ui.gameOverOverlay.classList.add('hidden');
 }
 
-module.exports = { assert, resetTransientState, counts };
+// Même isolation pour l'Armure de scénario (un coup mortel aux étages 1-3 laisse 1 PV) : les tests de mort (Increvable, désamorçage raté...) restent valables ; réactivée par `withPlotArmor()`.
+config.earlyGame.plotArmor.enabled = false;
+function withPlotArmor(fn) {
+    config.earlyGame.plotArmor.enabled = true;
+    try { return fn(); } finally { config.earlyGame.plotArmor.enabled = false; }
+}
+
+module.exports = { assert, resetTransientState, counts, withTrial, withPlotArmor, EARLY_GAME_TRIAL_DEFAULTS };

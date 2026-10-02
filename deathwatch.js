@@ -24,7 +24,10 @@ const SHOW_TONES = [
 // Piques à trous. `when(ctx)` = déclencheur (absent = pique générique, de repli) ; `theme` = famille de
 // répliques du crawler (SHOW_REPLIES), pour que la réponse rebondisse sur la pique. Trous disponibles :
 // {{crawler}} {{etage}} {{fuites}} {{degats}} {{mobs}} {{pieges}} {{sortsRates}} {{objet}}
-// {{compagnon}} {{prime}} {{succes}} {{niveau}} {{or}} {{mainsNues}}.
+// {{compagnon}} {{prime}} {{succes}} {{niveau}} {{or}} {{mainsNues}} {{race}} {{classe}} {{synergieTitre}} {{essaiPct}}.
+// `priority` (chantier 13) : à l'arrivée sur l'étage 3, les piques sur la race, la classe ou leur synergie passent avant toutes les autres
+// (la synergie avant la race et la classe, qui se partagent le tirage) ; absent = 0. Chantier 15 : les piques sur l'Armure de scénario, le Remplaçant intérimaire
+// et la fin de la Période d'essai (étage 4) sont rares et passent avant les piques ordinaires ; celle sur la Période d'essai, elle, reste de priorité 0 (sinon elle étoufferait toutes les autres aux étages 2-3).
 const SHOW_TAUNTS = [
     // Fuites
     { id: 'flee1', theme: 'flee', when: c => c.fuites >= 3, text: "{{fuites}} fuites depuis le début, {{crawler}}. Vous battez le record de l'émission… en course à pied." },
@@ -64,6 +67,33 @@ const SHOW_TAUNTS = [
     { id: 'gambler1', theme: 'gambler', when: c => c.mises >= 100, text: "{{mises}} PO perdus à la salle de jeux, {{crawler}}. Nos actionnaires vous remercient. La salle est à nous, bien sûr." },
     { id: 'gambler2', theme: 'gambler', when: c => c.mises >= 100, text: "On me souffle que vous avez laissé {{mises}} PO aux bornes d'arcade. La maison gagne toujours, {{crawler}}. La maison, c'est nous." },
     { id: 'boxer', theme: 'boxer', when: c => c.mainsNues >= 5, text: "{{mainsNues}} monstres tués à mains nues. Nos sponsors en armes sont vexés, {{crawler}}." },
+    // Début de partie (chantier 15) : Période d'essai (`essai`, étages 2-3 tant qu'elle protège), sa fin (`finEssai`, arrivée à l'étage 4), Armure de scénario consommée sur l'étage qui vient de finir (`scenario`), Remplaçant intérimaire vaincu (`interimKills`).
+    { id: 'trial1', theme: 'trial', when: c => c.essai, text: "Vous êtes toujours en période d'essai, {{crawler}} : −{{essaiPct}} % de dégâts subis, c'est la clause 7 de votre contrat. Profitez-en, elle n'est pas renouvelable." },
+    { id: 'trial2', theme: 'trial', when: c => c.essai, text: "Niveau {{niveau}}, étage {{etage}}, et déjà un contrat d'intégration ! Les monstres ont reçu la consigne de frapper doucement jusqu'à confirmation de votre poste, {{crawler}}." },
+    { id: 'trialEnd1', theme: 'trialEnd', priority: 2, when: c => c.finEssai, text: "Étage {{etage}} : votre période d'essai est terminée, {{crawler}}. Félicitations, vous êtes CDI. Plus de protection, plus de ménagement, et le préavis est de zéro seconde." },
+    { id: 'trialEnd2', theme: 'trialEnd', priority: 2, when: c => c.finEssai, text: "La direction a le plaisir de vous confirmer à votre poste, {{crawler}}. En contrepartie, les monstres sont autorisés à frapper à pleine puissance. C'est dans les petites lignes." },
+    { id: 'plot1', theme: 'plotArmor', priority: 1, when: c => c.scenario, text: "Un coup mortel, et vous voilà à 1 PV, {{crawler}}. Notre scénariste jure n'y être pour rien. Notre scénariste ment." },
+    { id: 'plot2', theme: 'plotArmor', priority: 1, when: c => c.scenario, text: "Vous auriez dû mourir à l'étage précédent. Le public a hurlé, les paris étaient pris, et la production a… glissé une clause. Ne le répétez à personne, {{crawler}}." },
+    { id: 'interim1', theme: 'interim', priority: 1, when: c => c.interimKills >= 1 && c.etage <= 4, text: "Vous avez battu un remplaçant intérimaire, {{crawler}}. Le vrai boss, lui, était en RTT. Ce n'est pas très glorieux, mais nos stagiaires sont inconsolables." },
+    { id: 'interim2', theme: 'interim', priority: 1, when: c => c.interimKills >= 1 && c.etage <= 4, text: "Le syndicat des boss dépose une plainte : vous avez licencié un intérimaire sans préavis, {{crawler}}. La production s'en lave les mains, elle l'avait recruté la veille." },
+    // Origine (chantier 13) : seulement juste après le choix de race et de classe (`origineFraiche`), prioritaires sur tout le reste.
+    { id: 'syn_troll_brawler', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'troll+brawler', text: "« {{synergieTitre}} » ! C'est écrit sur votre carte de visite, {{crawler}}. Et ça cogne aussi fort qu'une réunion qui aurait pu être un courriel." },
+    { id: 'syn_elf_occultist', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'elf+occultist', text: "« {{synergieTitre}} » ! Les sorts sont gratuits, {{crawler}}, mais le fauteuil en velours reste en supplément." },
+    { id: 'syn_goblin_trickster', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'goblin+trickster', text: "« {{synergieTitre}} » ! Vous régnez sur trois égouts et un panneau « sens interdit », {{crawler}}. Un règne honorable." },
+    { id: 'syn_dwarf_punchingbag', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'dwarf+punchingBag', text: "« {{synergieTitre}} » ! On cherche encore le pont-levis, {{crawler}}, mais la façade tient bon." },
+    { id: 'race_human', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'human', text: "Humain·e « moyen·ne mais motivé·e ». Chez nous, on appelle ça un figurant, {{crawler}}. Motivé, c'est vrai." },
+    { id: 'race_ghoul', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'ghoul', text: "Une {{race}} ! {{crawler}}, vous aviez déjà cette mine avant, ou c'est la race qui parle ?" },
+    { id: 'race_goblin', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'goblin', text: "Un {{race}} de caniveau ! Chaque saison, l'un d'eux promet de ne pas voler la caméra. Je tiens les paris, {{crawler}}." },
+    { id: 'race_troll', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'troll', text: "Un {{race}} de bureau ! La régie prévoit déjà une chaise renforcée et une pause café à 10 h pile, {{crawler}}." },
+    { id: 'race_elf', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'elf', text: "Un {{race}} de salon ! Les oreilles pointues sont validées par notre service juridique, {{crawler}}. Le peignoir reste facultatif." },
+    { id: 'race_dwarf', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'dwarf', text: "Un {{race}} de chantier ! Casque obligatoire, {{crawler}}, et interdiction de crier dans le donjon avant 7 h." },
+    { id: 'race_roach', theme: 'originRace', priority: 2, when: c => c.origineFraiche && c.raceKey === 'roach', text: "Un {{race}} mutant ! On a déjà fait la blague de l'écraser. On ne la refera pas, {{crawler}}. Enfin, pas tout de suite." },
+    { id: 'class_brawler', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'brawler', text: "{{classe}} ! À mains nues, en plus. Notre assureur a quitté le plateau en pleurant, {{crawler}}." },
+    { id: 'class_duelist', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'duelist', text: "{{classe}} ! Vous savez que le donjon ne distribue pas d'épées gratuites, {{crawler}} ? Elles sont chères, et elles cassent." },
+    { id: 'class_gunslinger', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'gunslinger', text: "{{classe}} ! Petit conseil de la production : viser, c'est mieux que prier, {{crawler}}." },
+    { id: 'class_occultist', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'occultist', text: "{{classe}} ! Sans chapiteau, sans lapin, mais avec des sourcils à sacrifier. Le spectacle est lancé, {{crawler}}." },
+    { id: 'class_trickster', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'trickster', text: "Un {{classe}} ! Rassurez-vous, {{crawler}} : vos poches sont déjà vides, c'est nous qui nous en sommes chargés." },
+    { id: 'class_punchingbag', theme: 'originClass', priority: 2, when: c => c.origineFraiche && c.classKey === 'punchingBag', text: "{{classe}} ! Un choix de carrière courageux, {{crawler}}. Les monstres vous envoient leurs remerciements." },
     // Génériques (repli)
     { id: 'gen1', theme: 'odds', text: "Bienvenue à l'étage {{etage}}, {{crawler}} ! Nos analystes vous donnent 12 % de chances de survie. C'était avant votre arrivée." },
     { id: 'gen2', theme: 'why', text: "{{crawler}}, tout le monde se demande : pourquoi vous ? Et surtout, pourquoi encore vous ?" },
@@ -106,6 +136,30 @@ const SHOW_REPLIES = {
         retort: ["« {{pvPct}} % de PV, c'est toujours plus que votre part d'audience. »", "« Ma mine affreuse, au moins, n'a pas besoin de trois maquilleurs. »"],
         provoke: ["« Pariez contre moi. J'adore faire perdre de l'argent aux gens. »", "« À moitié mort, je reste plus vivant que votre scénario. »"],
         insult: ["« Même à {{pvPct}} %, j'ai assez de forces pour vous arracher cette moumoute. »", "« Ouvrez les paris sur votre carrière, Chip. Elle est plus mal en point que moi. »"]
+    },
+    trial: {
+        polite: ["« Merci, Chip. Je lirai mon contrat dès que quelqu'un aura le temps de me le donner. »", "« Une période d'essai, c'est aimable. Je promets de ne pas mourir avant la fin. »"],
+        retort: ["« Chez vous, même la mort passe par les ressources humaines, Chip. »", "« −{{essaiPct}} % de dégâts, mais 100 % de vos blagues. Je préférerais l'inverse. »"],
+        provoke: ["« Gardez votre clause. Je prends les coups à pleine puissance dès demain. »", "« Un contrat d'intégration ? Faites-moi plutôt signer pour le boss. »"],
+        insult: ["« Votre contrat, Chip, je le plie en quatre et je vous le range quelque part. »", "« Les monstres frappent doucement ? Comme votre humour, alors. Aucune peine à l'encaisser. »"]
+    },
+    trialEnd: {
+        polite: ["« Merci de votre confiance, Chip. Je tâcherai de la mériter jusqu'à l'étage suivant. »", "« CDI… Ça veut dire que j'ai droit à des congés payés ? »"],
+        retort: ["« Ah, bien sûr : la confiance, juste avant l'addition. »", "« Un CDI sans mutuelle. Votre sens du paquet-cadeau est remarquable. »"],
+        provoke: ["« Plus de protection ? Parfait. Je n'en avais pas besoin pour vous. »", "« Qu'ils frappent fort. Je commence à m'ennuyer. »"],
+        insult: ["« Gardez votre CDI, Chip. Moi, je vous offre un licenciement pour faute lourde. »", "« Le préavis est de zéro seconde ? Alors la porte est par là, Chip. »"]
+    },
+    plotArmor: {
+        polite: ["« Merci au scénariste, qui qu'il soit. Je lui dois un café. »", "« Un petit coup de pouce, Chip ? J'espère que ce n'est pas facturé. »"],
+        retort: ["« Un scénariste qui m'aide ? Il doit manquer d'idées pour le final. »", "« 1 PV, c'est au moins 1 de plus que votre dignité. »"],
+        provoke: ["« La prochaine fois, laissez-moi mourir. Le public aura un meilleur épisode. »", "« Dites à votre scénariste que j'ai tout vu. Et que j'attends la suite. »"],
+        insult: ["« Si votre scénariste m'aime autant, pourquoi vous écrit-il, vous, Chip ? »", "« Un scénariste qui triche pour moi, un présentateur qui lit mal : c'est vous le maillon faible. »"]
+    },
+    interim: {
+        polite: ["« Je ferai porter des fleurs à sa famille. Enfin, à son agence d'intérim. »", "« Il avait un joli badge, Chip. Je le garderai en souvenir. »"],
+        retort: ["« Si le vrai boss est en RTT, il peut y rester. J'ai de quoi m'occuper. »", "« Un remplaçant, un stagiaire : vous avez de la suite dans les idées, Chip. »"],
+        provoke: ["« Dites au vrai boss que je viendrai le chercher à son retour de vacances. »", "« Envoyez le titulaire, cette fois. Je prends mon tour. »"],
+        insult: ["« Même vos intérimaires ont plus de classe que vous, Chip. Heureusement, c'est lui qui est mort. »", "« Un intérimaire, ça se remplace. Vous aussi, Chip, et sans offre d'emploi. »"]
     },
     easy: {
         polite: ["« Je m'excuse auprès des monstres. Ils méritaient mieux. »", "« Désolé pour l'ennui, Chip. J'essaierai de saigner un peu la prochaine fois. »"],
@@ -209,6 +263,24 @@ const SHOW_REPLIES = {
         provoke: ["« À la fin de l'étage {{etage}}, tout le monde saura qui. »", "« Retenez bien mon nom : c'est celui qui finira votre donjon. »"],
         insult: ["« Qui ? Le type qui va vous faire virer, Chip. »", "« Quand je sortirai, c'est vous que plus personne ne reconnaîtra. »"]
     },
+    originRace: {
+        polite: ["« {{race}}, oui. Je vous prie de m'excuser si je ne fais pas honneur à l'étiquette, Chip. »", "« Merci, Chip. J'essaierai de ne pas décevoir l'espèce. »"],
+        retort: ["« {{race}} peut-être, mais au moins, moi, ce n'est pas une perruque. »", "« Chaque race a ses défauts, Chip. La vôtre s'appelle « présentateur ». »"],
+        provoke: ["« Dites au public de parier sur ma race : {{race}}, cote en hausse. »", "« Je suis {{race}} et fier(e) de l'être. Vous, vous êtes quoi, sous le fond de teint ? »"],
+        insult: ["« {{race}}, c'est déjà plus qu'une personnalité. Vous, Chip, vous avez quoi ? »", "« Si je suis {{race}}, vous êtes quoi, Chip ? Une erreur de casting ? »"]
+    },
+    originClass: {
+        polite: ["« {{classe}}, c'est le métier que je voulais, Chip. Merci de l'avoir remarqué. »", "« Je fais de mon mieux, comme tout bon {{classe}}. »"],
+        retort: ["« Un {{classe}} a de la méthode, Chip. Vous, vous avez un prompteur. »", "« {{classe}}, oui. Ça demande moins de maquillage que votre job. »"],
+        provoke: ["« Dites-le aux monstres : un {{classe}} arrive, et il a rendez-vous. »", "« Regardez bien, Chip. Je suis {{classe}}, pas figurant. »"],
+        insult: ["« Je suis {{classe}} : je sais où frapper. Vous avez de la chance que ça ne soit pas dans votre loge, Chip. »", "« Les {{classe}}, ça tient debout tout seul. Ça ne s'accroche pas à un prompteur, Chip. »"]
+    },
+    originSynergy: {
+        polite: ["« Merci, Chip. « {{synergieTitre}} », ça sonnera très bien sur ma pierre tombale. »", "« Un titre honorifique ! Je n'ai pas de discours préparé, Chip. »"],
+        retort: ["« « {{synergieTitre}} », c'est un vrai titre. Le vôtre est affiché sur une porte de placard. »", "« Mon titre, Chip, il est mérité. Le vôtre vient d'un tirage au sort. »"],
+        provoke: ["« « {{synergieTitre}} » : retenez-le, Chip, ça va faire du bruit dans le donjon. »", "« Prenez des notes, la régie. « {{synergieTitre}} », c'est le début de ma légende. »"],
+        insult: ["« « {{synergieTitre}} » contre « présentateur fatigué » : devinez qui l'emporte, Chip. »", "« Mon titre est plus long que votre carrière, Chip. Et plus solide. »"]
+    },
     scale: {
         polite: ["« Disons 5, Chip. Un bon 5. »", "« À peu près au milieu. C'est confortable. »"],
         retort: ["« Moins que votre émission. Elle sent le cadavre depuis des saisons. »", "« Et sur la même échelle, votre carrière est à combien ? »"],
@@ -247,7 +319,10 @@ const SHOW_REACTIONS = {
 // déclencheur correspond à la partie, sinon une générique.
 function pickShowTaunt(ctx, rng = Math.random) {
     const specific = SHOW_TAUNTS.filter(t => t.when && safeShowCheck(t, ctx));
-    const pool = specific.length > 0 ? specific : SHOW_TAUNTS.filter(t => !t.when);
+    // `priority` : seules les piques de la priorité la plus haute restent en lice (origine à l'arrivée sur l'étage 3, chantier 13).
+    const top = specific.reduce((max, t) => Math.max(max, t.priority || 0), 0);
+    const ranked = specific.filter(t => (t.priority || 0) === top);
+    const pool = ranked.length > 0 ? ranked : SHOW_TAUNTS.filter(t => !t.when);
     return pool[Math.floor(rng() * pool.length)];
 }
 
