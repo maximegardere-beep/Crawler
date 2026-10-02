@@ -1,6 +1,6 @@
 // early-game.js — tests régression : chantier 15, rééquilibrage du début de partie (voir NOTES_DEBUT_DE_PARTIE.md).
 // Lot 0 : forme et valeurs validées de `config.earlyGame`, et garde du modèle de joueur de l'outil `npm run sim:early`
-// (les gains par niveau de gainXp() ne doivent pas dériver sans que l'outil le sache). Les lots 1 à 4 ajoutent leurs sections ici.
+// (les gains par niveau de gainXp() ne doivent pas dériver sans que l'outil le sache). Les lots 1 à 5 ajoutent leurs sections ici.
 const { assert, resetTransientState, withTrial, withPlotArmor, EARLY_GAME_TRIAL_DEFAULTS } = require('./_helpers.js');
 
 // --- Réglages validés par l'utilisateur (rounds 1 et 2) ---
@@ -345,5 +345,93 @@ const { assert, resetTransientState, withTrial, withPlotArmor, EARLY_GAME_TRIAL_
         gameState.hp = 10; lethalTrap();
         assert(gameState.hp === 0, "Cafard : troisième coup mortel du même étage -> la mort");
     });
+    resetTransientState();
+}
+
+// ===================================================================
+// Lot 5 — habillage satirique : piques DeathWatch, succès, message de fin de la Convention collective
+// ===================================================================
+{
+    const eg = config.earlyGame;
+    const captureLog = (fn) => { const lines = []; const o = logEvent; logEvent = (m) => { lines.push(String(m)); }; try { fn(); } finally { logEvent = o; } return lines; };
+    const base = { fuites: 0, degats: 0, maxHp: 100, pvPct: 100, mobs: 0, pieges: 0, sortsRates: 0, objet: null, compagnon: null, compagnonsPartis: 0, prime: 0, or: 50, etage: 2, succes: 0, niveau: 5, mainsNues: 0, parfaits: 0, mises: 0,
+        essai: false, essaiPct: 0, finEssai: false, scenario: false, interimKills: 0 };
+
+    // Catalogue : 4 thèmes, 2 piques chacun, 4 tons couverts, trous tous fournis
+    ['trial', 'trialEnd', 'plotArmor', 'interim'].forEach(th => {
+        assert(SHOW_TAUNTS.filter(t => t.theme === th).length >= 2, `DeathWatch : au moins 2 piques du thème ${th}`);
+        assert(SHOW_TONES.every(t => (SHOW_REPLIES[th][t.key] || []).length >= 2), `DeathWatch : le thème ${th} couvre les 4 tons`);
+    });
+    const fullCtx = { ...base, crawler: 'Carl', essaiPct: 30, niveau: 3, etage: 3 };
+    const themed = SHOW_TAUNTS.filter(t => ['trial', 'trialEnd', 'plotArmor', 'interim'].includes(t.theme));
+    assert(themed.every(t => !/\{\{/.test(fillShowTemplate(t.text, fullCtx))), "Piques du début de partie : tous les trous remplis");
+    assert(['trial', 'trialEnd', 'plotArmor', 'interim'].every(th => Object.values(SHOW_REPLIES[th]).every(ls => ls.every(l => !/\{\{/.test(fillShowTemplate(l, fullCtx))))), "Répliques du début de partie : tous les trous remplis");
+
+    // Sélection : priorités
+    assert(pickShowTaunt({ ...base, essai: true, essaiPct: 30, fuites: 5 }, () => 0).theme !== 'trialEnd', "Période d'essai active : pas de pique de fin d'essai");
+    const seen = new Set(); for (let i = 0; i < 20; i++) seen.add(pickShowTaunt({ ...base, essai: true, essaiPct: 30, fuites: 5 }, () => i / 20).theme);
+    assert(seen.has('trial') && seen.has('flee'), "La pique sur la Période d'essai ne supplante pas les autres (priorité 0)");
+    assert(pickShowTaunt({ ...base, etage: 4, finEssai: true, fuites: 9 }, () => 0).theme === 'trialEnd', "Étage 4 : la fin d'essai passe avant les piques ordinaires");
+    assert(pickShowTaunt({ ...base, scenario: true, fuites: 9 }, () => 0).theme === 'plotArmor', "Armure de scénario consommée : sa pique passe avant les ordinaires");
+    assert(pickShowTaunt({ ...base, interimKills: 1, etage: 2, fuites: 9 }, () => 0).theme === 'interim', "Intérimaire vaincu : sa pique passe avant les ordinaires");
+    assert(pickShowTaunt({ ...base, interimKills: 1, etage: 6 }, () => 0).theme !== 'interim', "Intérimaire vaincu mais étage 5+ : plus de pique dédiée");
+    assert(pickShowTaunt({ ...base, finEssai: true, etage: 4, scenario: true }, () => 0).theme === 'trialEnd', "Fin d'essai (priorité 2) avant l'Armure de scénario (priorité 1)");
+
+    // Contexte réel
+    resetTransientState();
+    gameState.playerName = "Carl";
+    gameState.currentFloor = 2; gameState.level = 1;
+    withTrial(() => {
+        const c = buildShowContext({});
+        assert(c.essai === true && c.essaiPct === 40 && c.finEssai === false, `Contexte étage 2 niveau 1 : essai actif, −40 % (${c.essaiPct})`);
+        gameState.currentFloor = 4;
+        const c4 = buildShowContext({});
+        assert(c4.essai === false && c4.finEssai === true, "Contexte étage 4 : essai terminé, finEssai vrai");
+    });
+    gameState.currentFloor = 3; gameState.plotArmorFloor = 2;
+    assert(buildShowContext({}).scenario === true, "Contexte : Armure de scénario consommée sur l'étage précédent");
+    gameState.plotArmorFloor = 3;
+    assert(buildShowContext({}).scenario === false, "Contexte : Armure consommée sur l'étage courant seulement : pas encore de pique");
+    gameState.plotArmorFloor = 0;
+    gameState.runStats = createEmptyRunStats(); gameState.runStats.interimKills = 2;
+    assert(buildShowContext({}).interimKills === 2, "Contexte : intérimaires vaincus");
+    // L'émission réelle, étage 3 : pique d'Armure de scénario affichée
+    gameState.currentFloor = 3; gameState.plotArmorFloor = 2; gameState.race = null; gameState.crawlerClass = null;
+    gameState.equipment.weapon = null; gameState.equipment.ranged = null; gameState.equipment.armor = null; gameState.companion = null;
+    gameState.runStats = createEmptyRunStats(); gameState.gold = 100; gameState.inventory = [];
+    { const o = Math.random; Math.random = () => 0; try { triggerShow({}); } finally { Math.random = o; } }
+    assert(gameState.pendingShow && /scénariste|clause/.test(gameState.pendingShow.text), "triggerShow() : la pique d'Armure de scénario est jouée");
+    closeShow();
+
+    // Succès
+    const plot = ACHIEVEMENTS.find(a => a.id === 'plot_armor'), interim = ACHIEVEMENTS.find(a => a.id === 'interim_slain');
+    assert(plot && interim && plot.tier === 'bronze' && interim.tier === 'bronze' && !plot.secret && !interim.secret, "Deux succès Bronze, visibles");
+    const st = createEmptyRunStats();
+    assert(!plot.check(st) && !interim.check(st), "Succès : aucun à zéro");
+    resetTransientState();
+    gameState.runStats = createEmptyRunStats();
+    recordRunEvent('plotArmor');
+    assert(plot.check(gameState.runStats) && !interim.check(gameState.runStats), "Armure de scénario consommée : succès « Le scénariste vous aime »");
+    recordRunEvent('win', { enemy: { name: 'X', isBoss: true, isInterim: true, runTrack: {} }, kind: 'weapon' });
+    assert(gameState.runStats.interimKills === 1 && interim.check(gameState.runStats), "Intérimaire vaincu : compteur et succès");
+    recordRunEvent('win', { enemy: { name: 'Y', isBoss: true, runTrack: {} }, kind: 'weapon' });
+    assert(gameState.runStats.interimKills === 1, "Un boss ordinaire ne compte pas comme intérimaire");
+
+    // Message de fin de la Convention collective : une seule fois, à la première élite d'un étage non protégé
+    const elite = (name = "Cobaye") => ({ name, baseName: name, isBoss: false, hp: 50, maxHp: 50, atk: 5, def: 1, threatMultiplier: config.eliteThreatMultiplier + 1, status: {}, ranged: false, xpReward: 1 });
+    const fire = (floor, mob) => { resetTransientState(); gameState.eliteConventionEnded = false; gameState.currentFloor = floor; return captureLog(() => initiateCombat(mob)); };
+    let lines = fire(3, elite());
+    assert(lines.filter(l => /Convention collective du Donjon/.test(l)).length === 1 && /×1,3/.test(lines.join(' ')) && /×1,65/.test(lines.join(' ')), "Première élite à l'étage 3 : message de fin de Convention avec la rampe (×1,3 puis ×1,65)");
+    assert(gameState.eliteConventionEnded === true, "Le drapeau est posé");
+    lines = captureLog(() => { gameState.inCombat = false; gameState.currentEnemy = null; initiateCombat(elite()); });
+    assert(!lines.some(l => /Convention collective du Donjon/.test(l)), "Pas de second message");
+    lines = fire(1, elite());
+    assert(!lines.some(l => /Convention collective du Donjon/.test(l)) && gameState.eliteConventionEnded === false, "Étages 1-2 : pas de message (aucune élite normalement)");
+    lines = fire(3, Object.assign(elite(), { threatMultiplier: 1 }));
+    assert(!lines.some(l => /Convention collective du Donjon/.test(l)), "Un mob ordinaire ne déclenche pas le message");
+    lines = fire(5, elite());
+    assert(lines.some(l => /Convention collective du Donjon/.test(l)) && !/Rampe de reprise/.test(lines.join(' ')), "Première élite vue plus tard (étage 5) : message sans détail de rampe");
+    config.earlyGame.enabled = false;
+    try { lines = fire(3, elite()); assert(!lines.some(l => /Convention collective du Donjon/.test(l)), "Paquet désactivé : aucun message"); } finally { config.earlyGame.enabled = true; }
     resetTransientState();
 }

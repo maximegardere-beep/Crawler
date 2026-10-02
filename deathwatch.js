@@ -24,9 +24,10 @@ const SHOW_TONES = [
 // Piques à trous. `when(ctx)` = déclencheur (absent = pique générique, de repli) ; `theme` = famille de
 // répliques du crawler (SHOW_REPLIES), pour que la réponse rebondisse sur la pique. Trous disponibles :
 // {{crawler}} {{etage}} {{fuites}} {{degats}} {{mobs}} {{pieges}} {{sortsRates}} {{objet}}
-// {{compagnon}} {{prime}} {{succes}} {{niveau}} {{or}} {{mainsNues}} {{race}} {{classe}} {{synergieTitre}}.
+// {{compagnon}} {{prime}} {{succes}} {{niveau}} {{or}} {{mainsNues}} {{race}} {{classe}} {{synergieTitre}} {{essaiPct}}.
 // `priority` (chantier 13) : à l'arrivée sur l'étage 3, les piques sur la race, la classe ou leur synergie passent avant toutes les autres
-// (la synergie avant la race et la classe, qui se partagent le tirage) ; absent = 0.
+// (la synergie avant la race et la classe, qui se partagent le tirage) ; absent = 0. Chantier 15 : les piques sur l'Armure de scénario, le Remplaçant intérimaire
+// et la fin de la Période d'essai (étage 4) sont rares et passent avant les piques ordinaires ; celle sur la Période d'essai, elle, reste de priorité 0 (sinon elle étoufferait toutes les autres aux étages 2-3).
 const SHOW_TAUNTS = [
     // Fuites
     { id: 'flee1', theme: 'flee', when: c => c.fuites >= 3, text: "{{fuites}} fuites depuis le début, {{crawler}}. Vous battez le record de l'émission… en course à pied." },
@@ -66,6 +67,15 @@ const SHOW_TAUNTS = [
     { id: 'gambler1', theme: 'gambler', when: c => c.mises >= 100, text: "{{mises}} PO perdus à la salle de jeux, {{crawler}}. Nos actionnaires vous remercient. La salle est à nous, bien sûr." },
     { id: 'gambler2', theme: 'gambler', when: c => c.mises >= 100, text: "On me souffle que vous avez laissé {{mises}} PO aux bornes d'arcade. La maison gagne toujours, {{crawler}}. La maison, c'est nous." },
     { id: 'boxer', theme: 'boxer', when: c => c.mainsNues >= 5, text: "{{mainsNues}} monstres tués à mains nues. Nos sponsors en armes sont vexés, {{crawler}}." },
+    // Début de partie (chantier 15) : Période d'essai (`essai`, étages 2-3 tant qu'elle protège), sa fin (`finEssai`, arrivée à l'étage 4), Armure de scénario consommée sur l'étage qui vient de finir (`scenario`), Remplaçant intérimaire vaincu (`interimKills`).
+    { id: 'trial1', theme: 'trial', when: c => c.essai, text: "Vous êtes toujours en période d'essai, {{crawler}} : −{{essaiPct}} % de dégâts subis, c'est la clause 7 de votre contrat. Profitez-en, elle n'est pas renouvelable." },
+    { id: 'trial2', theme: 'trial', when: c => c.essai, text: "Niveau {{niveau}}, étage {{etage}}, et déjà un contrat d'intégration ! Les monstres ont reçu la consigne de frapper doucement jusqu'à confirmation de votre poste, {{crawler}}." },
+    { id: 'trialEnd1', theme: 'trialEnd', priority: 2, when: c => c.finEssai, text: "Étage {{etage}} : votre période d'essai est terminée, {{crawler}}. Félicitations, vous êtes CDI. Plus de protection, plus de ménagement, et le préavis est de zéro seconde." },
+    { id: 'trialEnd2', theme: 'trialEnd', priority: 2, when: c => c.finEssai, text: "La direction a le plaisir de vous confirmer à votre poste, {{crawler}}. En contrepartie, les monstres sont autorisés à frapper à pleine puissance. C'est dans les petites lignes." },
+    { id: 'plot1', theme: 'plotArmor', priority: 1, when: c => c.scenario, text: "Un coup mortel, et vous voilà à 1 PV, {{crawler}}. Notre scénariste jure n'y être pour rien. Notre scénariste ment." },
+    { id: 'plot2', theme: 'plotArmor', priority: 1, when: c => c.scenario, text: "Vous auriez dû mourir à l'étage précédent. Le public a hurlé, les paris étaient pris, et la production a… glissé une clause. Ne le répétez à personne, {{crawler}}." },
+    { id: 'interim1', theme: 'interim', priority: 1, when: c => c.interimKills >= 1 && c.etage <= 4, text: "Vous avez battu un remplaçant intérimaire, {{crawler}}. Le vrai boss, lui, était en RTT. Ce n'est pas très glorieux, mais nos stagiaires sont inconsolables." },
+    { id: 'interim2', theme: 'interim', priority: 1, when: c => c.interimKills >= 1 && c.etage <= 4, text: "Le syndicat des boss dépose une plainte : vous avez licencié un intérimaire sans préavis, {{crawler}}. La production s'en lave les mains, elle l'avait recruté la veille." },
     // Origine (chantier 13) : seulement juste après le choix de race et de classe (`origineFraiche`), prioritaires sur tout le reste.
     { id: 'syn_troll_brawler', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'troll+brawler', text: "« {{synergieTitre}} » ! C'est écrit sur votre carte de visite, {{crawler}}. Et ça cogne aussi fort qu'une réunion qui aurait pu être un courriel." },
     { id: 'syn_elf_occultist', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'elf+occultist', text: "« {{synergieTitre}} » ! Les sorts sont gratuits, {{crawler}}, mais le fauteuil en velours reste en supplément." },
@@ -126,6 +136,30 @@ const SHOW_REPLIES = {
         retort: ["« {{pvPct}} % de PV, c'est toujours plus que votre part d'audience. »", "« Ma mine affreuse, au moins, n'a pas besoin de trois maquilleurs. »"],
         provoke: ["« Pariez contre moi. J'adore faire perdre de l'argent aux gens. »", "« À moitié mort, je reste plus vivant que votre scénario. »"],
         insult: ["« Même à {{pvPct}} %, j'ai assez de forces pour vous arracher cette moumoute. »", "« Ouvrez les paris sur votre carrière, Chip. Elle est plus mal en point que moi. »"]
+    },
+    trial: {
+        polite: ["« Merci, Chip. Je lirai mon contrat dès que quelqu'un aura le temps de me le donner. »", "« Une période d'essai, c'est aimable. Je promets de ne pas mourir avant la fin. »"],
+        retort: ["« Chez vous, même la mort passe par les ressources humaines, Chip. »", "« −{{essaiPct}} % de dégâts, mais 100 % de vos blagues. Je préférerais l'inverse. »"],
+        provoke: ["« Gardez votre clause. Je prends les coups à pleine puissance dès demain. »", "« Un contrat d'intégration ? Faites-moi plutôt signer pour le boss. »"],
+        insult: ["« Votre contrat, Chip, je le plie en quatre et je vous le range quelque part. »", "« Les monstres frappent doucement ? Comme votre humour, alors. Aucune peine à l'encaisser. »"]
+    },
+    trialEnd: {
+        polite: ["« Merci de votre confiance, Chip. Je tâcherai de la mériter jusqu'à l'étage suivant. »", "« CDI… Ça veut dire que j'ai droit à des congés payés ? »"],
+        retort: ["« Ah, bien sûr : la confiance, juste avant l'addition. »", "« Un CDI sans mutuelle. Votre sens du paquet-cadeau est remarquable. »"],
+        provoke: ["« Plus de protection ? Parfait. Je n'en avais pas besoin pour vous. »", "« Qu'ils frappent fort. Je commence à m'ennuyer. »"],
+        insult: ["« Gardez votre CDI, Chip. Moi, je vous offre un licenciement pour faute lourde. »", "« Le préavis est de zéro seconde ? Alors la porte est par là, Chip. »"]
+    },
+    plotArmor: {
+        polite: ["« Merci au scénariste, qui qu'il soit. Je lui dois un café. »", "« Un petit coup de pouce, Chip ? J'espère que ce n'est pas facturé. »"],
+        retort: ["« Un scénariste qui m'aide ? Il doit manquer d'idées pour le final. »", "« 1 PV, c'est au moins 1 de plus que votre dignité. »"],
+        provoke: ["« La prochaine fois, laissez-moi mourir. Le public aura un meilleur épisode. »", "« Dites à votre scénariste que j'ai tout vu. Et que j'attends la suite. »"],
+        insult: ["« Si votre scénariste m'aime autant, pourquoi vous écrit-il, vous, Chip ? »", "« Un scénariste qui triche pour moi, un présentateur qui lit mal : c'est vous le maillon faible. »"]
+    },
+    interim: {
+        polite: ["« Je ferai porter des fleurs à sa famille. Enfin, à son agence d'intérim. »", "« Il avait un joli badge, Chip. Je le garderai en souvenir. »"],
+        retort: ["« Si le vrai boss est en RTT, il peut y rester. J'ai de quoi m'occuper. »", "« Un remplaçant, un stagiaire : vous avez de la suite dans les idées, Chip. »"],
+        provoke: ["« Dites au vrai boss que je viendrai le chercher à son retour de vacances. »", "« Envoyez le titulaire, cette fois. Je prends mon tour. »"],
+        insult: ["« Même vos intérimaires ont plus de classe que vous, Chip. Heureusement, c'est lui qui est mort. »", "« Un intérimaire, ça se remplace. Vous aussi, Chip, et sans offre d'emploi. »"]
     },
     easy: {
         polite: ["« Je m'excuse auprès des monstres. Ils méritaient mieux. »", "« Désolé pour l'ennui, Chip. J'essaierai de saigner un peu la prochaine fois. »"],

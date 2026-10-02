@@ -42,9 +42,9 @@ function openShow(lastFloor = {}) {
     assert(pickShowTaunt({ ...base, objet: 'Rideau de Douche' }, () => 0).id === 'joke1', "Objet ridicule porté : pique dédiée");
     assert(pickShowTaunt({ ...base, parfaits: 6 }, () => 0).theme === 'perfect' && pickShowTaunt({ ...base, mises: 120 }, () => 0).theme === 'gambler', "Mini-jeux : piques sur les gestes parfaits et les pertes à la salle de jeux");
     assert(pickShowTaunt({ ...base, parfaits: 4, mises: 99 }, () => 0).when === undefined, "Mini-jeux : sous les seuils, pique générique");
-    const everyTauntFills = SHOW_TAUNTS.every(t => !/\{\{/.test(fillShowTemplate(t.text, { ...base, crawler: 'Carl', race: 'Gobelin', classe: 'Filou', synergieTitre: 'Roi des caniveaux', objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6, parfaits: 8, mises: 150 })));
+    const everyTauntFills = SHOW_TAUNTS.every(t => !/\{\{/.test(fillShowTemplate(t.text, { ...base, crawler: 'Carl', race: 'Gobelin', classe: 'Filou', synergieTitre: 'Roi des caniveaux', essaiPct: 30, objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6, parfaits: 8, mises: 150 })));
     assert(everyTauntFills, "Chaque pique n'utilise que des trous fournis par le contexte");
-    const fullCtx = { ...base, crawler: 'Carl', race: 'Gobelin', classe: 'Filou', synergieTitre: 'Roi des caniveaux', objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6, parfaits: 8, mises: 150 };
+    const fullCtx = { ...base, crawler: 'Carl', race: 'Gobelin', classe: 'Filou', synergieTitre: 'Roi des caniveaux', essaiPct: 30, objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6, parfaits: 8, mises: 150 };
     const everyReplyFills = Object.values(SHOW_REPLIES).every(byTone => Object.values(byTone).every(lines => lines.every(l => !/\{\{/.test(fillShowTemplate(l, fullCtx)))));
     assert(everyReplyFills, "Chaque réplique n'utilise que des trous fournis par le contexte");
     // Un thème sans compagnon (parti) ne doit jamais citer {{compagnon}}, absent du contexte à ce moment-là.

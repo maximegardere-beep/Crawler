@@ -41,7 +41,7 @@ function fillReserve() {
 // --- Catalogue ---
 {
     const ids = new Set(ACHIEVEMENTS.map(a => a.id));
-    assert(ACHIEVEMENTS.length === 53 && ids.size === 53, "Catalogue : 53 succès (35 + 3 chasseurs de primes + 2 DeathWatch + 7 mini-jeux + 6 origines), identifiants uniques");
+    assert(ACHIEVEMENTS.length === 55 && ids.size === 55, "Catalogue : 55 succès (35 + 3 chasseurs de primes + 2 DeathWatch + 7 mini-jeux + 6 origines + 2 début de partie), identifiants uniques");
     assert(ACHIEVEMENTS.every(a => a.icon && a.title && a.text && typeof a.check === 'function' && ACHIEVEMENT_TIERS[a.tier]), "Catalogue : chaque succès a icône, titre, texte, palier valide et condition");
     assert(ACHIEVEMENTS.filter(a => a.posthumous).length === 4 && ACHIEVEMENTS.filter(a => a.posthumous).every(a => a.secret), "Catalogue : 4 succès posthumes, tous secrets");
     assert(ACHIEVEMENTS.filter(a => a.tier === 'gold').length === 6, "Catalogue : 6 succès Or (Régicide, Collectionneur, Abysses, Sortie, Main de chirurgien, La banque gagne rarement)");

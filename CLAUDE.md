@@ -225,6 +225,7 @@ Tailwind CDN, **aucun build step**.
   **Armure de scénario** (lot 4) : `applyPlotArmor()` (app.js), appelée par `applyPlayerDamage()` AVANT `applyRaceLastStand()` (l'Increvable du Cafard reste disponible : à 1 PV aucun des deux ne rejoue) — aux étages ≤ `maxFloor`, le premier coup mortel de chaque étage
   (`gameState.plotArmorFloor`, sauvegardé, ancienne sauvegarde → 0) laisse `plotArmor.leaveHp` PV, boss compris ; en combat, le reste du tour ennemi est absorbé (`status.plotShield`, éteint par `tryPlayerAction()` et aux fins/débuts de combat). `applyPlayerDamage()` renvoie désormais
   les PV réellement perdus et les deux ripostes de combat (mob, `executeBossStrike()`) journalisent ce montant. `recordRunEvent('plotArmor')` → `runStats.plotArmorUses`. Interrupteur propre `plotArmor.enabled`, neutralisé par défaut dans les tests (`withPlotArmor()`).
+  **Habillage** (lot 5) : piques DeathWatch `trial`/`trialEnd`/`plotArmor`/`interim` (champs `essai`, `essaiPct`, `finEssai`, `scenario`, `interimKills` de `buildShowContext()`), succès `plot_armor`/`interim_slain` (`runStats.interimKills`), et `announceEliteConventionEnd()` (message unique à la première élite, `gameState.eliteConventionEnded`).
 - **Scaling des dégâts mobs** (chantier "rework combat", voir `NOTES_COMBAT.md` pour le détail des
   valeurs et un écart signalé sur le critère d'acceptation) : `config.mobDamageScaling` remplace
   l'ancien `floorScaling.atk` pour les mobs — `getFloorScaling()` (generator.js) calcule désormais

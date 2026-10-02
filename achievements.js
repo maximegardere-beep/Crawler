@@ -39,7 +39,7 @@ function createEmptyRunStats() {
         minigamesPlayed: 0, minigamePerfects: 0, perfectStreak: 0, maxPerfectStreak: 0,
         arcadeGames: 0, arcadePerfectGames: 0, arcadeNet: 0, arcadeLost: 0,
         // Origines (chantier 13) : capacités de classe jouées (dont face à un boss, dont avec une synergie) et « Increvable » du Cafard consommé.
-        classAbilities: 0, classAbilityBossUses: 0, synergyAbilities: 0, lastStands: 0, plotArmorUses: 0, // plotArmorUses : « Armure de scénario » consommée (chantier 15)
+        classAbilities: 0, classAbilityBossUses: 0, synergyAbilities: 0, lastStands: 0, plotArmorUses: 0, interimKills: 0, // plotArmorUses : « Armure de scénario » consommée (chantier 15)
         maxFloor: 1,
         // Victoires récentes (au plus DOMINANCE_WINDOW), pour l'indice de domination (chantier 3) :
         // { ease } = 1 si aucun PV perdu, 0 si ≥ DOMINANCE_HARD_FIGHT des PV max perdus.
@@ -260,7 +260,14 @@ const ACHIEVEMENTS = [
         check: (s) => s.synergyAbilities >= 1 },
     { id: 'last_stand', icon: '🪳', tier: 'silver', title: "Increvable, vraiment",
         text: "Un coup mortel, et vous voilà à 1 PV. Les cafards, ça se retourne et ça repart. C'est écœurant.",
-        check: (s) => s.lastStands >= 1 }
+        check: (s) => s.lastStands >= 1 },
+    // Début de partie (chantier 15, lot 5)
+    { id: 'plot_armor', icon: '🎬', tier: 'bronze', title: "Le scénariste vous aime",
+        text: "Un coup mortel, et le scénario vous laisse à 1 PV. La régie dément toute intervention. La régie ment.",
+        check: (s) => (s.plotArmorUses || 0) >= 1 },
+    { id: 'interim_slain', icon: '🏷️', tier: 'bronze', title: "Licenciement sans préavis",
+        text: "Un remplaçant intérimaire de boss vaincu. Le syndicat des boss a été prévenu, la production aussi.",
+        check: (s) => (s.interimKills || 0) >= 1 }
 ];
 
 function getAchievementById(id) {

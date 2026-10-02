@@ -47,7 +47,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
-| 15 | Rééquilibrage du début de partie (étages 1-3) | M | Lots 0 à 4 codés (outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario) | `NOTES_DEBUT_DE_PARTIE.md` — attend « Go lot 5 » |
+| 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
 
 ### Codés (à playtester)
 
@@ -439,7 +439,7 @@ sort utilitaire **consomme le tour**.
 
 **Livré** : 7 sorts à effet et 3 sorts utilitaires, effets visuels — voir `NOTES_SORTS.md`.
 
-## 15. Rééquilibrage du début de partie (étages 1-3) — M — Lots 0 à 4 codés
+## 15. Rééquilibrage du début de partie (étages 1-3) — M — Codé (lots 0 à 5), à playtester
 
 **Demande** : le jeu est très difficile jusqu'à l'obtention d'un équipement fiable. Pistes de l'utilisateur : PV des mobs, dégâts des mobs ; **pas de hausse de la puissance
 des armes** ; correctifs au caractère satirique dans le ton de DCC. Diagnostic chiffré et plan complet : `NOTES_DEBUT_DE_PARTIE.md`.
@@ -462,3 +462,6 @@ scénario** (1 fois par étage 1-3, un coup mortel laisse 1 PV, boss compris) ·
 **Lot 3 codé** : Période d'essai — −40 % de dégâts subis au niveau 1, dégressif jusqu'au niveau 7, étages 1-3, tous dégâts directs (coup encaissé, pièges, saignement) ; badge `#trial-status` ; facilité des victoires protégée (les chasseurs de primes ne sont pas attirés plus vite) ; message de fin à l'étage 4.
 
 **Lot 4 codé** : Armure de scénario — un coup mortel par étage (1-3) laisse 1 PV, boss compris, reste du tour absorbé ; passe avant l'Increvable du Cafard ; `applyPlayerDamage()` renvoie les PV réellement perdus (journaux honnêtes).
+
+**Lot 5 codé** : habillage satirique — 4 thèmes de piques DeathWatch (`trial` sur la Période d'essai, `trialEnd` à l'arrivée à l'étage 4, `plotArmor` après un coup mortel évité, `interim` après un boss intérimaire vaincu ; répliques sur les 4 tons), 2 succès Bronze (« Le scénariste vous aime », « Licenciement sans préavis », catalogue 53 → 55), message de fin de la Convention collective à la première élite croisée (une fois, `gameState.eliteConventionEnded`).
+**À playtester avant merge** : élites encore létales aux étages 3-5 malgré la rampe ; le suspense du tutoriel face à l'Armure de scénario ; la falaise de l'étage 4.

@@ -158,6 +158,8 @@ const gameState = {
     raceLastStandFloor: 0,
     // Armure de scénario (chantier 15, lot 4) : dernier étage où elle a servi (1 fois par étage 1-3). Absent d'une ancienne sauvegarde : 0.
     plotArmorFloor: 0,
+    // Convention collective du Donjon (chantier 15, lot 5) : message de fin affiché une seule fois, à la première élite croisée. Absent d'une ancienne sauvegarde : vrai si elle a déjà dépassé les étages protégés.
+    eliteConventionEnded: false,
     // Classe du crawler (chantier 13, lot 2 : choisie à l'étage 3 ; ses effets sont codés au lot 3) : clé d'ORIGIN_CLASSES, null = aucune.
     crawlerClass: null,
     classAbilityUsed: false, // capacité active de classe déjà utilisée dans CE combat (remise à faux à chaque nouveau combat)
@@ -1090,6 +1092,7 @@ function restoreSaveForName(name) {
     if (saved.starterBuff === undefined) gameState.starterBuff = null;
     if (saved.raceLastStandFloor === undefined) gameState.raceLastStandFloor = 0;
     if (saved.plotArmorFloor === undefined) gameState.plotArmorFloor = 0;
+    if (saved.eliteConventionEnded === undefined) gameState.eliteConventionEnded = (saved.currentFloor || 1) > config.earlyGame.maxFloor;
     if (!saved.race || !config.origins.races[saved.race]) gameState.race = null; // ancienne sauvegarde ou clé inconnue : aucune race
     if (!saved.crawlerClass || !ORIGIN_CLASSES[saved.crawlerClass]) gameState.crawlerClass = null;
     recomputeRaceDerived();
@@ -3541,6 +3544,7 @@ function recordRunEvent(type, data = {}) {
             const hpLost = Math.max(0, s.damageTaken - (track.startDamageTaken ?? s.damageTaken));
             s.kills += 1;
             if (enemy.isBoss) s.bossKills += 1;
+            if (enemy.isInterim) s.interimKills = (s.interimKills || 0) + 1; // Remplaçant intérimaire vaincu (chantier 15, lot 5)
             else if (typeof isEliteMob === 'function' && isEliteMob(enemy)) s.eliteKills += 1;
             if (data.kind === 'unarmed') s.unarmedKills += 1;
             if (data.kind === 'magic') s.spellKills += 1;
@@ -3916,7 +3920,13 @@ function buildShowContext(lastFloor = {}) {
         classe: (originEntry('class', gameState.crawlerClass) || {}).name || null,
         synergie: (() => { const syn = originSynergyFor(gameState.race, gameState.crawlerClass); return syn ? `${syn.race}+${syn.cls}` : null; })(),
         synergieTitre: (originSynergyFor(gameState.race, gameState.crawlerClass) || {}).title || null,
-        origineFraiche: !!gameState.race && !!gameState.crawlerClass && gameState.currentFloor === config.origins.chooseFloor
+        origineFraiche: !!gameState.race && !!gameState.crawlerClass && gameState.currentFloor === config.origins.chooseFloor,
+        // Début de partie (chantier 15, lot 5) : Période d'essai en cours / terminée, Armure de scénario consommée sur l'étage fini, Remplaçants intérimaires vaincus.
+        essai: config.earlyGame.enabled && gameState.currentFloor <= config.earlyGame.maxFloor && trialDamageMult(gameState.level, gameState.currentFloor) < 1,
+        essaiPct: Math.round((1 - trialDamageMult(gameState.level, gameState.currentFloor)) * 100),
+        finEssai: config.earlyGame.enabled && gameState.currentFloor === config.earlyGame.maxFloor + 1,
+        scenario: gameState.plotArmorFloor > 0 && gameState.plotArmorFloor === gameState.currentFloor - 1,
+        interimKills: rs.interimKills || 0
     };
 }
 
@@ -6067,6 +6077,18 @@ function interimBossLine(enemy) {
     return `🏷️ [${enemy.baseName || enemy.name}] ${text} (Remplaçant intérimaire : −${Math.round((1 - eg.hpMult) * 100)} % de PV, −${Math.round((1 - eg.atkMult) * 100)} % d'ATQ.)`;
 }
 
+// Fin de la « Convention collective du Donjon » (chantier 15, lot 5) : première élite croisée une fois les étages sans élite passés, une seule fois par crawler.
+function announceEliteConventionEnd(enemy) {
+    const eg = config.earlyGame;
+    if (!eg.enabled || gameState.eliteConventionEnded || !isEliteMob(enemy) || enemy.isBountyHunter) return;
+    if (gameState.currentFloor <= eg.elites.freeFloors) return;
+    gameState.eliteConventionEnded = true;
+    const mult = eliteDamageMultForFloor(gameState.currentFloor);
+    const base = config.mobDamageScaling.eliteDamageMult;
+    const detail = mult < base ? ` (Rampe de reprise : dégâts des élites ×${String(mult).replace('.', ',')} à cet étage, ×${String(base).replace('.', ',')} ensuite.)` : '';
+    logEvent(`📜 Fin de la Convention collective du Donjon : les élites ont repris le travail. Elles n'ont pas lu l'article 4 sur le plafonnement des dégâts.${detail}`, "info");
+}
+
 function initiateCombat(forcedEnemy = null) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
     // Suivi du combat pour la chronique (chantier 2) : dégâts subis au départ, ouverture furtive, nombre
@@ -6075,6 +6097,7 @@ function initiateCombat(forcedEnemy = null) {
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
     if (enemy && enemy.isInterim) logEvent(interimBossLine(enemy), "info"); // Remplaçant intérimaire (chantier 15, lot 2)
+    announceEliteConventionEnd(enemy);
     // Occasions de combat (chantier 6, V2) : état remis à zéro ; la garantie compte un combat de plus sans Occasion.
     gameState.occasion = Object.assign(createOccasionState(), { pity: ((gameState.occasion && gameState.occasion.pity) || 0) + 1 });
 
