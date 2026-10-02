@@ -48,7 +48,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
-| 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié — lots 0 et 1 codés (catalogue `encounters.js`, overlay + repli sprite agrandi), les 13 boss livrés par Vibe en SVG et intégrés, consigne d'évaluation Vibe prête | images WebP à faire générer par Vibe (consigne au lot 4) |
+| 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié — lots 0, 1 et 2 codés (catalogue `encounters.js`, overlay + repli sprite agrandi), les 13 boss livrés par Vibe en SVG et intégrés, consigne d'évaluation Vibe prête | images WebP à faire générer par Vibe (consigne au lot 4) |
 
 ### Codés (à playtester)
 
@@ -492,7 +492,7 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
   fondu d'entrée, léger zoom lent et secousse à la révélation, coupés sous `prefers-reduced-motion`. **Repli sans image** : le mob actuel
   (`resolveMobSprite()`, aura comprise) agrandi sur le décor du quartier (`composeBackdrop()`), de face ou de dos — la fonctionnalité marche
   dès le lot 1, chaque image livrée ne fait qu'améliorer un mob. Image chargée via `<img>` avec repli sur `onerror`.
-- **Lot 2 — branchement** : `initiateCombat(enemy, { intro: 'spotted'|'ambush'|'boss'|'hunter' })` joue l'overlay PUIS démarre le combat
+- **Lot 2 — branchement** (**codé**, vérifié dans Chromium : furtif → tap → boutons, attaque furtive → combat direct, embuscade → Espace → combat) : `initiateCombat(enemy, { intro: 'spotted'|'ambush'|'boss'|'hunter' })` joue l'overlay PUIS démarre le combat
   (callback, jamais de Promise) ; les étapes de `initiateCombat()` sont découpées en `showEncounterIntro()` → `beginCombat()`. Écran « tu l'as vu »
   (`unseen`) avant les boutons Esquiver / Attaque furtive. Blocage `gameState.encounterIntroPending` (`isActionBlocked()`, `resetTransientState()`,
   `KNOWN_GAMESTATE_KEYS`, résolveur de `tests/long_playthrough.js`). Sans interface (tests Node, `saveEnabled` faux) : appel immédiat du

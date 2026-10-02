@@ -526,6 +526,9 @@ const config = {
     // Rééquilibrage du début de partie (chantier 15, voir NOTES_DEBUT_DE_PARTIE.md) : l'émission protège ses débutants. Valeurs validées
     // par l'utilisateur (rounds 1 et 2), calibrées par `npm run sim:early`. `enabled: false` rend le jeu tel qu'avant le chantier (sert
     // aussi au « avant » de l'outil de calibrage). Rien ne lit encore ce bloc au lot 0 : les lots 1 à 4 branchent un mécanisme chacun.
+    // Écran plein écran d'entrée en combat (chantier 16) : interrupteur global (un futur réglage joueur pourra le couper) ;
+    // neutralisé par défaut dans les tests (_helpers.js), réactivé par withEncounterIntro().
+    encounterIntro: { enabled: true },
     earlyGame: {
         enabled: true,
         maxFloor: 3,                                        // « tutoriel » : Période d'essai, Armure de scénario et boss intérimaires s'éteignent à l'étage 4
@@ -1128,6 +1131,7 @@ function restoreSaveForName(name) {
     gameState.bossChoicePending = false;
     gameState.pendingBossEncounter = null;
     gameState.stealthChoicePending = false;
+    gameState.encounterIntroPending = false; // écran de rencontre (chantier 16) : jamais restauré
     gameState.pendingStealthEncounter = null;
     gameState.pendingSneakAttack = false;
     gameState.companionChoicePending = false;
@@ -2770,8 +2774,11 @@ function handleStealthEncounter() {
     setSceneHeader('🥷', enemy ? enemy.name : 'Ombre', 'Non Repéré', { key: 'stealthUnseen', enemy });
     logEvent(`Vous repérez ${enemy ? `[${enemy.name}]` : "une présence"} avant qu'il ne vous voie.`, "info");
     logEvent("Tenter de l'esquiver en silence, ou frapper en traître ?", "info");
-    ui.stealthChoiceZone.classList.remove('hidden');
-    updateUI();
+    // Écran « tu l'as vu » (chantier 16) avant les boutons ; sans interface, les boutons s'affichent tout de suite.
+    showEncounterIntro('unseen', enemy, () => {
+        ui.stealthChoiceZone.classList.remove('hidden');
+        updateUI();
+    });
 }
 
 // Bouton "Esquiver" : succès -> aucun combat + XP de Furtivité ; échec -> repéré, combat classique
@@ -2810,7 +2817,7 @@ function attemptStealthAttack() {
     // L'en-tête de la scène (icône/nom/type) est posé par initiateCombat() lui-même.
     logEvent(`Vous surgissez de l'ombre et frappez [${enemy.name}] par surprise !`, "success");
     gameState.pendingSneakAttack = true;
-    initiateCombat(enemy);
+    initiateCombat(enemy, { intro: false }); // l'écran « tu l'as vu » a déjà été montré avant le choix
 }
 
 // ==========================================
@@ -2986,7 +2993,7 @@ function triggerNextAmbushOrArrive() {
         travel.ambushesRemaining -= 1;
         logEvent("Une présence hostile vous barre la route !", "danger");
         gameState.pendingStairAfterCombat = false; // Ce n'est pas encore l'arrivée
-        initiateCombat(maybeSpawnBountyHunter()); // Mob générique du quartier (ou chasseur de primes), pas le boss : simple embuscade de trajet
+        initiateCombat(maybeSpawnBountyHunter(), { intro: 'ambush' }); // Mob générique du quartier (ou chasseur de primes), pas le boss : simple embuscade de trajet
         return;
     }
 
@@ -3090,7 +3097,7 @@ function recruitCompanion() {
         // Un crawler pacifique qui refuse ne devient hostile que dans de très rares cas (5%)
         if (Math.random() * 100 < 5) {
             logEvent(`${candidate.name} se braque brusquement et vous attaque !`, "danger");
-            initiateCombat(companionCandidateToMob(candidate));
+            initiateCombat(companionCandidateToMob(candidate), { intro: false });
         } else {
             logEvent(`${candidate.name} décline poliment et s'éloigne.`, "info");
             updateUI();
@@ -3098,7 +3105,7 @@ function recruitCompanion() {
     } else {
         // Un crawler déjà hostile qui refuse passe directement à l'attaque
         logEvent(`${candidate.name} refuse et se jette sur vous !`, "danger");
-        initiateCombat(companionCandidateToMob(candidate));
+        initiateCombat(companionCandidateToMob(candidate), { intro: false });
     }
 }
 
@@ -3130,7 +3137,7 @@ function attackCompanionEncounter() {
     gameState.companionChoicePending = false;
     gameState.pendingCompanionCandidate = null;
     logEvent(`Vous attaquez ${candidate ? candidate.name : "le crawler hostile"} !`, "danger");
-    initiateCombat(companionCandidateToMob(candidate));
+    initiateCombat(companionCandidateToMob(candidate), { intro: false });
 }
 
 // --- Loyauté ---
@@ -5861,8 +5868,15 @@ function triggerBossEncounter(room) {
         "danger"
     );
     logEvent("Le combattre maintenant, ou repérer l'endroit pour y revenir plus tard ?", "info");
-    ui.bossChoiceZone.classList.remove('hidden');
-    updateUI();
+    // Arrivée du boss (chantier 16) : écran plein écran la PREMIÈRE fois seulement (le boss est en cache sur sa salle,
+    // les retours ne rejouent pas l'écran), avant l'affichage du choix Combattre / Repérer.
+    const showIntro = !boss._encounterShown;
+    boss._encounterShown = true;
+    const reveal = () => {
+        ui.bossChoiceZone.classList.remove('hidden');
+        updateUI();
+    };
+    if (showIntro) showEncounterIntro('boss', boss, reveal); else reveal();
 }
 
 // Bouton "Combattre" de la zone de choix de boss (boss de quartier, gardien d'escalier ou de la Sortie).
@@ -5876,7 +5890,7 @@ function fightBossNow() {
     const room = gameState.floorMap.roomsById[encounter.roomId];
     gameState.pendingStairAfterCombat = !!encounter.guardsStairs;
     gameState.pendingBossRoomId = encounter.roomId;
-    initiateCombat(room.bossInstance);
+    initiateCombat(room.bossInstance, { intro: false }); // l'arrivée du boss a été montrée par triggerBossEncounter()
 }
 
 // Bouton "Repérer et partir" de la zone de choix de boss : l'antre reste marquée 👑 sur la carte,
@@ -6097,8 +6111,22 @@ function announceEliteConventionEnd(enemy) {
     logEvent(`📜 Fin de la Convention collective du Donjon : les élites ont repris le travail. Elles n'ont pas lu l'article 4 sur le plafonnement des dégâts.${detail}`, "info");
 }
 
-function initiateCombat(forcedEnemy = null) {
+// `options.intro` (chantier 16, lot 2) : écran plein écran d'entrée en combat — `false` = aucun (combat enchaîné, écran
+// déjà montré par l'appelant, compagnon hostile), 'ambush' (embuscade de trajet), sinon 'spotted' ; un boss garde
+// toujours 'boss' et un chasseur de primes 'hunter' (resolveEncounterKind()). L'écran bloque les actions
+// (`encounterIntroPending`) et ne démarre le combat qu'au tap ; sans interface (tests Node) le combat démarre tout de suite.
+function initiateCombat(forcedEnemy = null, options = {}) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
+    const kind = (options && options.intro === false) ? null : resolveEncounterKind(enemy, options && options.intro);
+    if (kind && enemy) {
+        showEncounterIntro(kind, enemy, () => beginCombat(enemy));
+        return;
+    }
+    beginCombat(enemy);
+}
+
+// Corps du combat (ancienne initiateCombat()) : appelé tout de suite, ou au tap qui ferme l'écran de rencontre.
+function beginCombat(enemy) {
     // Suivi du combat pour la chronique (chantier 2) : dégâts subis au départ, ouverture furtive, nombre
     // d'attaques portées (victoire en un coup) — voir recordRunEvent('win').
     if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, startTrialAvoided: gameState.runStats ? (gameState.runStats.trialAvoided || 0) : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
@@ -8593,7 +8621,7 @@ function winCombat() {
             dive.combatsLeft -= 1;
             if (dive.combatsLeft > 0) {
                 logEvent("Un autre adversaire surgit des décombres du repaire...", "danger");
-                initiateCombat();
+                initiateCombat(null, { intro: false });
                 return;
             }
             dive.stage = 'boss';
@@ -8851,13 +8879,13 @@ function giveTestKit() {
 // jamais de fermeture automatique. Par callback (jamais de Promise, comme runCombatBeats()/startMinigame()) : sans
 // interface (tests Node sans requestAnimationFrame) le callback est appelé tout de suite et rien ne s'affiche. Le
 // callback vit dans une variable de module, jamais dans gameState (non sauvegardable) ; `encounterIntroPending` bloque
-// les actions (isActionBlocked()). Les branchements dans initiateCombat() et la furtivité viennent au lot 2.
+// les actions (isActionBlocked()). Branché (lot 2) par initiateCombat() (rencontre repérée, embuscade de trajet, boss de repaire, chasseur), handleStealthEncounter() (« tu l'as vu ») et triggerBossEncounter() (arrivée du boss, première fois seulement).
 const ENCOUNTER_INTRO_MIN_MS = 450; // garde-fou : le tap qui a déclenché la rencontre ne la referme jamais
 let encounterIntroCallback = null;
 let encounterIntroOpenedAt = 0;
 
 function encounterIntroAvailable() {
-    return !!(ui.encounterOverlay && typeof requestAnimationFrame === 'function');
+    return !!(config.encounterIntro && config.encounterIntro.enabled && ui.encounterOverlay && typeof requestAnimationFrame === 'function');
 }
 
 function showEncounterIntro(kind, enemy, onContinue) {

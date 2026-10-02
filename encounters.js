@@ -140,6 +140,14 @@ function resolveEncounterArt(enemy, kind) {
     return { name, view, src: null, fallback: true };
 }
 
+// Type de rencontre réel d'un ennemi : un boss garde 'boss' et un chasseur de primes 'hunter' quel que soit le type
+// demandé par l'appelant (embuscade, rencontre repérée…) ; sinon le type demandé s'il existe, 'spotted' par défaut.
+function resolveEncounterKind(enemy, requested) {
+    if (enemy && enemy.isBoss) return 'boss';
+    if (enemy && enemy.isBountyHunter) return 'hunter';
+    return ENCOUNTER_KINDS[requested] && requested !== 'boss' && requested !== 'hunter' ? requested : 'spotted';
+}
+
 // Remplace {mob} par le nom du mob.
 function fillEncounterTemplate(text, mobName) {
     return String(text).replace(/\{mob\}/g, mobName || 'Quelque chose');
@@ -179,5 +187,5 @@ function encounterArtTargets() {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ENCOUNTER_KINDS, ENCOUNTER_ART, encounterArtSlug, encounterArtExt, encounterArtPath, encounterKindView, encounterArtName, resolveEncounterArt, fillEncounterTemplate, pickEncounterText, encounterArtTargets };
+    module.exports = { ENCOUNTER_KINDS, ENCOUNTER_ART, encounterArtSlug, encounterArtExt, encounterArtPath, encounterKindView, encounterArtName, resolveEncounterArt, resolveEncounterKind, fillEncounterTemplate, pickEncounterText, encounterArtTargets };
 }

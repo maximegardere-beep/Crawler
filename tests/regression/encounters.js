@@ -2,7 +2,7 @@
 // manifeste des images, résolution, liste ordonnée des images à faire). Voir encounters.js et CHANTIERS.md (chantier 16).
 const fs = require('fs');
 const path = require('path');
-const { assert, resetTransientState } = require('./_helpers.js');
+const { assert, resetTransientState, withEncounterIntro } = require('./_helpers.js');
 
 const seq = (values) => { let i = 0; return () => values[i++ % values.length]; };
 
@@ -164,6 +164,7 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
     let now = 1000000;
     Date.now = () => now;
     global.requestAnimationFrame = (fn) => 0;
+    config.encounterIntro.enabled = true;
     try {
         assert(showEncounterIntro('spotted', enemy, () => calls++) === true && gameState.encounterIntroPending === true, "Avec interface : l'écran s'ouvre et bloque");
         assert(isActionBlocked(), "L'écran ouvert bloque les actions (isActionBlocked)");
@@ -192,6 +193,7 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
         dismissEncounterIntro(true);
     } finally {
         Date.now = realNow;
+        config.encounterIntro.enabled = false;
         delete global.requestAnimationFrame;
         delete ENCOUNTER_ART['Rat Goulot'];
         resetTransientState();
@@ -216,4 +218,92 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
         assert(/^[\x00-\x7F]*$/.test((f.match(/\b(?:id|url\(#)[^"')]*/g) || []).join('')), `SVG « ${n} » : identifiants ASCII`);
         assert(f.length < 20000, `SVG « ${n} » : léger (< 20 Ko)`);
     });
+}
+
+// --- Lot 2 : branchement dans les entrées en combat ---
+{
+    const mob = { ...baseMobs[0], baseName: baseMobs[0].name, hp: 30, atk: 3, def: 1, xpReward: 1 };
+    const boss = { ...Object.values(districtBosses)[0], baseName: Object.values(districtBosses)[0].name, isBoss: true, hp: 99, atk: 5, def: 1, xpReward: 1 };
+    const hunter = { name: 'Gobelin Pisteur de Primes', baseName: 'Gobelin Pisteur de Primes', isBountyHunter: true, hp: 30, atk: 3, def: 1, xpReward: 1 };
+    assert(resolveEncounterKind(boss, 'ambush') === 'boss' && resolveEncounterKind(hunter, 'ambush') === 'hunter', "resolveEncounterKind() : un boss reste 'boss', un chasseur 'hunter', même en embuscade");
+    assert(resolveEncounterKind(mob, 'ambush') === 'ambush' && resolveEncounterKind(mob) === 'spotted' && resolveEncounterKind(mob, 'inconnu') === 'spotted' && resolveEncounterKind(mob, 'boss') === 'spotted', "resolveEncounterKind() : type demandé, 'spotted' par défaut, jamais 'boss'/'hunter' pour un mob ordinaire");
+
+    // Sans interface : le combat démarre tout de suite (comportement d'avant).
+    resetTransientState();
+    initiateCombat(mob);
+    assert(gameState.inCombat && gameState.currentEnemy === mob && !gameState.encounterIntroPending, "Sans interface : initiateCombat() démarre le combat immédiatement");
+
+    const realNow = Date.now; let now = 5000000; Date.now = () => now;
+    global.requestAnimationFrame = () => 0;
+    config.encounterIntro.enabled = true;
+    try {
+        // Rencontre repérée : l'écran s'ouvre d'abord, le combat ne démarre qu'au tap.
+        resetTransientState();
+        initiateCombat(mob);
+        assert(gameState.encounterIntroPending && !gameState.inCombat && gameState.currentEnemy === null, "Avec interface : l'écran précède le combat (rien ne démarre avant le tap)");
+        assert(isActionBlocked() && ui.encounterTitle.innerText.includes(mob.name) && ui.encounterHint.innerText === ENCOUNTER_KINDS.spotted.hint, "Écran « il t'a vu » : actions bloquées, titre au nom du mob");
+        now += ENCOUNTER_INTRO_MIN_MS + 1;
+        dismissEncounterIntro();
+        assert(!gameState.encounterIntroPending && gameState.inCombat && gameState.currentEnemy === mob, "Au tap : le combat démarre avec l'ennemi annoncé");
+        resetTransientState();
+
+        // Embuscade de trajet.
+        initiateCombat(mob, { intro: 'ambush' });
+        assert(ui.encounterTitle.innerText.includes('Embuscade') || ui.encounterTitle.innerText.includes('jaillit') || ui.encounterTitle.innerText.includes('Guet-apens'), "Embuscade : titre d'embuscade");
+        dismissEncounterIntro(true); resetTransientState();
+
+        // Boss et chasseur : leur type l'emporte.
+        initiateCombat(boss, { intro: 'ambush' });
+        assert(ui.encounterTitle.innerText.includes(boss.name) && ui.encounterHint.innerText.includes('affronter'), "Boss : écran d'arrivée de boss, même demandé en embuscade");
+        dismissEncounterIntro(true); resetTransientState();
+        initiateCombat(hunter);
+        assert(ui.encounterTitle.innerText.includes('RECHERCHÉ') || ui.encounterTitle.innerText.includes('prime') || ui.encounterTitle.innerText.includes('retrouvé'), "Chasseur de primes : écran dédié");
+        dismissEncounterIntro(true); resetTransientState();
+
+        // Aucun écran : combat enchaîné, compagnon hostile, attaque furtive.
+        initiateCombat(mob, { intro: false });
+        assert(gameState.inCombat && !gameState.encounterIntroPending, "{ intro: false } : combat immédiat, aucun écran");
+        resetTransientState();
+
+        // Rencontre furtive : l'écran « tu l'as vu » précède les boutons Esquiver / Attaque furtive.
+        const savedRandom = Math.random;
+        Math.random = () => 0.0; // détecté = faux : 0 < chance de furtivité
+        try {
+            handleStealthEncounter();
+        } finally { Math.random = savedRandom; }
+        if (gameState.stealthChoicePending) {
+            assert(gameState.encounterIntroPending && ui.stealthChoiceZone.classList.contains('hidden'), "Furtif non repéré : l'écran précède les boutons (zone encore masquée)");
+            assert(ui.encounterHint.innerText.length > 0 && ui.encounterTitle.innerText.length > 0, "Écran « tu l'as vu » renseigné");
+            dismissEncounterIntro(true);
+            assert(!ui.stealthChoiceZone.classList.contains('hidden') && gameState.stealthChoicePending, "Au tap : les boutons Esquiver / Attaque furtive apparaissent");
+            attemptStealthAttack();
+            assert(gameState.inCombat && !gameState.encounterIntroPending && ui.encounterOverlay.classList.contains('hidden'), "Attaque furtive : combat direct, sans second écran");
+        }
+        resetTransientState();
+
+        // Boss en cache : l'écran n'est montré que la première fois.
+        const room = { id: 'r-test', type: 'boss', bossInstance: boss, guardsStairs: false };
+        gameState.floorMap = gameState.floorMap || {};
+        delete boss._encounterShown;
+        triggerBossEncounter(room);
+        assert(gameState.encounterIntroPending && ui.bossChoiceZone.classList.contains('hidden'), "Arrivée d'un boss : écran d'abord, choix Combattre / Repérer ensuite");
+        dismissEncounterIntro(true);
+        assert(!ui.bossChoiceZone.classList.contains('hidden') && gameState.bossChoicePending, "Au tap : le choix de boss apparaît");
+        resetTransientState();
+        triggerBossEncounter(room);
+        assert(!gameState.encounterIntroPending && !ui.bossChoiceZone.classList.contains('hidden'), "Retour devant le même boss : pas de second écran");
+    } finally {
+        Date.now = realNow;
+        config.encounterIntro.enabled = false;
+        delete global.requestAnimationFrame;
+        resetTransientState();
+    }
+    // Interrupteur global : désactivé, l'écran n'apparaît jamais, même avec une interface.
+    global.requestAnimationFrame = () => 0;
+    try {
+        config.encounterIntro.enabled = false;
+        resetTransientState();
+        initiateCombat(mob);
+        assert(gameState.inCombat && !gameState.encounterIntroPending, "config.encounterIntro.enabled = false : aucun écran, même avec une interface");
+    } finally { delete global.requestAnimationFrame; resetTransientState(); }
 }
