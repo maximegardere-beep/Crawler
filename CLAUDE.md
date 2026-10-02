@@ -892,13 +892,15 @@ Tailwind CDN, **aucun build step**.
 - `npm run sim:items` (`tests/tools/item-curve.js`, outil de calibrage, jamais lancé par la CI) :
   répartition des raretés par étage et source, courbe de puissance selon l'équipement, valeur marchande
   — à relancer avant toute retouche de `itemBalance`/`itemRarities`.
+- `npm run sim:early [n]` (`tests/tools/early-curve.js`, outil de calibrage, jamais lancé par la CI) : coût d'un combat en début de partie (PV perdus, mort, boss) avant/après le paquet `config.earlyGame`
+  (chantier 15, voir `NOTES_DEBUT_DE_PARTIE.md`) — à relancer avant toute retouche de ce bloc ou du scaling des mobs aux étages 1-6.
 - **Rapide** (`npm test`, quelques secondes) : à lancer avant CHAQUE push. `tests/regression.test.js`
   est un AGRÉGATEUR (depuis la Tâche 2 du chantier "fiabilisation" — l'ancien fichier monolithique
   faisait ~172 Ko) : il ne fait que `require()` chaque module de `tests/regression/*.js`, regroupés
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`, `origin-choice.js`, `classes.js`, `crawler-races.js`, `origins-flavor.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`, `origin-choice.js`, `classes.js`, `crawler-races.js`, `origins-flavor.js`, `early-game.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests

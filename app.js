@@ -518,6 +518,18 @@ const config = {
     // l'arme équivalente ; le backfire reste le prix du chaos, plus punitif à haut niveau qu'avant
     // pour continuer à justifier ce risque une fois la compétence Magie montée. Valeurs de départ, à
     // ajuster par playtest (voir NOTES_COMBAT.md pour la mesure de parité qui a produit ces chiffres).
+    // Rééquilibrage du début de partie (chantier 15, voir NOTES_DEBUT_DE_PARTIE.md) : l'émission protège ses débutants. Valeurs validées
+    // par l'utilisateur (rounds 1 et 2), calibrées par `npm run sim:early`. `enabled: false` rend le jeu tel qu'avant le chantier (sert
+    // aussi au « avant » de l'outil de calibrage). Rien ne lit encore ce bloc au lot 0 : les lots 1 à 4 branchent un mécanisme chacun.
+    earlyGame: {
+        enabled: true,
+        maxFloor: 3,                                        // « tutoriel » : Période d'essai, Armure de scénario et boss intérimaires s'éteignent à l'étage 4
+        elites: { freeFloors: 2, damageRamp: { 3: 1.3, 4: 1.5 } }, // Convention collective : aucune élite aux étages 1-2 ; eliteDamageMult ×1,3 / ×1,5 aux étages 3-4 (puis inchangé)
+        interimBoss: { hpMult: 0.75, atkMult: 0.75 },       // Remplaçant intérimaire : PV et ATQ des boss des étages 1-3 (DEF inchangée)
+        trial: { startReduction: 0.40, fadeLevel: 7 },      // Période d'essai : −40 % de dégâts subis au niveau 1, dégressif jusqu'à 0 au niveau 7
+        plotArmor: { leaveHp: 1 }                           // Armure de scénario : un coup mortel laisse ce nombre de PV, 1 fois par étage
+    },
+
     // Buff de départ du crawler sans arme (chantier 14) : voir starterBuffInfo()/endStarterBuff().
     starterBuff: {
         damageTakenMult: 1.05,   // 'desperate' : tous les dégâts subis (mobs, boss, pièges, saignement)

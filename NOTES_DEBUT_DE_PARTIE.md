@@ -58,8 +58,11 @@ Boss intérimaire + Période d'essai : étage 1 → 88 % au N5 ; étage 2 → 80
 
 Tout dans `config.earlyGame` (valeurs ci-dessus, une seule table) ; un seul point de lecture par effet ; aucune formule de combat existante modifiée.
 
-- **Lot 0 — outil de calibrage** : `tests/tools/early-curve.js` (`npm run sim:early`, jamais lancé par la CI) — reprend les scripts d'exploration, mesure avant/après
-  (ordinaires, élites, boss ; étages 1-6 ; niveaux 1-11). `config.earlyGame` posé avec les valeurs ; baseline enregistrée dans ce fichier.
+- **Lot 0 — outil de calibrage (CODÉ)** : `tests/tools/early-curve.js` (`npm run sim:early [n]`, jamais lancé par la CI, hasard reproductible) mesure avant/après — ordinaires, élites,
+  boss ; étages 1-6 ; niveaux 1-10 — et vérifie les deux cibles validées. `config.earlyGame` posé dans `app.js` (valeurs des rounds 1-2, `enabled: true`, **rien ne le lit encore**) ;
+  `enabled: false` rendra le jeu d'avant (sert au « avant » de l'outil). L'outil utilise le moteur dès qu'un mécanisme y est branché (`trialDamageMult()`, `eliteDamageMultForFloor()`,
+  re-tirage de `generateMob()` : drapeau `engineHandlesFreeFloors`, intérimaire : `engineHandlesInterim`) et le modélise localement sinon — **à basculer à `true` aux lots 1 et 2**.
+  Premier test : `tests/regression/early-game.js` (réglages validés + le modèle de joueur de l'outil suit `gainXp()`).
 - **Lot 1 — Convention collective** : `generateMob()` (generator.js) re-tire tant que l'étage ≤ `elites.freeFloors` et que le mob est élite (≤ 20 tentatives) ;
   `eliteDamageMultForFloor(floor)` (pure) lue par `resolveEnemyCounterAttack()` à la place de `config.mobDamageScaling.eliteDamageMult` ; les chasseurs de primes
   (toujours élites, calés sur le joueur) restent inchangés.
@@ -83,3 +86,24 @@ Tout dans `config.earlyGame` (valeurs ci-dessus, une seule table) ; un seul poin
 - Armure de scénario : le suspense du tutoriel survit-il ? Cumul avec Increvable (Cafard) à l'étage 3.
 - Étage 3 urbain : gardien d'escalier et boss de repaire intérimaires, routes à 40 % de combats avec élites ×1,3.
 - Falaise de l'étage 4 (tout s'éteint d'un coup) : prévoir une rampe de sortie si le passage est trop brutal.
+
+## 6. Baseline du lot 0 (`npm run sim:early`, 3000 mobs et 750 boss par case)
+
+Cases : PV perdus / mort, à PV pleins ; équipement supposé : cadeau Camelote à l'étage 1, Commun à l'étage 2, un peu mieux ensuite. Les mécanismes sont ici **modélisés localement**
+(le moteur ne les implémente pas encore) ; les lots 1 à 4 les remplacent par le vrai code et ces chiffres doivent rester identiques.
+
+| Mobs ordinaires, étage 1 | N1 | N2 | N3 | N4 | N5 | N6 |
+|---|---|---|---|---|---|---|
+| Avant | 53 % / 13 % | 40 % / 5 % | 29 % / 1 % | 22 % / 0 % | 16 % / 0 % | 11 % / 0 % |
+| **Après le paquet** | **34 % / 4 %** | 27 % / 0 % | 22 % / 0 % | 17 % / 0 % | 14 % / 0 % | 11 % / 0 % |
+
+Étages 2 et 3, après : N1 37 % / 5 % et 40 % / 6 % ; N3 24 % et 29 %. L'étage 4 est strictement inchangé (arrêt net).
+Boss de quartier, P(victoire) — étage 1 : avant 15 % au N5, 83 % au N7 ; **après 84 % au N4, 91 % au N5** ; étage 3 : avant 24 % au N7, 63 % au N8 ; après 58 % au N5, 85 % au N6.
+Les deux cibles de l'utilisateur sont atteintes (≈ 35 % des PV et mort ≤ 5 % ; boss de l'étage 1 à ≥ 80 % dès le N5).
+
+**Changement de méthode par rapport à l'exploration** : l'outil dérive les dégâts moyens d'un tour de boss de `config.bossPhases` (phase 1 ≈ 0,97 ; phase 2 ≈ 0,85 ; phase 3 = 1,4)
+au lieu des constantes approximatives (0,97 / 1,07 / 1,4) du script d'exploration : les boss sortent un peu plus faciles qu'annoncé au diagnostic (ex. étage 1, avant : 15 % au N5 au lieu de 10 %).
+
+**Constat à surveiller (nouveau)** : les élites restent létales aux étages 3 à 5 malgré la rampe — après le paquet, mort à PV pleins : étage 3 → 63 % au N1, 45 % au N3, 37 % au N4, 22 % au N5 ;
+étage 4 → 59 % au N4, 47 % au N5 ; étage 5 → 54 % au N5 (inchangé par rapport à avant). La Convention collective retire la falaise des étages 1-2 mais pas celle des étages 3-5 : à reposer à l'utilisateur
+au playtest (rampe plus longue ou plus douce ?).
