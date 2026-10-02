@@ -72,7 +72,7 @@ function drawMob(floor) {
     return mob;
 }
 // Remplaçant intérimaire : multiplicateurs PV / ATQ d'un boss (modèle local tant que generateBoss() ne les applique pas lui-même).
-const engineHandlesInterim = false; // passe à true au lot 2
+const engineHandlesInterim = typeof earlyInterimBossScale === 'function'; // lot 2 : generateBoss() applique lui-même l'intérim
 function bossScale(floor) {
     return EG.enabled && !engineHandlesInterim && floor <= EG.maxFloor ? EG.interimBoss : { hpMult: 1, atkMult: 1 };
 }

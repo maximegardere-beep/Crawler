@@ -93,3 +93,58 @@ const { assert, resetTransientState } = require('./_helpers.js');
     assert(hitFor(3, { threatMultiplier: 1 }) === Math.round(100 * glued), "Mob ordinaire : aucun multiplicateur d'élite");
     resetTransientState();
 }
+
+// ===================================================================
+// Lot 2 — Remplaçant intérimaire : boss des étages 1-3 à ×0,75 en PV et en ATQ
+// ===================================================================
+{
+    const eg = config.earlyGame;
+    const districtNames = Object.keys(districts).filter(d => !!findBossForDistrict(d));
+    const bossAt = (district, floor, enabled = true) => {
+        resetTransientState();
+        gameState.currentFloor = floor;
+        eg.enabled = enabled;
+        try { return generateBoss(district); } finally { eg.enabled = true; }
+    };
+
+    assert(districtNames.length >= 13, `Les 13 quartiers ont un boss (${districtNames.length})`);
+    assert(earlyInterimBossScale(1).hpMult === 0.75 && earlyInterimBossScale(3).atkMult === 0.75 && earlyInterimBossScale(4) === null, "earlyInterimBossScale() : étages 1 à 3 seulement");
+    eg.enabled = false;
+    assert(earlyInterimBossScale(1) === null, "earlyInterimBossScale() : paquet coupé -> null");
+    eg.enabled = true;
+
+    let allOk = true, defOk = true, rewardOk = true, nameOk = true, flagOk = true;
+    districtNames.forEach(d => [1, 2, 3].forEach(f => {
+        const normal = bossAt(d, f, false), interim = bossAt(d, f, true);
+        if (interim.hp !== Math.max(1, Math.round(normal.hp * 0.75)) || interim.atk !== Math.max(1, Math.round(normal.atk * 0.75))) allOk = false;
+        if (interim.def !== normal.def) defOk = false;
+        if (interim.xpReward !== normal.xpReward || JSON.stringify(interim.signatureItem) !== JSON.stringify(normal.signatureItem)) rewardOk = false;
+        if (interim.baseName !== normal.baseName || interim.name !== `${normal.name} (intérimaire)`) nameOk = false;
+        if (interim.isInterim !== true || normal.isInterim) flagOk = false;
+    }));
+    assert(allOk, "Boss des étages 1-3 (13 quartiers) : PV et ATQ ×0,75");
+    assert(defOk, "Boss intérimaire : DEF inchangée");
+    assert(rewardOk, "Boss intérimaire : XP et objet signature inchangés");
+    assert(nameOk, "Boss intérimaire : nom suffixé « (intérimaire) », baseName intact (sprite, objet signature)");
+    assert(flagOk, "Boss intérimaire : drapeau isInterim posé (jamais sur un boss normal)");
+
+    districtNames.forEach(d => { const a = bossAt(d, 4, true), b = bossAt(d, 4, false); if (JSON.stringify(a) !== JSON.stringify(b) || a.isInterim) allOk = false; });
+    assert(allOk, "Étage 4 et au-delà : boss strictement inchangés, jamais intérimaires");
+    const b1 = bossAt(districtNames[0], 1, true);
+    assert(!!resolveBossSpriteKey(b1), "Boss intérimaire : son sprite unique est toujours résolu (baseName)");
+
+    // Réplique d'accueil : une fois, à l'entrée en combat, avec les chiffres exacts ; rien pour un boss normal
+    const lines = [];
+    const originalLog = logEvent; logEvent = (m) => { lines.push(String(m)); };
+    try {
+        resetTransientState(); gameState.currentFloor = 1;
+        initiateCombat(bossAt(districtNames[0], 1, true));
+        const interimLines = lines.filter(l => /Remplaçant intérimaire/.test(l));
+        assert(interimLines.length === 1 && /−25 % de PV/.test(interimLines[0]) && /−25 % d'ATQ/.test(interimLines[0]), "Entrée en combat contre un intérimaire : une réplique, avec les chiffres exacts");
+        lines.length = 0;
+        resetTransientState(); gameState.currentFloor = 4;
+        initiateCombat(bossAt(districtNames[0], 4, true));
+        assert(!lines.some(l => /Remplaçant intérimaire/.test(l)), "Boss normal : aucune réplique d'intérimaire");
+    } finally { logEvent = originalLog; }
+    resetTransientState();
+}

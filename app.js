@@ -6039,6 +6039,18 @@ function announceBossPhaseChange(enemy, phase) {
     }, 900);
 }
 
+// Remplaçant intérimaire (chantier 15, lot 2) : une réplique d'accueil par boss (choisie selon la longueur de son nom, sans hasard), avec le chiffre exact.
+const INTERIM_BOSS_LINES = [
+    "est en congé : c'est son stagiaire qui vous accueille. Il n'a pas l'air de savoir où est le bouton d'alarme.",
+    "a posé un jour de RTT. Son remplaçant vous reçoit, un gobelet de café dans une main, le manuel de procédures dans l'autre.",
+    "est « en réunion ». L'intérimaire se présente, vous serre la patte et vous demande de patienter. Il n'a jamais tué personne."
+];
+function interimBossLine(enemy) {
+    const eg = config.earlyGame.interimBoss;
+    const text = INTERIM_BOSS_LINES[(enemy.baseName || enemy.name || '').length % INTERIM_BOSS_LINES.length];
+    return `🏷️ [${enemy.baseName || enemy.name}] ${text} (Remplaçant intérimaire : −${Math.round((1 - eg.hpMult) * 100)} % de PV, −${Math.round((1 - eg.atkMult) * 100)} % d'ATQ.)`;
+}
+
 function initiateCombat(forcedEnemy = null) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
     // Suivi du combat pour la chronique (chantier 2) : dégâts subis au départ, ouverture furtive, nombre
@@ -6046,6 +6058,7 @@ function initiateCombat(forcedEnemy = null) {
     if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
+    if (enemy && enemy.isInterim) logEvent(interimBossLine(enemy), "info"); // Remplaçant intérimaire (chantier 15, lot 2)
     // Occasions de combat (chantier 6, V2) : état remis à zéro ; la garantie compte un combat de plus sans Occasion.
     gameState.occasion = Object.assign(createOccasionState(), { pity: ((gameState.occasion && gameState.occasion.pity) || 0) + 1 });
 

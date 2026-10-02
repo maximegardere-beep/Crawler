@@ -68,8 +68,10 @@ Tout dans `config.earlyGame` (valeurs ci-dessus, une seule table) ; un seul poin
   `config.mobDamageScaling.eliteDamageMult` ; **les chasseurs de primes restent sur ×1,65** (leurs stats sont calées dessus). L'outil `sim:early` utilise maintenant le moteur pour ce mécanisme
   (`engineHandlesFreeFloors`). Tests : section « Lot 1 » de `tests/regression/early-game.js` (0 élite sur 3000 mobs aux étages 1 et 2, y compris avec le décalage LABYRINTHE ; elles reviennent à l'étage 3 ; rampe ; chasseur exempt).
   Le message satirique de la première élite à l'étage 3 est reporté au lot 5 (il demande un état sauvegardé).
-- **Lot 2 — Remplaçant intérimaire** : `generateBoss()` applique `interimBoss` à l'étage ≤ 3 (gardien d'escalier, boss de quartier, boss de repaire — l'étage 3 est urbain) ;
-  suffixe de nom, `isInterim`, ligne de journal à l'entrée en combat.
+- **Lot 2 — Remplaçant intérimaire (CODÉ)** : `generateBoss()` (generator.js) applique `earlyInterimBossScale(floor)` (PV et ATQ ×0,75, étages ≤ `maxFloor`) — un seul point couvre le gardien d'escalier, le boss de quartier
+  et le boss de repaire (l'étage 3 est urbain) ; `boss.isInterim`, nom suffixé « (intérimaire) », `baseName` inchangé (sprite unique, objet signature), DEF/XP/récompenses inchangées. `initiateCombat()` affiche une réplique
+  d'accueil (3 variantes selon la longueur du nom, avec les chiffres exacts). `sim:early` utilise le moteur (`engineHandlesInterim`) : mêmes chiffres que la baseline. Un test existant (`combat-scene.js`, « nom d'origine
+  conservé ») a été précisé : `baseName` = nom du boss d'origine, suffixe d'intérim autorisé. Section « Lot 2 » de `tests/regression/early-game.js` (13 quartiers × étages 1-3, étage 4 inchangé, sprite, réplique).
 - **Lot 3 — Période d'essai** : `trialDamageMult()` (pure, étage + niveau) appliquée avec `applyStarterBuffToDamage()` aux MÊMES points d'appel
   (`companionInterceptHit()`, pièges, saignement) pour que le journal et les PV restent d'accord. **Ne doit pas gonfler la facilité des victoires** (`computeWinEase()` lit les
   PV perdus : sans correctif, la prime des chasseurs monterait trop vite) → compteur des PV épargnés réajouté au calcul. Badge `#trial-status` (infobulle), message d'arrêt à l'étage 4.

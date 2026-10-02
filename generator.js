@@ -313,9 +313,26 @@ function generateBoss(districtName) {
         boss.atk = Math.max(1, Math.round(boss.atk * gameState.anomalyEffects.mobAtkMult));
     }
 
+    // Remplaçant intérimaire (chantier 15, lot 2) : aux étages du « tutoriel », le patron est en congé et son stagiaire reçoit à sa place —
+    // PV et ATQ réduits (DEF, XP et récompenses inchangées ; `baseName` inchangé pour le sprite et l'objet signature).
+    const interim = earlyInterimBossScale(typeof gameState !== 'undefined' ? gameState.currentFloor : 1);
+    if (interim) {
+        boss.hp = Math.max(1, Math.round(boss.hp * interim.hpMult));
+        boss.atk = Math.max(1, Math.round(boss.atk * interim.atkMult));
+        boss.isInterim = true;
+        boss.name = `${boss.name} (intérimaire)`;
+    }
+
     boss.isGenerated = true;
     boss.modifiersApplied = []; // Pas de modificateurs aléatoires sur un boss : liste vide pour l'UI
     return boss;
+}
+
+// Multiplicateurs PV / ATQ d'un boss intérimaire à cet étage (config.earlyGame.interimBoss, étages ≤ maxFloor), ou null. Pure.
+function earlyInterimBossScale(floor) {
+    const eg = typeof config !== 'undefined' ? config.earlyGame : null;
+    if (!eg || !eg.enabled || !eg.interimBoss || floor > eg.maxFloor) return null;
+    return { hpMult: eg.interimBoss.hpMult, atkMult: eg.interimBoss.atkMult };
 }
 
 // ==========================================

@@ -856,7 +856,8 @@ function isRedHex(hex) {
     Math.random = originalRandom;
     assert(mob.baseName && MOB_DETAILS[mob.baseName] && mob.name.startsWith(mob.baseName), "generateMob() : nom d'origine conservé (baseName) malgré les suffixes");
     const boss = generateBoss(districtName);
-    assert(boss.baseName === boss.name, "generateBoss() : nom d'origine conservé");
+    // Aux étages 1-3 le boss est un « remplaçant intérimaire » (chantier 15) : son nom porte un suffixe, son baseName reste celui du boss d'origine.
+    assert(boss.baseName === findBossForDistrict(districtName).name && boss.name.startsWith(boss.baseName) && (boss.isInterim ? boss.name === `${boss.baseName} (intérimaire)` : boss.name === boss.baseName), "generateBoss() : nom d'origine conservé (baseName), suffixe d'intérimaire possible");
 
     // Rendu de combat : palette du mob sur la scène, aura dessinée
     gameState.inCombat = true;
