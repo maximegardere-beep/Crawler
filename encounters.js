@@ -5,7 +5,7 @@
 // (lot 1) et le branchement dans app.js (lot 2) viennent plus tard : rien ici ne change encore le jeu.
 //
 // Une image = un cadrage d'un mob : `face` (« il t'a vu », le mob nous fixe avec rage) ou `back` (« tu l'as vu »,
-// de dos et au loin). Elles vivent dans `assets/mobs/<slug>-<cadrage>.webp` (portrait 750 x 1334) ; tant qu'un mob
+// de dos et au loin). Elles vivent dans `assets/mobs/<slug>-<cadrage>.svg` ou `.webp` (portrait 750 x 1334) ; tant qu'un mob
 // n'en a pas, l'overlay retombe sur son sprite SVG agrandi (`resolveEncounterArt()` renvoie `fallback: true`).
 // Les noms de globales sont préfixés `encounter`/`ENCOUNTER` : tous les catalogues partagent l'espace global.
 
@@ -70,13 +70,20 @@ const ENCOUNTER_KINDS = {
 };
 
 // Manifeste des images LIVRÉES : clé = nom exact du mob/boss/chasseur (`baseName`), valeur = cadrages disponibles
-// dans `assets/mobs/`. À compléter à chaque livraison de Vibe (jamais avant que le fichier existe : un test le vérifie).
+// dans `assets/mobs/`, chacun avec son format : 'svg' (illustration vectorielle livrée par Vibe, ~8 Ko) ou 'webp'
+// (`true` = 'webp'). À compléter à chaque livraison de Vibe (jamais avant que le fichier existe : un test le vérifie).
 const ENCOUNTER_ART = {
-    // 'Le Chef de Gare Nécrosé': { face: true },
+    'Le Chef de Gare Nécrosé': { face: 'svg' },
+    'La Mère-Liane': { face: 'svg' },
+    'Le Directeur Général (Édition Cauchemar)': { face: 'svg' },
+    'Le Boucher Sans Visage': { face: 'svg' },
+    'Le Gardien des Mots Perdus': { face: 'svg' },
+    'Le Professeur Démentiel': { face: 'svg' },
+    'Le Maître des Illusions': { face: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';
-const ENCOUNTER_ART_EXT = '.webp';
+const ENCOUNTER_ART_EXT = '.webp'; // extension par défaut (images non livrées, valeur `true` du manifeste)
 
 // Nom -> fichier : minuscules, sans accents, tout caractère non alphanumérique remplacé par « - », tirets en double
 // et aux extrémités supprimés (« Le Chef de Gare Nécrosé » -> « le-chef-de-gare-necrose »).
@@ -89,9 +96,15 @@ function encounterArtSlug(name) {
         .replace(/^-+|-+$/g, '');
 }
 
+// Extension déclarée au manifeste pour un nom et un cadrage : '.svg' si l'entrée vaut 'svg', sinon '.webp' (défaut).
+function encounterArtExt(name, view) {
+    const entry = ENCOUNTER_ART[name];
+    return entry && entry[view] === 'svg' ? '.svg' : ENCOUNTER_ART_EXT;
+}
+
 // Chemin relatif de l'image d'un nom et d'un cadrage ('face' | 'back').
 function encounterArtPath(name, view) {
-    return ENCOUNTER_ART_DIR + encounterArtSlug(name) + '-' + view + ENCOUNTER_ART_EXT;
+    return ENCOUNTER_ART_DIR + encounterArtSlug(name) + '-' + view + encounterArtExt(name, view);
 }
 
 // Cadrage d'un type de rencontre ; type inconnu -> 'face'.
@@ -160,5 +173,5 @@ function encounterArtTargets() {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ENCOUNTER_KINDS, ENCOUNTER_ART, encounterArtSlug, encounterArtPath, encounterKindView, encounterArtName, resolveEncounterArt, fillEncounterTemplate, pickEncounterText, encounterArtTargets };
+    module.exports = { ENCOUNTER_KINDS, ENCOUNTER_ART, encounterArtSlug, encounterArtExt, encounterArtPath, encounterKindView, encounterArtName, resolveEncounterArt, fillEncounterTemplate, pickEncounterText, encounterArtTargets };
 }

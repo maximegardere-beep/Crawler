@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Le Maître des Illusions, boss de la Rue des Illusions, cadrage « face ». Dandy spectral (shade,
+       il flotte). Palette du sprite : base #6d5a9e, sombre #3d3059, accent or #ffd76a. Aura confusion
+       #c084fc. Objet signature : Cape en Lambeaux (#5b21b6/#7c3aed) dans le dos. Haut-de-forme,
+       monocle doré, sourire fin, cartes qui flottent. Aucun texte. 22 % du bas : sol et ombre. -->
+  <defs>
+    <pattern id="illusion-mur" width="120" height="80" patternUnits="userSpaceOnUse">
+      <rect width="120" height="80" fill="#241f33"/>
+      <rect x="6" y="6" width="108" height="68" rx="6" fill="#2d2742"/>
+      <circle cx="30" cy="25" r="4" fill="#332c4d"/>
+      <circle cx="85" cy="50" r="5" fill="#332c4d"/>
+      <circle cx="60" cy="66" r="3" fill="#332c4d"/>
+      <circle cx="100" cy="14" r="3" fill="#332c4d"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#illusion-mur)"/>
+  <rect x="0" y="0" width="750" height="64" fill="#1c1830"/>
+  <g stroke="#05060c" stroke-width="6">
+    <path d="M90 64 v130" />
+    <path d="M90 194 q60 18 60 -24" fill="none"/>
+    <circle cx="150" cy="160" r="22" fill="#ffd76a" opacity="0.85"/>
+    <path d="M660 64 v150"/>
+    <path d="M660 214 q-60 18 -60 -24" fill="none"/>
+    <circle cx="600" cy="180" r="22" fill="#ffd76a" opacity="0.85"/>
+  </g>
+  <ellipse cx="150" cy="230" rx="110" ry="90" fill="#ffd76a" opacity="0.08"/>
+  <ellipse cx="600" cy="250" rx="110" ry="90" fill="#ffd76a" opacity="0.08"/>
+  <ellipse cx="375" cy="700" rx="340" ry="280" fill="#332a52" opacity="0.45"/>
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="480" y="420" width="90" height="60" rx="8" fill="#2a2340" transform="rotate(8 525 450)"/>
+    <rect x="500" y="440" width="50" height="24" rx="4" fill="#3d3560" transform="rotate(8 525 450)"/>
+    <rect x="150" y="520" width="80" height="56" rx="8" fill="#2a2340" transform="rotate(-10 190 548)"/>
+    <rect x="166" y="538" width="44" height="22" rx="4" fill="#3d3560" transform="rotate(-10 190 548)"/>
+  </g>
+  <path d="M560 700 h80 l-16 -36 h-48 Z M610 664 h-20 l10 36" fill="none" stroke="#3d3560" stroke-width="8"/>
+  <rect x="0" y="1040" width="750" height="294" fill="#282138"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g fill="none" stroke="#221c33" stroke-width="6">
+    <path d="M0 1115 h750 M0 1200 h750 M0 1280 h750"/>
+    <path d="M130 1040 v75 M430 1040 v75 M650 1040 v75 M280 1115 v85 M560 1115 v85 M140 1200 v80 M400 1200 v80"/>
+  </g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <ellipse cx="375" cy="620" rx="320" ry="420" fill="#c084fc" opacity="0.10"/>
+  <ellipse cx="375" cy="620" rx="240" ry="330" fill="#c084fc" opacity="0.13"/>
+  <ellipse cx="375" cy="620" rx="160" ry="220" fill="#c084fc" opacity="0.16"/>
+  <g fill="none" stroke="#c084fc" stroke-width="7" opacity="0.75">
+    <path d="M205 410 a18 18 0 1 1 18 18 a12 12 0 1 0 -18 -18"/>
+    <path d="M555 460 a18 18 0 1 1 18 18 a12 12 0 1 0 -18 -18"/>
+  </g>
+  <ellipse cx="375" cy="1058" rx="170" ry="24" fill="#05060c" opacity="0.4"/>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-width="11">
+    <path d="M225 560 L300 520 L460 520 L535 560 L560 950 L520 900 L495 945 L465 900 L440 950 L415 900 L390 945 L360 900 L335 945 L310 900 L285 945 L255 900 L225 950 Z" fill="#5b21b6" stroke-width="10"/>
+    <path d="M300 560 Q330 760 290 900" fill="none" stroke="#7c3aed" stroke-width="7"/>
+    <path d="M460 560 Q430 760 470 900" fill="none" stroke="#7c3aed" stroke-width="7"/>
+    <circle cx="330" cy="700" r="9" fill="#e9d5ff"/>
+    <circle cx="430" cy="820" r="8" fill="#e9d5ff"/>
+    <path d="M250 580 C215 690 225 850 260 930 C310 900 340 930 375 905 C410 930 440 900 490 930 C525 850 535 690 500 580 C465 545 430 535 375 535 C320 535 285 545 250 580 Z" fill="#6d5a9e" opacity="0.94"/>
+    <path d="M250 580 C285 545 320 535 375 535 C430 535 465 545 500 580 C470 560 435 552 375 552 C315 552 280 560 250 580 Z" fill="#3d3059" stroke-width="8"/>
+    <path d="M260 930 C310 900 340 930 375 905 C410 930 440 900 490 930" fill="none" stroke="#3d3059" stroke-width="10"/>
+    <path d="M330 555 L375 640 L420 555 L400 545 L375 585 L350 545 Z" fill="#3d3059" stroke-width="7"/>
+    <path d="M368 640 L375 622 L382 640 L385 760 L375 775 L365 760 Z" fill="#ffd76a" stroke-width="6"/>
+    <g fill="#ffd76a" stroke-width="5">
+      <circle cx="355" cy="680" r="8"/>
+      <circle cx="395" cy="680" r="8"/>
+      <circle cx="358" cy="780" r="8"/>
+      <circle cx="392" cy="780" r="8"/>
+    </g>
+    <path d="M300 610 C240 630 195 690 185 755 L250 775 C262 710 300 665 335 648 Z" fill="#6d5a9e" stroke-width="9" opacity="0.95"/>
+    <circle cx="218" cy="762" r="26" fill="#3d3059" stroke-width="7"/>
+    <g stroke-width="6">
+      <rect x="170" y="700" width="62" height="86" rx="6" fill="#e8e4d8" transform="rotate(-24 201 743)"/>
+      <path d="M184 728 l34 -14 M182 752 l32 -12" stroke="#47536e" stroke-width="4"/>
+    </g>
+    <g stroke-width="6">
+      <rect x="580" y="560" width="58" height="80" rx="6" fill="#e8e4d8" transform="rotate(20 609 600)"/>
+      <path d="M596 590 l24 -10 M594 616 l22 -9" stroke="#47536e" stroke-width="4"/>
+      <rect x="115" y="500" width="52" height="74" rx="6" fill="#e8e4d8" transform="rotate(-15 141 537)"/>
+      <path d="M130 528 l22 -9 M128 552 l20 -8" stroke="#47536e" stroke-width="4"/>
+      <rect x="640" y="760" width="48" height="68" rx="6" fill="#e8e4d8" transform="rotate(30 664 794)"/>
+    </g>
+    <path d="M460 605 C520 625 550 670 545 720 L490 720 C492 678 468 645 432 630 Z" fill="#6d5a9e" stroke-width="9" opacity="0.95"/>
+    <rect x="345" y="480" width="60" height="58" fill="#54427e" stroke-width="8"/>
+    <path d="M282 355 C282 288 312 244 375 244 C438 244 468 288 468 355 C468 424 452 478 422 500 C408 510 392 516 375 516 C358 516 342 510 328 500 C298 478 282 424 282 355 Z" fill="#54427e" stroke-width="12"/>
+    <g>
+      <circle cx="428" cy="375" r="34" fill="#e8f4ff" fill-opacity="0.55" stroke="#caa23a" stroke-width="9"/>
+      <circle cx="428" cy="375" r="13" fill="#ffd76a" stroke-width="5"/>
+      <circle cx="428" cy="375" r="6" fill="#05060c"/>
+      <path d="M448 400 q14 16 8 30" fill="none" stroke="#caa23a" stroke-width="6"/>
+    </g>
+    <circle cx="330" cy="375" r="14" fill="#ffd76a" stroke-width="6"/>
+    <circle cx="330" cy="375" r="6" fill="#05060c"/>
+    <path d="M298 368 q32 -16 58 4" fill="none" stroke-width="8"/>
+    <path d="M340 455 Q378 472 412 450" fill="none" stroke-width="8"/>
+    <path d="M360 458 q18 12 34 0" fill="none" stroke="#ffd76a" stroke-width="5"/>
+    <path d="M352 442 q22 12 44 0" fill="none" stroke="#3d3059" stroke-width="6"/>
+    <g>
+      <rect x="305" y="160" width="140" height="120" rx="14" fill="#3d3059"/>
+      <rect x="305" y="248" width="140" height="18" fill="#caa23a"/>
+      <rect x="278" y="264" width="194" height="26" rx="13" fill="#3d3059" stroke-width="8"/>
+      <path d="M440 180 q24 -14 30 -34" fill="none" stroke="#ffd76a" stroke-width="6"/>
+    </g>
+    <path d="M322 168 L330 104 L352 138 L375 84 L398 138 L420 104 L428 168 Z" fill="#caa23a" stroke-width="8"/>
+  </g>
+</svg>

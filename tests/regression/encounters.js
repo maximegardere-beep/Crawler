@@ -39,7 +39,7 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
     const slugs = [...new Set([...bosses.map(b => b.name), ...bountyHunters.map(h => h.name), ...mobs.map(m => m.name)].map(encounterArtSlug))];
     assert(slugs.length === bosses.length + bountyHunters.length + mobs.length, "Aucun slug en double entre boss, chasseurs et mobs (sinon deux mobs écraseraient la même image)");
     const paths = targets.map(t => t.path);
-    assert(new Set(paths).size === paths.length && paths.every(p => /^assets\/mobs\/[a-z0-9-]+-(face|back)\.webp$/.test(p)), "Cibles : chemins uniques et bien formés");
+    assert(new Set(paths).size === paths.length && paths.every(p => /^assets\/mobs\/[a-z0-9-]+-(face|back)\.(webp|svg)$/.test(p)), "Cibles : chemins uniques et bien formés");
     assert(targets.slice(0, bosses.length).every(t => t.kind === 'boss' && t.view === 'face'), "Ordre : les 13 boss d'abord, en face");
     assert(targets.slice(bosses.length, bosses.length + bountyHunters.length).every(t => t.kind === 'hunter'), "Ordre : puis les chasseurs de primes");
     const mobTargets = targets.filter(t => t.kind === 'mob');
@@ -56,13 +56,13 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
     Object.entries(ENCOUNTER_ART).forEach(([name, views]) => {
         assert(known.has(name), `Manifeste : « ${name} » est un vrai mob, boss ou chasseur`);
         Object.entries(views).forEach(([view, ok]) => {
-            assert((view === 'face' || view === 'back') && ok === true, `Manifeste : « ${name} » ${view} bien formé`);
+            assert((view === 'face' || view === 'back') && (ok === true || ok === 'webp' || ok === 'svg'), `Manifeste : « ${name} » ${view} bien formé`);
             assert(fs.existsSync(path.join(__dirname, '..', '..', encounterArtPath(name, view))), `Manifeste : le fichier ${encounterArtPath(name, view)} existe`);
         });
     });
     // Tout fichier de assets/mobs/ doit être déclaré (sinon il serait livré sans jamais s'afficher).
     const dir = path.join(__dirname, '..', '..', 'assets', 'mobs');
-    const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.webp')) : [];
+    const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.webp') || f.endsWith('.svg')) : [];
     const declared = new Set();
     Object.entries(ENCOUNTER_ART).forEach(([name, views]) => Object.keys(views).forEach(v => declared.add(encounterArtPath(name, v).replace('assets/mobs/', ''))));
     assert(files.every(f => declared.has(f)), "Chaque image de assets/mobs/ est déclarée dans ENCOUNTER_ART");
@@ -196,4 +196,24 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
         delete ENCOUNTER_ART['Rat Goulot'];
         resetTransientState();
     }
+}
+
+// --- Images SVG livrées par Vibe (format 'svg' du manifeste) ---
+{
+    const fsx = require('fs'), pathx = require('path');
+    const delivered = Object.entries(ENCOUNTER_ART).filter(([, v]) => v.face === 'svg').map(([n]) => n);
+    assert(delivered.length === 7 && delivered.every(n => Object.values(districtBosses).some(b => b.name === n)), "Manifeste : 7 boss livrés en SVG");
+    assert(encounterArtPath('Le Boucher Sans Visage', 'face') === 'assets/mobs/le-boucher-sans-visage-face.svg' && encounterArtExt('Rat Goulot', 'face') === '.webp', "encounterArtPath() : extension .svg selon le manifeste, .webp par défaut");
+    const boss = { name: 'Le Boucher Sans Visage (intérimaire)', baseName: 'Le Boucher Sans Visage', isBoss: true };
+    const art = resolveEncounterArt(boss, 'boss');
+    assert(!art.fallback && art.src === 'assets/mobs/le-boucher-sans-visage-face.svg', "resolveEncounterArt() : chemin du SVG livré");
+    assert(resolveEncounterArt(boss, 'unseen').fallback === true, "Boss livré en face seulement : le dos retombe sur le sprite");
+    assert(encounterArtTargets().filter(t => t.done).length === 7, "Cibles : 7 images marquées faites");
+    delivered.forEach(n => {
+        const f = fsx.readFileSync(pathx.join(__dirname, '..', '..', encounterArtPath(n, 'face')), 'utf8');
+        assert(/<svg[^>]+width="750"[^>]+height="1334"[^>]+viewBox="0 0 750 1334"/.test(f), `SVG « ${n} » : portrait 750 x 1334`);
+        assert(!/<text|<script|<image|href=|onload|onclick/i.test(f), `SVG « ${n} » : aucun texte, script, image externe ni gestionnaire`);
+        assert(/^[\x00-\x7F]*$/.test((f.match(/\b(?:id|url\(#)[^"')]*/g) || []).join('')), `SVG « ${n} » : identifiants ASCII`);
+        assert(f.length < 20000, `SVG « ${n} » : léger (< 20 Ko)`);
+    });
 }
