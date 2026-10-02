@@ -156,6 +156,8 @@ const gameState = {
     // `raceLastStandFloor` : dernier étage où « Increvable » (Cafard mutant) a servi (1 fois par étage).
     race: null,
     raceLastStandFloor: 0,
+    // Armure de scénario (chantier 15, lot 4) : dernier étage où elle a servi (1 fois par étage 1-3). Absent d'une ancienne sauvegarde : 0.
+    plotArmorFloor: 0,
     // Classe du crawler (chantier 13, lot 2 : choisie à l'étage 3 ; ses effets sont codés au lot 3) : clé d'ORIGIN_CLASSES, null = aucune.
     crawlerClass: null,
     classAbilityUsed: false, // capacité active de classe déjà utilisée dans CE combat (remise à faux à chaque nouveau combat)
@@ -527,7 +529,7 @@ const config = {
         elites: { freeFloors: 2, damageRamp: { 3: 1.3, 4: 1.5 } }, // Convention collective : aucune élite aux étages 1-2 ; eliteDamageMult ×1,3 / ×1,5 aux étages 3-4 (puis inchangé)
         interimBoss: { hpMult: 0.75, atkMult: 0.75 },       // Remplaçant intérimaire : PV et ATQ des boss des étages 1-3 (DEF inchangée)
         trial: { startReduction: 0.40, fadeLevel: 7 },      // Période d'essai : −40 % de dégâts subis au niveau 1, dégressif jusqu'à 0 au niveau 7
-        plotArmor: { leaveHp: 1 }                           // Armure de scénario : un coup mortel laisse ce nombre de PV, 1 fois par étage
+        plotArmor: { enabled: true, leaveHp: 1 }            // Armure de scénario : un coup mortel laisse ce nombre de PV, 1 fois par étage (`enabled` : interrupteur propre au mécanisme, voir tests/regression/_helpers.js)
     },
 
     // Buff de départ du crawler sans arme (chantier 14) : voir starterBuffInfo()/endStarterBuff().
@@ -1087,6 +1089,7 @@ function restoreSaveForName(name) {
     // Champs de crawler absents d'une ancienne sauvegarde : jamais ceux du crawler précédemment chargé dans cette page (Object.assign ne les écrase pas).
     if (saved.starterBuff === undefined) gameState.starterBuff = null;
     if (saved.raceLastStandFloor === undefined) gameState.raceLastStandFloor = 0;
+    if (saved.plotArmorFloor === undefined) gameState.plotArmorFloor = 0;
     if (!saved.race || !config.origins.races[saved.race]) gameState.race = null; // ancienne sauvegarde ou clé inconnue : aucune race
     if (!saved.crawlerClass || !ORIGIN_CLASSES[saved.crawlerClass]) gameState.crawlerClass = null;
     recomputeRaceDerived();
@@ -3581,6 +3584,7 @@ function recordRunEvent(type, data = {}) {
             if (data.synergy) s.synergyAbilities += 1;
             break;
         case 'lastStand': s.lastStands += 1; break; // « Increvable » consommé (chantier 13)
+        case 'plotArmor': s.plotArmorUses = (s.plotArmorUses || 0) + 1; break; // « Armure de scénario » consommée (chantier 15)
         case 'bounty': s.maxBounty = Math.max(s.maxBounty || 0, data.value || 0); break;
         case 'hunterKilled': s.huntersKilled += 1; break;
         case 'minigame': // épreuve JOUÉE (jamais le jet automatique : il n'a ni mérite ni échec)
@@ -4683,12 +4687,16 @@ function awardBossSignatureItem(boss, itemLevel = gameState.currentFloor, outcom
 // d'escalier). Remplace les mutations directes de gameState.hp dispersées dans le code de combat/
 // exploration, pour ne jamais avoir à retrouver tous ces points d'appel séparément (ex : un futur
 // hook d'anomalie qui multiplierait les dégâts subis n'aurait qu'ICI à s'accrocher).
+// Renvoie les PV réellement perdus (après Armure de scénario et Increvable) : les journaux de combat doivent afficher ce montant-là, pas le coup d'origine.
 function applyPlayerDamage(amount) {
-    if (!amount || amount <= 0) return;
+    if (!amount || amount <= 0) return 0;
+    amount = applyPlotArmor(amount); // Armure de scénario (chantier 15, lot 4) : d'abord, pour que l'Increvable du Cafard reste disponible pour la suite
     amount = applyRaceLastStand(amount); // Cafard mutant : Increvable (chantier 13)
+    if (!(amount > 0)) return 0;
     gameState.hp = Math.max(0, gameState.hp - amount);
     gameState.floorStats.damageTaken += amount;
     recordRunEvent('damageTaken', { amount }); // Chronique de run (chantier 2)
+    return amount;
 }
 
 // Point de passage UNIQUE pour tout gain de PV du joueur (potion, trouvaille, régénération passive,
@@ -6084,7 +6092,7 @@ function initiateCombat(forcedEnemy = null) {
     }
 
     // Statuts remis à zéro à chaque nouveau combat (des deux côtés)
-    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null };
+    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null, plotShield: false };
     gameState.classAbilityUsed = false; // capacité de classe : une fois par combat (chantier 13)
     if (enemy) {
         // telegraph/defBuffed/frenzied : uniquement lus/écrits côté boss (voir performBossCounterAttack()
@@ -6436,6 +6444,7 @@ function tryPlayerAction() {
     // Même convention pour "Charger" (Chantier 3, attemptEngage()) : la DEF divisée par 2 ne doit
     // couvrir QUE la riposte qui suit la charge, jamais fuiter sur l'action suivante du joueur.
     gameState.engageDefHalved = false;
+    gameState.status.plotShield = false; // Armure de scénario (chantier 15) : ne couvre que le reste du tour ennemi où elle a servi
     gameState.status.brace = null; // Encaisser (chantier 13) : ne couvre que la riposte qui suit la capacité
     // Bouclier de Mana (chantier 11) : couvre les ripostes des `rounds` actions suivant le sort.
     if (gameState.status.manaShield) {
@@ -7153,10 +7162,10 @@ function executeBossStrike(enemy, atk, label, pressureFloorOverride, heavy = fal
     });
     // Interception par le compagnon (Garde souvent, les autres parfois) — voir companionInterceptHit()
     const intercept = companionInterceptHit(dmg);
-    const playerDamage = intercept.playerDamage;
+    let playerDamage = intercept.playerDamage;
     const companionAbsorbNote = intercept.note;
     const hpBefore = gameState.hp;
-    applyPlayerDamage(playerDamage);
+    playerDamage = applyPlayerDamage(playerDamage); // montant réellement perdu (Armure de scénario / Increvable)
     applyBraceReflect(enemy, playerDamage); // Encaisser (Sac de frappe, chantier 13)
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
     // Effet d'attaque du mob (fx.js) : chiffre, secousse et flash à l'impact ; `silent` = multi-coups,
@@ -7521,11 +7530,11 @@ function resolveNonBossCounterAttack(enemy) {
     // bonus passif de DEF de la Garde, voir getEffectiveDef()) — voir companionInterceptHit().
     const guardWasActive = hasActiveCompanion('guard');
     const intercept = companionInterceptHit(enemyDamage);
-    const playerDamage = intercept.playerDamage;
+    let playerDamage = intercept.playerDamage;
     const companionAbsorbNote = intercept.note;
 
     const hpBefore = gameState.hp;
-    applyPlayerDamage(playerDamage);
+    playerDamage = applyPlayerDamage(playerDamage); // montant réellement perdu (Armure de scénario / Increvable)
     applyBraceReflect(enemy, playerDamage); // Encaisser (Sac de frappe, chantier 13)
     animateDieHit(ui.combatEnemyDie, 'right', playerDamage);
     playMobAttackFx(enemy, { heldPlayerHp: hpBefore }, () => {
@@ -7710,6 +7719,21 @@ function applyRaceDamageMods(amount, source) {
 // Multiplicateur de dégâts à mains nues : buff de départ (chantier 14) × race (Troll).
 function unarmedDamageMult() {
     return starterBuffUnarmedMult() * (originRaceEffects().unarmedMult || 1) * (originClassEffects().unarmedMult || 1); // + Bagarreur (style)
+}
+
+// Armure de scénario (chantier 15, lot 4, config.earlyGame.plotArmor) : aux étages 1-3, le premier coup mortel de chaque étage laisse `leaveHp` PV (aussi contre un boss), et le
+// reste du tour ennemi en cours est absorbé (`status.plotShield`, uniquement en combat, éteint par la prochaine action du joueur) — jamais deux frappes d'une même rafale d'affilée.
+// Passe AVANT l'Increvable du Cafard : à 1 PV aucun des deux ne rejoue, il n'y a donc pas de double vie sur un même coup.
+function applyPlotArmor(amount) {
+    const eg = config.earlyGame;
+    if (!eg.enabled || !eg.plotArmor.enabled || gameState.currentFloor > eg.maxFloor) return amount;
+    if (gameState.inCombat && gameState.status.plotShield) return 0;
+    if (!(amount >= gameState.hp) || gameState.plotArmorFloor === gameState.currentFloor) return amount;
+    gameState.plotArmorFloor = gameState.currentFloor;
+    if (gameState.inCombat) gameState.status.plotShield = true;
+    recordRunEvent('plotArmor');
+    logEvent("🎬 Armure de scénario : le coup était fatal. Mais l'audience vient de grimper de 40 %, et la production a décidé que vous restiez en vie. (Un coup mortel par étage, jusqu'à l'étage 3.)", "success");
+    return Math.max(0, gameState.hp - eg.plotArmor.leaveHp);
 }
 
 // Increvable (Cafard mutant) : un dégât mortel laisse 1 PV, 1 fois par étage, jamais contre un boss. Renvoie le montant à appliquer.
@@ -8443,7 +8467,7 @@ function attemptFlee() {
         gameState.pendingBossRoomId = null; // Le boss reste vivant, la salle n'est pas marquée vaincue
         gameState.pendingSneakAttack = false; // Ne doit pas se reporter sur un combat futur
         gameState.fleesThisRun = (gameState.fleesThisRun || 0) + 1; // Voir generateEpitaph() : mention spéciale à 3+ fuites
-        gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
+        gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null, plotShield: false }; // Les statuts ne survivent pas au combat
         setSceneHeader('🏃', 'Fuite Réussie', 'Exploration', 'fled');
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
         changeCompanionLoyalty(config.companions.loyalty.flee); // Fuir n'inspire pas confiance à votre compagnon
@@ -8479,7 +8503,7 @@ function winCombat() {
     gameState.currentEnemy = null;
     gameState.inCombat = false;
     gameState.pendingSneakAttack = false;
-    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null }; // Les statuts ne survivent pas au combat
+    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null, plotShield: false }; // Les statuts ne survivent pas au combat
 
     if (wasBoss) {
         setSceneHeader('👑', 'Victoire !', 'Boss Vaincu', { key: 'bossVictory', enemy: defeatedEnemy });

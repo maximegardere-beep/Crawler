@@ -222,6 +222,9 @@ Tailwind CDN, **aucun build step**.
   **Période d'essai** (lot 3) : `trialDamageMult(level, floor)` (generator.js, pure) = `1 − 0,40 × (7 − niveau)/6` aux étages ≤ `maxFloor` (aucun état sauvegardé), appliquée par `applyTrialToDamage()` (app.js) AUX MÊMES points que le buff de
   départ — coup encaissé (`companionInterceptHit()`), pièges, saignement — pour que journal et PV restent d'accord ; badge `#trial-status` (`updateTrialStatusUI()`), message de fin à l'arrivée sur l'étage 4. Les PV épargnés
   sont comptés (`runStats.trialAvoided`) et réajoutés à la facilité des victoires (`recordRunEvent('win')`) : la prime des chasseurs ne grimpe pas plus vite. Dans les tests, la réduction est NEUTRALISÉE par défaut (`_helpers.js`) et réactivée par `withTrial()`.
+  **Armure de scénario** (lot 4) : `applyPlotArmor()` (app.js), appelée par `applyPlayerDamage()` AVANT `applyRaceLastStand()` (l'Increvable du Cafard reste disponible : à 1 PV aucun des deux ne rejoue) — aux étages ≤ `maxFloor`, le premier coup mortel de chaque étage
+  (`gameState.plotArmorFloor`, sauvegardé, ancienne sauvegarde → 0) laisse `plotArmor.leaveHp` PV, boss compris ; en combat, le reste du tour ennemi est absorbé (`status.plotShield`, éteint par `tryPlayerAction()` et aux fins/débuts de combat). `applyPlayerDamage()` renvoie désormais
+  les PV réellement perdus et les deux ripostes de combat (mob, `executeBossStrike()`) journalisent ce montant. `recordRunEvent('plotArmor')` → `runStats.plotArmorUses`. Interrupteur propre `plotArmor.enabled`, neutralisé par défaut dans les tests (`withPlotArmor()`).
 - **Scaling des dégâts mobs** (chantier "rework combat", voir `NOTES_COMBAT.md` pour le détail des
   valeurs et un écart signalé sur le critère d'acceptation) : `config.mobDamageScaling` remplace
   l'ancien `floorScaling.atk` pour les mobs — `getFloorScaling()` (generator.js) calcule désormais

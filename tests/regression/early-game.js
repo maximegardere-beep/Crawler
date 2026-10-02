@@ -1,7 +1,7 @@
 // early-game.js — tests régression : chantier 15, rééquilibrage du début de partie (voir NOTES_DEBUT_DE_PARTIE.md).
 // Lot 0 : forme et valeurs validées de `config.earlyGame`, et garde du modèle de joueur de l'outil `npm run sim:early`
 // (les gains par niveau de gainXp() ne doivent pas dériver sans que l'outil le sache). Les lots 1 à 4 ajoutent leurs sections ici.
-const { assert, resetTransientState, withTrial, EARLY_GAME_TRIAL_DEFAULTS } = require('./_helpers.js');
+const { assert, resetTransientState, withTrial, withPlotArmor, EARLY_GAME_TRIAL_DEFAULTS } = require('./_helpers.js');
 
 // --- Réglages validés par l'utilisateur (rounds 1 et 2) ---
 {
@@ -13,7 +13,7 @@ const { assert, resetTransientState, withTrial, EARLY_GAME_TRIAL_DEFAULTS } = re
     assert(eg.elites.damageRamp[4] < config.mobDamageScaling.eliteDamageMult, "La rampe reste sous le multiplicateur d'élite normal (×1,65)");
     assert(eg.interimBoss.hpMult === 0.75 && eg.interimBoss.atkMult === 0.75, "Remplaçant intérimaire : PV et ATQ ×0,75");
     assert(EARLY_GAME_TRIAL_DEFAULTS.startReduction === 0.40 && eg.trial.fadeLevel === 7, "Période d'essai : −40 % au niveau 1, éteinte au niveau 7 (valeurs validées ; réduction neutralisée par défaut dans les tests, voir _helpers.js)");
-    assert(eg.plotArmor.leaveHp === 1, "Armure de scénario : un coup mortel laisse 1 PV");
+    assert(eg.plotArmor.leaveHp === 1, "Armure de scénario : un coup mortel laisse 1 PV (interrupteur propre, neutralisé par défaut dans les tests : voir _helpers.js)");
 }
 
 // --- Modèle de joueur de l'outil sim:early : mêmes gains par niveau que gainXp() ---
@@ -260,6 +260,90 @@ const { assert, resetTransientState, withTrial, EARLY_GAME_TRIAL_DEFAULTS } = re
             fresh(2, 1); advanceToNextFloor();
             assert(!lines.some(l => /période d'essai/i.test(l)), "Arrivée à l'étage 2 : pas de message de fin");
         } finally { logEvent = originalLog; }
+    });
+    resetTransientState();
+}
+
+// ===================================================================
+// Lot 4 — Armure de scénario : un coup mortel par étage (1-3) laisse 1 PV, boss compris
+// ===================================================================
+{
+    const eg = config.earlyGame;
+    const withRand = (v, fn) => { const o = Math.random; Math.random = () => v; try { return fn(); } finally { Math.random = o; } };
+    const fresh = (floor, hp = 10) => {
+        resetTransientState();
+        gameState.currentFloor = floor; gameState.level = 1;
+        gameState.baseMaxHp = 100; recomputeMaxHp(); gameState.hp = hp;
+        gameState.def = 0; gameState.starterBuff = null; gameState.race = null;
+        gameState.runStats = createEmptyRunStats();
+    };
+    const lethalTrap = () => withRand(0, () => springTrap({ dmgMin: 500, dmgMax: 500, text: "Piège" }));
+    const captureLog = (fn) => { const lines = []; const o = logEvent; logEvent = (m) => { lines.push(String(m)); }; try { fn(); } finally { logEvent = o; } return lines; };
+
+    withPlotArmor(() => {
+        // Piège mortel : 1 PV, une fois par étage
+        fresh(1);
+        const lines = captureLog(lethalTrap);
+        assert(gameState.hp === 1 && gameState.plotArmorFloor === 1, `Piège mortel à l'étage 1 : il reste 1 PV (${gameState.hp})`);
+        assert(lines.filter(l => /Armure de scénario/.test(l)).length === 1, "Armure de scénario : une réplique à l'activation");
+        assert(gameState.runStats.plotArmorUses === 1, "Chronique : plotArmorUses compté");
+        assert(!gameState.status.plotShield, "Hors combat : aucun bouclier de tour (le piège suivant n'est pas gratuit)");
+        lethalTrap();
+        assert(gameState.hp === 0, "Second coup mortel sur le même étage : la mort");
+
+        fresh(2); gameState.plotArmorFloor = 1; lethalTrap();
+        assert(gameState.hp === 1 && gameState.plotArmorFloor === 2, "Nouvel étage : l'Armure est de nouveau disponible");
+        fresh(3); lethalTrap();
+        assert(gameState.hp === 1, "Étage 3 : encore protégé");
+        fresh(4); lethalTrap();
+        assert(gameState.hp === 0 && gameState.plotArmorFloor === 0, "Étage 4 : plus d'Armure de scénario");
+
+        // Seuls les coups mortels la consomment ; un coup qui laisse exactement 0 PV est mortel
+        fresh(1, 100); withRand(0, () => springTrap({ dmgMin: 30, dmgMax: 30, text: "Piège" }));
+        assert(gameState.hp === 70 && gameState.plotArmorFloor === 0, "Un coup non mortel ne consomme pas l'Armure");
+        fresh(1, 30); withRand(0, () => springTrap({ dmgMin: 30, dmgMax: 30, text: "Piège" }));
+        assert(gameState.hp === 1 && gameState.plotArmorFloor === 1, "Un coup qui amènerait exactement à 0 PV est mortel : il reste 1 PV");
+
+        // Paquet coupé -> mort comme avant
+        fresh(1); eg.enabled = false; lethalTrap(); eg.enabled = true;
+        assert(gameState.hp === 0, "Paquet coupé (enabled: false) : aucune Armure de scénario");
+
+        // Combat : le reste du tour est absorbé, la prochaine action du joueur éteint le bouclier
+        fresh(2, 10);
+        gameState.inCombat = true;
+        assert(applyPlayerDamage(500) === 9 && gameState.hp === 1 && gameState.status.plotShield === true, "Combat : coup mortel -> 9 PV perdus, il reste 1 PV, bouclier de tour posé");
+        assert(applyPlayerDamage(500) === 0 && gameState.hp === 1, "Combat : la frappe suivante du même tour est absorbée (rafale)");
+        withRand(0.5, () => initiateCombat({ name: "Cobaye", hp: 99999, maxHp: 99999, atk: 1, def: 0, xpReward: 1, status: {}, effect: null }));
+        assert(gameState.status.plotShield === false, "Nouveau combat : bouclier éteint");
+        gameState.status.plotShield = true;
+        withRand(0.5, () => tryPlayerAction());
+        assert(gameState.status.plotShield === false, "La prochaine action du joueur éteint le bouclier de tour");
+
+        // Riposte d'un mob : le journal annonce les PV réellement perdus, pas le coup d'origine
+        fresh(1, 10);
+        gameState.inCombat = true; gameState.combatDistance = 0;
+        gameState.currentEnemy = { name: "Cobaye", isBoss: false, hp: 100, maxHp: 100, atk: 500, def: 5, threatMultiplier: 1, status: {} };
+        const hitLines = captureLog(() => withRand(0.5, () => resolveEnemyCounterAttack()));
+        assert(gameState.hp === 1, "Riposte mortelle d'un mob : il reste 1 PV");
+        assert(hitLines.some(l => /inflige 9 dégâts/.test(l)) && !hitLines.some(l => /inflige \d{3,} dégâts/.test(l)), "Journal : « inflige 9 dégâts » (montant réellement perdu)");
+
+        // Boss : l'Armure fonctionne aussi (contrairement à l'Increvable)
+        fresh(1, 10);
+        gameState.inCombat = true; gameState.combatDistance = 0;
+        gameState.currentEnemy = Object.assign(generateBoss(Object.keys(districts)[0]), { atk: 900 });
+        gameState.currentEnemy.status = Object.assign({}, gameState.currentEnemy.status, { telegraph: null });
+        gameState.currentEnemy.lastKnownPhase = 1;
+        withRand(0.9, () => resolveEnemyCounterAttack());
+        assert(gameState.hp >= 1 && gameState.plotArmorFloor === 1, `Contre un boss : un coup mortel laisse des PV (${gameState.hp})`);
+
+        // Cafard : l'Armure passe avant l'Increvable, qui reste disponible pour la suite
+        fresh(3, 10); applyRace('roach'); gameState.hp = 10;
+        lethalTrap();
+        assert(gameState.hp === 1 && gameState.plotArmorFloor === 3 && gameState.raceLastStandFloor !== 3, "Cafard à l'étage 3 : l'Armure de scénario passe d'abord, l'Increvable n'est pas gaspillé");
+        gameState.hp = 10; lethalTrap();
+        assert(gameState.hp === 1 && gameState.raceLastStandFloor === 3, "Cafard : second coup mortel du même étage -> Increvable");
+        gameState.hp = 10; lethalTrap();
+        assert(gameState.hp === 0, "Cafard : troisième coup mortel du même étage -> la mort");
     });
     resetTransientState();
 }

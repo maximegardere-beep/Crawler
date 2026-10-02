@@ -39,7 +39,7 @@ function createEmptyRunStats() {
         minigamesPlayed: 0, minigamePerfects: 0, perfectStreak: 0, maxPerfectStreak: 0,
         arcadeGames: 0, arcadePerfectGames: 0, arcadeNet: 0, arcadeLost: 0,
         // Origines (chantier 13) : capacités de classe jouées (dont face à un boss, dont avec une synergie) et « Increvable » du Cafard consommé.
-        classAbilities: 0, classAbilityBossUses: 0, synergyAbilities: 0, lastStands: 0,
+        classAbilities: 0, classAbilityBossUses: 0, synergyAbilities: 0, lastStands: 0, plotArmorUses: 0, // plotArmorUses : « Armure de scénario » consommée (chantier 15)
         maxFloor: 1,
         // Victoires récentes (au plus DOMINANCE_WINDOW), pour l'indice de domination (chantier 3) :
         // { ease } = 1 si aucun PV perdu, 0 si ≥ DOMINANCE_HARD_FIGHT des PV max perdus.

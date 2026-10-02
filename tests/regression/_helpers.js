@@ -108,6 +108,7 @@ function resetTransientState() {
     gameState.pendingPactAfterOrigin = false;
     hideOriginOverlays();
     gameState.raceLastStandFloor = 0;
+    gameState.plotArmorFloor = 0;
     gameState.maxMana = 100;
     gameState.maxInventory = config.inventory.maxEquipment;
     gameState.pendingArcadeCityId = null; // Salle de jeux (V4)
@@ -136,4 +137,11 @@ function resetTransientState() {
     if (ui.gameOverOverlay) ui.gameOverOverlay.classList.add('hidden');
 }
 
-module.exports = { assert, resetTransientState, counts, withTrial, EARLY_GAME_TRIAL_DEFAULTS };
+// Même isolation pour l'Armure de scénario (un coup mortel aux étages 1-3 laisse 1 PV) : les tests de mort (Increvable, désamorçage raté...) restent valables ; réactivée par `withPlotArmor()`.
+config.earlyGame.plotArmor.enabled = false;
+function withPlotArmor(fn) {
+    config.earlyGame.plotArmor.enabled = true;
+    try { return fn(); } finally { config.earlyGame.plotArmor.enabled = false; }
+}
+
+module.exports = { assert, resetTransientState, counts, withTrial, withPlotArmor, EARLY_GAME_TRIAL_DEFAULTS };
