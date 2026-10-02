@@ -418,3 +418,45 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
     assert(sneakAttackMult() === 1.5, "pendingSneakAttack = 'ranged' : multiplicateur ×1,5");
     resetTransientState();
 }
+
+// --- Lot 6 : réglage joueur des écrans de rencontre ---
+{
+    const mob = { ...baseMobs[0], baseName: baseMobs[0].name, hp: 30, atk: 3, def: 1, xpReward: 1 };
+    const elite = { ...mob, name: 'Élite', threatMultiplier: 99 };
+    const boss = { ...Object.values(districtBosses)[0], isBoss: true, hp: 99, atk: 5, def: 1, xpReward: 1 };
+    const before = getEncounterIntroMode();
+    try {
+        assert(ENCOUNTER_INTRO_MODES.join() === 'all,important,off', "Réglage : trois modes (toujours, importants, jamais)");
+        setEncounterIntroMode('all');
+        assert(encounterIntroWanted('spotted', mob) && encounterIntroWanted('unseen', mob), "Mode « toujours » : tous les écrans");
+        setEncounterIntroMode('important');
+        assert(!encounterIntroWanted('spotted', mob) && !encounterIntroWanted('unseen', mob), "Mode « importants » : pas d'écran pour un mob ordinaire repéré ou aperçu");
+        assert(encounterIntroWanted('boss', boss) && encounterIntroWanted('hunter', mob) && encounterIntroWanted('ambush', mob), "Mode « importants » : boss, chasseur et embuscade gardent leur écran");
+        assert(isEliteMob(elite) ? encounterIntroWanted('spotted', elite) : true, "Mode « importants » : une élite garde son écran");
+        setEncounterIntroMode('off');
+        assert(!encounterIntroWanted('boss', boss) && !encounterIntroWanted('hunter', mob), "Mode « jamais » : aucun écran, boss compris");
+        setEncounterIntroMode('inconnu');
+        assert(getEncounterIntroMode() === 'off', "Un mode inconnu est ignoré");
+
+        // Intégration : avec interface, le mode « jamais » démarre le combat tout de suite
+        resetTransientState();
+        global.requestAnimationFrame = () => 0;
+        config.encounterIntro.enabled = true;
+        setEncounterIntroMode('off');
+        initiateCombat(mob);
+        assert(gameState.inCombat && !gameState.encounterIntroPending, "Mode « jamais » : le combat démarre sans écran");
+        resetTransientState();
+        setEncounterIntroMode('important');
+        initiateCombat(mob);
+        assert(gameState.inCombat && !gameState.encounterIntroPending, "Mode « importants » : mob ordinaire sans écran");
+        resetTransientState();
+        initiateCombat(mob, { intro: 'ambush' });
+        assert(gameState.encounterIntroPending && !gameState.inCombat, "Mode « importants » : l'embuscade garde son écran");
+        dismissEncounterIntro(true);
+    } finally {
+        config.encounterIntro.enabled = false;
+        delete global.requestAnimationFrame;
+        setEncounterIntroMode(before);
+        resetTransientState();
+    }
+}

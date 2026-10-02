@@ -48,7 +48,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
-| 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié — lots 0 à 3 codés (catalogue `encounters.js`, overlay + repli sprite agrandi), les 13 boss livrés par Vibe en SVG et intégrés, consigne d'évaluation Vibe prête | images WebP à faire générer par Vibe (consigne au lot 4) |
+| 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié — lots 0 à 3 et 6 codés (catalogue `encounters.js`, overlay + repli sprite agrandi), les 13 boss livrés par Vibe en SVG et intégrés, consigne d'évaluation Vibe prête | images WebP à faire générer par Vibe (consigne au lot 4) |
 
 ### Codés (à playtester)
 
@@ -507,7 +507,7 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
   Nommage `assets/mobs/<slug>-face.webp` / `-back.webp`, liste ordonnée des 13 boss.
 - **Lot 5 — vagues d'images** : 13 boss → mobs les plus puissants (les élites étant des modificateurs, on classe par stats de base d'étage tardif) → le reste (39 mobs
   × 2 plans). Chaque livraison = images + lignes du manifeste ; un mob sans image garde le repli du lot 1. Poids total visé ≈ 10 Mo, chargées à la demande (jamais au démarrage).
-- **Lot 6 — habillage** : réglage de durée facultatif, vibration (`navigator.vibrate`) à la révélation d'un boss, réplique DeathWatch pour l'arrivée d'un chasseur,
+- **Lot 6 — habillage** (**codé** : réglage joueur Toujours / Importants / Jamais dans ⚙️ Réglages ; vibration de boss déjà en place ; la réplique DeathWatch de chasseur et le succès « surpris en train de bailler » sont écartés, DeathWatch n'intervenant qu'aux changements d'étage) : réglage de durée facultatif, vibration (`navigator.vibrate`) à la révélation d'un boss, réplique DeathWatch pour l'arrivée d'un chasseur,
   succès éventuel « Surpris en train de bailler » (se faire attaquer à dos tourné).
 
 **Chiffres du lot 3 : validés** (×2 / ×1,5, écart 6, tireur surpris, arme ou sort à distance). **Restent à valider** : le tap obligatoire sur chaque rencontre (surtout les mobs ordinaires aux étages tardifs) est-il lassant ? (option envisagée si oui : tap dès le 1er étage, auto-fermeture
@@ -518,3 +518,5 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 **Livraisons de Vibe** (format **SVG** 750 x 1334, 5-9 Ko, accepté de fait : plus léger et net que le WebP prévu, le manifeste porte l'extension par image) : **les 13 boss** en cadrage face (vague 1 terminée). Fidèles aux sprites (palette, objet signature), mais compositions très frontales et symétriques, auras en ellipses plates, décors génériques ; à corriger : sifflet du Chef de Gare (à la bouche), Mère-Liane trop fine, Boucher en cône, Gardien aux mains illisibles. Le Gardien du Parking Éternel est le plus faible (véhicule bas, ~35 % de la hauteur, beaucoup de vide au-dessus). Manquent encore : les plans de dos, le chasseur de primes, les mobs (vague 2), le rapport de capacités et la page d'aperçu. Seule retouche aux fichiers : identifiants `usine-tôle` / `machines-tôle` passés en ASCII.
 
 **Retouches de Vibe, tour 1** : aura « vivante » (halo irrégulier, éclats propres à l'effet) et accessoires de décor ajoutés sur les 5 boss déjà réussis (Maître des Illusions, Baron des Ombres, IA Malveillante, Grand Requin Gonflable, Animateur Vedette) — appliqués aux fichiers sans changer leurs dessins. En attente : les corrections des 8 boss problématiques (Chef de Gare, Mère-Liane, Boucher, Gardien des Mots Perdus, Gardien du Parking, Professeur, Directeur, Roi des Chaussettes).
+
+**Vague 2 de Vibe** : consigne prête dans `prompts/vibe-rencontres-vague2.md` (39 mobs en face + dos par lots de 6, puis 3 chasseurs), générée depuis `encounterArtTargets()`.

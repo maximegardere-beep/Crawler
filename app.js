@@ -786,6 +786,7 @@ const ui = {
     btnLeaveSafehouse: document.getElementById('btn-leave-safehouse'),
     stealthChoiceZone: document.getElementById('stealth-choice-zone'),
     encounterOverlay: document.getElementById('encounter-overlay'),
+    encounterModeSelect: document.getElementById('encounter-mode-select'),
     encounterArt: document.getElementById('encounter-art'),
     encounterImg: document.getElementById('encounter-img'),
     encounterTitle: document.getElementById('encounter-title'),
@@ -8937,12 +8938,41 @@ const ENCOUNTER_INTRO_MIN_MS = 450; // garde-fou : le tap qui a déclenché la r
 let encounterIntroCallback = null;
 let encounterIntroOpenedAt = 0;
 
+// Réglage joueur (chantier 16, lot 6), préférence d'affichage jamais sauvegardée avec le crawler : 'all' (toutes les rencontres, défaut),
+// 'important' (boss, chasseurs de primes, embuscades de trajet et élites 💀 seulement) ou 'off'.
+const ENCOUNTER_INTRO_MODE_KEY = 'crawler_encounter_intro_mode';
+const ENCOUNTER_INTRO_MODES = ['all', 'important', 'off'];
+let encounterIntroModeValue = null;
+
+function getEncounterIntroMode() {
+    if (encounterIntroModeValue) return encounterIntroModeValue;
+    let stored = null;
+    try { stored = localStorage.getItem(ENCOUNTER_INTRO_MODE_KEY); } catch (e) { /* stockage indisponible : réglage par défaut */ }
+    encounterIntroModeValue = ENCOUNTER_INTRO_MODES.includes(stored) ? stored : 'all';
+    return encounterIntroModeValue;
+}
+
+function setEncounterIntroMode(mode) {
+    if (!ENCOUNTER_INTRO_MODES.includes(mode)) return;
+    encounterIntroModeValue = mode;
+    try { localStorage.setItem(ENCOUNTER_INTRO_MODE_KEY, mode); } catch (e) { /* idem */ }
+    if (ui.encounterModeSelect) ui.encounterModeSelect.value = mode;
+}
+
+// Le réglage autorise-t-il l'écran de ce type de rencontre pour cet ennemi ?
+function encounterIntroWanted(kind, enemy) {
+    const mode = getEncounterIntroMode();
+    if (mode === 'off') return false;
+    if (mode === 'all') return true;
+    return kind === 'boss' || kind === 'hunter' || kind === 'ambush' || !!(enemy && isEliteMob(enemy));
+}
+
 function encounterIntroAvailable() {
     return !!(config.encounterIntro && config.encounterIntro.enabled && ui.encounterOverlay && typeof requestAnimationFrame === 'function');
 }
 
 function showEncounterIntro(kind, enemy, onContinue) {
-    if (!enemy || !encounterIntroAvailable()) {
+    if (!enemy || !encounterIntroAvailable() || !encounterIntroWanted(kind, enemy)) {
         if (onContinue) onContinue();
         return false;
     }
@@ -9201,6 +9231,10 @@ if (ui.combatZone) {
         if (e.target.closest('button')) return;
         requestCombatSkip();
     });
+}
+if (ui.encounterModeSelect) {
+    ui.encounterModeSelect.value = getEncounterIntroMode();
+    ui.encounterModeSelect.addEventListener('change', () => setEncounterIntroMode(ui.encounterModeSelect.value));
 }
 // Écran de rencontre : un tap n'importe où, ou Espace/Entrée/Échap, le ferme (jamais de fermeture automatique).
 if (ui.encounterOverlay) bindTap(ui.encounterOverlay, () => dismissEncounterIntro());
