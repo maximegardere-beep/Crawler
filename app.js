@@ -7471,8 +7471,10 @@ function resolveNonBossCounterAttack(enemy) {
     // des modificateurs aléatoires déjà existants (qui gonflaient surtout les PV) — chantier "rework
     // combat". Jamais sur un boss : isEliteMob() les exclut déjà (ils ont leur propre traitement,
     // voir Chantier 2 du même rework).
+    // Rampe de la Convention collective (chantier 15) : ×1,3 / ×1,5 aux étages 3-4 ; jamais pour un chasseur de primes, dont les stats sont
+    // calées sur le multiplicateur normal (computeBountyHunterStats()).
     if (isEliteMob(enemy)) {
-        enemyAtk = Math.round(enemyAtk * config.mobDamageScaling.eliteDamageMult);
+        enemyAtk = Math.round(enemyAtk * (enemy.isBountyHunter ? config.mobDamageScaling.eliteDamageMult : eliteDamageMultForFloor(gameState.currentFloor)));
     }
 
     // Anti-abus mêlée collée (Chantier 3) : un mob inflige toujours +10% de dégâts à écart nul, pour

@@ -47,7 +47,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 8 | Sons | M | Idée | hébergement des fichiers non tranché |
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
-| 15 | Rééquilibrage du début de partie (étages 1-3) | M | Lot 0 codé (outil `sim:early`, `config.earlyGame`) | `NOTES_DEBUT_DE_PARTIE.md` — attend « Go lot 1 » |
+| 15 | Rééquilibrage du début de partie (étages 1-3) | M | Lots 0 et 1 codés (outil `sim:early`, `config.earlyGame`, Convention collective) | `NOTES_DEBUT_DE_PARTIE.md` — attend « Go lot 2 » |
 
 ### Codés (à playtester)
 
@@ -439,7 +439,7 @@ sort utilitaire **consomme le tour**.
 
 **Livré** : 7 sorts à effet et 3 sorts utilitaires, effets visuels — voir `NOTES_SORTS.md`.
 
-## 15. Rééquilibrage du début de partie (étages 1-3) — M — Lot 0 codé
+## 15. Rééquilibrage du début de partie (étages 1-3) — M — Lots 0 et 1 codés
 
 **Demande** : le jeu est très difficile jusqu'à l'obtention d'un équipement fiable. Pistes de l'utilisateur : PV des mobs, dégâts des mobs ; **pas de hausse de la puissance
 des armes** ; correctifs au caractère satirique dans le ton de DCC. Diagnostic chiffré et plan complet : `NOTES_DEBUT_DE_PARTIE.md`.
@@ -454,3 +454,5 @@ scénario** (1 fois par étage 1-3, un coup mortel laisse 1 PV, boss compris) ·
 **Plan** : lots 0 (outil `sim:early`) à 5 (habillage), voir `NOTES_DEBUT_DE_PARTIE.md`. Même branche et même PR que le chantier 13 (`claude/chantier-13-origines`, PR #36, non mergée) : le chantier 15 s'y ajoute.
 
 **Lot 0 codé** : `tests/tools/early-curve.js` (`npm run sim:early`), `config.earlyGame` (rien ne le lit encore), `tests/regression/early-game.js`. Baseline : voir `NOTES_DEBUT_DE_PARTIE.md`, section 6 — le paquet atteint les deux cibles (étage 1, N1 : 53 % → 34 % des PV, mort 13 % → 4 % ; boss de l'étage 1 à 91 % dès le N5). Point à reposer au playtest : les élites restent létales aux étages 3-5.
+
+**Lot 1 codé** : Convention collective du Donjon — aucune élite aux étages 1-2 (re-tirage dans `generateMob()`), rampe des dégâts d'élite ×1,3 / ×1,5 aux étages 3-4 (`eliteDamageMultForFloor()`), chasseurs de primes exemptés. `sim:early` (moteur) : mêmes chiffres que la baseline.

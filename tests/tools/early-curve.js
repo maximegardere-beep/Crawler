@@ -62,12 +62,12 @@ function eliteMult(floor) {
     return EG.elites.damageRamp[floor] || SCALING.eliteDamageMult;
 }
 // Aucune élite aux étages 1-2 : le moteur re-tire (generateMob()) ; sinon modèle local par re-tirage ici.
-const engineHandlesFreeFloors = false; // passe à true au lot 1 (voir NOTES_DEBUT_DE_PARTIE.md)
+const engineHandlesFreeFloors = typeof isEarlyEliteFreeFloor === 'function'; // lot 1 : generateMob() re-tire lui-même
 function drawMob(floor) {
     const draw = () => generateMob(DISTRICTS[Math.floor(Math.random() * DISTRICTS.length)]);
     let mob = draw();
     if (EG.enabled && !engineHandlesFreeFloors && floor <= EG.elites.freeFloors) {
-        for (let k = 0; k < 20 && mob.threatMultiplier > config.eliteThreatMultiplier; k++) mob = draw();
+        for (let k = 0; k < 20 && mob.threatMultiplier >= config.eliteThreatMultiplier; k++) mob = draw();
     }
     return mob;
 }
@@ -93,7 +93,7 @@ function bossTurnMult(hpFraction) {
 function fight(player, mob, { boss = false, floor }) {
     const gear = gearFor(floor);
     const scale = boss ? bossScale(floor) : { hpMult: 1, atkMult: 1 };
-    const isElite = !boss && mob.threatMultiplier > config.eliteThreatMultiplier;
+    const isElite = !boss && mob.threatMultiplier >= config.eliteThreatMultiplier;
     const mobAtk = Math.round(mob.atk * scale.atkMult * (isElite ? eliteMult(floor) : 1));
     const playerHit = expectedDamage(player.atk + gear.atk, mob.def);
     const mobHit = expectedDamage(mobAtk, player.def + gear.def, { pressureFloor: player.hp * SCALING.pressureFloorFrac, minMitigation: SCALING.minMitigation }) * trialMult(player.level, floor);

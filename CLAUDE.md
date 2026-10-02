@@ -214,6 +214,9 @@ Tailwind CDN, **aucun build step**.
   (0.5), pour qu'un tank pur (ATQ en baisse, DEF/PV en hausse) pèse plus lourd que le seul produit
   ATQ×PV ne le capturait, sans laisser la DEF dominer le score à elle seule. Au-delà de
   `config.eliteThreatMultiplier`, icône 💀 (jamais sur un boss, qui garde 👑 — voir `isEliteMob()`).
+  **Convention collective du Donjon** (chantier 15, lot 1, `config.earlyGame.elites`, voir `NOTES_DEBUT_DE_PARTIE.md`) : aux étages 1-2 `generateMob()` re-tire le mob tant qu'il serait une élite
+  (`isEarlyEliteFreeFloor()`, tous les chemins de génération couverts d'un coup) ; aux étages 3-4 `eliteDamageMultForFloor()` (generator.js, pure) donne ×1,3 / ×1,5 à la place de ×1,65, lu par
+  `resolveEnemyCounterAttack()` — jamais pour un chasseur de primes (ses stats sont calées sur ×1,65). `config.earlyGame.enabled = false` redonne le comportement d'avant.
 - **Scaling des dégâts mobs** (chantier "rework combat", voir `NOTES_COMBAT.md` pour le détail des
   valeurs et un écart signalé sur le critère d'acceptation) : `config.mobDamageScaling` remplace
   l'ancien `floorScaling.atk` pour les mobs — `getFloorScaling()` (generator.js) calcule désormais

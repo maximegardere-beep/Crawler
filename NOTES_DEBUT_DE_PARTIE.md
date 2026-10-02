@@ -63,9 +63,11 @@ Tout dans `config.earlyGame` (valeurs ci-dessus, une seule table) ; un seul poin
   `enabled: false` rendra le jeu d'avant (sert au « avant » de l'outil). L'outil utilise le moteur dès qu'un mécanisme y est branché (`trialDamageMult()`, `eliteDamageMultForFloor()`,
   re-tirage de `generateMob()` : drapeau `engineHandlesFreeFloors`, intérimaire : `engineHandlesInterim`) et le modélise localement sinon — **à basculer à `true` aux lots 1 et 2**.
   Premier test : `tests/regression/early-game.js` (réglages validés + le modèle de joueur de l'outil suit `gainXp()`).
-- **Lot 1 — Convention collective** : `generateMob()` (generator.js) re-tire tant que l'étage ≤ `elites.freeFloors` et que le mob est élite (≤ 20 tentatives) ;
-  `eliteDamageMultForFloor(floor)` (pure) lue par `resolveEnemyCounterAttack()` à la place de `config.mobDamageScaling.eliteDamageMult` ; les chasseurs de primes
-  (toujours élites, calés sur le joueur) restent inchangés.
+- **Lot 1 — Convention collective (CODÉ)** : `generateMob()` (generator.js) re-tire tant que l'étage ≤ `elites.freeFloors` et que le mob est élite (`threatMultiplier >= eliteThreatMultiplier`, même seuil que
+  `isEliteMob()` ; ≤ 20 tentatives) — un seul point couvre tous les chemins (exploration, embuscades, sbires de repaire) ; `eliteDamageMultForFloor(floor)` (pure) lue par `resolveEnemyCounterAttack()` à la place de
+  `config.mobDamageScaling.eliteDamageMult` ; **les chasseurs de primes restent sur ×1,65** (leurs stats sont calées dessus). L'outil `sim:early` utilise maintenant le moteur pour ce mécanisme
+  (`engineHandlesFreeFloors`). Tests : section « Lot 1 » de `tests/regression/early-game.js` (0 élite sur 3000 mobs aux étages 1 et 2, y compris avec le décalage LABYRINTHE ; elles reviennent à l'étage 3 ; rampe ; chasseur exempt).
+  Le message satirique de la première élite à l'étage 3 est reporté au lot 5 (il demande un état sauvegardé).
 - **Lot 2 — Remplaçant intérimaire** : `generateBoss()` applique `interimBoss` à l'étage ≤ 3 (gardien d'escalier, boss de quartier, boss de repaire — l'étage 3 est urbain) ;
   suffixe de nom, `isInterim`, ligne de journal à l'entrée en combat.
 - **Lot 3 — Période d'essai** : `trialDamageMult()` (pure, étage + niveau) appliquée avec `applyStarterBuffToDamage()` aux MÊMES points d'appel
