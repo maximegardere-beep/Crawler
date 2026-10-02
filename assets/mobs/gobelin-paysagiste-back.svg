@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Gobelin Paysagiste, mob des Jardins Carnivores, cadrage « dos » : il taille une haie en forme de crawler. Aucun texte. -->
+  <defs>
+    <pattern id="gobelin-paysagiste-b-glass" width="94" height="126" patternUnits="userSpaceOnUse" patternTransform="scale(0.7)">
+      <rect width="94" height="126" fill="#1b2a21"/>
+      <path d="M14 126 q22 -44 6 -84 M62 126 q-16 -36 12 -76" fill="none" stroke="#223428" stroke-width="9" stroke-linecap="round"/>
+      <rect width="94" height="126" fill="none" stroke="#0f1812" stroke-width="7"/>
+      <path d="M16 22 l22 -9" stroke="#ffffff" stroke-opacity="0.06" stroke-width="6"/>
+    </pattern>
+    <radialGradient id="gobelin-paysagiste-b-glow">
+      <stop offset="0" stop-color="#86efac" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#86efac" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="750" height="620" fill="url(#gobelin-paysagiste-b-glass)"/>
+  <path d="M0 0 H750 V70 Q375 104 0 70 Z" fill="#16241b"/>
+  <path d="M90 0 L120 80 M260 0 L270 92 M480 0 L470 92 M660 0 L630 80" stroke="#0f1812" stroke-width="6"/>
+  <path d="M420 80 L500 80 L640 720 L400 720 Z" fill="#86efac" opacity="0.05"/>
+  <g fill="none" stroke="#1f3a24" stroke-width="7" stroke-linecap="round">
+    <path d="M330 70 q24 70 0 140 t0 120"/>
+    <path d="M700 70 q-22 60 0 120 t0 110"/>
+  </g>
+  <g fill="#2a4a30" stroke="#05060c" stroke-width="2">
+    <ellipse cx="346" cy="120" rx="15" ry="7" transform="rotate(30 346 120)"/>
+    <ellipse cx="318" cy="190" rx="15" ry="7" transform="rotate(-30 318 190)"/>
+    <ellipse cx="344" cy="260" rx="15" ry="7" transform="rotate(30 344 260)"/>
+    <ellipse cx="686" cy="130" rx="15" ry="7" transform="rotate(-30 686 130)"/>
+    <ellipse cx="714" cy="220" rx="15" ry="7" transform="rotate(30 714 220)"/>
+  </g>
+  <!-- Plante à mâchoires du fond -->
+  <g stroke="#05060c" stroke-width="3" stroke-linejoin="round" transform="translate(-96 0)">
+    <path d="M300 650 Q284 560 312 490" fill="none" stroke="#1f3a24" stroke-width="11"/>
+    <path d="M312 490 q-44 -10 -46 -44 q32 -6 52 26 Z" fill="#26442c"/>
+    <path d="M312 490 q44 -12 42 -46 q-32 -4 -48 28 Z" fill="#2c4d31"/>
+    <path d="M276 450 l6 8 l6 -8 l6 8 M318 448 l6 8 l6 -8 l6 8" fill="none" stroke="#a8a596" stroke-width="2.5" opacity="0.6"/>
+  </g>
+  <g transform="translate(0 -36)">
+  <!-- Plancher en perspective -->
+  <rect x="0" y="650" width="750" height="720" fill="#2b2519"/>
+  <path d="M0 650 H750" stroke="#05060c" stroke-width="5"/>
+  <g fill="#262116"><rect x="0" y="690" width="750" height="44"/><rect x="0" y="800" width="750" height="62"/><rect x="0" y="960" width="750" height="84"/></g>
+  <path d="M0 690 H750 M0 734 H750 M0 800 H750 M0 862 H750 M0 960 H750 M0 1044 H750 M0 1170 H750 M500 650 V690 M240 690 V734 M620 734 V800 M380 800 V862 M560 862 V960 M300 960 V1044 M680 1044 V1170" stroke="#15120c" stroke-width="4"/>
+  </g>
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.14"/>
+  <g transform="translate(0 -36)">
+  <ellipse cx="470" cy="520" rx="240" ry="230" fill="url(#gobelin-paysagiste-b-glow)"/>
+  <!-- Haie taillée en forme de crawler, dans son bac -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="610" cy="728" rx="120" ry="14" fill="#05060c" opacity="0.5" stroke="none"/>
+    <path d="M574 600 q-6 34 2 70 l28 0 q4 -36 0 -70 Z M626 600 q-6 34 2 70 l28 0 q4 -36 -2 -70 Z" fill="#3e5e36" stroke-width="5"/>
+    <path d="M556 456 q-30 34 -36 96 q4 14 22 10 q8 -54 26 -84 Z M662 456 q30 34 36 96 q-4 14 -22 10 q-8 -54 -26 -84 Z" fill="#3e5e36" stroke-width="5"/>
+    <path d="M560 452 q10 -14 32 -16 l34 0 q22 2 32 16 q10 70 -6 152 l-86 0 q-16 -82 -6 -152 Z" fill="#3e5e36" stroke-width="6"/>
+    <path d="M594 438 q2 -14 16 -14 q14 0 16 14 Z" fill="#33502e" stroke-width="5"/>
+    <g fill="#33502e" stroke="none">
+      <circle cx="584" cy="490" r="7"/><circle cx="624" cy="520" r="8"/><circle cx="600" cy="566" r="7"/><circle cx="640" cy="478" r="6"/>
+      <circle cx="538" cy="520" r="5"/><circle cx="682" cy="526" r="5"/><circle cx="588" cy="640" r="5"/><circle cx="640" cy="646" r="5"/>
+    </g>
+    <path d="M520 664 L700 664 L692 716 L528 716 Z" fill="#4a3428" stroke-width="5"/>
+    <path d="M520 664 L700 664" stroke-width="7"/>
+    <!-- La tête de la haie, tombée au sol -->
+    <circle cx="684" cy="742" r="27" fill="#3e5e36" stroke-width="5"/>
+    <g fill="#33502e" stroke="none"><circle cx="676" cy="734" r="6"/><circle cx="694" cy="752" r="5"/></g>
+    <path d="M700 718 q8 -12 18 -8" fill="none" stroke-width="4"/>
+    <g fill="#4f7a3a" stroke-width="2">
+      <path d="M560 700 l12 -6 l2 4 l-12 6 Z"/><path d="M640 740 l10 4 l-2 4 l-10 -4 Z"/><path d="M600 410 l8 -10 l4 3 l-8 10 Z"/><path d="M582 424 l-10 -6 l3 -4 l10 6 Z"/>
+    </g>
+  </g>
+  <!-- Le Gobelin Paysagiste, de trois-quarts dos, qui « décapite » la haie au sécateur -->
+  <g transform="translate(410 724)" stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="0" cy="0" rx="86" ry="13" fill="#05060c" opacity="0.5" stroke="none"/>
+    <path d="M-46 -124 L-10 -124 L-14 -22 L-46 -22 Z" fill="#5f7a3a" stroke-width="6"/>
+    <path d="M8 -124 L44 -124 L48 -24 L14 -24 Z" fill="#5f7a3a" stroke-width="6"/>
+    <rect x="-56" y="-34" width="48" height="34" rx="9" fill="#3d4a2a" stroke-width="6"/>
+    <rect x="8" y="-36" width="50" height="34" rx="9" fill="#3d4a2a" stroke-width="6"/>
+    <path d="M-64 -246 Q0 -268 64 -246 Q78 -176 60 -112 L-60 -112 Q-78 -176 -64 -246 Z" fill="#8fae5a" stroke-width="7"/>
+    <path d="M40 -244 Q70 -176 50 -114 L60 -114 Q78 -176 64 -246 Z" fill="#74924a" stroke="none"/>
+    <rect x="-62" y="-136" width="124" height="26" rx="6" fill="#5f7a3a" stroke-width="6"/>
+    <path d="M-52 -240 L44 -138 M52 -240 L-44 -138" stroke-width="15"/>
+    <path d="M-52 -240 L44 -138 M52 -240 L-44 -138" stroke="#7a5a34" stroke-width="8"/>
+    <path d="M0 -128 q-30 -18 -32 4 q12 12 32 -4 q30 -18 32 4 q-12 12 -32 -4 Z" fill="#7a5a34" stroke-width="5"/>
+    <path d="M-4 -126 l-10 30 M4 -126 l12 28" stroke="#7a5a34" stroke-width="7"/>
+    <path d="M-50 -112 l-6 -26 l10 18 l4 -28 l8 26 l8 -22 l2 30 Z" fill="#6da84f" stroke-width="4"/>
+    <path d="M-58 -228 Q-102 -186 -60 -146" fill="none" stroke-width="28"/>
+    <path d="M-58 -228 Q-102 -186 -60 -146" fill="none" stroke="#5f7a3a" stroke-width="18"/>
+    <circle cx="-58" cy="-144" r="12" fill="#8fae5a" stroke-width="5"/>
+    <path d="M56 -232 Q100 -250 122 -300" fill="none" stroke-width="28"/>
+    <path d="M56 -232 Q100 -250 122 -300" fill="none" stroke="#5f7a3a" stroke-width="18"/>
+    <path d="M118 -290 Q110 -264 124 -256 Q134 -262 128 -290 M132 -296 Q146 -270 140 -258" fill="none" stroke-width="12"/>
+    <path d="M118 -290 Q110 -264 124 -256 Q134 -262 128 -290 M132 -296 Q146 -270 140 -258" fill="none" stroke="#5f7a3a" stroke-width="5"/>
+    <circle cx="126" cy="-304" r="14" fill="#8fae5a" stroke-width="5"/>
+    <path d="M134 -314 L198 -298 L196 -290 L132 -304 Z" fill="#8a929c" stroke-width="4"/>
+    <path d="M134 -312 L194 -314 L196 -306 L134 -304 Z" fill="#8a929c" stroke-width="4"/>
+    <circle cx="136" cy="-308" r="6" fill="#8a929c" stroke-width="3"/>
+    <path d="M-38 -296 L-124 -332 Q-96 -288 -38 -270 Z" fill="#8fae5a" stroke-width="6"/>
+    <path d="M-50 -294 L-104 -318 Q-86 -296 -48 -280" fill="none" stroke="#5f7a3a" stroke-width="5"/>
+    <path d="M40 -298 L122 -326 Q98 -282 40 -270 Z" fill="#8fae5a" stroke-width="6"/>
+    <circle cx="0" cy="-288" r="50" fill="#8fae5a" stroke-width="7"/>
+    <path d="M30 -320 Q56 -290 34 -250 Q40 -290 22 -318 Z" fill="#74924a" stroke="none"/>
+    <path d="M46 -284 q12 2 10 14 l-10 -2" fill="#8fae5a" stroke-width="4"/>
+    <path d="M-100 -318 C-100 -340 -50 -346 0 -346 C54 -346 102 -340 102 -318 C102 -298 54 -292 0 -292 C-38 -292 -66 -296 -80 -302 L-84 -290 L-90 -304 L-98 -296 L-96 -310 Z" fill="#d6b25a" stroke-width="6"/>
+    <path d="M-80 -316 Q0 -300 84 -318" fill="none" stroke="#b0903e" stroke-width="4"/>
+    <path d="M-44 -326 Q-42 -384 0 -386 Q44 -384 46 -326 Z" fill="#d6b25a" stroke-width="6"/>
+    <path d="M22 -376 Q42 -356 40 -330 L30 -330 Q32 -356 14 -376 Z" fill="#b0903e" stroke="none"/>
+    <path d="M-45 -346 Q0 -356 46 -346 L46 -326 Q0 -334 -44 -326 Z" fill="#c23b3b" stroke-width="5"/>
+  </g>
+  <!-- Petites notes de concentration : il fredonne en taillant -->
+  <g fill="none" stroke="#c4d6a8" stroke-width="4" stroke-linecap="round" opacity="0.7">
+    <path d="M500 330 q10 -18 0 -30 M520 312 q12 -22 0 -38"/>
+  </g>
+  </g>
+  <!-- Cachette : un énorme pot et ses feuilles sombres au premier plan -->
+  <g stroke="#05060c" stroke-linejoin="round">
+    <path d="M-40 640 Q60 700 110 860 Q20 820 -40 760 Z" fill="#0e1912" stroke-width="5"/>
+    <path d="M-30 820 Q160 600 300 610 Q200 700 120 900 Z" fill="#101c14" stroke-width="5"/>
+    <path d="M150 730 Q230 660 290 618" fill="none" stroke="#1a2a1e" stroke-width="5"/>
+    <path d="M60 900 Q140 760 250 740 Q220 830 140 930 Z" fill="#0d1610" stroke-width="5"/>
+    <path d="M-20 940 L330 940 L300 1334 L-20 1334 Z" fill="#1c130d" stroke-width="7"/>
+    <path d="M-20 900 L350 900 L350 950 L-20 950 Z" fill="#24180f" stroke-width="7"/>
+    <path d="M240 960 L216 1334" stroke="#140d08" stroke-width="18"/>
+  </g>
+  <rect x="0" y="1040" width="750" height="294" fill="#05060c" opacity="0.25"/>
+  <rect x="690" y="0" width="60" height="1334" fill="#05060c" opacity="0.3"/>
+</svg>

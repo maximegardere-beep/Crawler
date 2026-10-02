@@ -91,6 +91,10 @@ const ENCOUNTER_ART = {
     'Rat Goulot': { face: 'svg', back: 'svg' },
     'Distributeur de Snacks Hanté': { face: 'svg', back: 'svg' },
     'Contrôleur de Billets Zombifié': { face: 'svg', back: 'svg' },
+    // Jardins Carnivores
+    'Tulipe Géante': { face: 'svg', back: 'svg' },
+    'Ronce Étrangleuse': { face: 'svg', back: 'svg' },
+    'Gobelin Paysagiste': { face: 'svg', back: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';
