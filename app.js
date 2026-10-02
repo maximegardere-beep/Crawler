@@ -529,6 +529,10 @@ const config = {
     // Écran plein écran d'entrée en combat (chantier 16) : interrupteur global (un futur réglage joueur pourra le couper) ;
     // neutralisé par défaut dans les tests (_helpers.js), réactivé par withEncounterIntro().
     encounterIntro: { enabled: true },
+    // Attaque furtive (chantier 16, lot 3) : deux départs au choix. Corps à corps = écart 0, premier coup ×2 ; de loin = écart 6,
+    // premier coup ×1,5 (arme à distance ou sort offensif à distance requis) ; surgir au contact d'un mob À DISTANCE lui fait perdre son
+    // premier tour. Valeurs validées par l'utilisateur.
+    sneakAttack: { meleeMult: 2, rangedMult: 1.5, rangedStartDistance: 6, rangedMobSurprised: true },
     earlyGame: {
         enabled: true,
         maxFloor: 3,                                        // « tutoriel » : Période d'essai, Armure de scénario et boss intérimaires s'éteignent à l'étage 4
@@ -790,6 +794,7 @@ const ui = {
     encounterBanner: document.getElementById('encounter-banner'),
     btnStealthEvade: document.getElementById('btn-stealth-evade'),
     btnStealthAttack: document.getElementById('btn-stealth-attack'),
+    btnStealthRanged: document.getElementById('btn-stealth-ranged'),
     gameOverOverlay: document.getElementById('game-over-overlay'),
     gameOverReason: document.getElementById('game-over-reason'),
     gameOverFloor: document.getElementById('game-over-floor'),
@@ -2776,6 +2781,7 @@ function handleStealthEncounter() {
     logEvent("Tenter de l'esquiver en silence, ou frapper en traître ?", "info");
     // Écran « tu l'as vu » (chantier 16) avant les boutons ; sans interface, les boutons s'affichent tout de suite.
     showEncounterIntro('unseen', enemy, () => {
+        updateStealthChoiceButtons();
         ui.stealthChoiceZone.classList.remove('hidden');
         updateUI();
     });
@@ -2806,8 +2812,40 @@ function attemptStealthEvasion() {
     }
 }
 
-// Bouton "Attaque Furtive" : le combat démarre avec un bonus x2 garanti sur le tout premier coup
-function attemptStealthAttack() {
+// Multiplicateur du premier coup d'une attaque furtive : `pendingSneakAttack` vaut 'ranged' (tir de loin), sinon corps à corps
+// (`true` des anciens appelants compris).
+function sneakAttackMult() {
+    return gameState.pendingSneakAttack === 'ranged' ? config.sneakAttack.rangedMult : config.sneakAttack.meleeMult;
+}
+
+// « Tirer de loin » : une arme à distance équipée, OU un sort offensif à distance équipé avec assez de mana (jamais un sort
+// utilitaire « partout », ni de mêlée). « Surgir au corps à corps » reste toujours possible, mains nues comprises.
+function canStealthShootFromAfar() {
+    if (gameState.equipment.ranged) return true;
+    const spell = gameState.equipment.spell;
+    return !!(spell && spell.spellCategory === 'ranged' && gameState.mana >= getSpellManaCost(spell));
+}
+
+// Libellés et état des deux boutons d'attaque furtive (chiffres lus dans config.sneakAttack).
+function updateStealthChoiceButtons() {
+    const fmt = (n) => String(n).replace('.', ',');
+    const cfg = config.sneakAttack;
+    const canShoot = canStealthShootFromAfar();
+    ui.btnStealthAttack.innerText = `🗡️ Surgir au corps à corps (×${fmt(cfg.meleeMult)})`;
+    ui.btnStealthAttack.title = `Écart nul, premier coup ×${fmt(cfg.meleeMult)}.${cfg.rangedMobSurprised ? " Un tireur surpris perd son premier tour." : ""}`;
+    ui.btnStealthRanged.innerText = `🏹 Tirer de loin (×${fmt(cfg.rangedMult)})`;
+    ui.btnStealthRanged.disabled = !canShoot;
+    ui.btnStealthRanged.title = canShoot ? `Écart ${cfg.rangedStartDistance}, premier coup ×${fmt(cfg.rangedMult)}.` : "Il faut une arme à distance équipée, ou un sort offensif à distance (avec assez de mana).";
+}
+
+// Boutons « Attaque furtive » (chantier 16, lot 3) : `mode` 'melee' (écart 0, premier coup ×2) ou 'ranged' (écart de départ
+// config.sneakAttack.rangedStartDistance, premier coup ×1,5). Le mode 'ranged' est refusé sans arme ni sort à distance.
+function attemptStealthAttack(mode) {
+    const ranged = mode === 'ranged';
+    if (ranged && gameState.pendingStealthEncounter && !canStealthShootFromAfar()) {
+        logEvent("Il vous faut une arme à distance, ou un sort offensif à distance, pour tirer de loin.", "danger");
+        return;
+    }
     const enemy = gameState.pendingStealthEncounter;
     gameState.stealthChoicePending = false;
     ui.stealthChoiceZone.classList.add('hidden');
@@ -2815,9 +2853,20 @@ function attemptStealthAttack() {
     if (!enemy) { updateUI(); return; }
 
     // L'en-tête de la scène (icône/nom/type) est posé par initiateCombat() lui-même.
-    logEvent(`Vous surgissez de l'ombre et frappez [${enemy.name}] par surprise !`, "success");
-    gameState.pendingSneakAttack = true;
-    initiateCombat(enemy, { intro: false }); // l'écran « tu l'as vu » a déjà été montré avant le choix
+    logEvent(ranged ? `Vous épaulez dans l'ombre et visez [${enemy.name}] de loin !` : `Vous surgissez de l'ombre et frappez [${enemy.name}] par surprise !`, "success");
+    gameState.pendingSneakAttack = ranged ? 'ranged' : 'melee';
+    // Surgir au contact d'un tireur : il est pris au dépourvu et perd son premier tour (voir consumeSurprise()).
+    if (!ranged && mobWantsFar(enemy) && config.sneakAttack.rangedMobSurprised) enemy.surprised = true;
+    initiateCombat(enemy, { intro: false, startDistance: ranged ? config.sneakAttack.rangedStartDistance : 0 }); // l'écran « tu l'as vu » a déjà été montré avant le choix
+}
+
+// Un mob pris au dépourvu (attaque furtive au contact d'un tireur) rate sa première riposte, une seule fois.
+function consumeSurprise(enemy) {
+    if (!enemy || !enemy.surprised) return false;
+    enemy.surprised = false;
+    logEvent(`[${enemy.name}] est pris au dépourvu : le tireur rate son premier tour !`, "info");
+    showDie(ui.combatEnemyDie, "😲");
+    return true;
 }
 
 // ==========================================
@@ -6119,14 +6168,15 @@ function initiateCombat(forcedEnemy = null, options = {}) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
     const kind = (options && options.intro === false) ? null : resolveEncounterKind(enemy, options && options.intro);
     if (kind && enemy) {
-        showEncounterIntro(kind, enemy, () => beginCombat(enemy));
+        showEncounterIntro(kind, enemy, () => beginCombat(enemy, options));
         return;
     }
-    beginCombat(enemy);
+    beginCombat(enemy, options);
 }
 
 // Corps du combat (ancienne initiateCombat()) : appelé tout de suite, ou au tap qui ferme l'écran de rencontre.
-function beginCombat(enemy) {
+// `options.startDistance` : écart de départ imposé (attaque furtive, lot 3) ; sinon celui de la nature du mob.
+function beginCombat(enemy, options = {}) {
     // Suivi du combat pour la chronique (chantier 2) : dégâts subis au départ, ouverture furtive, nombre
     // d'attaques portées (victoire en un coup) — voir recordRunEvent('win').
     if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, startTrialAvoided: gameState.runStats ? (gameState.runStats.trialAvoided || 0) : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
@@ -6171,7 +6221,7 @@ function beginCombat(enemy) {
     // Distance de combat initiale : dépend uniquement de la nature du mob (aucune notion de
     // posture côté joueur). Un mob de mêlée démarre au contact ; un mob à distance démarre à
     // l'écart de départ, que le joueur devra combler (S'approcher) ou maintenir (S'éloigner).
-    gameState.combatDistance = (enemy && mobWantsFar(enemy)) ? config.rangedCombat.initialDistance : 0;
+    gameState.combatDistance = (options && Number.isFinite(options.startDistance)) ? options.startDistance : ((enemy && mobWantsFar(enemy)) ? config.rangedCombat.initialDistance : 0);
 
     // Les dés de dégâts repartent à zéro visuellement (aucune action encore jouée ce combat)
     ui.combatPlayerDie.innerText = "–";
@@ -6356,6 +6406,7 @@ function safeEnemyCounterAttack() {
 function resolveEnemyReaction() {
     const enemy = gameState.currentEnemy;
     if (!enemy) return;
+    if (consumeSurprise(enemy)) { updateUI(); return; } // tireur surpris : aucune réaction ce tour
     const ctx = getCombatRangeContext();
 
     if (ctx.playerAdvantaged) {
@@ -6613,8 +6664,9 @@ function performPlayerAttack(attackerAtk, options, label) {
     // Attaque furtive réussie : le tout premier coup de ce combat porte un bonus x2 garanti
     let sneakNote = "";
     if (gameState.pendingSneakAttack) {
-        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * 2 };
-        sneakNote = " (attaque furtive x2)";
+        const sneakMult = sneakAttackMult();
+        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * sneakMult };
+        sneakNote = ` (attaque furtive x${String(sneakMult).replace('.', ',')})`;
         gameState.pendingSneakAttack = false;
     }
 
@@ -7468,6 +7520,7 @@ function performBossCounterAttackInner(enemy, onDone) {
 function resolveEnemyCounterAttack(onDone) {
     const enemy = gameState.currentEnemy;
     if (!enemy) { if (onDone) onDone(); return; } // sécurité si le combat vient d'être résolu pendant la pause
+    if (consumeSurprise(enemy)) { if (onDone) onDone(); return; } // tireur surpris (attaque furtive au contact) : première riposte perdue
 
     // Saignement en cours sur l'ennemi (infligé par une arme du joueur) : tique avant son action.
     // Affichage immédiat (pas de beat dédié) : un tick de saignement est un petit événement annexe,
@@ -9176,7 +9229,8 @@ ui.btnLeaveSafehouse.addEventListener('click', leaveSafehouse);
 
 // Clics sur les boutons de choix de furtivité (Esquiver / Attaque Furtive)
 ui.btnStealthEvade.addEventListener('click', attemptStealthEvasion);
-ui.btnStealthAttack.addEventListener('click', attemptStealthAttack);
+ui.btnStealthAttack.addEventListener('click', () => attemptStealthAttack('melee'));
+ui.btnStealthRanged.addEventListener('click', () => attemptStealthAttack('ranged'));
 
 // Clics sur les boutons de rencontre de compagnon
 ui.btnRecruitFriendly.addEventListener('click', recruitCompanion);

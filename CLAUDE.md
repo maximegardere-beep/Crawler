@@ -138,7 +138,7 @@ Tailwind CDN, **aucun build step**.
   `gameState.timeLeft` (`config.rangedCombat.timeCostPerRound`), jamais les tours d'attaque standards —
   un combat kité de bout en bout a donc un coût en temps réel, pas seulement en risque.
 - **Furtivité** : détection avant rencontre aléatoire (plafond 60%), Esquiver (plafond 70%) / Attaque
-  Furtive (bonus x2 garanti). Un échec d'esquive laisse le mob "alerted" (`enemy.alerted`) pour tout le
+  Furtive à DEUX départs (chantier 16, lot 3, `config.sneakAttack`, `attemptStealthAttack(mode)`) : « Surgir au corps à corps » (écart 0, premier coup ×2 ; contre un mob À DISTANCE il est pris au dépourvu et perd sa première riposte, `enemy.surprised`/`consumeSurprise()`) ou « Tirer de loin » (écart de départ 6, premier coup ×1,5 ; exige une arme à distance équipée OU un sort offensif à distance avec assez de mana, `canStealthShootFromAfar()`) ; `gameState.pendingSneakAttack` vaut `'melee'`/`'ranged'` (`true` = ×2, compatibilité), `initiateCombat(enemy, { startDistance })` impose l'écart de départ ; boutons `#btn-stealth-attack`/`#btn-stealth-ranged` (libellés et grisage par `updateStealthChoiceButtons()`). Un échec d'esquive laisse le mob "alerted" (`enemy.alerted`) pour tout le
   combat qui suit : `attemptFlee()` y est bloqué, pour que la boucle "esquive ratée sans conséquence"
   ne reste pas totalement gratuite.
 - **Compagnons** (chantier « rework des compagnons », voir `NOTES_COMPAGNONS.md`, chiffres dans

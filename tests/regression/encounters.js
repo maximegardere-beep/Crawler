@@ -307,3 +307,114 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
         assert(gameState.inCombat && !gameState.encounterIntroPending, "config.encounterIntro.enabled = false : aucun écran, même avec une interface");
     } finally { delete global.requestAnimationFrame; resetTransientState(); }
 }
+
+// --- Lot 3 : attaque furtive, départ au corps à corps ou de loin ---
+{
+    const mk = (extra) => Object.assign({ name: "Cobaye Furtif", baseName: "Cobaye Furtif", hp: 5000, atk: 1, def: 0, xpReward: 1 }, extra);
+    const logs = [];
+    const realLog = logEvent;
+    const withLogs = (fn) => { logEvent = (m, t) => { logs.push(String(m)); return realLog(m, t); }; try { return fn(); } finally { logEvent = realLog; } };
+    const setup = (enemy) => {
+        resetTransientState();
+        logs.length = 0;
+        gameState.pendingStealthEncounter = enemy;
+        gameState.stealthChoicePending = true;
+        gameState.hp = gameState.maxHp;
+    };
+
+    // Valeurs validées
+    assert(config.sneakAttack.meleeMult === 2 && config.sneakAttack.rangedMult === 1.5 && config.sneakAttack.rangedStartDistance === 6 && config.sneakAttack.rangedMobSurprised === true, "Attaque furtive : ×2 au contact, ×1,5 de loin, écart 6, tireur surpris (valeurs validées)");
+
+    // Condition « Tirer de loin »
+    resetTransientState();
+    assert(canStealthShootFromAfar() === false, "Tirer de loin : impossible sans arme ni sort à distance");
+    gameState.equipment.ranged = { name: "Arc", category: 'ranged', baseDmg: 3 };
+    assert(canStealthShootFromAfar() === true, "Tirer de loin : possible avec une arme à distance équipée");
+    gameState.equipment.ranged = null;
+    const spellOf = (cat, cost) => ({ name: "Sort", spellName: "Sort", category: 'scrolls', spellCategory: cat, manaCost: cost, baseDmg: 5 });
+    gameState.equipment.spell = spellOf('ranged', 10); gameState.mana = 50;
+    assert(canStealthShootFromAfar() === true, "Tirer de loin : possible avec un sort offensif à distance et assez de mana");
+    gameState.mana = 0;
+    assert(canStealthShootFromAfar() === false, "Tirer de loin : refusé si le mana manque");
+    gameState.mana = 50; gameState.equipment.spell = spellOf('melee', 10);
+    assert(canStealthShootFromAfar() === false, "Tirer de loin : un sort de mêlée ne compte pas");
+    gameState.equipment.spell = spellOf('any', 10);
+    assert(canStealthShootFromAfar() === false, "Tirer de loin : un sort utilitaire « partout » ne compte pas");
+    gameState.equipment.spell = null;
+
+    // Boutons
+    updateStealthChoiceButtons();
+    assert(ui.btnStealthRanged.disabled === true && ui.btnStealthAttack.innerText.includes('×2') && ui.btnStealthRanged.innerText.includes('×1,5'), "Boutons : « de loin » grisé sans arme, chiffres ×2 / ×1,5 affichés");
+    gameState.equipment.ranged = { name: "Arc", category: 'ranged', baseDmg: 3 };
+    updateStealthChoiceButtons();
+    assert(ui.btnStealthRanged.disabled === false, "Boutons : « de loin » actif avec une arme à distance");
+
+    // Refus sans arme à distance : l'état ne change pas
+    gameState.equipment.ranged = null;
+    setup(mk());
+    withLogs(() => attemptStealthAttack('ranged'));
+    assert(gameState.stealthChoicePending && gameState.pendingStealthEncounter && !gameState.inCombat && !gameState.pendingSneakAttack, "« Tirer de loin » sans arme à distance : refusé, le choix reste ouvert");
+
+    // Corps à corps contre un mob de mêlée : écart 0, ×2, pas de surprise
+    const melee = mk();
+    setup(melee);
+    withLogs(() => attemptStealthAttack('melee'));
+    assert(gameState.inCombat && gameState.combatDistance === 0 && gameState.pendingSneakAttack === 'melee' && !melee.surprised, "Surgir au contact d'un mob de mêlée : écart 0, drapeau 'melee', pas de surprise");
+    withLogs(() => attackUnarmed());
+    assert(logs.some(l => l.includes('attaque furtive x2')) && !gameState.pendingSneakAttack, "Premier coup au contact : ×2, bonus consommé");
+    resetTransientState();
+
+    // Corps à corps par défaut (anciens appelants sans argument)
+    const legacy = mk();
+    setup(legacy);
+    withLogs(() => attemptStealthAttack());
+    assert(gameState.combatDistance === 0 && gameState.pendingSneakAttack === 'melee', "attemptStealthAttack() sans argument : corps à corps");
+    resetTransientState();
+
+    // De loin : écart 6, ×1,5
+    gameState.equipment.ranged = { name: "Arc", category: 'ranged', baseDmg: 3, itemLevel: 1 };
+    const far = mk();
+    setup(far);
+    gameState.equipment.ranged = { name: "Arc", category: 'ranged', baseDmg: 3, itemLevel: 1 };
+    withLogs(() => attemptStealthAttack('ranged'));
+    assert(gameState.inCombat && gameState.combatDistance === 6 && gameState.pendingSneakAttack === 'ranged' && !far.surprised, "Tirer de loin : écart de départ 6, drapeau 'ranged'");
+    withLogs(() => attackRanged());
+    assert(logs.some(l => l.includes('attaque furtive x1,5')) && !gameState.pendingSneakAttack, "Premier tir : ×1,5, bonus consommé");
+    resetTransientState();
+
+    // De loin contre un tireur : écart 6 aussi (au lieu de 4)
+    gameState.equipment.ranged = null;
+    const archer = mk({ ranged: true });
+    setup(archer);
+    gameState.equipment.ranged = { name: "Arc", category: 'ranged', baseDmg: 3, itemLevel: 1 };
+    withLogs(() => attemptStealthAttack('ranged'));
+    assert(gameState.combatDistance === 6 && !archer.surprised, "De loin contre un tireur : écart 6, pas de surprise");
+    resetTransientState();
+
+    // Au contact d'un tireur : écart 0, il est surpris et perd son premier tour, une seule fois
+    const shooter = mk({ ranged: true, atk: 40 });
+    setup(shooter);
+    withLogs(() => attemptStealthAttack('melee'));
+    assert(gameState.combatDistance === 0 && shooter.surprised === true, "Surgir au contact d'un tireur : écart 0 (au lieu de 4), tireur surpris");
+    const hpBefore = gameState.hp;
+    withLogs(() => attackUnarmed());
+    assert(gameState.hp === hpBefore && shooter.surprised === false && logs.some(l => l.includes('pris au dépourvu')), "Tireur surpris : aucune riposte au premier tour, drapeau consommé");
+    resetTransientState();
+
+    // Le drapeau de surprise peut être désactivé par la configuration
+    const savedFlag = config.sneakAttack.rangedMobSurprised;
+    config.sneakAttack.rangedMobSurprised = false;
+    const shooter2 = mk({ ranged: true });
+    setup(shooter2);
+    withLogs(() => attemptStealthAttack('melee'));
+    assert(!shooter2.surprised, "rangedMobSurprised = false : aucun tireur surpris");
+    config.sneakAttack.rangedMobSurprised = savedFlag;
+    resetTransientState();
+
+    // `pendingSneakAttack = true` (anciens tests/sauvegardes) reste un ×2
+    gameState.pendingSneakAttack = true;
+    assert(sneakAttackMult() === 2, "pendingSneakAttack = true : multiplicateur ×2 (compatibilité)");
+    gameState.pendingSneakAttack = 'ranged';
+    assert(sneakAttackMult() === 1.5, "pendingSneakAttack = 'ranged' : multiplicateur ×1,5");
+    resetTransientState();
+}

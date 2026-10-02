@@ -48,7 +48,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
-| 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié — lots 0, 1 et 2 codés (catalogue `encounters.js`, overlay + repli sprite agrandi), les 13 boss livrés par Vibe en SVG et intégrés, consigne d'évaluation Vibe prête | images WebP à faire générer par Vibe (consigne au lot 4) |
+| 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié — lots 0 à 3 codés (catalogue `encounters.js`, overlay + repli sprite agrandi), les 13 boss livrés par Vibe en SVG et intégrés, consigne d'évaluation Vibe prête | images WebP à faire générer par Vibe (consigne au lot 4) |
 
 ### Codés (à playtester)
 
@@ -497,7 +497,7 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
   (`unseen`) avant les boutons Esquiver / Attaque furtive. Blocage `gameState.encounterIntroPending` (`isActionBlocked()`, `resetTransientState()`,
   `KNOWN_GAMESTATE_KEYS`, résolveur de `tests/long_playthrough.js`). Sans interface (tests Node, `saveEnabled` faux) : appel immédiat du
   callback, comme les mini-jeux. Pas de rejouage à la restauration d'une sauvegarde.
-- **Lot 3 — départ à distance ou au corps à corps** : `attemptStealthAttack(mode)` avec deux boutons « Surgir au corps à corps » (écart 0) et
+- **Lot 3 — départ à distance ou au corps à corps** (**codé**, valeurs validées : ×2 au contact, ×1,5 de loin, écart 6, tireur surpris au contact perd son premier tour, condition arme OU sort offensif à distance) : `attemptStealthAttack(mode)` avec deux boutons « Surgir au corps à corps » (écart 0) et
   « Tirer de loin » (écart `initialDistance`, grisé sans arme à distance ni sort offensif à distance). Option `startDistance` de `initiateCombat()`
   (le `mobWantsFar()` actuel reste le défaut). Le bonus ×2 du premier coup (`pendingSneakAttack`) s'applique à l'attaque choisie ; un mob de
   mêlée tenu à distance perd donc des tours à avancer (déjà géré par les règles d'écart et la ruée). Aucune modification des formules.
@@ -510,8 +510,7 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 - **Lot 6 — habillage** : réglage de durée facultatif, vibration (`navigator.vibrate`) à la révélation d'un boss, réplique DeathWatch pour l'arrivée d'un chasseur,
   succès éventuel « Surpris en train de bailler » (se faire attaquer à dos tourné).
 
-**Chiffres à valider (convention 5, rien d'appliqué)** : bonus ×2 de l'attaque furtive identique au corps à corps et à distance ? · l'écart de « Tirer de loin » = écart de
-départ des mobs à distance (actuel) ? · le tap obligatoire sur chaque rencontre (surtout les mobs ordinaires aux étages tardifs) est-il lassant ? (option envisagée si oui : tap dès le 1er étage, auto-fermeture
+**Chiffres du lot 3 : validés** (×2 / ×1,5, écart 6, tireur surpris, arme ou sort à distance). **Restent à valider** : le tap obligatoire sur chaque rencontre (surtout les mobs ordinaires aux étages tardifs) est-il lassant ? (option envisagée si oui : tap dès le 1er étage, auto-fermeture
 ~3 s ensuite, à décider au playtest).
 
 **Évaluation de Vibe** : `prompts/vibe-test-rencontres.md` (à coller dans Vibe) — rapport de capacités d'abord, puis lot de test de 5 images (boss, mob face, même mob de dos, machine non humanoïde, chasseur de primes), page d'aperçu iPhone avec bandeau, auto-évaluation, et rédaction par Vibe de sa propre consigne de série `prompts/vibe-rencontres.md`. Ressources graphiques lues sur `main` (la branche `graphique` est périmée). Le lot 4 du plan s'appuiera sur ce retour.
