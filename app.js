@@ -5919,14 +5919,14 @@ function triggerBossEncounter(room) {
     );
     logEvent("Le combattre maintenant, ou repérer l'endroit pour y revenir plus tard ?", "info");
     // Arrivée du boss (chantier 16) : écran plein écran la PREMIÈRE fois seulement (le boss est en cache sur sa salle,
-    // les retours ne rejouent pas l'écran), avant l'affichage du choix Combattre / Repérer.
-    const showIntro = !boss._encounterShown;
-    boss._encounterShown = true;
+    // les retours ne rejouent pas l'écran), avant l'affichage du choix Combattre / Repérer. Marqué vu seulement s'il a
+    // réellement été affiché (réglage « Jamais », interface absente : il reste à montrer au prochain passage).
     const reveal = () => {
         ui.bossChoiceZone.classList.remove('hidden');
         updateUI();
     };
-    if (showIntro) showEncounterIntro('boss', boss, reveal); else reveal();
+    if (boss._encounterShown) reveal();
+    else boss._encounterShown = showEncounterIntro('boss', boss, reveal) === true;
 }
 
 // Bouton "Combattre" de la zone de choix de boss (boss de quartier, gardien d'escalier ou de la Sortie).

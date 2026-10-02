@@ -294,6 +294,16 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
         resetTransientState();
         triggerBossEncounter(room);
         assert(!gameState.encounterIntroPending && !ui.bossChoiceZone.classList.contains('hidden'), "Retour devant le même boss : pas de second écran");
+        resetTransientState();
+        delete boss._encounterShown;
+        setEncounterIntroMode('off');
+        triggerBossEncounter(room);
+        assert(!gameState.encounterIntroPending && !boss._encounterShown, "Réglage « Jamais » : le boss n'est pas marqué vu");
+        setEncounterIntroMode('all');
+        resetTransientState();
+        triggerBossEncounter(room);
+        assert(gameState.encounterIntroPending && boss._encounterShown === true, "Réglage réactivé : l'arrivée du boss est montrée au retour suivant");
+        dismissEncounterIntro(true);
     } finally {
         Date.now = realNow;
         config.encounterIntro.enabled = false;
