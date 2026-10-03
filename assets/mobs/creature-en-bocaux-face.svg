@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <defs>
+    <pattern id="creature-en-bocaux-f-tiles" width="80" height="42" patternUnits="userSpaceOnUse">
+      <rect width="80" height="42" fill="#232b2e"/>
+      <rect x="1.5" y="1.5" width="37" height="18" rx="2" fill="#323d41"/>
+      <rect x="41.5" y="1.5" width="37" height="18" rx="2" fill="#354145"/>
+      <rect x="-18" y="22.5" width="37" height="18" rx="2" fill="#354145"/>
+      <rect x="22.5" y="22.5" width="37" height="18" rx="2" fill="#323d41"/>
+      <rect x="61.5" y="22.5" width="37" height="18" rx="2" fill="#333f43"/>
+    </pattern>
+    <radialGradient id="creature-en-bocaux-f-glow">
+      <stop offset="0" stop-color="#a78bfa" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#a78bfa" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur carrelé, plafond et tuyaux -->
+  <rect x="0" y="0" width="750" height="1040" fill="url(#creature-en-bocaux-f-tiles)"/>
+  <rect x="0" y="0" width="750" height="70" fill="#1c2225"/>
+  <g fill="none" stroke="#05060c" stroke-width="5">
+    <path d="M0 100 H750" stroke="#2a3337" stroke-width="20"/>
+    <path d="M0 100 H750" stroke-width="3" opacity="0.6"/>
+    <path d="M640 70 V100 M180 70 V100"/>
+  </g>
+  <!-- Étagère : trois bocaux luminescents, et une place vide (la sienne) -->
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <path d="M30 470 H300" stroke="#3b2f22" stroke-width="12"/>
+    <path d="M44 476 v20 l20 -20 M286 476 v20 l-20 -20" fill="none" stroke-width="4"/>
+    <rect x="50" y="384" width="54" height="80" rx="9" fill="#141c22"/>
+    <rect x="57" y="414" width="40" height="44" rx="5" fill="#4ade80" fill-opacity="0.45" stroke="none"/>
+    <rect x="52" y="372" width="50" height="14" rx="3" fill="#3a3f45"/>
+    <rect x="124" y="396" width="46" height="68" rx="8" fill="#141c22"/>
+    <rect x="130" y="420" width="34" height="38" rx="5" fill="#c084fc" fill-opacity="0.4" stroke="none"/>
+    <rect x="126" y="384" width="42" height="13" rx="3" fill="#3a3f45"/>
+    <ellipse cx="216" cy="463" rx="34" ry="6" fill="#0d1215" stroke="none"/>
+    <path d="M196 456 l40 0" stroke="#4a7a74" stroke-width="3" opacity="0.5"/>
+  </g>
+  <ellipse cx="78" cy="430" rx="80" ry="64" fill="#4ade80" opacity="0.06"/>
+  <!-- Tableau d'équations (gribouillis illisibles) -->
+  <g stroke-linecap="round">
+    <rect x="430" y="150" width="270" height="150" fill="#1a231f" stroke="#3a2f20" stroke-width="10"/>
+    <g fill="none" stroke="#9aa59a" stroke-width="4" opacity="0.4">
+      <path d="M452 186 q14 -12 26 0 t26 0 M520 180 h30 M562 172 l14 18 M560 190 l18 -16"/>
+      <path d="M454 230 l20 -20 l10 20 q20 -20 36 0 M540 220 h60 M612 210 q12 18 30 0"/>
+      <path d="M456 270 h40 M510 262 q16 -14 30 4 q12 14 26 -6 M600 270 l20 -14 l20 14"/>
+    </g>
+  </g>
+  <!-- Bobine Tesla et son arc violet -->
+  <circle cx="660" cy="520" r="150" fill="url(#creature-en-bocaux-f-glow)"/>
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <rect x="626" y="760" width="72" height="28" fill="#23262c"/>
+    <rect x="644" y="560" width="36" height="200" fill="#4f3c22"/>
+    <path d="M644 590 h36 M644 625 h36 M644 660 h36 M644 695 h36 M644 730 h36" stroke="#2c2214" stroke-width="5"/>
+    <circle cx="662" cy="530" r="38" fill="#2f343d"/>
+  </g>
+  <path d="M630 510 l-36 -26 l8 22 l-34 -14 M690 506 l30 -30 l-4 22 l28 -18" fill="none" stroke="#c4b5fd" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Sol carrelé -->
+  <rect x="0" y="1040" width="750" height="294" fill="#22292b"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#1a1f21" stroke-width="5">
+    <path d="M0 1110 h750 M0 1190 h750 M0 1270 h750 M250 1040 v70 M550 1110 v80 M150 1190 v80 M400 1190 v80 M650 1190 v80"/>
+  </g>
+  <rect x="0" y="0" width="45" height="1334" fill="#05060c" opacity="0.25"/>
+  <rect x="705" y="0" width="45" height="1334" fill="#05060c" opacity="0.25"/>
+  <!-- Aura gluante irrégulière -->
+  <path d="M120 760 C90 600 170 430 300 330 C380 260 500 280 560 360 C650 470 690 640 660 820 C640 940 560 1010 400 1020 C240 1020 140 920 120 760 Z" fill="#79b8b0" opacity="0.10"/>
+  <path d="M180 760 C170 620 230 470 330 400 C410 350 500 380 540 450 C600 560 610 700 590 820 C560 940 470 980 380 980 C260 975 190 880 180 760 Z" fill="#79b8b0" opacity="0.10"/>
+  <!-- Ombre au sol et flaque -->
+  <ellipse cx="380" cy="1048" rx="300" ry="34" fill="#05060c" opacity="0.5"/>
+  <path d="M90 1046 C110 1030 170 1026 210 1036 C250 1048 200 1060 150 1058 C110 1058 80 1056 90 1046 Z" fill="#4a7a74" stroke="#05060c" stroke-width="4"/>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <!-- tentacule arrière levé -->
+    <path d="M560 700 C610 650 640 560 610 470 C600 440 630 420 646 446 C686 530 660 650 600 760 Z" fill="#4a7a74" stroke-width="8"/>
+    <g fill="#79b8b0" stroke-width="4"><circle cx="640" cy="480" r="8"/><circle cx="650" cy="540" r="8"/><circle cx="640" cy="600" r="8"/></g>
+    <!-- corps : masse gélatineuse qui déborde du bocal, penchée vers nous -->
+    <path d="M110 1044 C70 980 110 880 170 820 C200 790 186 650 206 560 C232 460 300 420 396 420 C490 420 560 460 588 560 C604 640 610 790 630 850 C668 930 676 1000 640 1044 Z" fill="#79b8b0" stroke-width="10"/>
+    <path d="M520 450 C560 480 580 520 588 560 C604 640 610 790 630 850 C668 930 676 1000 640 1044 L560 1044 C590 960 580 860 540 700 C530 600 520 520 500 450 Z" fill="#4a7a74" stroke="none" opacity="0.7"/>
+    <path d="M150 960 C140 900 170 850 210 820" fill="none" stroke="#b5e0da" stroke-width="10" opacity="0.6"/>
+    <!-- bulles sombres et rouges -->
+    <g stroke-width="5">
+      <circle cx="210" cy="940" r="20" fill="#4a7a74"/>
+      <circle cx="300" cy="1000" r="13" fill="#4a7a74"/>
+      <circle cx="560" cy="920" r="24" fill="#c23b3b"/>
+      <circle cx="610" cy="990" r="16" fill="#c23b3b"/>
+      <circle cx="470" cy="990" r="11" fill="#c23b3b"/>
+    </g>
+    <!-- LE BOCAL, enfoncé sur le corps, incliné vers nous -->
+    <g transform="rotate(-9 390 560)">
+      <!-- contenu : cœur de la créature, plus dense -->
+      <path d="M262 790 L262 420 C262 400 280 392 300 400 C330 412 350 400 380 404 C410 408 430 396 460 404 C490 410 510 404 518 420 L518 790 Z" fill="#6aa8a0" stroke="none"/>
+      <path d="M470 410 C500 410 512 420 518 440 L518 790 L488 790 C496 660 494 520 470 410 Z" fill="#4a7a74" stroke="none" opacity="0.7"/>
+      <!-- yeux furieux braqués sur nous -->
+      <g stroke-width="7">
+        <ellipse cx="338" cy="520" rx="38" ry="34" fill="#f2efe4"/>
+        <ellipse cx="446" cy="512" rx="34" ry="31" fill="#f2efe4"/>
+        <circle cx="332" cy="530" r="16" fill="#c23b3b" stroke-width="4"/>
+        <circle cx="440" cy="522" r="15" fill="#c23b3b" stroke-width="4"/>
+      </g>
+      <circle cx="331" cy="532" r="7" fill="#05060c"/>
+      <circle cx="439" cy="524" r="7" fill="#05060c"/>
+      <path d="M292 470 L376 504 M492 458 L410 496" stroke-width="13"/>
+      <!-- bouche hurlante contre la vitre -->
+      <path d="M340 600 C360 584 420 580 448 596 C462 630 440 668 400 672 C360 674 334 646 340 600 Z" fill="#1d3330" stroke-width="7"/>
+      <path d="M350 604 l12 16 l10 -18 l12 16 l10 -18 l12 16 l10 -16 l12 14" fill="#f2efe4" stroke-width="4"/>
+      <path d="M372 664 q26 -24 54 -8" fill="#c23b3b" stroke-width="4"/>
+      <!-- tentacule plaqué contre la paroi, ventouses -->
+      <path d="M276 760 C300 700 286 650 300 630 C312 612 338 620 330 650 C318 700 330 730 312 776 Z" fill="#4a7a74" stroke-width="6"/>
+      <g fill="#79b8b0" stroke-width="3"><circle cx="304" cy="650" r="7"/><circle cx="308" cy="690" r="7"/><circle cx="310" cy="730" r="7"/></g>
+      <!-- bulles qui montent dans le liquide -->
+      <g fill="#cde8e5" stroke-width="3" opacity="0.8"><circle cx="486" cy="600" r="8"/><circle cx="476" cy="560" r="5"/><circle cx="494" cy="470" r="6"/></g>
+      <!-- verre -->
+      <path d="M248 300 L248 780 Q248 810 278 810 L502 810 Q532 810 532 780 L532 300 Z" fill="#cde8e5" fill-opacity="0.22" stroke-width="9"/>
+      <path d="M248 300 Q390 286 532 300" fill="none" stroke-width="6"/>
+      <path d="M272 330 L272 760" stroke="#f2fbfa" stroke-width="12" opacity="0.55"/>
+      <path d="M296 330 L296 420" stroke="#f2fbfa" stroke-width="6" opacity="0.45"/>
+      <path d="M508 340 L508 520" stroke="#f2fbfa" stroke-width="6" opacity="0.3"/>
+      <!-- fêlure -->
+      <path d="M506 640 l-22 20 l14 12 l-24 26 M484 660 l-20 -6" fill="none" stroke="#f2fbfa" stroke-width="4" opacity="0.8"/>
+      <!-- étiquette -->
+      <rect x="378" y="690" width="118" height="74" rx="5" fill="#e8e4d8" stroke-width="6"/>
+      <path d="M394 716 h86 M394 738 h56" stroke="#8a8578" stroke-width="7"/>
+      <!-- couvercle soulevé par la colère -->
+      <g transform="rotate(14 390 270)">
+        <rect x="236" y="248" width="308" height="44" rx="12" fill="#8a929c" stroke-width="9"/>
+        <path d="M256 262 h268" stroke="#b3bac2" stroke-width="7"/>
+        <path d="M268 292 v-12 M310 292 v-12 M352 292 v-12 M394 292 v-12 M436 292 v-12 M478 292 v-12 M520 292 v-12" stroke-width="4"/>
+      </g>
+    </g>
+    <!-- goutte de liquide qui déborde sous le couvercle -->
+    <path d="M232 340 C226 370 228 400 214 420 C204 436 222 446 232 432 C244 410 250 380 254 346 Z" fill="#79b8b0" stroke-width="5"/>
+    <!-- tentacule avant, lancé vers nous -->
+    <g transform="translate(240 800) scale(1.3) translate(-240 -800)">
+    <path d="M190 840 C130 820 70 760 60 690 C52 640 90 610 120 630 C150 650 126 690 140 730 C150 760 200 780 240 790 Z" fill="#79b8b0" stroke-width="9"/>
+    <path d="M60 690 C52 640 90 610 120 630 C104 628 84 646 86 680 Z" fill="#4a7a74" stroke="none"/>
+    <g fill="#4a7a74" stroke-width="4"><circle cx="96" cy="740" r="10"/><circle cx="136" cy="784" r="10"/><circle cx="84" cy="700" r="8"/></g>
+    </g>
+  </g>
+  <!-- lignes de mouvement et projections -->
+  <g fill="none" stroke="#cde8e5" stroke-width="5" stroke-linecap="round" opacity="0.5">
+    <path d="M40 600 q-10 30 0 60 M30 760 q20 20 40 20 M700 420 q20 30 10 60"/>
+  </g>
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M170 300 q-8 16 0 26 q12 4 12 -8 q-2 -10 -12 -18 Z" fill="#79b8b0"/>
+    <path d="M590 250 q-6 14 0 22 q10 4 10 -6 q-2 -8 -10 -16 Z" fill="#79b8b0"/>
+    <path d="M150 190 l18 -8 l-6 18 Z M600 330 l20 -4 l-10 16 Z M520 180 l14 -14 l2 18 Z" fill="#cde8e5" fill-opacity="0.7"/>
+  </g>
+  <g fill="#9aa5a0" opacity="0.35"><circle cx="90" cy="1020" r="12"/><circle cx="660" cy="1026" r="14"/><circle cx="700" cy="1005" r="8"/><circle cx="50" cy="1000" r="7"/></g>
+</svg>

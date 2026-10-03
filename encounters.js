@@ -107,6 +107,10 @@ const ENCOUNTER_ART = {
     'Livre Maudit': { face: 'svg', back: 'svg' },
     'Bibliothécaire Fantôme': { face: 'svg', back: 'svg' },
     'Encre Vivante': { face: 'svg', back: 'svg' },
+    // Laboratoire de Fous
+    'Savant Dingue': { face: 'svg', back: 'svg' },
+    'Créature en Bocaux': { face: 'svg', back: 'svg' },
+    'Robot Défectueux': { face: 'svg', back: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';

@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <defs>
+    <pattern id="robot-defectueux-b-tiles" width="64" height="34" patternUnits="userSpaceOnUse">
+      <rect width="64" height="34" fill="#262e31"/>
+      <rect x="1.5" y="1.5" width="29" height="14" rx="2" fill="#354045"/>
+      <rect x="33.5" y="1.5" width="29" height="14" rx="2" fill="#384449"/>
+      <rect x="-14" y="18.5" width="29" height="14" rx="2" fill="#384449"/>
+      <rect x="18" y="18.5" width="29" height="14" rx="2" fill="#354045"/>
+      <rect x="50" y="18.5" width="29" height="14" rx="2" fill="#364247"/>
+    </pattern>
+    <radialGradient id="robot-defectueux-b-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff5a4a" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#ff5a4a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="robot-defectueux-b-spark" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fde047" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#fde047" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur du labo : carrelage, tuyaux, tableau d'équations, terminal en erreur, étagère à bocaux, bobine Tesla -->
+  <rect x="0" y="0" width="750" height="720" fill="url(#robot-defectueux-b-tiles)"/>
+  <rect x="0" y="0" width="750" height="60" fill="#1c2224"/>
+  <g fill="none" stroke="#05060c" stroke-linecap="round">
+    <path d="M0 40 H750" stroke-width="18"/>
+    <path d="M0 40 H750" stroke="#2c3438" stroke-width="11"/>
+    <path d="M600 40 V96 H700 V140" stroke-width="15"/>
+    <path d="M600 40 V96 H700 V140" stroke="#2c3438" stroke-width="8"/>
+  </g>
+  <g stroke="#05060c" stroke-width="5">
+    <rect x="250" y="110" width="230" height="130" rx="6" fill="#1d2b25"/>
+    <rect x="250" y="110" width="230" height="130" rx="6" fill="none" stroke="#3a3326" stroke-width="9"/>
+  </g>
+  <g fill="none" stroke="#8a9a8e" stroke-width="4" stroke-linecap="round" opacity="0.7">
+    <path d="M272 142 q12 -12 22 0 t22 0 M328 142 h20 M360 134 l10 14 M370 134 l-10 14 M386 142 q10 -10 20 2 M420 140 h36"/>
+    <path d="M272 178 h36 M320 170 v16 M312 178 h16 M344 178 q14 -14 26 0 q12 10 24 -2 M412 172 h40"/>
+    <path d="M272 214 l12 -10 l12 10 M306 214 h56 M378 206 c10 16 28 16 36 0 M428 214 h26"/>
+  </g>
+  <!-- Terminal mural qui affiche une grosse croix d'erreur -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="110" y="310" width="150" height="120" rx="8" fill="#3a4246"/>
+    <rect x="126" y="326" width="118" height="80" rx="4" fill="#5a1a1a"/>
+    <path d="M150 428 l-10 26 h90 l-10 -26" fill="#2c3438" stroke-width="5"/>
+  </g>
+  <ellipse cx="185" cy="366" rx="120" ry="90" fill="url(#robot-defectueux-b-glow)"/>
+  <path d="M164 344 l42 44 M206 344 l-42 44" stroke="#ff5a4a" stroke-width="13" stroke-linecap="round"/>
+  <path d="M244 336 l-14 14 l8 8 l-16 16 M230 350 l-14 -6" fill="none" stroke="#05060c" stroke-width="4" stroke-linecap="round"/>
+  <g stroke="#05060c" stroke-width="4"><circle cx="138" cy="418" r="4" fill="#c23b3b"/><circle cx="154" cy="418" r="4" fill="#4a5056"/></g>
+  <!-- Étagère à bocaux -->
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M540 420 h200" stroke-width="8"/>
+    <rect x="556" y="364" width="32" height="52" rx="6" fill="#2f4a3a"/>
+    <rect x="564" y="348" width="16" height="20" rx="3" fill="#2f4a3a"/>
+    <rect x="606" y="376" width="28" height="40" rx="6" fill="#3c3150"/>
+    <rect x="652" y="368" width="32" height="48" rx="6" fill="#25444a"/>
+    <rect x="700" y="380" width="26" height="36" rx="6" fill="#2f4a3a"/>
+  </g>
+  <g opacity="0.35"><rect x="561" y="384" width="22" height="28" rx="3" fill="#4ade80"/><rect x="611" y="392" width="18" height="20" rx="3" fill="#c084fc"/><rect x="657" y="386" width="22" height="26" rx="3" fill="#22d3ee"/></g>
+  <!-- Bobine Tesla -->
+  <g stroke="#05060c" stroke-width="4">
+    <rect x="600" y="660" width="70" height="62" rx="5" fill="#2a3135"/>
+    <rect x="622" y="520" width="26" height="142" fill="#3a3a30"/>
+    <path d="M622 546 h26 M622 572 h26 M622 598 h26 M622 624 h26" stroke-width="5"/>
+    <circle cx="635" cy="502" r="26" fill="#4a5056"/>
+  </g>
+  <path d="M614 496 l-22 -10 l10 -8 l-24 -14 M650 482 l10 -20 l8 6 l8 -26" fill="none" stroke="#c084fc" stroke-width="4" stroke-linecap="round" opacity="0.65"/>
+  <!-- Sol carrelé -->
+  <rect x="0" y="720" width="750" height="614" fill="#262d30"/>
+  <path d="M0 720 H750" stroke="#05060c" stroke-width="5"/>
+  <g stroke="#1d2325" stroke-width="4">
+    <path d="M0 770 H750 M0 840 H750 M0 940 H750 M0 1080 H750 M0 1260 H750"/>
+    <path d="M375 720 L375 1334 M260 720 L120 1334 M490 720 L630 1334 M150 720 L-140 1334 M600 720 L890 1334"/>
+  </g>
+  <!-- Ombre du robot -->
+  <ellipse cx="400" cy="728" rx="130" ry="16" fill="#05060c" opacity="0.5"/>
+  <!-- Son bras de rechange, oublié par terre -->
+  <g stroke="#05060c" stroke-linejoin="round">
+    <path d="M520 742 L590 730" stroke-width="26" stroke-linecap="round"/>
+    <path d="M520 742 L590 730" stroke="#8a929c" stroke-width="16" stroke-linecap="round"/>
+    <path d="M594 724 l18 -12 M596 732 l22 2 M592 740 l14 14" stroke-width="7" stroke-linecap="round"/>
+    <path d="M514 744 c-10 4 -18 -2 -22 6" fill="none" stroke="#c23b3b" stroke-width="4"/>
+  </g>
+  <!-- LE ROBOT, de trois-quarts dos : il tabasse le terminal qui lui affiche une erreur -->
+  <g stroke="#05060c" stroke-linejoin="round">
+    <!-- Chenilles -->
+    <path d="M296 676 L352 692 L352 728 L298 712 Z" fill="#4e4530" stroke-width="5"/>
+    <path d="M350 690 L500 684 L504 724 L352 730 Z" fill="#6b5f3f" stroke-width="6"/>
+    <path d="M362 704 h130" stroke="#4e4530" stroke-width="5"/>
+    <!-- Flanc gauche -->
+    <path d="M300 452 L350 430 L356 696 L306 680 Z" fill="#8f7d4f" stroke-width="7"/>
+    <!-- Dos -->
+    <path d="M350 430 L490 440 L496 690 L356 696 Z" fill="#b8a26a" stroke-width="8"/>
+    <path d="M476 440 L490 440 L496 690 L482 690 Z" fill="#9c8a58" stroke="none"/>
+    <g stroke="#6b5f3f" stroke-width="5" stroke-linecap="round">
+      <path d="M372 462 H466 M372 476 H466 M372 490 H466"/>
+    </g>
+    <!-- Trappe arrière ouverte, câbles à l'air, plaque qui pend à sa charnière -->
+    <path d="M386 520 L462 524 L462 590 L386 588 Z" fill="#1c1a14" stroke-width="5"/>
+    <path d="M396 530 c14 20 -6 30 10 52 M418 528 c-8 22 14 30 2 56 M440 530 c10 18 -2 34 12 52" fill="none" stroke-width="4"/>
+    <path d="M396 530 c14 20 -6 30 10 52" fill="none" stroke="#c23b3b" stroke-width="3"/>
+    <path d="M418 528 c-8 22 14 30 2 56" fill="none" stroke="#3b82c4" stroke-width="3"/>
+    <path d="M440 530 c10 18 -2 34 12 52" fill="none" stroke="#fde047" stroke-width="3"/>
+    <path d="M386 588 L462 590 L470 650 L392 642 Z" fill="#9c8a58" stroke-width="5" transform="rotate(8 424 590)"/>
+    <circle cx="398" cy="590" r="5" fill="#8a929c" stroke-width="3"/>
+    <circle cx="452" cy="591" r="5" fill="#8a929c" stroke-width="3"/>
+    <!-- Boulons arrière -->
+    <g fill="#6b5f3f" stroke-width="4"><circle cx="376" cy="664" r="10"/><circle cx="470" cy="660" r="10"/></g>
+    <!-- Fissure emboutie -->
+    <path d="M460 494 l14 12 l-14 12" fill="none" stroke-width="5" stroke-linecap="round"/>
+    <!-- Ressort qui jaillit du coin -->
+    <path d="M356 436 q-22 2 -16 -14 q20 -6 12 -20 q-24 2 -18 -14 q20 -6 12 -20 q-22 2 -16 -14" fill="none" stroke-width="11" stroke-linecap="round"/>
+    <path d="M356 436 q-22 2 -16 -14 q20 -6 12 -20 q-24 2 -18 -14 q20 -6 12 -20 q-22 2 -16 -14" fill="none" stroke="#8a929c" stroke-width="5" stroke-linecap="round"/>
+    <rect x="320" y="342" width="24" height="15" rx="4" fill="#8a929c" stroke-width="4" transform="rotate(-20 332 350)"/>
+    <!-- Antenne tordue + étincelles -->
+    <path d="M444 438 L452 370 L432 338" fill="none" stroke-width="6"/>
+    <circle cx="430" cy="332" r="34" fill="url(#robot-defectueux-b-spark)" stroke="none"/>
+    <circle cx="430" cy="332" r="11" fill="#fde047" stroke-width="4"/>
+    <g stroke="#fde047" stroke-width="5" stroke-linecap="round"><path d="M412 320 l-18 -10 M412 340 l-20 6 M424 314 l-6 -18"/></g>
+    <!-- Bras levé qui cogne le terminal -->
+    <path d="M304 520 L262 470 L246 412" fill="none" stroke-width="28" stroke-linecap="round"/>
+    <path d="M304 520 L262 470 L246 412" fill="none" stroke="#8a929c" stroke-width="18" stroke-linecap="round"/>
+    <circle cx="262" cy="470" r="13" fill="#6b5f3f" stroke-width="4"/>
+    <rect x="228" y="388" width="34" height="30" rx="6" fill="#8a929c" stroke-width="5" transform="rotate(-20 245 403)"/>
+    <!-- Fumée qui sort de la trappe -->
+    <g fill="#5d6468" stroke-width="3" opacity="0.85">
+      <path d="M470 520 q4 -24 26 -22 q12 -20 34 -6 q22 2 14 24 q-8 16 -30 10 q-24 12 -44 -6 Z"/>
+      <path d="M520 450 q2 -18 20 -18 q10 -16 28 -4 q16 4 8 22 q-10 12 -26 6 q-20 8 -30 -6 Z"/>
+    </g>
+  </g>
+  <!-- Le choc : éclats blancs et lignes de coup -->
+  <g fill="none" stroke="#e8e4d8" stroke-width="5" stroke-linecap="round" opacity="0.85">
+    <path d="M268 384 l18 -14 M272 404 l24 -2 M262 366 l6 -20"/>
+    <path d="M300 430 q-24 -18 -28 -48" stroke="#a8b2ae" stroke-width="4" opacity="0.6"/>
+  </g>
+  <g fill="#fde047" stroke="#05060c" stroke-width="3">
+    <path d="M246 360 l8 -14 l2 10 l10 -6 l-6 14 l-4 -8 Z"/><circle cx="280" cy="350" r="4"/><circle cx="500" cy="560" r="4"/>
+  </g>
+  <!-- Premier plan : cachette derrière une paillasse et un gros bocal -->
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.12"/>
+  <g stroke="#05060c" stroke-width="6" stroke-linejoin="round">
+    <path d="M40 520 Q34 470 70 466 L170 466 Q206 470 200 520 L204 770 L36 770 Z" fill="#17201c"/>
+    <path d="M58 600 Q120 580 186 602 L188 760 L54 760 Z" fill="#2b4a3a" opacity="0.6" stroke="none"/>
+    <path d="M100 640 q20 -26 40 0 q-6 30 -20 34 q-14 -4 -20 -34 Z" fill="#1d2a22" stroke-width="4"/>
+    <rect x="56" y="440" width="128" height="30" rx="6" fill="#20262a"/>
+    <path d="M0 760 L276 746 L286 1334 H0 Z" fill="#14181a"/>
+    <path d="M0 754 L280 740 L282 772 L0 786 Z" fill="#20262a"/>
+    <path d="M20 860 h240 M20 1040 h246" stroke="#0b0c0f" stroke-width="5"/>
+    <rect x="200" y="930" width="40" height="14" rx="5" fill="#262930" stroke="none"/>
+    <rect x="200" y="1110" width="40" height="14" rx="5" fill="#262930" stroke="none"/>
+    <path d="M630 1000 L750 990 L750 1334 H622 Z" fill="#14161a"/>
+    <path d="M626 1000 L750 990 L750 1016 L628 1026 Z" fill="#1d2025"/>
+  </g>
+  <ellipse cx="420" cy="1300" rx="260" ry="40" fill="#05060c" opacity="0.4"/>
+</svg>
