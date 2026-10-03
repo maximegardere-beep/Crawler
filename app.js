@@ -1761,6 +1761,7 @@ function screenImpactFlash() {
 // no-op visuel (animation désactivée en CSS) mais screenImpactFlash() continue de jouer, comme demandé
 // explicitement par la consigne.
 function triggerHeavyImpact() {
+    if (typeof playSfx === 'function') playSfx('heavyImpact');
     screenShake();
     screenImpactFlash();
 }
@@ -8624,6 +8625,7 @@ function winCombat() {
     gameState.pendingSneakAttack = false;
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null, plotShield: false }; // Les statuts ne survivent pas au combat
 
+    if (defeatedEnemy && typeof playSfx === 'function') playSfx(wasBoss ? 'bossDeath' : 'mobDeath');
     if (wasBoss) {
         setSceneHeader('👑', 'Victoire !', 'Boss Vaincu', { key: 'bossVictory', enemy: defeatedEnemy });
         logEvent(`👑 Vous avez triomphé de ${defeatedEnemy.name} !`, "success");

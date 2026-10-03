@@ -680,11 +680,17 @@ function fxMobAttack(spec, opts, reduced) {
 // --- Points d'entrée (app.js) -----------------------------------------------------------------------------
 // Attaque du crawler : `kind` = gameState.lastAttackKind ; opts.heavy (attaque furtive, charge) grossit
 // l'éclat, opts.charge allonge l'élan ; opts.heldEnemyHp = PV du mob AVANT le coup (barre tenue).
+// Son d'une attaque (chantier 8, sounds.js) : joué au départ du coup, même sans animation (mouvement réduit).
+function fxPlaySfx(key) {
+    if (typeof playSfx === 'function' && key) playSfx(key);
+}
+
 function playPlayerAttackFx(kind, opts, onImpact) {
     opts = opts || {};
+    const spec = playerAttackFxSpec(kind);
+    if (typeof playerAttackSfxKey === 'function') fxPlaySfx(playerAttackSfxKey(spec));
     if (!fxAnimated()) { if (onImpact) onImpact(); return; }
     const reduced = fxReducedMotion();
-    const spec = playerAttackFxSpec(kind);
     renderScene('combat'); // posture à jour avant d'animer l'objet tenu
     let fx;
     if (spec.type === 'melee') fx = fxPlayerMelee(spec, opts, reduced);
@@ -709,12 +715,14 @@ function classAbilityFxSpec(key) {
 }
 function playClassAbilityFx(key) {
     const spec = classAbilityFxSpec(key);
+    if (spec) fxPlaySfx('spellSelf');
     if (!spec || !fxAnimated()) return;
     renderScene('combat');
     runFx('crawler', fxPlayerSelfSpell(spec, fxReducedMotion()), null);
 }
 
 function playSpellBackfireFx() {
+    fxPlaySfx('spellBackfire');
     if (!fxAnimated()) return;
     renderScene('combat');
     runFx('crawler', fxPlayerBackfire(fxReducedMotion()), null);
@@ -725,6 +733,14 @@ function playSpellBackfireFx() {
 // sans élan ; opts.heldPlayerHp = PV du crawler AVANT le coup.
 function playMobAttackFx(enemy, opts, onImpact) {
     opts = opts || {};
+    // Cri de l'archétype au départ du coup (jamais à chaque frappe d'un multi-coups), puis « touché » à l'impact
+    // si le crawler a vraiment perdu des PV (coup paré, esquivé ou absorbé : silence).
+    if (enemy && !opts.fast && typeof mobAttackSfxKey === 'function') fxPlaySfx(mobAttackSfxKey(enemy));
+    const hurt = typeof opts.heldPlayerHp === 'number' && gameState.hp < opts.heldPlayerHp;
+    if (hurt && !opts.heavy) {
+        const impact = onImpact;
+        onImpact = () => { fxPlaySfx('playerHurt'); if (impact) impact(); };
+    }
     if (!fxAnimated() || !enemy) { if (onImpact) onImpact(); return; }
     const spec = mobAttackFxSpec(enemy, (gameState.combatDistance || 0) > 0);
     const fx = fxMobAttack(spec, opts, fxReducedMotion());

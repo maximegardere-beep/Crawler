@@ -35,7 +35,11 @@ Tailwind CDN, **aucun build step**.
   `playSfx(key, { force })` (no-op sans `AudioContext`, tests Node), `unlockAudio()` (premier geste), préférences d'écoute
   hors `gameState` : `isSoundMuted()`/`setSoundMuted()` (🔊 `#btn-sound-toggle`, coupe tout) et `isVoiceMuted()`/`setVoiceMuted()`
   (🎙️ `#btn-voice-toggle`, voix du présentateur seule), `announcerVoiceEnabled()` ; page d'écoute `#sound-lab-overlay`
-  (`openSoundLab()`, `listSfxForLab()`) ; boutons et page branchés dans `app.js` (section « SONS ») ; chargé après `minigames-ui.js`, avant `app.js`
+  (`openSoundLab()`, `listSfxForLab()`) ; boutons et page branchés dans `app.js` (section « SONS ») ; **combat (lot 1)** : un son par
+  style de mêlée/projectile/école de sort et un cri par archétype (`SFX_MELEE_STYLES`, `SFX_PROJECTILES`, `SFX_SPELL_STYLES`,
+  `SFX_MOB_CRIES`, `playerAttackSfxKey()`/`mobAttackSfxKey()`), joués par `playPlayerAttackFx()`/`playMobAttackFx()` (fx.js),
+  `triggerHeavyImpact()`, `winCombat()` — toute nouvelle arme, sort ou archétype dont le style/projectile est nouveau doit avoir son son
+  (exigé par `tests/regression/sounds.js`) ; chargé après `minigames-ui.js`, avant `app.js`
 - `minigames-ui.js` — hôte DOM des mini-jeux (`startMinigame()`, bande du bas, minuterie, rendus `MINIGAME_RENDERERS`,
   réglage Jouer / Réduit / Jet automatique) ; chargé après `fx.js`, avant `app.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier

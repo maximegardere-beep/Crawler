@@ -1,6 +1,6 @@
 // sounds.js — tests régression : chantier 8, lot 0 (catalogue ZzFX, lecture par playSfx(), coupure du son et de la
 // voix du présentateur, boutons 🔊/🎙️, page d'écoute). Voir sounds.js et CHANTIERS.md (chantier 8).
-const { assert } = require('./_helpers.js');
+const { assert, resetTransientState } = require('./_helpers.js');
 
 // Faux AudioContext minimal : compte les contextes créés et les sons lancés.
 function withFakeAudio(fn) {
@@ -103,3 +103,87 @@ withFakeAudio(stats => {
     closeSoundLab();
     assert(ui.soundLabOverlay.classList.contains('hidden'), "Page d'écoute : se referme");
 });
+
+// --- Lot 1 : couverture du catalogue de combat ---
+{
+    const has = key => !!SFX_CATALOG[key];
+    const swingStyles = [...new Set(Object.values(MELEE_SWING_STYLES))];
+    assert(swingStyles.every(style => has(SFX_MELEE_STYLES[style])), "Sons de combat : chaque style de coup de mêlée a son son");
+    const projectiles = [...new Set(Object.values(RANGED_PROJECTILES))];
+    assert(projectiles.every(p => has(SFX_PROJECTILES[p])), "Sons de combat : chaque projectile d'arme à distance a son son");
+    const spellStyles = [...new Set(Object.values(FX_SPELLS).map(fx => fx.style))];
+    assert(spellStyles.every(style => has(SFX_SPELL_STYLES[style])), "Sons de combat : chaque école de sort a son son");
+    assert(Object.keys(MOB_ATTACK_STYLES).every(arch => has(SFX_MOB_CRIES[arch])), "Sons de combat : chaque archétype de mob a son cri");
+    const mapped = [...Object.values(SFX_MELEE_STYLES), ...Object.values(SFX_PROJECTILES), ...Object.values(SFX_SPELL_STYLES), ...Object.values(SFX_MOB_CRIES)];
+    assert(mapped.every(has), "Sons de combat : toute correspondance pointe vers un son du catalogue");
+    assert(['unarmedPunch', 'spellBackfire', 'heavyImpact', 'playerHurt', 'mobDeath', 'bossDeath'].every(has), "Sons de combat : mains nues, sort raté, coup lourd, crawler touché, mob et boss vaincus");
+    assert(new Set(Object.values(SFX_MOB_CRIES)).size === Object.keys(SFX_MOB_CRIES).length, "Sons de combat : un cri distinct par archétype");
+
+    assert(playerAttackSfxKey({ type: 'melee', style: 'thrust' }) === 'thrustStab' && playerAttackSfxKey({ type: 'ranged', projectile: 'bolt' }) === 'crossbowShot', "playerAttackSfxKey() : mêlée par style, distance par projectile");
+    assert(playerAttackSfxKey({ type: 'magic', style: 'sky' }) === 'spellSky' && playerAttackSfxKey({ type: 'unarmed' }) === 'unarmedPunch' && playerAttackSfxKey(null) === 'unarmedPunch', "playerAttackSfxKey() : sort par école, mains nues par défaut");
+    assert(mobAttackSfxKey({ visualArchetype: 'blob' }) === 'blobSquelch' && mobAttackSfxKey({ visualArchetype: 'inconnu' }) === 'goblinCry' && mobAttackSfxKey(null) === 'goblinCry', "mobAttackSfxKey() : cri de l'archétype, gobelinoïde par défaut");
+}
+
+// --- Lot 1 : branchements (playSfx espionné) ---
+{
+    const realPlay = playSfx;
+    const played = [];
+    global.playSfx = key => { played.push(key); return true; };
+    const savedEq = gameState.equipment, savedHp = gameState.hp;
+    try {
+        gameState.equipment = Object.assign({}, savedEq, { weapon: null, ranged: null, spell: null });
+        let impacted = false;
+        playPlayerAttackFx('unarmed', {}, () => { impacted = true; });
+        assert(played[0] === 'unarmedPunch' && impacted, "Attaque à mains nues : son joué, impact appelé");
+
+        played.length = 0;
+        gameState.hp = 50;
+        playMobAttackFx({ visualArchetype: 'zombie', name: 'Test' }, { heldPlayerHp: 60 }, () => {});
+        assert(played.join(',') === 'zombieGroan,playerHurt', "Coup de mob encaissé : cri de l'archétype puis « touché »");
+
+        played.length = 0;
+        playMobAttackFx({ visualArchetype: 'zombie', name: 'Test' }, { heldPlayerHp: 50 }, () => {});
+        assert(played.join(',') === 'zombieGroan', "Coup de mob sans perte de PV : le cri seul");
+
+        played.length = 0;
+        playMobAttackFx({ visualArchetype: 'zombie', name: 'Test' }, { fast: true, heldPlayerHp: 60 }, () => {});
+        assert(played.join(',') === 'playerHurt', "Multi-coups : pas de cri à chaque frappe");
+
+        played.length = 0;
+        playSpellBackfireFx();
+        triggerHeavyImpact();
+        assert(played.join(',') === 'spellBackfire,heavyImpact', "Sort raté et coup lourd : leur son");
+    } finally {
+        global.playSfx = realPlay;
+        gameState.equipment = savedEq;
+        gameState.hp = savedHp;
+    }
+}
+
+// --- Lot 1 : victoire (mob vaincu / boss vaincu) ---
+{
+    const realPlay = playSfx;
+    const played = [];
+    global.playSfx = key => { played.push(key); return true; };
+    try {
+        resetTransientState();
+        gameState.currentFloor = 2;
+        const mob = generateMob(gameState.currentDistrict || Object.keys(districts)[0]);
+        initiateCombat(mob, { intro: false });
+        mob.hp = 0;
+        played.length = 0;
+        winCombat();
+        assert(played.includes('mobDeath') && !played.includes('bossDeath'), "Victoire contre un mob : son « mob vaincu »");
+
+        resetTransientState();
+        const boss = generateBoss(gameState.currentDistrict || Object.keys(districts)[0]);
+        initiateCombat(boss, { intro: false });
+        boss.hp = 0;
+        played.length = 0;
+        winCombat();
+        assert(played.includes('bossDeath') && !played.includes('mobDeath'), "Victoire contre un boss : son « boss vaincu »");
+    } finally {
+        global.playSfx = realPlay;
+        resetTransientState();
+    }
+}

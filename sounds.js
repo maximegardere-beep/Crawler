@@ -12,23 +12,93 @@
 // slide, deltaSlide, pitchJump, pitchJumpTime, repeatTime, noise, modulation, bitCrush, delay,
 // sustainVolume, decay, tremolo.
 const SFX_GROUPS = {
-    combat: 'Combat',
+    melee: 'Armes de mêlée',
+    ranged: 'Armes à distance',
+    spell: 'Sorts',
     mob: 'Cris de mobs',
+    impact: 'Impacts et fins de combat',
     event: 'Événements'
 };
 
+const sfx = (group, label, use, params) => ({ group, label, use, params });
+
 const SFX_CATALOG = {
-    swordSlash:   { group: 'combat', label: "Coup d'épée",      use: 'Coup porté avec une arme tranchante.',
-                    params: [1.4, .05, 90, 0, .01, .12, 4, 1.2, -1, 0, 0, 0, 0, 4, 40, .1, 0, .6, .02] },
-    crossbowShot: { group: 'combat', label: "Tir d'arbalète",   use: 'Carreau qui part : corde qui claque, sifflement.',
-                    params: [2, .05, 520, 0, .02, .18, 2, 2.2, -18, 0, 0, 0, 0, .4, 0, 0, .04, .5, .01] },
-    goblinCry:    { group: 'mob',    label: 'Cri de gobelin',   use: "Cri d'archétype quand le mob attaque.",
-                    params: [1.1, .1, 640, .02, .09, .22, 2, 1.6, -4, 0, 120, .06, 0, .2, 9, 0, 0, .8, .04] },
-    goldPickup:   { group: 'event',  label: "Pièces d'or",      use: 'Des PO trouvées en explorant.',
-                    params: [1, .02, 1675, 0, .06, .24, 1, 1.82, 0, 0, 837, .06] },
-    levelUp:      { group: 'event',  label: 'Montée de niveau', use: 'Arpège joyeux et un peu ironique.',
-                    params: [1.8, 0, 392, .02, .28, .35, 1, 1, 0, 0, 131, .07, .36, 0, 0, 0, .08, .7, .02] }
+    // Armes de mêlée : un son par style de coup (MELEE_SWING_STYLES, sprites/fx.js) + mains nues.
+    swordSlash:   sfx('melee', "Coup d'épée", 'Arme tranchante (épée, hache, katana…).', [1.4, .05, 90, 0, .01, .12, 4, 1.2, -1, 0, 0, 0, 0, 4, 40, .1, 0, .6, .02]),
+    bluntSmash:   sfx('melee', 'Coup contondant', 'Arme lourde (masse, pied-de-biche, marteau…).', [1.8, .05, 60, 0, .03, .2, 4, 2, -.5, 0, 0, 0, 0, 2, 0, .2, 0, .5, .03]),
+    thrustStab:   sfx('melee', 'Estoc', 'Arme qui pique (couteau, lance, tronçonneuse…).', [1.2, .05, 300, 0, .01, .08, 2, 1.5, -12, 0, 0, 0, 0, 1, 0, 0, 0, .6, 0]),
+    unarmedPunch: sfx('melee', 'Coup de poing', 'Attaque à mains nues.', [1.5, .05, 120, 0, .01, .1, 0, 2, -3, 0, 0, 0, 0, 1.5, 0, .1, 0, .5, 0]),
+    // Armes à distance : un son par projectile (RANGED_PROJECTILES, sprites/fx.js).
+    slingStone:   sfx('ranged', 'Lance-pierre', 'Caillou qui part en sifflant.', [1, .1, 250, .01, .03, .1, 0, 1, -6, 0, 0, 0, 0, 3, 0, 0, 0, .5, 0]),
+    bowShot:      sfx('ranged', "Tir à l'arc", 'Corde qui vibre, flèche qui file.', [1.4, .05, 300, 0, .02, .2, 2, 1.5, -6, 0, 0, 0, 0, 0, 15, 0, 0, .6, .02]),
+    crossbowShot: sfx('ranged', "Tir d'arbalète", 'Carreau : corde qui claque, sifflement.', [2, .05, 520, 0, .02, .18, 2, 2.2, -18, 0, 0, 0, 0, .4, 0, 0, .04, .5, .01]),
+    nailGun:      sfx('ranged', 'Pistolet à clous', 'Deux clous en rafale.', [2.3, .05, 900, 0, .01, .04, 4, 1, -10, 0, 0, 0, .06, 1, 0, .1, 0, .4, 0]),
+    shotgunBlast: sfx('ranged', 'Fusil', 'Détonation et plombs.', [2, .05, 80, 0, .04, .35, 4, 1.5, -.4, 0, 0, 0, 0, 5, 0, .3, 0, .6, .05]),
+    blowDart:     sfx('ranged', 'Sarbacane', 'Pfft discret.', [1.6, .1, 600, 0, .01, .06, 0, 1, -4, 0, 0, 0, 0, 8, 0, 0, 0, .3, 0]),
+    waterJet:     sfx('ranged', "Jet d'eau", "Pistolet à eau ou à bulles.", [1.5, .05, 200, .02, .25, .15, 0, 1, 0, 0, 0, 0, .04, 6, 0, 0, 0, .5, 0, .5]),
+    confettiPop:  sfx('ranged', 'Confettis', 'Pop festif et pétillant.', [2.4, .05, 500, 0, .02, .12, 1, 1, 10, 0, 700, .04, 0, .5, 0, 0, .03, .6, 0]),
+    stampThrow:   sfx('ranged', 'Tampon', 'Tampon encreur lancé : tchac.', [1.4, .05, 140, 0, .02, .1, 2, 1, -2, 0, 0, 0, 0, .5, 0, .1, 0, .5, 0]),
+    pulseBeam:    sfx('ranged', "Canon à impulsions", 'Rayon laser.', [1.2, 0, 1100, 0, .06, .2, 2, 1, -30, 0, 0, 0, 0, 0, 20, 0, 0, .7, 0]),
+    // Sorts : un son par école d'effet (style de FX_SPELLS, sprites/fx.js) + sort raté.
+    spellZap:     sfx('spell', 'Éclair', 'Arc électrique (Éclair, Ampoule…).', [1.1, .05, 800, 0, .12, .1, 3, 1, 0, 0, 0, 0, .02, 3, 0, 0, 0, .6, 0, .6]),
+    spellPunch:   sfx('spell', 'Poing magique', 'Poing de glace ou de force.', [1.3, .05, 400, 0, .04, .12, 1, 1, -8, 0, 300, .03, 0, 0, 0, 0, 0, .6, 0]),
+    spellCone:    sfx('spell', 'Souffle', 'Jet de flammes ou de terreur.', [1.5, .05, 120, .04, .2, .25, 4, 1, 2, 0, 0, 0, 0, 6, 0, .05, 0, .7, .05]),
+    spellArc:     sfx('spell', 'Lame spectrale', 'Lame fantomatique en arc.', [1.8, .05, 700, .02, .12, .25, 0, 1, -3, 0, 0, 0, 0, 0, 6, 0, .05, .6, 0]),
+    spellSky:     sfx('spell', 'Foudre', 'Éclair qui tombe du plafond.', [2, .05, 50, 0, .08, .6, 4, 2, -.2, 0, 0, 0, 0, 8, 0, .4, 0, .6, .05]),
+    spellBolt:    sfx('spell', 'Projectile magique', 'Orbe, éclat de glace, essaim.', [2.2, .05, 660, 0, .06, .18, 1, 1, -10, 0, 0, 0, 0, 0, 10, 0, .05, .6, 0]),
+    spellMeteor:  sfx('spell', 'Météore', 'Boule de feu qui s\'écrase.', [1.8, .05, 400, .05, .15, .5, 4, 1.2, -6, 0, 0, 0, 0, 3, 0, .2, 0, .7, .05]),
+    spellSelf:    sfx('spell', 'Sort sur soi', 'Soin, bouclier, pas de l\'ombre, capacité de classe.', [1.7, 0, 523, .03, .15, .3, 0, 1, 0, 0, 262, .06, .12, 0, 0, 0, .05, .7, 0]),
+    spellBackfire: sfx('spell', 'Sort raté', 'Le sort crachote et explose.', [1.4, .1, 300, 0, .05, .35, 4, 1, -5, 0, 0, 0, 0, 4, 0, .3, 0, .6, .05, .3]),
+    // Cris de mobs : un par archétype (MOB_ATTACK_STYLES, sprites/fx.js).
+    goblinCry:    sfx('mob', 'Gobelinoïde', 'Cri aigu et nerveux.', [1.1, .1, 640, .02, .09, .22, 2, 1.6, -4, 0, 120, .06, 0, .2, 9, 0, 0, .8, .04]),
+    beastGrowl:   sfx('mob', 'Bête', 'Grognement.', [1.5, .1, 110, .03, .15, .2, 2, 2, -1, 0, 0, 0, 0, 1, 12, 0, 0, .8, 0]),
+    zombieGroan:  sfx('mob', 'Zombie', 'Râle traînant.', [1.4, .1, 150, .06, .2, .3, 2, 1.5, -.8, 0, 0, 0, 0, .5, 4, 0, 0, .7, 0, .2]),
+    machineBeep:  sfx('mob', 'Machine', 'Bips de servomoteur.', [1.7, 0, 440, 0, .05, .05, 1, 1, 0, 0, -110, .05, .1, 0, 0, .1, 0, .6, 0]),
+    plantRustle:  sfx('mob', 'Plante', 'Bruissement sifflant.', [1, .1, 300, .02, .1, .15, 0, 1, 0, 0, 0, 0, 0, 9, 0, 0, 0, .5, 0]),
+    shadeWail:    sfx('mob', 'Ombre', 'Gémissement spectral.', [1.8, .1, 500, .08, .2, .35, 0, 1, -2, 0, 0, 0, 0, 0, 7, 0, .08, .6, 0]),
+    blobSquelch:  sfx('mob', 'Blob', 'Floc gélatineux.', [1.4, .1, 90, 0, .05, .15, 0, 2, 4, 0, 0, 0, 0, .6, 25, 0, 0, .6, 0]),
+    mannequinCreak: sfx('mob', 'Mannequin', 'Craquement de plastique.', [1.8, .1, 200, 0, .08, .08, 2, 1, 1, 0, 0, 0, .03, .3, 0, .2, 0, .5, 0]),
+    swarmBuzz:    sfx('mob', 'Nuée', 'Bourdonnement.', [1, .05, 180, .05, .3, .15, 2, 1, 0, 0, 0, 0, 0, .2, 30, 0, 0, .6, 0, .3]),
+    vehicleRev:   sfx('mob', 'Véhicule', 'Moteur qui rugit.', [1.3, .05, 220, .02, .18, .1, 2, 1, 0, 0, 55, .08, 0, .1, 0, .05, 0, .7, 0]),
+    // Impacts et fins de combat.
+    heavyImpact:  sfx('impact', 'Coup lourd', 'Attaque furtive, charge, télégraphe, ruée, phase 3.', [2, .05, 45, 0, .05, .4, 4, 2, -.3, 0, 0, 0, 0, 3, 0, .3, 0, .6, .03]),
+    playerHurt:   sfx('impact', 'Crawler touché', 'Le crawler encaisse un coup.', [1.4, .05, 180, 0, .02, .12, 2, 1, -10, 0, 0, 0, 0, .5, 0, .1, 0, .5, 0]),
+    mobDeath:     sfx('impact', 'Mob vaincu', 'Le mob s\'effondre.', [1.3, .05, 400, 0, .05, .35, 2, 1, -8, 0, 0, 0, 0, .3, 0, 0, 0, .6, 0]),
+    bossDeath:    sfx('impact', 'Boss vaincu', 'Le boss s\'écroule dans un fracas.', [2, .05, 120, .02, .3, .9, 4, 1.5, -.6, 0, 0, 0, 0, 4, 0, .3, .1, .7, .05]),
+    // Événements (lot 2).
+    goldPickup:   sfx('event', "Pièces d'or", 'Des PO trouvées en explorant.', [1, .02, 1675, 0, .06, .24, 1, 1.82, 0, 0, 837, .06]),
+    levelUp:      sfx('event', 'Montée de niveau', 'Arpège joyeux et un peu ironique.', [1.8, 0, 392, .02, .28, .35, 1, 1, 0, 0, 131, .07, .36, 0, 0, 0, .08, .7, .02])
 };
+
+// Correspondances avec le catalogue des effets d'attaque (sprites/fx.js) : chaque style, projectile, école de sort et
+// archétype a son son (exigé par tests/regression/sounds.js).
+const SFX_MELEE_STYLES = { slash: 'swordSlash', smash: 'bluntSmash', thrust: 'thrustStab' };
+const SFX_PROJECTILES = {
+    stone: 'slingStone', arrow: 'bowShot', bolt: 'crossbowShot', nail: 'nailGun', pellets: 'shotgunBlast',
+    dart: 'blowDart', water: 'waterJet', confetti: 'confettiPop', stamp: 'stampThrow', pulse: 'pulseBeam'
+};
+const SFX_SPELL_STYLES = {
+    zap: 'spellZap', punch: 'spellPunch', cone: 'spellCone', arc: 'spellArc', sky: 'spellSky',
+    bolt: 'spellBolt', meteor: 'spellMeteor', self: 'spellSelf'
+};
+const SFX_MOB_CRIES = {
+    goblinoid: 'goblinCry', beast: 'beastGrowl', zombie: 'zombieGroan', machine: 'machineBeep', plant: 'plantRustle',
+    shade: 'shadeWail', blob: 'blobSquelch', mannequin: 'mannequinCreak', swarm: 'swarmBuzz', vehicle: 'vehicleRev'
+};
+
+// Son d'une attaque du crawler d'après la spécification de son effet (playerAttackFxSpec(), fx.js) — pure.
+function playerAttackSfxKey(spec) {
+    if (!spec) return 'unarmedPunch';
+    if (spec.type === 'melee') return SFX_MELEE_STYLES[spec.style] || 'bluntSmash';
+    if (spec.type === 'ranged') return SFX_PROJECTILES[spec.projectile] || 'slingStone';
+    if (spec.type === 'magic') return SFX_SPELL_STYLES[spec.style] || 'spellBolt';
+    return 'unarmedPunch';
+}
+
+// Cri d'un mob qui attaque, selon son archétype (archétype inconnu : gobelinoïde, comme son sprite) — pure.
+function mobAttackSfxKey(enemy) {
+    return SFX_MOB_CRIES[enemy && enemy.visualArchetype] || SFX_MOB_CRIES.goblinoid;
+}
 
 const SFX_SAMPLE_RATE = 44100;
 const SFX_MASTER_VOLUME = .3;
