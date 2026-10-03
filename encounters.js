@@ -119,6 +119,10 @@ const ENCOUNTER_ART = {
     'Chaussette Solitaire': { face: 'svg', back: 'svg' },
     'Lave-Linge Possédé': { face: 'svg', back: 'svg' },
     'Monstre de Poussière': { face: 'svg', back: 'svg' },
+    // Marché Noir du Donjon
+    'Marchand Malhonnête': { face: 'svg', back: 'svg' },
+    'Sac de Pièces Vivant': { face: 'svg', back: 'svg' },
+    'Garde du Marché': { face: 'svg', back: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';

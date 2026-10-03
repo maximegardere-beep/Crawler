@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Sac de Pièces Vivant, Marché Noir du Donjon, cadrage « face ». Aucun texte. -->
+  <defs>
+    <pattern id="sac-de-pieces-vivant-f-wall" width="100" height="66" patternUnits="userSpaceOnUse">
+      <rect width="100" height="66" fill="#1f1b26"/>
+      <rect x="4" y="4" width="92" height="58" rx="4" fill="#28222f"/>
+      <rect x="4" y="4" width="92" height="10" fill="#2f2838"/>
+      <circle cx="24" cy="34" r="4" fill="#2f2838"/>
+      <circle cx="72" cy="46" r="5" fill="#2f2838"/>
+    </pattern>
+    <pattern id="sac-de-pieces-vivant-f-cobbles" width="80" height="44" patternUnits="userSpaceOnUse">
+      <rect width="80" height="44" fill="#141118"/>
+      <rect x="3" y="3" width="34" height="17" rx="7" fill="#25202a"/>
+      <rect x="42" y="3" width="35" height="17" rx="7" fill="#221d27"/>
+      <rect x="-17" y="24" width="34" height="17" rx="7" fill="#221d27"/>
+      <rect x="22" y="24" width="35" height="17" rx="7" fill="#25202a"/>
+      <rect x="62" y="24" width="34" height="17" rx="7" fill="#221d27"/>
+    </pattern>
+    <radialGradient id="sac-de-pieces-vivant-f-glow">
+      <stop offset="0" stop-color="#d97706" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#d97706" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur et bâche -->
+  <rect x="0" y="0" width="750" height="870" fill="url(#sac-de-pieces-vivant-f-wall)"/>
+  <path d="M0 0 H750 V70 Q560 120 375 76 Q190 120 0 70 Z" fill="#2a1f22" stroke="#05060c" stroke-width="5"/>
+  <path d="M120 0 V96 M300 0 V84 M470 0 V86 M640 0 V100" stroke="#1e1719" stroke-width="10"/>
+  <!-- Guirlande de lanternes -->
+  <path d="M0 150 Q190 230 375 160 Q560 230 750 150" fill="none" stroke="#05060c" stroke-width="5"/>
+  <ellipse cx="190" cy="230" rx="140" ry="100" fill="url(#sac-de-pieces-vivant-f-glow)"/>
+  <ellipse cx="610" cy="225" rx="120" ry="90" fill="url(#sac-de-pieces-vivant-f-glow)"/>
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M190 192 v14 M610 190 v14 M400 158 v10" stroke-width="4"/>
+    <rect x="172" y="206" width="36" height="46" rx="12" fill="#a8400f"/>
+    <rect x="592" y="204" width="36" height="46" rx="12" fill="#b45f0a"/>
+    <rect x="386" y="168" width="28" height="36" rx="10" fill="#8a2020"/>
+    <path d="M178 228 h24 M598 226 h24" stroke="#f0b060" stroke-width="4" opacity="0.6"/>
+  </g>
+  <!-- Enseigne illisible -->
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M500 300 v-30 M600 300 v-30" stroke-width="4"/>
+    <rect x="470" y="300" width="160" height="60" rx="8" fill="#3b2f1d"/>
+    <g fill="#8a7448" stroke="none" opacity="0.7">
+      <rect x="488" y="318" width="34" height="10" rx="3"/><rect x="530" y="318" width="22" height="10" rx="3"/><rect x="560" y="318" width="50" height="10" rx="3"/>
+      <rect x="500" y="336" width="62" height="9" rx="3"/><circle cx="584" cy="340" r="6"/><circle cx="602" cy="340" r="6"/>
+    </g>
+  </g>
+  <!-- Étal rayé (gauche) -->
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <path d="M20 470 L250 470 L270 530 L0 530 Z" fill="#3e2826"/>
+    <path d="M40 470 L30 530 M95 470 L95 530 M150 470 L160 530 M205 470 L225 530" stroke="#26303b" stroke-width="22"/>
+    <path d="M20 470 L250 470 L270 530 L0 530 Z" fill="none"/>
+    <path d="M0 530 q22 18 45 0 q22 18 45 0 q22 18 45 0 q22 18 45 0 q22 18 45 0 q22 18 45 0" fill="#3e2826"/>
+    <path d="M40 545 V860 M240 545 V860" stroke="#241b16" stroke-width="12"/>
+    <rect x="10" y="700" width="260" height="40" rx="4" fill="#33251c"/>
+    <rect x="10" y="740" width="260" height="120" fill="#291e17"/>
+    <g fill="#5b4b2c" stroke-width="3">
+      <circle cx="60" cy="690" r="16"/><rect x="100" y="664" width="36" height="36" rx="3" fill="#3a2f40"/><ellipse cx="190" cy="690" rx="30" ry="14" fill="#45352a"/>
+    </g>
+  </g>
+  <!-- Caisses (droite) -->
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <rect x="560" y="690" width="170" height="170" rx="5" fill="#2e2318"/>
+    <path d="M560 690 L730 860 M730 690 L560 860" stroke="#221a12" stroke-width="12"/>
+    <rect x="560" y="690" width="170" height="170" rx="5" fill="none"/>
+    <rect x="600" y="590" width="110" height="100" rx="5" fill="#33271b"/>
+    <path d="M600 640 h110" stroke="#221a12" stroke-width="10"/>
+  </g>
+  <!-- Sol pavé -->
+  <rect x="0" y="860" width="750" height="474" fill="url(#sac-de-pieces-vivant-f-cobbles)"/>
+  <path d="M0 860 H750" stroke="#05060c" stroke-width="6"/>
+  <rect x="0" y="0" width="60" height="1334" fill="#05060c" opacity="0.28"/>
+  <rect x="690" y="0" width="60" height="1334" fill="#05060c" opacity="0.28"/>
+  <!-- Aura dorée irrégulière + éclats -->
+  <path d="M330 220 C520 230 650 400 660 600 C672 790 600 960 400 990 C220 1000 90 900 86 700 C82 480 170 230 330 220 Z" fill="#caa23a" opacity="0.08"/>
+  <path d="M350 330 C490 340 580 470 584 620 C590 780 520 900 390 912 C250 920 160 830 160 680 C158 520 230 330 350 330 Z" fill="#ffd76a" opacity="0.08"/>
+  <g fill="#ffd76a" stroke="none" opacity="0.8">
+    <path d="M128 400 l6 -18 l6 18 l18 6 l-18 6 l-6 18 l-6 -18 l-18 -6 Z"/>
+    <path d="M640 470 l5 -14 l5 14 l14 5 l-14 5 l-5 14 l-5 -14 l-14 -5 Z"/>
+    <path d="M100 760 l4 -12 l4 12 l12 4 l-12 4 l-4 12 l-4 -12 l-12 -4 Z"/>
+  </g>
+  <!-- Lignes de mouvement -->
+  <g stroke="#e8e4d8" stroke-width="7" stroke-linecap="round" opacity="0.35">
+    <path d="M690 560 h-60 M710 640 h-90 M700 720 h-56 M690 820 h-80"/>
+  </g>
+  <!-- Ombre au sol -->
+  <ellipse cx="380" cy="1030" rx="300" ry="34" fill="#05060c" opacity="0.55"/>
+  <!-- ===== LE SAC ===== -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="rotate(-8 400 1010)">
+    <!-- Corps -->
+    <path d="M150 1012 C112 840 160 600 290 452 C318 420 330 396 334 368 L404 362 C416 394 444 420 486 452 C628 560 676 800 648 1012 C540 1040 268 1042 150 1012 Z" fill="#caa23a" stroke-width="12"/>
+    <path d="M500 470 C620 580 660 790 640 1004 C600 1014 570 1018 548 1018 C590 850 580 640 470 470 Z" fill="#8a6b2a" stroke="none" opacity="0.6"/>
+    <path d="M210 720 C232 600 270 520 318 466" fill="none" stroke="#e7c665" stroke-width="16"/>
+    <!-- Pièce rapiécée -->
+    <path d="M200 820 L274 806 L284 876 L212 890 Z" fill="#8a6b2a" stroke-width="6"/>
+    <path d="M212 814 l8 10 M234 810 l8 10 M256 806 l8 10 M206 862 l10 6 M280 840 l-10 6" fill="none" stroke="#e8e4d8" stroke-width="4"/>
+    <circle cx="566" cy="860" r="20" fill="#8a6b2a" stroke="none"/>
+    <circle cx="520" cy="940" r="12" fill="#8a6b2a" stroke="none"/>
+    <!-- Col froncé (haut du sac) -->
+    <path d="M334 368 C296 340 270 300 286 254 L314 282 L322 236 L350 270 L370 222 L388 266 L414 236 L420 282 L452 264 C446 310 424 346 404 362 Z" fill="#caa23a" stroke-width="10"/>
+    <path d="M314 282 L330 340 M350 270 L356 338 M388 266 L380 340 M420 282 L400 344" fill="none" stroke="#8a6b2a" stroke-width="5"/>
+    <!-- Cordon serré et nœud -->
+    <path d="M326 364 Q370 384 414 360" fill="none" stroke-width="26"/>
+    <path d="M326 364 Q370 384 414 360" fill="none" stroke="#8a6b2a" stroke-width="16"/>
+    <circle cx="420" cy="364" r="16" fill="#8a6b2a" stroke-width="6"/>
+    <path d="M428 372 C450 400 448 430 470 452 M424 378 C430 410 420 436 432 466" fill="none" stroke-width="14"/>
+    <path d="M428 372 C450 400 448 430 470 452 M424 378 C430 410 420 436 432 466" fill="none" stroke="#4a4436" stroke-width="7"/>
+    <path d="M466 452 l14 10 l-4 -16 M428 466 l2 16 l10 -12" fill="none" stroke="#4a4436" stroke-width="4"/>
+    <!-- Yeux furieux, braqués sur nous -->
+    <path d="M232 560 C250 530 300 530 318 556 C306 600 248 606 232 560 Z" fill="#e8e4d8" stroke-width="7"/>
+    <path d="M372 548 C392 518 450 520 466 552 C454 598 386 600 372 548 Z" fill="#e8e4d8" stroke-width="7"/>
+    <circle cx="282" cy="568" r="14" fill="#05060c" stroke="none"/>
+    <circle cx="414" cy="562" r="15" fill="#05060c" stroke="none"/>
+    <circle cx="277" cy="563" r="4" fill="#ffffff" stroke="none"/>
+    <circle cx="409" cy="557" r="4" fill="#ffffff" stroke="none"/>
+    <path d="M220 528 L326 556" stroke-width="16"/>
+    <path d="M478 520 L366 546" stroke-width="16"/>
+    <!-- Couture déchirée = bouche pleine de pièces -->
+    <path d="M232 690 C300 660 430 652 520 680 C510 770 440 812 370 810 C300 808 244 770 232 690 Z" fill="#2a1d0a" stroke-width="9"/>
+    <g fill="#e8e4d8" stroke-width="4">
+      <ellipse cx="262" cy="694" rx="18" ry="12"/><ellipse cx="300" cy="682" rx="18" ry="12"/><ellipse cx="342" cy="676" rx="19" ry="12"/>
+      <ellipse cx="386" cy="674" rx="19" ry="12"/><ellipse cx="430" cy="676" rx="18" ry="12"/><ellipse cx="474" cy="684" rx="18" ry="12"/>
+      <ellipse cx="320" cy="796" rx="18" ry="11"/><ellipse cx="366" cy="802" rx="18" ry="11"/><ellipse cx="412" cy="796" rx="17" ry="11"/>
+    </g>
+    <path d="M300 760 C330 740 420 738 460 756 C440 776 340 778 300 760 Z" fill="#7a2a2a" stroke="none"/>
+    <path d="M222 690 l18 -16 M226 716 l20 -6 M530 676 l-18 -14 M526 704 l-20 -4" fill="none" stroke="#8a6b2a" stroke-width="6"/>
+    <path d="M222 690 l18 -16 M226 716 l20 -6 M530 676 l-18 -14 M526 704 l-20 -4" fill="none" stroke-width="2"/>
+  </g>
+  <!-- Pseudopode en avant : coin du sac noué en poing, lancé vers nous -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M260 760 C220 790 190 830 170 860 L240 930 C260 890 280 850 300 820 Z" fill="#caa23a" stroke-width="10"/>
+    <path d="M262 790 C236 820 218 850 204 880" fill="none" stroke="#8a6b2a" stroke-width="7" opacity="0.7"/>
+    <path d="M60 870 l-34 -18 l10 -18 l-30 -6 l20 -14 M64 892 l-40 6 l14 14" fill="#caa23a" stroke-width="8"/>
+    <path d="M60 860 l-30 -24 l18 -6 l-22 -22 l30 4 l4 -20 l20 26 Z" fill="#caa23a" stroke-width="7"/>
+    <path d="M150 800 C80 790 40 840 46 900 C52 960 110 990 170 970 C226 950 246 890 228 846 C214 816 186 804 150 800 Z" fill="#caa23a" stroke-width="11"/>
+    <path d="M196 820 C230 846 238 900 216 940 C206 956 192 966 176 970 C214 920 214 860 186 816 Z" fill="#8a6b2a" stroke="none" opacity="0.55"/>
+    <path d="M90 836 q40 -16 92 0 M74 878 q46 -14 110 0 M82 920 q40 -8 94 4" fill="none" stroke="#8a6b2a" stroke-width="6"/>
+    <path d="M58 860 C70 850 82 846 92 846" fill="none" stroke="#8a6b2a" stroke-width="18"/>
+    <path d="M50 858 C66 846 84 842 96 846" fill="none" stroke-width="4"/>
+    <ellipse cx="40" cy="980" rx="16" ry="8" fill="#e8e4d8" stroke-width="4"/>
+    <ellipse cx="236" cy="994" rx="7" ry="15" fill="#e8e4d8" stroke-width="4" transform="rotate(20 236 994)"/>
+  </g>
+  <g stroke="#e8e4d8" stroke-width="6" stroke-linecap="round" opacity="0.4" fill="none">
+    <path d="M22 780 q-6 40 6 70 M30 990 q30 14 60 14 M260 990 q20 -4 40 -20"/>
+  </g>
+  <!-- Pièces qui s'échappent du col -->
+  <g stroke="#05060c" stroke-width="5" transform="translate(-50 0)">
+    <circle cx="470" cy="220" r="24" fill="#e8e4d8"/><circle cx="470" cy="220" r="12" fill="none" stroke="#a8a294" stroke-width="4"/>
+    <ellipse cx="536" cy="160" rx="10" ry="22" fill="#e8e4d8" transform="rotate(30 536 160)"/>
+    <circle cx="300" cy="170" r="20" fill="#e8e4d8"/><circle cx="300" cy="170" r="9" fill="none" stroke="#a8a294" stroke-width="4"/>
+    <ellipse cx="400" cy="120" rx="18" ry="8" fill="#e8e4d8"/>
+    <circle cx="560" cy="300" r="18" fill="#e8e4d8"/>
+    <ellipse cx="226" cy="250" rx="8" ry="18" fill="#e8e4d8" transform="rotate(-24 226 250)"/>
+  </g>
+  <g stroke="#e8e4d8" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.5" transform="translate(-50 0)">
+    <path d="M454 246 q-20 30 -40 40 M524 186 q-20 40 -60 70 M308 196 q16 30 40 46 M550 320 q-30 20 -60 24"/>
+  </g>
+  <!-- Pièces au sol et poussière -->
+  <g stroke="#05060c" stroke-width="4">
+    <ellipse cx="640" cy="1010" rx="20" ry="8" fill="#e8e4d8"/>
+    <ellipse cx="560" cy="1032" rx="18" ry="7" fill="#e8e4d8"/>
+    <ellipse cx="120" cy="1030" rx="18" ry="7" fill="#e8e4d8"/>
+  </g>
+  <g fill="#6b5f70" opacity="0.4">
+    <circle cx="90" cy="1004" r="26"/><circle cx="54" cy="986" r="18"/><circle cx="672" cy="996" r="24"/><circle cx="704" cy="976" r="16"/>
+  </g>
+  <path d="M0 1040 H750 V1334 H0 Z" fill="#05060c" opacity="0.22"/>
+</svg>
