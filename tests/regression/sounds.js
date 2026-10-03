@@ -2,17 +2,47 @@
 // voix du présentateur, boutons 🔊/🎙️, page d'écoute). Voir sounds.js et CHANTIERS.md (chantier 8).
 const { assert, resetTransientState, withEncounterIntro } = require('./_helpers.js');
 
-// Faux AudioContext minimal : compte les contextes créés et les sons lancés.
-function withFakeAudio(fn) {
-    const stats = { contexts: 0, started: 0, lastLength: 0 };
-    global.AudioContext = class {
-        constructor() { this.state = 'running'; this.destination = {}; stats.contexts++; }
-        createBuffer(channels, length) { const data = new Float32Array(length); stats.lastLength = length; return { getChannelData: () => data }; }
-        createBufferSource() { return { connect() {}, start() { stats.started++; } }; }
+// Faux AudioContext (graphe Web Audio enregistré, sans son) : chaque nœud, chaque départ/arrêt et chaque automatisation
+// de paramètre est noté ; une rampe exponentielle vers 0 ou moins est notée comme erreur (refusée par les navigateurs).
+function makeFakeAudioContextClass(stats) {
+    return class FakeAudioContext {
+        constructor() { this.state = 'running'; this.destination = { connect() {} }; this.sampleRate = 8000; this.currentTime = stats.now || 0; stats.contexts++; }
+        _param(value = 0) {
+            return {
+                value,
+                setValueAtTime(v) { this.value = v; },
+                linearRampToValueAtTime(v) { this.value = v; },
+                exponentialRampToValueAtTime(v) { if (!(v > 0)) stats.badRamps++; this.value = v; }
+            };
+        }
+        _node(extra = {}) {
+            return Object.assign({ context: this, connect() {}, disconnect() {} }, extra);
+        }
+        _source(kind) {
+            return this._node({
+                kind,
+                start(at) { stats.started++; stats.starts.push(at === undefined ? 0 : at); },
+                stop(at) { stats.stops.push(at); }
+            });
+        }
+        createBuffer(channels, length) { const data = new Float32Array(length); stats.lastLength = length; return { length, getChannelData: () => data }; }
+        createBufferSource() { return Object.assign(this._source('buffer'), { buffer: null, loop: false }); }
+        createOscillator() { return Object.assign(this._source('osc'), { type: 'sine', frequency: this._param(440), detune: this._param(0) }); }
+        createGain() { return this._node({ gain: this._param(1) }); }
+        createBiquadFilter() { return this._node({ type: 'lowpass', frequency: this._param(350), Q: this._param(1) }); }
+        createDelay() { return this._node({ delayTime: this._param(0) }); }
+        createDynamicsCompressor() { return this._node({}); }
     };
+}
+
+function withFakeAudio(fn, now = 0) {
+    const stats = { contexts: 0, started: 0, lastLength: 0, starts: [], stops: [], badRamps: 0, now };
+    global.AudioContext = makeFakeAudioContextClass(stats);
     try { fn(stats); } finally {
         delete global.AudioContext;
         sfxAudioContext = null;
+        sfxRecipeBusNode = null;
+        sfxQueueEnd = 0;
         setSoundMuted(false);
         setVoiceMuted(false);
     }
@@ -25,14 +55,21 @@ function withFakeAudio(fn) {
     keys.forEach(k => {
         const def = SFX_CATALOG[k];
         assert(SFX_GROUPS[def.group] && def.label && def.use, `Son ${k} : groupe connu, nom et usage`);
-        assert(Array.isArray(def.params) && def.params.length >= 3 && def.params.length <= 20 && def.params.every(v => v === undefined || Number.isFinite(v)), `Son ${k} : paramètres ZzFX numériques (20 au plus)`);
-        const data = zzfxGenerate(...def.params);
+        if (def.recipe) {
+            assert(typeof SFX_RECIPES[k] === 'function', `Son ${k} : sa recette Web Audio existe`);
+            assert(def.duration > .05 && def.duration <= 1.5 && def.level > 0 && def.level <= 4, `Son ${k} : durée courte et niveau raisonnable`);
+            return;
+        }
+        const lists = def.layers ? def.layers.map(([at, params]) => { assert(at >= 0 && at < 1, `Son ${k} : couche qui démarre dans la première seconde`); return params; }) : [def.params];
+        lists.forEach(params => assert(Array.isArray(params) && params.length >= 3 && params.length <= 20 && params.every(v => v === undefined || Number.isFinite(v)), `Son ${k} : paramètres ZzFX numériques (20 au plus)`));
+        const data = sfxSamples(def);
         const seconds = data.length / SFX_SAMPLE_RATE;
         const peak = data.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
         assert(data.every(Number.isFinite), `Son ${k} : aucun échantillon invalide`);
         assert(seconds > .05 && seconds <= 1.5, `Son ${k} : durée courte (${seconds.toFixed(2)} s)`);
         assert(peak > .1 && peak <= 1, `Son ${k} : volume audible sans saturer (pic ${peak.toFixed(2)})`);
     });
+    assert(Object.keys(SFX_RECIPES).every(k => SFX_CATALOG[k] && SFX_CATALOG[k].recipe), "Recettes : aucune recette orpheline, chacune déclarée `recipe` au catalogue");
     const lab = listSfxForLab();
     assert(lab.reduce((n, section) => n + section.sounds.length, 0) === keys.length, "listSfxForLab() : chaque son du catalogue apparaît une fois");
     assert(lab.every(section => section.title && section.sounds.length > 0), "listSfxForLab() : sections titrées, jamais vides");
@@ -46,12 +83,30 @@ function withFakeAudio(fn) {
 
 // --- Lecture avec Web Audio ---
 withFakeAudio(stats => {
-    assert(playSfx('goldPickup') === true && stats.started === 1 && stats.lastLength > 0, "playSfx() : un son joué avec un AudioContext");
-    playSfx('levelUp');
+    assert(playSfx('slingStone') === true && stats.started === 1 && stats.lastLength > 0, "playSfx() : un son ZzFX joué avec un AudioContext");
+    playSfx('nailGun');
     assert(stats.contexts === 1 && stats.started === 2, "playSfx() : un seul contexte audio réutilisé");
+    const before = stats.started;
+    assert(playSfx('crossbowShot') === true && stats.started === before + 1, "playSfx() : un son en couches = un seul tampon mélangé");
+    const beforeRecipe = stats.started;
+    assert(playSfx('goldPickup') === true && stats.started > beforeRecipe && stats.badRamps === 0, "playSfx() : une recette Web Audio jouée");
     setSoundMuted(true);
-    assert(playSfx('goldPickup') === false && stats.started === 2, "playSfx() : rien quand le son est coupé");
-    assert(playSfx('goldPickup', { force: true }) === true && stats.started === 3, "playSfx({ force }) : la page d'écoute joue même son coupé");
+    const muted = stats.started;
+    assert(playSfx('slingStone') === false && playSfx('goldPickup') === false && stats.started === muted, "playSfx() : rien quand le son est coupé");
+    assert(playSfx('slingStone', { force: true }) === true && stats.started === muted + 1, "playSfx({ force }) : la page d'écoute joue même son coupé");
+});
+
+// --- Recettes Web Audio : chacune se joue sans erreur, dans sa durée ---
+Object.keys(SFX_CATALOG).filter(k => SFX_CATALOG[k].recipe).forEach(k => {
+    withFakeAudio(stats => {
+        let ok = true;
+        try { ok = playSfx(k, { force: true }); } catch (e) { ok = false; }
+        const t0 = 5;
+        const end = t0 + SFX_CATALOG[k].duration + .05;
+        assert(ok && stats.started > 0, `Recette ${k} : se joue sans erreur`);
+        assert(stats.badRamps === 0, `Recette ${k} : aucune rampe exponentielle vers 0`);
+        assert(stats.starts.every(at => at >= t0) && stats.stops.every(at => at <= end), `Recette ${k} : tout démarre à l'heure et s'arrête dans la durée déclarée`);
+    }, 5);
 });
 
 // --- Préférences de coupure ---
@@ -99,7 +154,7 @@ withFakeAudio(stats => {
     setSoundMuted(true);
     const button = { getAttribute: () => 'goblinCry' };
     ui.soundLabList.dispatch('click', { target: { closest: () => button } });
-    assert(stats.started === 1, "Page d'écoute : toucher un son le joue, même son coupé");
+    assert(stats.started > 0, "Page d'écoute : toucher un son le joue, même son coupé");
     closeSoundLab();
     assert(ui.soundLabOverlay.classList.contains('hidden'), "Page d'écoute : se referme");
 });
@@ -201,27 +256,16 @@ withFakeAudio(stats => {
 }
 
 // --- Lot 2 : file d'attente des événements ---
-{
-    const starts = [];
-    global.AudioContext = class {
-        constructor() { this.state = 'running'; this.destination = {}; this.currentTime = 10; }
-        createBuffer(channels, length) { const data = new Float32Array(length); return { getChannelData: () => data }; }
-        createBufferSource() { return { connect() {}, start(at) { starts.push(at); } }; }
-    };
-    try {
-        sfxQueueEnd = 0;
-        playSfx('mobDeath'); playSfx('levelUp'); playSfx('itemPickup'); playSfx('swordSlash');
-        assert(starts[0] === 10 && starts[1] === 10, "File : le combat et le premier événement partent tout de suite");
-        assert(Math.abs(starts[2] - (10 + SFX_QUEUE_MAX_GAP)) < 1e-9, "File : l'événement suivant attend le précédent (au plus SFX_QUEUE_MAX_GAP)");
-        assert(starts[3] === 10, "File : un son de combat n'attend jamais la file");
-        playSfx('goldPickup', { force: true });
-        assert(starts[4] === 10, "File : la page d'écoute joue tout de suite");
-    } finally {
-        delete global.AudioContext;
-        sfxAudioContext = null;
-        sfxQueueEnd = 0;
-    }
-}
+withFakeAudio(stats => {
+    const firstStart = (key) => { const from = stats.starts.length; playSfx(key); return Math.min(...stats.starts.slice(from)); };
+    sfxQueueEnd = 0;
+    const death = firstStart('mobDeath'), level = firstStart('levelUp'), item = firstStart('itemPickup'), slash = firstStart('slingStone');
+    assert(death >= 10 && death < 10.01 && level >= 10 && level < 10.01, "File : le combat et le premier événement partent tout de suite");
+    assert(item >= 10 + SFX_QUEUE_MAX_GAP && item < 10 + SFX_QUEUE_MAX_GAP + .01, "File : l'événement suivant attend le précédent (au plus SFX_QUEUE_MAX_GAP)");
+    assert(slash === 10, "File : un son de combat n'attend jamais la file");
+    const forced = (() => { const from = stats.starts.length; playSfx('goldPickup', { force: true }); return Math.min(...stats.starts.slice(from)); })();
+    assert(forced < 10.01, "File : la page d'écoute joue tout de suite");
+}, 10);
 
 // --- Lot 2 : branchements (playSfx espionné) ---
 {

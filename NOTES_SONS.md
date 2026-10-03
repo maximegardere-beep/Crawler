@@ -52,14 +52,25 @@ mêlée, projectile, école de sort et archétype a son son), lecture et coupure
 d'attente, boutons, page d'écoute, branchements (playSfx espionné), voix avec une fausse synthèse vocale (file,
 interruption, coupure, émission, succès, rencontre).
 
-## Suite : sons plus reconnaissables (en cours)
+## Suite : sons plus reconnaissables (codée)
 - Limite de ZzFX : un seul générateur et une seule enveloppe par son, d'où un rendu « 8-bit ». Trois pistes sans fichier :
-  couches ZzFX décalées, recettes Web Audio (bruit filtré, partiels métalliques, synthèse FM, corde pincée
-  Karplus-Strong, filtres de formants pour les voix de créatures), ZzFXM pour les jingles.
-- Comparaison sur 5 sons : **Web Audio retenu** pour coup d'épée, pièces d'or, arbalète, potion, foudre ; **couches
-  ZzFX** pour l'arc.
-- Propositions Web Audio pour les 24 sons les plus fréquents, niveaux égalisés par rendu hors ligne (même énergie
-  moyenne que les sons actuels) ; en attente du choix de l'utilisateur.
+  couches ZzFX décalées, recettes Web Audio (bruit filtré, partiels métalliques, synthèse FM, filtres de formants pour
+  les voix de créatures), ZzFXM pour les jingles (non retenue).
+- Comparaisons à l'oreille (pages en ligne) : **Web Audio retenu** pour le coup d'épée, les pièces d'or, la potion, la
+  foudre et les 23 sons fréquents proposés ; **couches ZzFX** pour l'arbalète ; pour l'écran de rencontre, la première
+  proposition (accord de cuivres) a été refusée — **option D retenue** (lame dégainée, accord de cuivres percutant, timbale).
+- **Catalogue** : trois constructeurs — `sfx()` (ZzFX simple), `layered()` (couches `[[départ, paramètres], …]`,
+  mélangées par `sfxSamples()`), `recipe(groupe, nom, usage, durée, niveau)` (recette de même clé dans `SFX_RECIPES`).
+- **`sounds-recipes.js`** (chargé juste après `sounds.js`) : briques `sfxNoise` (bruit blanc par contexte), `sfxEnv`,
+  `sfxWhoosh`, `sfxBurst`, `sfxTone`, `sfxMetal`, `sfxBell` (FM), `sfxLfo`, `sfxCreature` (voix à formants, voyelles
+  `SFX_VOWELS`), `sfxEcho`, `sfxGrains`, `sfxChord` ; 28 recettes. Sortie : gain `SFX_RECIPE_VOLUME × niveau` puis un
+  compresseur commun (`sfxRecipeBus()`) ; la file d'attente des événements s'applique aux recettes comme au ZzFX.
+- **Niveaux** égalisés par rendu hors ligne (OfflineAudioContext dans Chromium) : énergie moyenne proche des sons ZzFX.
+- **Tests** : un faux contexte Web Audio enregistre le graphe ; chaque recette doit se jouer sans erreur, sans rampe
+  exponentielle vers 0 (refusée par les navigateurs), démarrer à l'heure et s'arrêter dans sa durée déclarée.
+- Restent en ZzFX : projectiles autres que l'arbalète, poing magique, lame spectrale, météore, sort sur soi, sort raté,
+  coup lourd, boss vaincu, achat, compétence, succès, piège, fuite, repos, arrivée du boss, escalier, Game Over,
+  victoire — candidats à une prochaine passe Web Audio.
 - Limite : les voix (cris, râles, grognements) restent stylisées (« dessin animé »), jamais réalistes sans
   enregistrements.
 

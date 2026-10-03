@@ -4,7 +4,7 @@
 // point d'entrée unique `playSfx(key)`. Sans `AudioContext` (tests Node), `playSfx()` ne fait rien
 // et renvoie false. Deux préférences d'écoute, jamais sauvegardées avec le crawler (localStorage) :
 // tout couper (`isSoundMuted()`) et couper la voix du présentateur seule (`isVoiceMuted()`).
-// Chargé après minigames-ui.js, avant app.js (qui branche les boutons et la page d'écoute).
+// Chargé après minigames-ui.js, avant sounds-recipes.js (recettes Web Audio) et app.js (boutons, page d'écoute).
 // =========================================================================
 
 // Ordre des paramètres ZzFX : volume, randomness (désaccord à chaque lecture), frequency, attack,
@@ -25,18 +25,25 @@ const SFX_GROUPS = {
 const SFX_QUEUED_GROUPS = ['event', 'world'];
 const SFX_QUEUE_MAX_GAP = .35; // secondes au plus entre deux sons de la file
 
+// Trois façons de fabriquer un son, sans aucun fichier :
+//   sfx()     — une liste de paramètres ZzFX (rendu « 8-bit ») ;
+//   layered() — plusieurs couches ZzFX décalées dans le temps : [[départ en s, paramètres], …] ;
+//   recipe()  — une recette Web Audio (SFX_RECIPES, sounds-recipes.js, même clé), avec sa durée en secondes et son
+//               niveau (multiplicateur, égalisé par mesure sur l'énergie moyenne des sons ZzFX).
 const sfx = (group, label, use, params) => ({ group, label, use, params });
+const layered = (group, label, use, layers) => ({ group, label, use, layers });
+const recipe = (group, label, use, duration, level = 1) => ({ group, label, use, recipe: true, duration, level });
 
 const SFX_CATALOG = {
     // Armes de mêlée : un son par style de coup (MELEE_SWING_STYLES, sprites/fx.js) + mains nues.
-    swordSlash:   sfx('melee', "Coup d'épée", 'Arme tranchante (épée, hache, katana…).', [1.4, .05, 90, 0, .01, .12, 4, 1.2, -1, 0, 0, 0, 0, 4, 40, .1, 0, .6, .02]),
-    bluntSmash:   sfx('melee', 'Coup contondant', 'Arme lourde (masse, pied-de-biche, marteau…).', [1.8, .05, 60, 0, .03, .2, 4, 2, -.5, 0, 0, 0, 0, 2, 0, .2, 0, .5, .03]),
-    thrustStab:   sfx('melee', 'Estoc', 'Arme qui pique (couteau, lance, tronçonneuse…).', [1.2, .05, 300, 0, .01, .08, 2, 1.5, -12, 0, 0, 0, 0, 1, 0, 0, 0, .6, 0]),
-    unarmedPunch: sfx('melee', 'Coup de poing', 'Attaque à mains nues.', [1.5, .05, 120, 0, .01, .1, 0, 2, -3, 0, 0, 0, 0, 1.5, 0, .1, 0, .5, 0]),
+    swordSlash:   recipe('melee', "Coup d'épée", 'Arme tranchante (épée, hache, katana…).', 0.8, 1.05),
+    bluntSmash:   recipe('melee', 'Coup contondant', 'Arme lourde (masse, pied-de-biche, marteau…).', 0.45, 0.76),
+    thrustStab:   recipe('melee', 'Estoc', 'Arme qui pique (couteau, lance, tronçonneuse…).', 0.25, 1.14),
+    unarmedPunch: recipe('melee', 'Coup de poing', 'Attaque à mains nues.', 0.25, 0.84),
     // Armes à distance : un son par projectile (RANGED_PROJECTILES, sprites/fx.js).
     slingStone:   sfx('ranged', 'Lance-pierre', 'Caillou qui part en sifflant.', [1, .1, 250, .01, .03, .1, 0, 1, -6, 0, 0, 0, 0, 3, 0, 0, 0, .5, 0]),
     bowShot:      sfx('ranged', "Tir à l'arc", 'Corde qui vibre, flèche qui file.', [1.4, .05, 300, 0, .02, .2, 2, 1.5, -6, 0, 0, 0, 0, 0, 15, 0, 0, .6, .02]),
-    crossbowShot: sfx('ranged', "Tir d'arbalète", 'Carreau : corde qui claque, sifflement.', [2, .05, 520, 0, .02, .18, 2, 2.2, -18, 0, 0, 0, 0, .4, 0, 0, .04, .5, .01]),
+    crossbowShot: layered('ranged', "Tir d'arbalète", 'Carreau : corde qui claque, sifflement.', [[0, [1.2, .05, 900, 0, .005, .03, 4, 1, 0, 0, 0, 0, 0, 3, 0, 0, 0, .5, 0]], [.01, [1.4, .05, 140, 0, .03, .25, 2, 1.5, -1, 0, 0, 0, 0, 0, 9, 0, 0, .6, .02]], [.05, [.6, .05, 1400, .02, .05, .15, 0, 1, -8, 0, 0, 0, 0, 6, 0, 0, 0, .4, 0]]]),
     nailGun:      sfx('ranged', 'Pistolet à clous', 'Deux clous en rafale.', [2.3, .05, 900, 0, .01, .04, 4, 1, -10, 0, 0, 0, .06, 1, 0, .1, 0, .4, 0]),
     shotgunBlast: sfx('ranged', 'Fusil', 'Détonation et plombs.', [2, .05, 80, 0, .04, .35, 4, 1.5, -.4, 0, 0, 0, 0, 5, 0, .3, 0, .6, .05]),
     blowDart:     sfx('ranged', 'Sarbacane', 'Pfft discret.', [1.6, .1, 600, 0, .01, .06, 0, 1, -4, 0, 0, 0, 0, 8, 0, 0, 0, .3, 0]),
@@ -45,47 +52,47 @@ const SFX_CATALOG = {
     stampThrow:   sfx('ranged', 'Tampon', 'Tampon encreur lancé : tchac.', [1.4, .05, 140, 0, .02, .1, 2, 1, -2, 0, 0, 0, 0, .5, 0, .1, 0, .5, 0]),
     pulseBeam:    sfx('ranged', "Canon à impulsions", 'Rayon laser.', [1.2, 0, 1100, 0, .06, .2, 2, 1, -30, 0, 0, 0, 0, 0, 20, 0, 0, .7, 0]),
     // Sorts : un son par école d'effet (style de FX_SPELLS, sprites/fx.js) + sort raté.
-    spellZap:     sfx('spell', 'Éclair', 'Arc électrique (Éclair, Ampoule…).', [1.1, .05, 800, 0, .12, .1, 3, 1, 0, 0, 0, 0, .02, 3, 0, 0, 0, .6, 0, .6]),
+    spellZap:     recipe('spell', 'Éclair', 'Arc électrique (Éclair, Ampoule…).', 0.4, 2.22),
     spellPunch:   sfx('spell', 'Poing magique', 'Poing de glace ou de force.', [1.3, .05, 400, 0, .04, .12, 1, 1, -8, 0, 300, .03, 0, 0, 0, 0, 0, .6, 0]),
-    spellCone:    sfx('spell', 'Souffle', 'Jet de flammes ou de terreur.', [1.5, .05, 120, .04, .2, .25, 4, 1, 2, 0, 0, 0, 0, 6, 0, .05, 0, .7, .05]),
+    spellCone:    recipe('spell', 'Souffle', 'Jet de flammes ou de terreur.', 0.6, 2.09),
     spellArc:     sfx('spell', 'Lame spectrale', 'Lame fantomatique en arc.', [1.8, .05, 700, .02, .12, .25, 0, 1, -3, 0, 0, 0, 0, 0, 6, 0, .05, .6, 0]),
-    spellSky:     sfx('spell', 'Foudre', 'Éclair qui tombe du plafond.', [2, .05, 50, 0, .08, .6, 4, 2, -.2, 0, 0, 0, 0, 8, 0, .4, 0, .6, .05]),
-    spellBolt:    sfx('spell', 'Projectile magique', 'Orbe, éclat de glace, essaim.', [2.2, .05, 660, 0, .06, .18, 1, 1, -10, 0, 0, 0, 0, 0, 10, 0, .05, .6, 0]),
+    spellSky:     recipe('spell', 'Foudre', 'Éclair qui tombe du plafond.', 1.45, 1),
+    spellBolt:    recipe('spell', 'Projectile magique', 'Orbe, éclat de glace, essaim.', 0.35, 1.45),
     spellMeteor:  sfx('spell', 'Météore', 'Boule de feu qui s\'écrase.', [1.8, .05, 400, .05, .15, .5, 4, 1.2, -6, 0, 0, 0, 0, 3, 0, .2, 0, .7, .05]),
     spellSelf:    sfx('spell', 'Sort sur soi', 'Soin, bouclier, pas de l\'ombre, capacité de classe.', [1.7, 0, 523, .03, .15, .3, 0, 1, 0, 0, 262, .06, .12, 0, 0, 0, .05, .7, 0]),
     spellBackfire: sfx('spell', 'Sort raté', 'Le sort crachote et explose.', [1.4, .1, 300, 0, .05, .35, 4, 1, -5, 0, 0, 0, 0, 4, 0, .3, 0, .6, .05, .3]),
     // Cris de mobs : un par archétype (MOB_ATTACK_STYLES, sprites/fx.js).
-    goblinCry:    sfx('mob', 'Gobelinoïde', 'Cri aigu et nerveux.', [1.1, .1, 640, .02, .09, .22, 2, 1.6, -4, 0, 120, .06, 0, .2, 9, 0, 0, .8, .04]),
-    beastGrowl:   sfx('mob', 'Bête', 'Grognement.', [1.5, .1, 110, .03, .15, .2, 2, 2, -1, 0, 0, 0, 0, 1, 12, 0, 0, .8, 0]),
-    zombieGroan:  sfx('mob', 'Zombie', 'Râle traînant.', [1.4, .1, 150, .06, .2, .3, 2, 1.5, -.8, 0, 0, 0, 0, .5, 4, 0, 0, .7, 0, .2]),
-    machineBeep:  sfx('mob', 'Machine', 'Bips de servomoteur.', [1.7, 0, 440, 0, .05, .05, 1, 1, 0, 0, -110, .05, .1, 0, 0, .1, 0, .6, 0]),
-    plantRustle:  sfx('mob', 'Plante', 'Bruissement sifflant.', [1, .1, 300, .02, .1, .15, 0, 1, 0, 0, 0, 0, 0, 9, 0, 0, 0, .5, 0]),
-    shadeWail:    sfx('mob', 'Ombre', 'Gémissement spectral.', [1.8, .1, 500, .08, .2, .35, 0, 1, -2, 0, 0, 0, 0, 0, 7, 0, .08, .6, 0]),
-    blobSquelch:  sfx('mob', 'Blob', 'Floc gélatineux.', [1.4, .1, 90, 0, .05, .15, 0, 2, 4, 0, 0, 0, 0, .6, 25, 0, 0, .6, 0]),
-    mannequinCreak: sfx('mob', 'Mannequin', 'Craquement de plastique.', [1.8, .1, 200, 0, .08, .08, 2, 1, 1, 0, 0, 0, .03, .3, 0, .2, 0, .5, 0]),
-    swarmBuzz:    sfx('mob', 'Nuée', 'Bourdonnement.', [1, .05, 180, .05, .3, .15, 2, 1, 0, 0, 0, 0, 0, .2, 30, 0, 0, .6, 0, .3]),
-    vehicleRev:   sfx('mob', 'Véhicule', 'Moteur qui rugit.', [1.3, .05, 220, .02, .18, .1, 2, 1, 0, 0, 55, .08, 0, .1, 0, .05, 0, .7, 0]),
+    goblinCry:    recipe('mob', 'Gobelinoïde', 'Cri aigu et nerveux.', 0.35, 1.6),
+    beastGrowl:   recipe('mob', 'Bête', 'Grognement.', 0.6, 3.4),
+    zombieGroan:  recipe('mob', 'Zombie', 'Râle traînant.', 0.85, 3.03),
+    machineBeep:  recipe('mob', 'Machine', 'Bips de servomoteur.', 0.45, 1.79),
+    plantRustle:  recipe('mob', 'Plante', 'Bruissement sifflant.', 0.4, 1.64),
+    shadeWail:    recipe('mob', 'Ombre', 'Gémissement spectral.', 1.1, 0.78),
+    blobSquelch:  recipe('mob', 'Blob', 'Floc gélatineux.', 0.4, 1.35),
+    mannequinCreak: recipe('mob', 'Mannequin', 'Craquement de plastique.', 0.5, 2.6),
+    swarmBuzz:    recipe('mob', 'Nuée', 'Bourdonnement.', 0.75, 1.11),
+    vehicleRev:   recipe('mob', 'Véhicule', 'Moteur qui rugit.', 0.6, 1.64),
     // Impacts et fins de combat.
     heavyImpact:  sfx('impact', 'Coup lourd', 'Attaque furtive, charge, télégraphe, ruée, phase 3.', [2, .05, 45, 0, .05, .4, 4, 2, -.3, 0, 0, 0, 0, 3, 0, .3, 0, .6, .03]),
-    playerHurt:   sfx('impact', 'Crawler touché', 'Le crawler encaisse un coup.', [1.4, .05, 180, 0, .02, .12, 2, 1, -10, 0, 0, 0, 0, .5, 0, .1, 0, .5, 0]),
-    mobDeath:     sfx('impact', 'Mob vaincu', 'Le mob s\'effondre.', [1.3, .05, 400, 0, .05, .35, 2, 1, -8, 0, 0, 0, 0, .3, 0, 0, 0, .6, 0]),
+    playerHurt:   recipe('impact', 'Crawler touché', 'Le crawler encaisse un coup.', 0.25, 1.96),
+    mobDeath:     recipe('impact', 'Mob vaincu', 'Le mob s\'effondre.', 0.7, 1.11),
     bossDeath:    sfx('impact', 'Boss vaincu', 'Le boss s\'écroule dans un fracas.', [2, .05, 120, .02, .3, .9, 4, 1.5, -.6, 0, 0, 0, 0, 4, 0, .3, .1, .7, .05]),
     // Butin et progression (lot 2).
-    goldPickup:   sfx('event', "Pièces d'or", 'PO trouvées, revente, revente d\'office.', [1, .02, 1675, 0, .06, .24, 1, 1.82, 0, 0, 837, .06]),
-    itemPickup:   sfx('event', 'Objet obtenu', 'Un objet ou un sort rejoint le sac / le grimoire.', [1.2, .02, 880, 0, .05, .15, 1, 1, 0, 0, 440, .05, 0, 0, 0, 0, 0, .6, 0]),
+    goldPickup:   recipe('event', "Pièces d'or", 'PO trouvées, revente, revente d\'office.', 0.55, 1),
+    itemPickup:   recipe('event', 'Objet obtenu', 'Un objet ou un sort rejoint le sac / le grimoire.', 0.5, 1.1),
     shopBuy:      sfx('event', 'Achat', 'Tiroir-caisse du marchand.', [1.8, 0, 1200, 0, .04, .3, 1, 1.5, 0, 0, 600, .03, 0, 0, 0, 0, .05, .6, 0]),
-    potionDrink:  sfx('event', 'Potion', 'Glouglou d\'un consommable.', [1.2, .1, 300, 0, .15, .1, 0, 1, 8, 0, 0, 0, .05, 0, 0, 0, 0, .6, 0]),
-    levelUp:      sfx('event', 'Montée de niveau', 'Arpège joyeux et un peu ironique.', [1.8, 0, 392, .02, .28, .35, 1, 1, 0, 0, 131, .07, .36, 0, 0, 0, .08, .7, .02]),
+    potionDrink:  recipe('event', 'Potion', 'Glouglou d\'un consommable.', 0.9, 1.2),
+    levelUp:      recipe('event', 'Montée de niveau', 'Arpège joyeux et un peu ironique.', 0.9, 0.83),
     skillUp:      sfx('event', 'Compétence améliorée', 'Petit carillon.', [1, 0, 660, .01, .08, .15, 0, 1, 0, 0, 220, .06, 0, 0, 0, 0, 0, .6, 0]),
     achievementUnlock: sfx('event', 'Succès débloqué', 'Ta-da des sponsors.', [1.5, 0, 523, .02, .35, .4, 1, 1, 0, 0, 196, .1, 0, 0, 0, 0, .1, .7, 0]),
-    minigamePerfect: sfx('event', 'Mini-jeu : Parfait', 'Étincelles aiguës.', [2.2, 0, 1046, 0, .1, .3, 1, 1, 0, 0, 523, .04, .12, 0, 0, 0, .06, .6, 0]),
-    minigameSuccess: sfx('event', 'Mini-jeu : Réussi', 'Deux notes montantes.', [1.2, 0, 784, 0, .06, .15, 1, 1, 0, 0, 262, .05, 0, 0, 0, 0, 0, .6, 0]),
-    minigameFail: sfx('event', 'Mini-jeu : Raté', 'Buzzer de plateau télé.', [1.3, 0, 140, 0, .15, .15, 2, 1, -1, 0, 0, 0, 0, .1, 0, .1, 0, .7, 0]),
+    minigamePerfect: recipe('event', 'Mini-jeu : Parfait', 'Étincelles aiguës.', 0.75, 1.08),
+    minigameSuccess: recipe('event', 'Mini-jeu : Réussi', 'Deux notes montantes.', 0.5, 1.05),
+    minigameFail: recipe('event', 'Mini-jeu : Raté', 'Buzzer de plateau télé.', 0.45, 1.02),
     // Exploration et grands moments (lot 2).
     trapSpring:   sfx('world', 'Piège', 'Déclic puis mâchoires d\'acier.', [1.8, .05, 200, 0, .02, .25, 4, 1, -4, 0, 0, 0, 0, 3, 0, .2, .02, .5, .02]),
     fleeEscape:   sfx('world', 'Fuite réussie', 'Le crawler détale.', [1.2, .05, 200, .02, .1, .15, 0, 1, 12, 0, 0, 0, 0, 2, 0, 0, 0, .5, 0]),
     restSleep:    sfx('world', 'Repos', 'Ronflement en salle sécurisée.', [1, .05, 90, .2, .3, .4, 0, 1, 1, 0, 0, 0, 0, .3, 0, 0, 0, .6, 0]),
-    encounterSting: sfx('world', 'Rencontre', 'Coup de théâtre de l\'écran de rencontre.', [1.6, 0, 180, 0, .15, .3, 2, 1, -1, 0, 90, .05, 0, .2, 0, .1, .08, .7, 0]),
+    encounterSting: recipe('world', 'Rencontre', 'Coup de théâtre de l\'écran de rencontre.', 0.7, 0.62),
     bossSting:    sfx('world', 'Arrivée du boss', 'Accord grave et menaçant (boss, chasseur de primes).', [2, 0, 70, .02, .3, .6, 2, 1, -.3, 0, 35, .15, 0, .5, 2, .15, .15, .8, 0]),
     stairsDescend: sfx('world', 'Escalier', 'Pas qui descendent vers l\'étage suivant.', [1.3, 0, 600, 0, .5, .1, 1, 1, 0, 0, -90, .09, .1, 0, 0, 0, 0, .6, 0]),
     gameOverDirge: sfx('world', 'Game Over', 'Lamento qui s\'éteint.', [1.6, 0, 220, .05, .5, .7, 2, 1, -1.5, 0, 0, 0, 0, 0, 3, 0, .15, .7, 0, .2]),
@@ -150,6 +157,17 @@ function zzfxGenerate(volume = 1, randomness = .05, frequency = 220, attack = 0,
         if (repeatTime && !(++r % repeatTime)) { frequency = startFrequency; slide = startSlide; j = j || 1; }
     }
     return b;
+}
+
+// Échantillons d'un son ZzFX, simple ou en couches (pure, hors Web Audio).
+function sfxSamples(def) {
+    if (def.layers) {
+        const parts = def.layers.map(([at, params]) => [Math.round(at * SFX_SAMPLE_RATE), zzfxGenerate(...params)]);
+        const out = new Array(Math.max(...parts.map(([offset, data]) => offset + data.length))).fill(0);
+        parts.forEach(([offset, data]) => { for (let i = 0; i < data.length; i++) out[offset + i] += data[i]; });
+        return out;
+    }
+    return zzfxGenerate(...def.params);
 }
 
 // --- Préférences d'écoute (réglage joueur, jamais dans gameState) ---
@@ -271,6 +289,17 @@ function stopAnnouncerVoice() {
 
 // --- Lecture (Web Audio) ---
 let sfxAudioContext = null;
+let sfxRecipeBusNode = null;
+const SFX_RECIPE_VOLUME = .9;
+
+// Sortie commune des recettes Web Audio : un compresseur qui évite la saturation quand plusieurs sons se chevauchent.
+function sfxRecipeBus(c) {
+    if (!sfxRecipeBusNode || sfxRecipeBusNode.context !== c) {
+        sfxRecipeBusNode = typeof c.createDynamicsCompressor === 'function' ? c.createDynamicsCompressor() : c.createGain();
+        sfxRecipeBusNode.connect(c.destination);
+    }
+    return sfxRecipeBusNode;
+}
 let sfxQueueEnd = 0; // heure (contexte audio) à laquelle le dernier son de la file aura laissé la place
 
 // Heure de départ d'un son de la file (pure) : tout de suite si la file est libre, sinon après le précédent.
@@ -304,20 +333,30 @@ function playSfx(key, { force = false } = {}) {
     if (!def || (!force && isSoundMuted())) return false;
     if (!unlockAudio()) return false;
     try {
-        const data = zzfxGenerate(...def.params);
-        const buffer = sfxAudioContext.createBuffer(1, data.length, SFX_SAMPLE_RATE);
-        buffer.getChannelData(0).set(data);
-        const source = sfxAudioContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(sfxAudioContext.destination);
-        const now = sfxAudioContext.currentTime || 0;
+        const c = sfxAudioContext;
+        const now = c.currentTime || 0;
+        const recipeFn = def.recipe && typeof SFX_RECIPES !== 'undefined' ? SFX_RECIPES[key] : null;
+        if (def.recipe && !recipeFn) return false;
+        const data = recipeFn ? null : sfxSamples(def);
+        const seconds = recipeFn ? def.duration : data.length / SFX_SAMPLE_RATE;
+        let at = now;
         if (SFX_QUEUED_GROUPS.includes(def.group) && !force) {
-            const at = sfxQueuedStart(now, sfxQueueEnd);
-            sfxQueueEnd = at + Math.min(data.length / SFX_SAMPLE_RATE, SFX_QUEUE_MAX_GAP);
-            source.start(at);
-        } else {
-            source.start(now);
+            at = sfxQueuedStart(now, sfxQueueEnd);
+            sfxQueueEnd = at + Math.min(seconds, SFX_QUEUE_MAX_GAP);
         }
+        if (recipeFn) {
+            const output = c.createGain();
+            output.gain.value = SFX_RECIPE_VOLUME * (def.level || 1);
+            output.connect(sfxRecipeBus(c));
+            recipeFn(c, output, at + .005);
+            return true;
+        }
+        const buffer = c.createBuffer(1, data.length, SFX_SAMPLE_RATE);
+        buffer.getChannelData(0).set(data);
+        const source = c.createBufferSource();
+        source.buffer = buffer;
+        source.connect(c.destination);
+        source.start(at);
         return true;
     } catch (e) {
         return false;

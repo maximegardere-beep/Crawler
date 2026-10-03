@@ -45,7 +45,13 @@ Tailwind CDN, **aucun build step**.
   `springTrap()`, `attemptFlee()`, `restAtSafehouse()`, `showEncounterIntro()`, `triggerFloorTransition()`, `gameOver()`, `winGame()` ;
   **voix du présentateur (lot 3)** : `speakAnnouncer(text, { interrupt })` (`speechSynthesis`, file d'une réplique à la fois,
   `cleanAnnouncerText()`, `pickAnnouncerVoice()`, réglages `ANNOUNCER_VOICE`), appelée par `triggerShow()`/`answerShow()`,
-  `showAchievementToast()`, `showEncounterIntro()` ; voir `NOTES_SONS.md` ; chargé après `minigames-ui.js`, avant `app.js`
+  `showAchievementToast()`, `showEncounterIntro()` ; **trois façons de faire un son** : `sfx()` (ZzFX), `layered()` (couches ZzFX,
+  `sfxSamples()`), `recipe()` (recette Web Audio de même clé dans `SFX_RECIPES`, voir `sounds-recipes.js`) ; voir `NOTES_SONS.md` ;
+  chargé après `minigames-ui.js`, avant `sounds-recipes.js` et `app.js`
+- `sounds-recipes.js` — recettes Web Audio des sons (chantier 8, suite) : briques `sfxWhoosh`/`sfxBurst`/`sfxTone`/`sfxMetal`/`sfxBell`/
+  `sfxCreature` (voix à formants)/`sfxGrains`… et `SFX_RECIPES` (une recette par son déclaré `recipe()` : `(contexte, sortie, heure)`) ;
+  jamais de rampe exponentielle vers 0, tout s'arrête dans la durée déclarée (exigé par `tests/regression/sounds.js`) ; chargé juste
+  après `sounds.js`, avant `app.js`
 - `minigames-ui.js` — hôte DOM des mini-jeux (`startMinigame()`, bande du bas, minuterie, rendus `MINIGAME_RENDERERS`,
   réglage Jouer / Réduit / Jet automatique) ; chargé après `fx.js`, avant `app.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
