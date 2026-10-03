@@ -529,4 +529,5 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 - [x] Rue des Illusions : Mime Aggressif (coincé dans sa boîte invisible), Ombre Suspicieuse (espionne aux jumelles derrière un réverbère trop fin), Miroir Brisé (se recolle au scotch).
 - [x] Catacombes des Chaussettes Perdues : Chaussette Solitaire (cherche sa paire dans un tas de chaussettes), Lave-Linge Possédé (pille une niche en plein essorage), Monstre de Poussière (saute vers une chaussette sur le fil à linge).
 - [x] Marché Noir du Donjon : Marchand Malhonnête (étiquette sa camelote, s'en colle une dans le dos), Sac de Pièces Vivant (vérifie une pièce sous une lanterne), Garde du Marché (« contrôle » un étal de brochettes en les goûtant).
-- [ ] Salle des Machines · Parking · Piscine · Studio · puis les 3 chasseurs (face).
+- [x] Salle des Machines Infernales : Imprimante à Rêves (s'endort en imprimant des moutons), Ordinateur en Colère (se dispute avec sa souris qui s'enfuit), Câble Électrique Vivant (force sa prise dans une prise murale trop petite, câbles noués).
+- [ ] Parking · Piscine · Studio · puis les 3 chasseurs (face).

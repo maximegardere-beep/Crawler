@@ -123,6 +123,10 @@ const ENCOUNTER_ART = {
     'Marchand Malhonnête': { face: 'svg', back: 'svg' },
     'Sac de Pièces Vivant': { face: 'svg', back: 'svg' },
     'Garde du Marché': { face: 'svg', back: 'svg' },
+    // Salle des Machines Infernales
+    'Imprimante à Rêves': { face: 'svg', back: 'svg' },
+    'Ordinateur en Colère': { face: 'svg', back: 'svg' },
+    'Câble Électrique Vivant': { face: 'svg', back: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';

@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Imprimante à Rêves, Salle des Machines Infernales, cadrage « dos » : elle imprime des moutons pour s'endormir... et s'est assoupie. Aucun texte. -->
+  <defs>
+    <pattern id="imprimante-a-reves-b-tole" width="110" height="70" patternUnits="userSpaceOnUse">
+      <rect width="110" height="70" fill="#2c3136"/>
+      <rect x="2" y="2" width="106" height="66" rx="5" fill="#373e45"/>
+      <circle cx="12" cy="12" r="3" fill="#252a30"/><circle cx="98" cy="12" r="3" fill="#252a30"/>
+      <circle cx="12" cy="58" r="3" fill="#252a30"/><circle cx="98" cy="58" r="3" fill="#252a30"/>
+      <path d="M0 35 h110" stroke="#252a30" stroke-width="5"/>
+      <rect x="20" y="16" width="26" height="12" rx="2" fill="#3f4750"/>
+      <rect x="64" y="44" width="26" height="12" rx="2" fill="#3f4750"/>
+    </pattern>
+    <radialGradient id="imprimante-a-reves-b-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#c084fc" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#c084fc" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="750" height="690" fill="url(#imprimante-a-reves-b-tole)"/>
+  <rect x="0" y="0" width="750" height="70" fill="#22262b"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M0 48 H750" stroke="#05060c" stroke-width="24"/><path d="M0 48 H750" stroke="#2a2f35" stroke-width="15"/>
+    <path d="M0 92 H300 Q330 92 330 122 V150" stroke="#05060c" stroke-width="18"/><path d="M0 92 H300 Q330 92 330 122 V150" stroke="#2f343a" stroke-width="10"/>
+  </g>
+  <!-- Engrenages, manomètres, voyants, tuyau -->
+    <path d="M710.2 480.2 L721.6 487.4 L717.9 497.2 L704.6 495.2 L694.6 507.7 L699.6 520.3 L690.9 526.1 L681.3 516.6 L665.8 520.9 L662.5 534 L652 533.5 L649.8 520.2 L634.8 514.6 L624.4 523.2 L616.2 516.7 L622.3 504.6 L613.4 491.3 L599.9 492.1 L597.1 482.1 L609.1 475.8 L609.8 459.8 L598.4 452.6 L602.1 442.8 L615.4 444.8 L625.4 432.3 L620.4 419.7 L629.1 413.9 L638.7 423.4 L654.2 419.1 L657.5 406 L668 406.5 L670.2 419.8 L685.2 425.4 L695.6 416.8 L703.8 423.3 L697.7 435.4 L706.6 448.7 L720.1 447.9 L722.9 457.9 L710.9 464.2 Z" fill="#3a3a36" stroke="#05060c" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="660" cy="470" r="26.9" fill="#2a2a27" stroke="#05060c" stroke-width="4"/>
+    <circle cx="660" cy="470" r="9" fill="#4a473f" stroke="#05060c" stroke-width="3"/>
+    <path d="M750 383.8 L755.5 390 L751.1 396.4 L743.3 393.7 L733.4 400.2 L732.9 408.4 L725.3 409.9 L721.8 402.4 L710.2 400 L704 405.5 L697.6 401.1 L700.3 393.3 L693.8 383.4 L685.6 382.9 L684.1 375.3 L691.6 371.8 L694 360.2 L688.5 354 L692.9 347.6 L700.7 350.3 L710.6 343.8 L711.1 335.6 L718.7 334.1 L722.2 341.6 L733.8 344 L740 338.5 L746.4 342.9 L743.7 350.7 L750.2 360.6 L758.4 361.1 L759.9 368.7 L752.4 372.2 Z" fill="#3a3a36" stroke="#05060c" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="722" cy="372" r="16" fill="#2a2a27" stroke="#05060c" stroke-width="4"/>
+    <circle cx="722" cy="372" r="5.3" fill="#4a473f" stroke="#05060c" stroke-width="3"/>
+  <g stroke="#05060c" stroke-width="5">
+    <circle cx="150" cy="250" r="30" fill="#3b3d3a"/>
+    <circle cx="150" cy="250" r="22.2" fill="#8b8775" stroke-width="3"/>
+    <path d="M150 250 L139.1 235" stroke="#ef4444" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="150" cy="250" r="3.5" fill="#05060c"/></g><g stroke="#05060c" stroke-width="5">
+    <circle cx="218" cy="252" r="27" fill="#3b3d3a"/>
+    <circle cx="218" cy="252" r="20" fill="#8b8775" stroke-width="3"/>
+    <path d="M218 252 L232.7 244" stroke="#ef4444" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="218" cy="252" r="3.5" fill="#05060c"/></g>
+  <ellipse cx="420" cy="170.8" rx="39" ry="28.6" fill="#ef4444" opacity="0.08"/>
+  <path d="M403.1 147.4 h33.800000000000004" stroke="#05060c" stroke-width="5"/>
+  <path d="M407 150 a13 13 0 0 0 26 0 z" fill="#b83232" stroke="#05060c" stroke-width="4"/><ellipse cx="640" cy="169.2" rx="36" ry="26.400000000000002" fill="#ef4444" opacity="0.08"/>
+  <path d="M624.4 147.6 h31.200000000000003" stroke="#05060c" stroke-width="5"/>
+  <path d="M628 150 a12 12 0 0 0 24 0 z" fill="#b83232" stroke="#05060c" stroke-width="4"/>
+  <g fill="none" stroke-linecap="round"><path d="M0 560 H330" stroke="#05060c" stroke-width="30"/><path d="M0 560 H330" stroke="#3a342c" stroke-width="20"/></g>
+  <g stroke="#05060c" stroke-width="4"><rect x="250" y="542" width="12" height="36" fill="#2d2924"/></g>
+  <!-- Prise murale où arrive son câble -->
+  <rect x="664" y="600" width="26" height="36" rx="4" fill="#4b4a44" stroke="#05060c" stroke-width="4"/>
+  <!-- Sol : caillebotis en perspective -->
+  <rect x="0" y="690" width="750" height="644" fill="#282d33"/>
+  <path d="M0 690 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#1f2328" stroke-width="5"><path d="M0 730 H750 M0 790 H750 M0 870 H750 M0 980 H750 M0 1120 H750 M0 1290 H750"/>
+  <path d="M375 690 L-200 1334 M375 690 L80 1334 M375 690 L330 1334 M375 690 L560 1334 M375 690 L800 1334 M375 690 L1050 1334"/></g>
+  <ellipse cx="420" cy="320" rx="230" ry="200" fill="url(#imprimante-a-reves-b-glow)"/>
+  <path d="M520 720 q-16 -40 6 -60 q-10 -26 10 -44" fill="none" stroke="#9ca3af" stroke-width="9" stroke-linecap="round" opacity="0.3"/>
+
+  <!-- Ombre au sol -->
+  <ellipse cx="420" cy="700" rx="140" ry="18" fill="#05060c" opacity="0.55"/>
+  <!-- Câble d'alimentation jusqu'à la prise -->
+  <path d="M488 640 C540 690 600 700 640 660 C656 646 664 630 676 626" fill="none" stroke="#05060c" stroke-width="7"/>
+
+  <!-- ===== L'IMPRIMANTE, de trois-quarts dos, affaissée et endormie ===== -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="rotate(7 420 690)">
+    <!-- Patins -->
+    <rect x="344" y="668" width="62" height="28" rx="8" fill="#6b7488" stroke-width="5"/>
+    <rect x="438" y="672" width="62" height="28" rx="8" fill="#6b7488" stroke-width="5"/>
+    <!-- Flanc gauche (côté visible) -->
+    <path d="M330 404 L362 386 L362 676 L332 664 Z" fill="#939db3" stroke-width="5"/>
+    <!-- Dos -->
+    <rect x="358" y="384" width="160" height="296" rx="14" fill="#b9c3d8" stroke-width="6"/>
+    <path d="M372 396 h130" stroke="#d6dcea" stroke-width="7"/>
+    <!-- Grille d'aération -->
+    <g stroke="#6b7488" stroke-width="5"><path d="M384 430 h108 M384 446 h108 M384 462 h108 M384 478 h108"/></g>
+    <!-- Trappe arrière (bourrage papier) entrouverte, une feuille froissée qui dépasse -->
+    <rect x="382" y="520" width="112" height="70" rx="6" fill="#939db3" stroke-width="4"/>
+    <path d="M410 520 l10 -16 l14 10 l12 -14 l10 16 z" fill="#e8e4d8" stroke-width="3"/>
+    <!-- Prise du câble -->
+    <rect x="470" y="616" width="28" height="22" rx="4" fill="#2a2d38" stroke-width="4"/>
+    <!-- Étiquette illisible -->
+    <rect x="388" y="610" width="56" height="36" rx="3" fill="#cfc9b6" stroke-width="3"/>
+    <path d="M396 622 h40 M396 634 h26" stroke="#8b8574" stroke-width="3"/>
+    <!-- Ampoule de l'antenne, antenne pliée qui pique du nez -->
+    <path d="M500 388 C506 340 540 330 556 360" fill="none" stroke-width="7"/>
+    <circle cx="558" cy="372" r="13" fill="#9a6fc9" stroke-width="4"/>
+    <path d="M552 368 q6 4 12 0" fill="none" stroke-width="3"/>
+    <!-- Feuilles qui sortent du capot en ruban continu -->
+    <rect x="388" y="378" width="104" height="10" rx="4" fill="#2a2d38" stroke-width="4"/>
+  </g>
+  <g><path d="M436 236 C430 170 330 150 296 236 C276 300 290 520 352 660" fill="none" stroke="#05060c" stroke-width="14"/><path d="M436 236 C430 170 330 150 296 236 C276 300 290 520 352 660" fill="none" stroke="#ddd8ca" stroke-width="7"/><g transform="translate(436 236) rotate(0)"><rect x="-21" y="-24" width="42" height="48" rx="3" fill="#e8e4d8" stroke="#05060c" stroke-width="3.5"/><g transform="translate(-2 -4) scale(0.7)" stroke="#05060c" stroke-width="4.3">
+      <path d="M-5 10 v12 M8 10 v12" stroke-width="5.7" stroke-linecap="round"/>
+      <path d="M-14 4 a8 8 0 0 1 6 -12 a9 9 0 0 1 15 -2 a8 8 0 0 1 12 6 a7 7 0 0 1 -2 13 h-26 a7 7 0 0 1 -5 -5 z" fill="#f4f1e8"/>
+      <ellipse cx="22" cy="0" rx="6" ry="7" fill="#2a2730"/>
+    </g></g><g transform="translate(390 178) rotate(-70)"><rect x="-21" y="-24" width="42" height="48" rx="3" fill="#ddd8ca" stroke="#05060c" stroke-width="3.5"/><path d="M-13 11 h26 M-7 0 v13 M7 0 v13" stroke="#8b7f6a" stroke-width="3"/></g><g transform="translate(318 200) rotate(-130)"><rect x="-21" y="-24" width="42" height="48" rx="3" fill="#e8e4d8" stroke="#05060c" stroke-width="3.5"/><g transform="translate(-2 -4) scale(0.7)" stroke="#05060c" stroke-width="4.3">
+      <path d="M-5 10 v12 M8 10 v12" stroke-width="5.7" stroke-linecap="round"/>
+      <path d="M-14 4 a8 8 0 0 1 6 -12 a9 9 0 0 1 15 -2 a8 8 0 0 1 12 6 a7 7 0 0 1 -2 13 h-26 a7 7 0 0 1 -5 -5 z" fill="#f4f1e8"/>
+      <ellipse cx="22" cy="0" rx="6" ry="7" fill="#2a2730"/>
+    </g></g><g transform="translate(284 280) rotate(-175)"><rect x="-21" y="-24" width="42" height="48" rx="3" fill="#ddd8ca" stroke="#05060c" stroke-width="3.5"/><path d="M-13 11 h26 M-7 0 v13 M7 0 v13" stroke="#8b7f6a" stroke-width="3"/></g><g transform="translate(286 372) rotate(172)"><rect x="-21" y="-24" width="42" height="48" rx="3" fill="#e8e4d8" stroke="#05060c" stroke-width="3.5"/><g transform="translate(-2 -4) scale(0.7)" stroke="#05060c" stroke-width="4.3">
+      <path d="M-5 10 v12 M8 10 v12" stroke-width="5.7" stroke-linecap="round"/>
+      <path d="M-14 4 a8 8 0 0 1 6 -12 a9 9 0 0 1 15 -2 a8 8 0 0 1 12 6 a7 7 0 0 1 -2 13 h-26 a7 7 0 0 1 -5 -5 z" fill="#f4f1e8"/>
+      <ellipse cx="22" cy="0" rx="6" ry="7" fill="#2a2730"/>
+    </g></g><g transform="translate(304 464) rotate(165)"><rect x="-21" y="-24" width="42" height="48" rx="3" fill="#ddd8ca" stroke="#05060c" stroke-width="3.5"/><path d="M-13 11 h26 M-7 0 v13 M7 0 v13" stroke="#8b7f6a" stroke-width="3"/></g><g transform="translate(326 556) rotate(165)"><rect x="-21" y="-24" width="42" height="48" rx="3" fill="#e8e4d8" stroke="#05060c" stroke-width="3.5"/><g transform="translate(-2 -4) scale(0.7)" stroke="#05060c" stroke-width="4.3">
+      <path d="M-5 10 v12 M8 10 v12" stroke-width="5.7" stroke-linecap="round"/>
+      <path d="M-14 4 a8 8 0 0 1 6 -12 a9 9 0 0 1 15 -2 a8 8 0 0 1 12 6 a7 7 0 0 1 -2 13 h-26 a7 7 0 0 1 -5 -5 z" fill="#f4f1e8"/>
+      <ellipse cx="22" cy="0" rx="6" ry="7" fill="#2a2730"/>
+    </g></g><g transform="translate(352 644) rotate(150)"><rect x="-21" y="-24" width="42" height="48" rx="3" fill="#ddd8ca" stroke="#05060c" stroke-width="3.5"/><path d="M-13 11 h26 M-7 0 v13 M7 0 v13" stroke="#8b7f6a" stroke-width="3"/></g></g>
+  <!-- Elle imprime en boucle : un mouton qui saute une barrière, sur la dernière feuille, encore humide d'encre -->
+  <g transform="translate(-10 40) rotate(4 450 300)" stroke="#05060c" stroke-linejoin="round">
+    <rect x="400" y="246" width="96" height="116" rx="4" fill="#e8e4d8" stroke-width="4"/>
+    <path d="M414 340 h68 M428 316 v28 M468 316 v28" stroke="#8b7f6a" stroke-width="4"/>
+    <g transform="translate(442 292) scale(0.95)" stroke="#05060c" stroke-width="3.2">
+      <path d="M-5 10 v12 M8 10 v12" stroke-width="4.2" stroke-linecap="round"/>
+      <path d="M-14 4 a8 8 0 0 1 6 -12 a9 9 0 0 1 15 -2 a8 8 0 0 1 12 6 a7 7 0 0 1 -2 13 h-26 a7 7 0 0 1 -5 -5 z" fill="#f4f1e8"/>
+      <ellipse cx="22" cy="0" rx="6" ry="7" fill="#2a2730"/>
+    </g>
+  </g>
+  <!-- Bulles de sommeil violettes qui montent (sans lettres) -->
+  <g fill="#c084fc" stroke="#05060c" stroke-width="3">
+    <circle cx="560" cy="330" r="8" opacity="0.85"/><circle cx="578" cy="296" r="12" opacity="0.8"/><circle cx="604" cy="252" r="17" opacity="0.75"/>
+  </g>
+  <path d="M648.4 188.2 L650 196.3 L657.9 198.6 L650.7 202.7 L651 210.9 L644.9 205.3 L637.2 208.1 L640.6 200.6 L635.6 194.1 L643.8 195.1 Z" fill="#fde047" stroke="#05060c" stroke-width="3"/>
+  <path d="M520 196 a16 16 0 1 0 13 24 a12 12 0 1 1 -13 -24 z" fill="#fde68a" stroke="#05060c" stroke-width="3"/>
+  <!-- Le tas de moutons imprimés au sol -->
+  <g stroke="#05060c" stroke-width="3.5" stroke-linejoin="round">
+    <path d="M250 700 L300 690 L306 708 L254 718 Z" fill="#e8e4d8"/>
+    <path d="M280 712 L330 700 L340 716 L288 728 Z" fill="#ddd8ca"/>
+    <path d="M528 706 L578 698 L582 716 L532 722 Z" fill="#e8e4d8"/>
+    <path d="M300 740 L360 728 L368 750 L306 762 Z" fill="#e8e4d8"/>
+  </g>
+  <g stroke="#05060c" stroke-width="3.5" stroke-linejoin="round">
+    <path d="M318 668 L378 656 L392 676 L330 690 Z" fill="#ddd8ca"/>
+    <path d="M326 652 L386 642 L394 660 L332 672 Z" fill="#e8e4d8"/>
+    <path d="M338 640 L392 628 L402 646 L344 658 Z" fill="#ddd8ca"/>
+  </g>
+  <g transform="translate(330 744) scale(0.5)" stroke="#05060c" stroke-width="6">
+      <path d="M-5 10 v12 M8 10 v12" stroke-width="8" stroke-linecap="round"/>
+      <path d="M-14 4 a8 8 0 0 1 6 -12 a9 9 0 0 1 15 -2 a8 8 0 0 1 12 6 a7 7 0 0 1 -2 13 h-26 a7 7 0 0 1 -5 -5 z" fill="#f4f1e8"/>
+      <ellipse cx="22" cy="0" rx="6" ry="7" fill="#2a2730"/>
+    </g>
+
+  <!-- ===== Cachette au premier plan : armoire électrique et tuyaux, à gauche, dans l'ombre ===== -->
+  <g stroke="#05060c" stroke-width="6" stroke-linejoin="round">
+    <path d="M0 330 L170 300 L200 1334 L0 1334 Z" fill="#17191d"/>
+    <path d="M170 300 L232 330 L250 1334 L200 1334 Z" fill="#101215"/>
+    <path d="M30 420 L150 404 M34 520 L154 506 M38 620 L158 608" stroke="#24272c" stroke-width="10"/>
+    <circle cx="120" cy="720" r="26" fill="#1f2226"/>
+    <path d="M120 720 l12 -14" stroke="#7a2a2a" stroke-width="5"/>
+    <circle cx="60" cy="780" r="8" fill="#4a1a1a" stroke-width="3"/>
+  </g>
+  <g fill="none" stroke-linecap="round">
+    <path d="M750 1334 V1000 Q750 960 710 960 H610 Q570 960 570 920 V880" stroke="#05060c" stroke-width="56"/>
+    <path d="M750 1334 V1000 Q750 960 710 960 H610 Q570 960 570 920 V880" stroke="#1b1d21" stroke-width="40"/>
+  </g>
+  <rect x="540" y="850" width="60" height="40" rx="6" fill="#16181b" stroke="#05060c" stroke-width="5"/>
+  <!-- Caisse sombre au premier plan bas -->
+  <g stroke="#05060c" stroke-width="6"><rect x="200" y="1110" width="300" height="230" rx="6" fill="#1a1c20"/><path d="M200 1110 L500 1334 M500 1110 L200 1334" stroke="#24272c" stroke-width="10"/></g>
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.08"/>
+</svg>
