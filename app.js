@@ -3771,6 +3771,7 @@ function showAchievementToast(unlocked) {
     if (!ui.achievementToast || !unlocked.length) return;
     playSfx('achievementUnlock');
     const last = unlocked[unlocked.length - 1];
+    speakAnnouncer(unlocked.length > 1 ? `${unlocked.length} succès débloqués !` : `Succès débloqué : ${last.title} !`);
     ui.achievementToast.innerHTML = unlocked.length > 1
         ? `🏆 ${unlocked.length} succès débloqués ! <span class="opacity-80">${unlocked.map(d => d.icon).join(' ')}</span>`
         : `🏆 Succès débloqué : ${last.icon} ${last.title}`;
@@ -4020,6 +4021,7 @@ function triggerShow(lastFloor = {}) {
     gameState.showChoicePending = true;
     setSceneHeader('📺', SHOW_HOST.show, 'Émission', 'showStudio');
     logEvent(`📺 ${SHOW_HOST.show} — ${SHOW_HOST.name} : ${gameState.pendingShow.text}`, "info");
+    speakAnnouncer(gameState.pendingShow.text, { interrupt: true }); // voix du présentateur (chantier 8, lot 3)
     updateShowZone();
     if (ui.showZone) ui.showZone.classList.remove('hidden');
 }
@@ -4062,7 +4064,9 @@ function answerShow(toneKey) {
     const s = gameState.runStats;
 
     if (toneKey === 'refuse') {
-        logEvent(`Vous : ${pickShowLine(SHOW_REFUSALS)} — ${pickShowLine(SHOW_REACTIONS.refuse)}`, "info");
+        const reaction = pickShowLine(SHOW_REACTIONS.refuse);
+        logEvent(`Vous : ${pickShowLine(SHOW_REFUSALS)} — ${reaction}`, "info");
+        speakAnnouncer(reaction);
         s.showRefusals = (s.showRefusals || 0) + 1;
         recordRunEvent('show', { tone: 'refuse' });
         updateUI();
@@ -4076,7 +4080,9 @@ function answerShow(toneKey) {
     if (toneKey === 'polite') {
         const gold = rollAchievementGold(a.goldMult);
         gameState.gold += gold;
-        logEvent(`${pickShowLine(SHOW_REACTIONS.polite)} (+${gold} PO)`, "success");
+        const reaction = pickShowLine(SHOW_REACTIONS.polite);
+        logEvent(`${reaction} (+${gold} PO)`, "success");
+        speakAnnouncer(reaction);
         recordRunEvent('show', { tone: 'polite', success: true });
         updateUI();
         return { tone: 'polite', success: true };
@@ -4089,7 +4095,9 @@ function answerShow(toneKey) {
     logEvent(`🎲 d${config.show.dieSides} : ${roll}${popularity ? ` + ${popularity} (popularité)` : ''} = ${total} — ${a.dc} requis : ${success ? 'RÉUSSITE' : 'ÉCHEC'} !`, success ? "success" : "danger");
 
     if (success) {
-        logEvent(pickShowLine(SHOW_REACTIONS.success[toneKey]), "success");
+        const reaction = pickShowLine(SHOW_REACTIONS.success[toneKey]);
+        logEvent(reaction, "success");
+        speakAnnouncer(reaction);
         if (toneKey === 'insult') s.showInsultWins = (s.showInsultWins || 0) + 1;
         recordRunEvent('show', { tone: toneKey, success: true });
         openAchievementBox(a.box);
@@ -4097,7 +4105,9 @@ function answerShow(toneKey) {
         return { tone: toneKey, roll, total, success };
     }
 
-    logEvent(pickShowLine(SHOW_REACTIONS.failure[toneKey]), "danger");
+    const reaction = pickShowLine(SHOW_REACTIONS.failure[toneKey]);
+    logEvent(reaction, "danger");
+    speakAnnouncer(reaction);
     recordRunEvent('show', { tone: toneKey, success: false });
     if (a.fail === 'time') {
         // Jamais mortel : l'audience s'ennuie, elle ne tue pas (au moins 1 H reste toujours).
@@ -9079,6 +9089,7 @@ function showEncounterIntro(kind, enemy, onContinue) {
     ui.encounterHint.innerText = text.hint;
     ui.encounterBanner.style.borderColor = text.accent;
     playSfx(kind === 'boss' || kind === 'hunter' ? 'bossSting' : 'encounterSting');
+    speakAnnouncer(`${text.title}. ${text.line}`, { interrupt: true });
     if (typeof document.activeElement !== 'undefined' && document.activeElement && document.activeElement.blur) document.activeElement.blur(); // Entrée ne doit pas réactiver le bouton qui a mené ici
     closeInventorySheets();
     gameState.encounterIntroPending = true;

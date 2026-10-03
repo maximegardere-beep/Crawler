@@ -28,7 +28,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 
 ## Point d'étape (30/09/2026)
 
-- **Tous les chantiers du registre sont codés**, sauf 6, 7 et 8 (pas encore explorés).
+- **Tous les chantiers du registre sont codés**, sauf 7 (pas encore exploré) ; 8 (sons) codé le 03/10/2026.
 - **Tous les chantiers codés restent « à playtester »** : les chiffres sont des valeurs de départ,
   calibrées au mieux par simulation. Les points à vérifier sont regroupés plus bas (« À playtester »).
 - **PR #32 mergée** (chantiers 9, 10 et 11) : tag `v32` et release non créés (le versioning par tag/release n'est plus une consigne du projet).
@@ -44,7 +44,6 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 |---|----------|---------|--------|------------|
 | 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Codé (à playtester) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
-| 8 | Sons | M | Planifié — lots 0 (socle, boutons 🔊/🎙️, page d'écoute), 1 (combat) et 2 (événements) codés | lot 3 (voix) à coder ; écoute réelle des sons |
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
@@ -63,6 +62,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 10 | Expansion de la banque d'objets + refonte de la rareté | L | #32 | `NOTES_ITEMS.md` (section « Chantier 10 ») |
 | 11 | Nouveaux sorts (effets et utilitaires) | M | #32 | `NOTES_SORTS.md` |
 | 12 | Villes explorables (étages urbains sur le modèle de la carte) | XL | prochaine PR | `NOTES_VILLES.md` |
+| 8 | Sons (ZzFX + voix du présentateur) | M | prochaine PR | `NOTES_SONS.md` |
 
 ### Chantiers antérieurs au registre
 
@@ -95,6 +95,8 @@ Leviers à regarder en premier ; le détail est dans la section « À surveiller
   ville trop généreuse ? pickpocket, lisibilité des routes diagonales sur petit écran.
 - **Objets** (10) : rareté (Légendaire « miracle » avant l'étage 10), économie (un Légendaire vaut ~20× un
   Commun), taux de proc des qualificatifs.
+- **Sons** (8) : écoute réelle de tous les sons (composés sans écoute), volume combat / événements, fatigue
+  d'écoute, qualité de la voix selon le téléphone, déblocage du son sur iOS.
 - **Sorts** (11) : combo Bouclier de Mana + Soin Express, Pas de l'Ombre et le kiting, étourdissement à 30 %.
 - **Hérité du backlog** (`CLAUDE.md`) : table D100 des événements, furtivité, boss plus punitifs que les mobs
   en fin de run, économie urbaine.
@@ -379,69 +381,19 @@ premier étage urbain.
 Salles à choix narratif basé sur les compétences, sans fuite possible. Le chantier 5 a prévu la place :
 un nouveau type de salle = une entrée de `ROOM_TYPES` (+ son effet dans `enterRoom()`).
 
-## 8. Sons — M — Planifié (lots 0 à 2 codés)
+## 8. Sons — M — Codé (à playtester)
 
 **Demande** : intégrer des effets audio, par la méthode la plus simple.
 
-**Méthodes proposées** (03/10/2026) : (1) sons synthétisés ZzFX/jsfxr, aucun fichier ; (2) fichiers dans
-`assets/sfx/` + `new Audio()` ; (3) fichiers + Web Audio API (préchargés, sans latence) ; (4) Howler.js
-(cdnjs) + sprite audio ; bonus : voix du présentateur par `speechSynthesis`.
+**Décisions** : sons **synthétisés par ZzFX** (aucun fichier audio, aucun CDN — tranche l'hébergement) ; bruitages
+de combat détaillés (famille d'arme, projectile, école de sort, cri par archétype) et d'événements ; **voix du
+présentateur partout** (`speechSynthesis`) ; son actif par défaut, bouton 🔊 (tout couper) et bouton 🎙️ (voix
+seule) dans l'en-tête ; page d'écoute ; catalogue composé par Claude, échantillon de 5 sons validé avant le code.
+Ambiance / musique non retenue.
 
-**Décidé (round 1)** :
-- **Méthode : ZzFX** (micro-bibliothèque ~1 Ko recopiée dans le dépôt, sons = listes de paramètres) —
-  tranche la question d'hébergement : aucun fichier audio, aucun CDN, fonctionne hors ligne.
-- **Périmètre** : bruitages de combat (coups, tirs, sorts, impacts, coup lourd, mort mob/boss), bruitages
-  d'interface/événements (butin, PO, piège, niveau, succès/boîte, mini-jeux, Game Over) et **voix
-  DeathWatch** (`speechSynthesis`). Ambiance/musique : non retenue (exigerait des fichiers).
-- **Son activé par défaut**, coupure + volume dans ⚙️ Réglages (`localStorage`).
-- **Claude compose tout le catalogue**, ajusté à l'écoute par l'utilisateur.
-
-**Décidé (round 2)** :
-- **Voix : le présentateur partout** — piques DeathWatch (et réactions), annonces de succès, écrans de
-  rencontre.
-- **Combat détaillé** : un son par famille d'arme (tranchant / contondant / estoc), par projectile, par
-  école de sort, plus **un cri par archétype de mob** (10).
-- **Réglage : un bouton muet** 🔊/🔇 (coupe sons ET voix), accessible depuis l'écran de jeu — **plus un bouton 🎙️**
-  qui coupe la voix du présentateur seule (demandé à la validation du plan).
-- **Page d'écoute** de tous les sons (bouton ▶ par son) pour les ajuster.
-
-**Échantillon validé** (5 sons : coup d'épée, tir d'arbalète, cri de gobelin, pièces d'or, montée de niveau).
-
-**Plan validé** :
-- **Lot 0 (codé)** — `sounds.js` (catalogue PUR `SFX_CATALOG`, ZzFX recopié, `playSfx(key)` no-op sans
-  `AudioContext`, légère variation de hauteur à chaque lecture), déverrouillage au premier geste, bouton
-  muet (`localStorage`), page d'écoute, ajout à `index.html` ET `GAME_FILES`, tests (catalogue complet,
-  no-op sous Node). **Livré** : les 5 sons de l'échantillon au catalogue (pas encore branchés en jeu), `playSfx(key, { force })`,
-  `unlockAudio()` au premier `pointerdown`/`keydown`, `isSoundMuted()`/`isVoiceMuted()`/`announcerVoiceEnabled()`
-  (clés `crawler_sound_muted`/`crawler_voice_muted`), boutons `#btn-sound-toggle`/`#btn-voice-toggle` dans l'en-tête,
-  page d'écoute `#sound-lab-overlay` (⚙️ Réglages → 🎧 Écouter les sons, joue même son coupé),
-  `tests/regression/sounds.js`.
-- **Lot 1 (codé)** — combat : coups par famille d'arme, projectiles, sorts, impact/coup lourd, cri par archétype,
-  mort mob/boss, branchés sur `playPlayerAttackFx()`/`playMobAttackFx()`/`onImpact` (fx.js) ; test : une
-  entrée par arme, sort, archétype (comme `combat-scene.js`). **Livré** : 36 sons (3 styles de mêlée + mains nues,
-  10 projectiles, 8 écoles de sort + sort raté, 10 cris d'archétype, coup lourd, crawler touché, mob et boss vaincus),
-  correspondances pures `SFX_MELEE_STYLES`/`SFX_PROJECTILES`/`SFX_SPELL_STYLES`/`SFX_MOB_CRIES`,
-  `playerAttackSfxKey(spec)`/`mobAttackSfxKey(enemy)` ; joués au départ du coup par `playPlayerAttackFx()`/
-  `playMobAttackFx()` (fx.js, même sous mouvement réduit ; cri jamais répété dans un multi-coups, « touché » seulement
-  si des PV sont réellement perdus), `playSpellBackfireFx()`, `playClassAbilityFx()`, `triggerHeavyImpact()` et
-  `winCombat()`. Chiffres composés sans écoute : à ajuster via la page d'écoute.
-- **Lot 2 (codé)** — interface/événements : butin, PO, piège, montée de niveau, boîte de succès, issues de
-  mini-jeux, escalier, Game Over, victoire. **Livré** : 18 sons (groupes `event` « Butin et progression » et `world`
-  « Exploration et grands moments ») : PO (trouvées, revente, revente d'office), objet obtenu, achat/formation, potion,
-  niveau (un seul arpège même pour plusieurs niveaux), compétence, succès (toast), issues de mini-jeu (`SFX_MINIGAME_OUTCOMES`,
-  jamais en jet automatique), piège, fuite réussie, repos, écran de rencontre (accord grave pour boss et chasseurs),
-  escalier, Game Over, victoire. **File d'attente** : les sons de ces deux groupes s'enchaînent (au plus
-  `SFX_QUEUE_MAX_GAP` = 0,35 s d'écart, `sfxQueuedStart()`) au lieu de se superposer (victoire + niveau + butin) ; les
-  sons de combat partent toujours tout de suite.
-- **Lot 3** — voix du présentateur (`speechSynthesis`, voix française si dispo, coupée par le bouton
-  muet) : piques/réactions DeathWatch, succès, écrans de rencontre ; file d'attente (jamais deux voix à la
-  fois), no-op sans `speechSynthesis`.
-
-**Principes d'architecture envisagés** : point d'entrée unique `playSfx(key)`, catalogue pur dans un
-nouveau `sounds.js` (sur le modèle de `fx.js`) ; branchements sur les points uniques existants (`onImpact`
-des effets d'attaque, `playMinigameOutcomeFx()`, `openAchievementBox()`, `gainXp()`, `gameOver()`,
-`showEncounterIntro()`…) ; déverrouillage audio au premier geste (confirmation du nom) ; no-op sans
-`AudioContext` (tests Node).
+**Livré** (4 lots) : socle `sounds.js` + boutons + page d'écoute, 36 sons de combat, 18 sons d'événements (en file
+d'attente), voix du présentateur (piques et réactions DeathWatch, succès, écrans de rencontre) — voir
+`NOTES_SONS.md`.
 
 ## 9. Interface inventaire allégée — M — Codé (PR #32, ouverte)
 

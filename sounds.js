@@ -193,7 +193,78 @@ function announcerVoiceEnabled() {
     return !isSoundMuted() && !isVoiceMuted();
 }
 
+// --- Voix du présentateur (lot 3) : synthèse vocale du navigateur (speechSynthesis), aucun fichier ---
+// File d'attente : jamais deux répliques à la fois ; au-delà de `maxQueue` répliques en attente, les plus anciennes
+// sautent. `interrupt` coupe la réplique en cours (nouvelle émission, nouvel écran de rencontre).
+const ANNOUNCER_VOICE = { lang: 'fr-FR', rate: 1.08, pitch: .9, maxQueue: 3, safetyBaseMs: 1500, safetyPerCharMs: 90 };
+let announcerQueue = [];
+let announcerSpeaking = false;
+let announcerSafetyTimer = null;
+
+function announcerSynth() {
+    return typeof speechSynthesis !== 'undefined' && speechSynthesis && typeof SpeechSynthesisUtterance === 'function' ? speechSynthesis : null;
+}
+
+// Texte prononçable (pure) : sans emoji, crochets, balises ni « PO » abrégé.
+function cleanAnnouncerText(text) {
+    return String(text == null ? '' : text)
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{FE0F}\u{200D}\u{20E3}]/gu, '')
+        .replace(/[\[\]{}*_]/g, '')
+        .replace(/(\d+)\s*PO\b/g, "$1 pièces d'or")
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+// Voix française de l'appareil (pure) : fr-FR d'abord, sinon toute voix française, sinon aucune (voix par défaut).
+function pickAnnouncerVoice(voices) {
+    const list = Array.isArray(voices) ? voices : [];
+    const lang = v => String((v && v.lang) || '').toLowerCase().replace('_', '-');
+    return list.find(v => lang(v) === 'fr-fr') || list.find(v => lang(v).startsWith('fr')) || null;
+}
+
+function speakAnnouncer(text, { interrupt = false } = {}) {
+    const synth = announcerSynth();
+    if (!synth || !announcerVoiceEnabled()) return false;
+    const line = cleanAnnouncerText(text);
+    if (!line) return false;
+    if (interrupt) stopAnnouncerVoice();
+    announcerQueue.push(line);
+    while (announcerQueue.length > ANNOUNCER_VOICE.maxQueue) announcerQueue.shift();
+    pumpAnnouncerQueue();
+    return true;
+}
+
+function pumpAnnouncerQueue() {
+    const synth = announcerSynth();
+    if (!synth || announcerSpeaking || announcerQueue.length === 0) return;
+    const line = announcerQueue.shift();
+    const utterance = new SpeechSynthesisUtterance(line);
+    utterance.lang = ANNOUNCER_VOICE.lang;
+    utterance.rate = ANNOUNCER_VOICE.rate;
+    utterance.pitch = ANNOUNCER_VOICE.pitch;
+    const voice = pickAnnouncerVoice(typeof synth.getVoices === 'function' ? synth.getVoices() : []);
+    if (voice) utterance.voice = voice;
+    let finished = false;
+    const next = () => {
+        if (finished) return;
+        finished = true;
+        if (announcerSafetyTimer) { clearTimeout(announcerSafetyTimer); announcerSafetyTimer = null; }
+        announcerSpeaking = false;
+        pumpAnnouncerQueue();
+    };
+    utterance.onend = next;
+    utterance.onerror = next;
+    announcerSpeaking = true;
+    // Filet : certains navigateurs n'émettent jamais `end` ; la file ne reste pas bloquée.
+    if (typeof setTimeout === 'function') announcerSafetyTimer = setTimeout(next, ANNOUNCER_VOICE.safetyBaseMs + ANNOUNCER_VOICE.safetyPerCharMs * line.length);
+    synth.speak(utterance);
+}
+
 function stopAnnouncerVoice() {
+    announcerQueue = [];
+    announcerSpeaking = false;
+    if (announcerSafetyTimer) { clearTimeout(announcerSafetyTimer); announcerSafetyTimer = null; }
     const synth = typeof speechSynthesis !== 'undefined' ? speechSynthesis : null;
     if (synth && typeof synth.cancel === 'function') synth.cancel();
 }

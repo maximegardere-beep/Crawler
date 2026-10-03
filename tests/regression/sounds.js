@@ -1,6 +1,6 @@
 // sounds.js — tests régression : chantier 8, lot 0 (catalogue ZzFX, lecture par playSfx(), coupure du son et de la
 // voix du présentateur, boutons 🔊/🎙️, page d'écoute). Voir sounds.js et CHANTIERS.md (chantier 8).
-const { assert, resetTransientState } = require('./_helpers.js');
+const { assert, resetTransientState, withEncounterIntro } = require('./_helpers.js');
 
 // Faux AudioContext minimal : compte les contextes créés et les sons lancés.
 function withFakeAudio(fn) {
@@ -271,3 +271,103 @@ withFakeAudio(stats => {
         resetTransientState();
     }
 }
+
+// --- Lot 3 : voix du présentateur ---
+{
+    assert(cleanAnnouncerText("🏆 Succès débloqué : <b>[Test]</b> +20 PO ⚔️ !") === "Succès débloqué : Test +20 pièces d'or !", "cleanAnnouncerText() : sans emoji, balise ni crochet, « PO » en toutes lettres");
+    assert(cleanAnnouncerText(null) === '' && cleanAnnouncerText('  📺  ') === '', "cleanAnnouncerText() : texte vide -> chaîne vide");
+    const voices = [{ lang: 'en-US', name: 'en' }, { lang: 'fr-CA', name: 'ca' }, { lang: 'fr_FR', name: 'fr' }];
+    assert(pickAnnouncerVoice(voices).name === 'fr' && pickAnnouncerVoice(voices.slice(0, 2)).name === 'ca' && pickAnnouncerVoice([{ lang: 'en-US' }]) === null && pickAnnouncerVoice(undefined) === null, "pickAnnouncerVoice() : fr-FR, sinon une voix française, sinon aucune");
+    assert(typeof speechSynthesis === 'undefined' && speakAnnouncer('Bonjour') === false, "speakAnnouncer() : sans synthèse vocale, rien et aucune erreur");
+}
+
+// Fausse synthèse vocale : enregistre les répliques ; `end()` termine la réplique en cours.
+function withFakeVoice(fn) {
+    const spoken = [];
+    let current = null;
+    const realTimeout = global.setTimeout;
+    global.setTimeout = () => 0; // le filet de sécurité ne se déclenche pas pendant le test
+    global.SpeechSynthesisUtterance = function (text) { this.text = text; };
+    global.speechSynthesis = {
+        speak(u) { spoken.push(u); current = u; },
+        cancel() { current = null; },
+        getVoices() { return [{ lang: 'fr-FR', name: 'Thomas' }]; }
+    };
+    const end = () => { const u = current; current = null; if (u && u.onend) u.onend(); };
+    try { fn(spoken, end); } finally {
+        stopAnnouncerVoice();
+        delete global.speechSynthesis;
+        delete global.SpeechSynthesisUtterance;
+        global.setTimeout = realTimeout;
+        setSoundMuted(false);
+        setVoiceMuted(false);
+    }
+}
+
+withFakeVoice((spoken, end) => {
+    setSoundMuted(false); setVoiceMuted(false);
+    assert(speakAnnouncer('📺 Première réplique') === true && spoken.length === 1 && spoken[0].text === 'Première réplique', "Voix : la réplique est prononcée, nettoyée");
+    assert(spoken[0].lang === 'fr-FR' && spoken[0].voice && spoken[0].voice.name === 'Thomas', "Voix : français, voix française de l'appareil");
+    speakAnnouncer('Deuxième'); speakAnnouncer('Troisième');
+    assert(spoken.length === 1, "Voix : jamais deux répliques à la fois");
+    end();
+    assert(spoken.length === 2 && spoken[1].text === 'Deuxième', "Voix : la suivante attend la fin de la précédente");
+    speakAnnouncer('Interruption', { interrupt: true });
+    assert(spoken.length === 3 && spoken[2].text === 'Interruption', "Voix : `interrupt` vide la file et parle tout de suite");
+    end();
+    assert(spoken.length === 3, "Voix : la file a bien été vidée par l'interruption");
+    ['a', 'b', 'c', 'd', 'e'].forEach(t => speakAnnouncer(t));
+    end(); end(); end(); end();
+    assert(spoken.map(u => u.text).slice(3).join('') === 'acde', "Voix : au-delà de maxQueue en attente, les plus anciennes sautent");
+    end();
+
+    setVoiceMuted(true);
+    assert(speakAnnouncer('Silence') === false, "Voix coupée (🎙️) : rien n'est prononcé");
+    setVoiceMuted(false); setSoundMuted(true);
+    assert(speakAnnouncer('Silence') === false, "Tous les sons coupés (🔊) : la voix se tait aussi");
+    setSoundMuted(false);
+});
+
+// Branchements : émission DeathWatch, succès, écran de rencontre.
+withFakeVoice((spoken, end) => {
+    const texts = () => spoken.map(u => u.text);
+    resetTransientState();
+    triggerShow({ mobsKilled: 3, damageTaken: 20, itemsFound: 1, xpGained: 30, traps: 0 });
+    const tauntSpoken = cleanAnnouncerText(gameState.pendingShow.text);
+    assert(texts()[0] === tauntSpoken, "Émission : le présentateur lit sa pique");
+    end();
+    answerShow('polite');
+    assert(spoken.length === 2 && SHOW_REACTIONS.polite.map(cleanAnnouncerText).includes(texts()[1]), "Émission : le présentateur réagit à la réponse");
+    end();
+    showAchievementToast([{ icon: '🏆', title: 'Crawler du mois' }]);
+    assert(texts()[2] === 'Succès débloqué : Crawler du mois !', "Succès : le présentateur l'annonce");
+    end();
+    resetTransientState();
+});
+
+// Écran de rencontre : accord du son puis le présentateur lit titre et réplique.
+withFakeVoice((spoken) => {
+    const realPlay = playSfx;
+    const played = [];
+    global.playSfx = key => { played.push(key); return true; };
+    global.requestAnimationFrame = () => 0;
+    try {
+        resetTransientState();
+        const enemy = generateMob(gameState.currentDistrict || Object.keys(districts)[0]);
+        withEncounterIntro(() => {
+            assert(showEncounterIntro('spotted', enemy, null) === true, "Rencontre : l'écran s'ouvre");
+            assert(played.includes('encounterSting'), "Rencontre : coup de théâtre sonore");
+            const said = spoken.length ? spoken[spoken.length - 1].text : '';
+            assert(said.includes(cleanAnnouncerText(ui.encounterTitle.innerText)) && said.includes(cleanAnnouncerText(ui.encounterLine.innerText)), "Rencontre : le présentateur lit le titre et la réplique");
+            dismissEncounterIntro(true);
+            played.length = 0;
+            showEncounterIntro('boss', Object.assign({}, Object.values(districtBosses)[0], { isBoss: true }), null);
+            assert(played.includes('bossSting'), "Arrivée d'un boss : accord grave");
+            dismissEncounterIntro(true);
+        });
+    } finally {
+        global.playSfx = realPlay;
+        delete global.requestAnimationFrame;
+        resetTransientState();
+    }
+});

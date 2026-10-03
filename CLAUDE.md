@@ -43,7 +43,9 @@ Tailwind CDN, **aucun build step**.
   `sfxQueuedStart()`, écart max `SFX_QUEUE_MAX_GAP`), joués par `sellItem()`/`sellSpell()`, `storeLootItem()`, `useConsumable()`,
   `buyShopItem()`/`trainSkill()`, `gainXp()`/`gainSkillXp()`, `showAchievementToast()`, `settleMinigame()` (`SFX_MINIGAME_OUTCOMES`),
   `springTrap()`, `attemptFlee()`, `restAtSafehouse()`, `showEncounterIntro()`, `triggerFloorTransition()`, `gameOver()`, `winGame()` ;
-  chargé après `minigames-ui.js`, avant `app.js`
+  **voix du présentateur (lot 3)** : `speakAnnouncer(text, { interrupt })` (`speechSynthesis`, file d'une réplique à la fois,
+  `cleanAnnouncerText()`, `pickAnnouncerVoice()`, réglages `ANNOUNCER_VOICE`), appelée par `triggerShow()`/`answerShow()`,
+  `showAchievementToast()`, `showEncounterIntro()` ; voir `NOTES_SONS.md` ; chargé après `minigames-ui.js`, avant `app.js`
 - `minigames-ui.js` — hôte DOM des mini-jeux (`startMinigame()`, bande du bas, minuterie, rendus `MINIGAME_RENDERERS`,
   réglage Jouer / Réduit / Jet automatique) ; chargé après `fx.js`, avant `app.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
@@ -68,7 +70,7 @@ Tailwind CDN, **aucun build step**.
 - `tests/` — voir plus bas
 - `CHANTIERS.md` — registre des chantiers (statut, décisions, point d'étape, voir « Chantiers »)
 - `NOTES_*.md` — notes détaillées d'un chantier (diagnostic, chiffres, tests, « À surveiller en playtest ») :
-  `COMPAGNONS`, `ORIGINES`, `DEBUT_DE_PARTIE`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
+  `COMPAGNONS`, `ORIGINES`, `DEBUT_DE_PARTIE`, `SONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
   chantiers antérieurs au registre `COMBAT`, `LISIBILITE_COMBAT`, `QOL_EQUILIBRAGE`
 
 ## Architecture (résumé)
