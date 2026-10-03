@@ -62,7 +62,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 10 | Expansion de la banque d'objets + refonte de la rareté | L | #32 | `NOTES_ITEMS.md` (section « Chantier 10 ») |
 | 11 | Nouveaux sorts (effets et utilitaires) | M | #32 | `NOTES_SORTS.md` |
 | 12 | Villes explorables (étages urbains sur le modèle de la carte) | XL | prochaine PR | `NOTES_VILLES.md` |
-| 8 | Sons (ZzFX + voix du présentateur) | M | prochaine PR | `NOTES_SONS.md` |
+| 8 | Sons (ZzFX + recettes Web Audio) | M | prochaine PR | `NOTES_SONS.md` |
 
 ### Chantiers antérieurs au registre
 
@@ -96,7 +96,7 @@ Leviers à regarder en premier ; le détail est dans la section « À surveiller
 - **Objets** (10) : rareté (Légendaire « miracle » avant l'étage 10), économie (un Légendaire vaut ~20× un
   Commun), taux de proc des qualificatifs.
 - **Sons** (8) : écoute réelle de tous les sons (composés sans écoute), volume combat / événements, fatigue
-  d'écoute, qualité de la voix selon le téléphone, déblocage du son sur iOS.
+  d'écoute, déblocage du son sur iOS.
 - **Sorts** (11) : combo Bouclier de Mana + Soin Express, Pas de l'Ombre et le kiting, étourdissement à 30 %.
 - **Hérité du backlog** (`CLAUDE.md`) : table D100 des événements, furtivité, boss plus punitifs que les mobs
   en fin de run, économie urbaine.
@@ -386,14 +386,13 @@ un nouveau type de salle = une entrée de `ROOM_TYPES` (+ son effet dans `enterR
 **Demande** : intégrer des effets audio, par la méthode la plus simple.
 
 **Décisions** : sons **synthétisés par ZzFX** (aucun fichier audio, aucun CDN — tranche l'hébergement) ; bruitages
-de combat détaillés (famille d'arme, projectile, école de sort, cri par archétype) et d'événements ; **voix du
-présentateur partout** (`speechSynthesis`) ; son actif par défaut, bouton 🔊 (tout couper) et bouton 🎙️ (voix
-seule) dans l'en-tête ; page d'écoute ; catalogue composé par Claude, échantillon de 5 sons validé avant le code.
+de combat détaillés (famille d'arme, projectile, école de sort, cri par archétype) et d'événements ; son actif par défaut, bouton 🔊 (tout couper) dans
+l'en-tête ; page d'écoute ; catalogue composé par Claude, échantillon de 5 sons validé avant le code.
 Ambiance / musique non retenue.
 
 **Livré** (4 lots) : socle `sounds.js` + boutons + page d'écoute, 36 sons de combat, 18 sons d'événements (en file
-d'attente), voix du présentateur (piques et réactions DeathWatch, succès, écrans de rencontre) — voir
-`NOTES_SONS.md`.
+d'attente) — voir `NOTES_SONS.md`. La voix du présentateur (`speechSynthesis`, lot 3) a été codée puis **retirée** à la
+demande de l'utilisateur (rendu jugé horrible), avec son bouton 🎙️.
 
 **Suite — sons plus reconnaissables** (03/10/2026, codée) : comparaison de 5 sons en trois versions (ZzFX actuel,
 ZzFX en couches, recettes Web Audio). **Choix** : Web Audio pour le coup d'épée, les pièces d'or, l'arbalète, la potion

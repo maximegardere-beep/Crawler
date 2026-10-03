@@ -2,8 +2,8 @@
 // SONS (chantier 8, voir CHANTIERS.md) — bruitages synthétisés par ZzFX : aucun fichier audio,
 // aucun CDN. Un son = une liste de paramètres ZzFX (catalogue PUR `SFX_CATALOG`), joué par le
 // point d'entrée unique `playSfx(key)`. Sans `AudioContext` (tests Node), `playSfx()` ne fait rien
-// et renvoie false. Deux préférences d'écoute, jamais sauvegardées avec le crawler (localStorage) :
-// tout couper (`isSoundMuted()`) et couper la voix du présentateur seule (`isVoiceMuted()`).
+// et renvoie false. Une préférence d'écoute, jamais sauvegardée avec le crawler (localStorage) :
+// tout couper (`isSoundMuted()`). Pas de voix de synthèse (essayée puis retirée à la demande de l'utilisateur).
 // Chargé après minigames-ui.js, avant sounds-recipes.js (recettes Web Audio) et app.js (boutons, page d'écoute).
 // =========================================================================
 
@@ -172,9 +172,7 @@ function sfxSamples(def) {
 
 // --- Préférences d'écoute (réglage joueur, jamais dans gameState) ---
 const SOUND_MUTE_KEY = 'crawler_sound_muted';
-const VOICE_MUTE_KEY = 'crawler_voice_muted';
 let soundMutedValue = null;
-let voiceMutedValue = null;
 
 function readAudioPref(key) {
     try { return localStorage.getItem(key) === '1'; } catch (e) { return false; } // stockage indisponible : son actif
@@ -192,99 +190,6 @@ function isSoundMuted() {
 function setSoundMuted(on) {
     soundMutedValue = !!on;
     writeAudioPref(SOUND_MUTE_KEY, soundMutedValue);
-    if (soundMutedValue) stopAnnouncerVoice();
-}
-
-// La voix du présentateur se tait si elle est coupée OU si tout le son est coupé.
-function isVoiceMuted() {
-    if (voiceMutedValue === null) voiceMutedValue = readAudioPref(VOICE_MUTE_KEY);
-    return voiceMutedValue;
-}
-
-function setVoiceMuted(on) {
-    voiceMutedValue = !!on;
-    writeAudioPref(VOICE_MUTE_KEY, voiceMutedValue);
-    if (voiceMutedValue) stopAnnouncerVoice();
-}
-
-function announcerVoiceEnabled() {
-    return !isSoundMuted() && !isVoiceMuted();
-}
-
-// --- Voix du présentateur (lot 3) : synthèse vocale du navigateur (speechSynthesis), aucun fichier ---
-// File d'attente : jamais deux répliques à la fois ; au-delà de `maxQueue` répliques en attente, les plus anciennes
-// sautent. `interrupt` coupe la réplique en cours (nouvelle émission, nouvel écran de rencontre).
-const ANNOUNCER_VOICE = { lang: 'fr-FR', rate: 1.08, pitch: .9, maxQueue: 3, safetyBaseMs: 1500, safetyPerCharMs: 90 };
-let announcerQueue = [];
-let announcerSpeaking = false;
-let announcerSafetyTimer = null;
-
-function announcerSynth() {
-    return typeof speechSynthesis !== 'undefined' && speechSynthesis && typeof SpeechSynthesisUtterance === 'function' ? speechSynthesis : null;
-}
-
-// Texte prononçable (pure) : sans emoji, crochets, balises ni « PO » abrégé.
-function cleanAnnouncerText(text) {
-    return String(text == null ? '' : text)
-        .replace(/<[^>]*>/g, ' ')
-        .replace(/[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{FE0F}\u{200D}\u{20E3}]/gu, '')
-        .replace(/[\[\]{}*_]/g, '')
-        .replace(/(\d+)\s*PO\b/g, "$1 pièces d'or")
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-// Voix française de l'appareil (pure) : fr-FR d'abord, sinon toute voix française, sinon aucune (voix par défaut).
-function pickAnnouncerVoice(voices) {
-    const list = Array.isArray(voices) ? voices : [];
-    const lang = v => String((v && v.lang) || '').toLowerCase().replace('_', '-');
-    return list.find(v => lang(v) === 'fr-fr') || list.find(v => lang(v).startsWith('fr')) || null;
-}
-
-function speakAnnouncer(text, { interrupt = false } = {}) {
-    const synth = announcerSynth();
-    if (!synth || !announcerVoiceEnabled()) return false;
-    const line = cleanAnnouncerText(text);
-    if (!line) return false;
-    if (interrupt) stopAnnouncerVoice();
-    announcerQueue.push(line);
-    while (announcerQueue.length > ANNOUNCER_VOICE.maxQueue) announcerQueue.shift();
-    pumpAnnouncerQueue();
-    return true;
-}
-
-function pumpAnnouncerQueue() {
-    const synth = announcerSynth();
-    if (!synth || announcerSpeaking || announcerQueue.length === 0) return;
-    const line = announcerQueue.shift();
-    const utterance = new SpeechSynthesisUtterance(line);
-    utterance.lang = ANNOUNCER_VOICE.lang;
-    utterance.rate = ANNOUNCER_VOICE.rate;
-    utterance.pitch = ANNOUNCER_VOICE.pitch;
-    const voice = pickAnnouncerVoice(typeof synth.getVoices === 'function' ? synth.getVoices() : []);
-    if (voice) utterance.voice = voice;
-    let finished = false;
-    const next = () => {
-        if (finished) return;
-        finished = true;
-        if (announcerSafetyTimer) { clearTimeout(announcerSafetyTimer); announcerSafetyTimer = null; }
-        announcerSpeaking = false;
-        pumpAnnouncerQueue();
-    };
-    utterance.onend = next;
-    utterance.onerror = next;
-    announcerSpeaking = true;
-    // Filet : certains navigateurs n'émettent jamais `end` ; la file ne reste pas bloquée.
-    if (typeof setTimeout === 'function') announcerSafetyTimer = setTimeout(next, ANNOUNCER_VOICE.safetyBaseMs + ANNOUNCER_VOICE.safetyPerCharMs * line.length);
-    synth.speak(utterance);
-}
-
-function stopAnnouncerVoice() {
-    announcerQueue = [];
-    announcerSpeaking = false;
-    if (announcerSafetyTimer) { clearTimeout(announcerSafetyTimer); announcerSafetyTimer = null; }
-    const synth = typeof speechSynthesis !== 'undefined' ? speechSynthesis : null;
-    if (synth && typeof synth.cancel === 'function') synth.cancel();
 }
 
 // --- Lecture (Web Audio) ---

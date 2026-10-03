@@ -788,7 +788,6 @@ const ui = {
     encounterOverlay: document.getElementById('encounter-overlay'),
     encounterModeSelect: document.getElementById('encounter-mode-select'),
     btnSoundToggle: document.getElementById('btn-sound-toggle'),
-    btnVoiceToggle: document.getElementById('btn-voice-toggle'),
     btnOpenSoundLab: document.getElementById('btn-open-sound-lab'),
     soundLabOverlay: document.getElementById('sound-lab-overlay'),
     soundLabList: document.getElementById('sound-lab-list'),
@@ -3771,7 +3770,6 @@ function showAchievementToast(unlocked) {
     if (!ui.achievementToast || !unlocked.length) return;
     playSfx('achievementUnlock');
     const last = unlocked[unlocked.length - 1];
-    speakAnnouncer(unlocked.length > 1 ? `${unlocked.length} succès débloqués !` : `Succès débloqué : ${last.title} !`);
     ui.achievementToast.innerHTML = unlocked.length > 1
         ? `🏆 ${unlocked.length} succès débloqués ! <span class="opacity-80">${unlocked.map(d => d.icon).join(' ')}</span>`
         : `🏆 Succès débloqué : ${last.icon} ${last.title}`;
@@ -4021,7 +4019,6 @@ function triggerShow(lastFloor = {}) {
     gameState.showChoicePending = true;
     setSceneHeader('📺', SHOW_HOST.show, 'Émission', 'showStudio');
     logEvent(`📺 ${SHOW_HOST.show} — ${SHOW_HOST.name} : ${gameState.pendingShow.text}`, "info");
-    speakAnnouncer(gameState.pendingShow.text, { interrupt: true }); // voix du présentateur (chantier 8, lot 3)
     updateShowZone();
     if (ui.showZone) ui.showZone.classList.remove('hidden');
 }
@@ -4066,7 +4063,6 @@ function answerShow(toneKey) {
     if (toneKey === 'refuse') {
         const reaction = pickShowLine(SHOW_REACTIONS.refuse);
         logEvent(`Vous : ${pickShowLine(SHOW_REFUSALS)} — ${reaction}`, "info");
-        speakAnnouncer(reaction);
         s.showRefusals = (s.showRefusals || 0) + 1;
         recordRunEvent('show', { tone: 'refuse' });
         updateUI();
@@ -4082,7 +4078,6 @@ function answerShow(toneKey) {
         gameState.gold += gold;
         const reaction = pickShowLine(SHOW_REACTIONS.polite);
         logEvent(`${reaction} (+${gold} PO)`, "success");
-        speakAnnouncer(reaction);
         recordRunEvent('show', { tone: 'polite', success: true });
         updateUI();
         return { tone: 'polite', success: true };
@@ -4097,7 +4092,6 @@ function answerShow(toneKey) {
     if (success) {
         const reaction = pickShowLine(SHOW_REACTIONS.success[toneKey]);
         logEvent(reaction, "success");
-        speakAnnouncer(reaction);
         if (toneKey === 'insult') s.showInsultWins = (s.showInsultWins || 0) + 1;
         recordRunEvent('show', { tone: toneKey, success: true });
         openAchievementBox(a.box);
@@ -4107,7 +4101,6 @@ function answerShow(toneKey) {
 
     const reaction = pickShowLine(SHOW_REACTIONS.failure[toneKey]);
     logEvent(reaction, "danger");
-    speakAnnouncer(reaction);
     recordRunEvent('show', { tone: toneKey, success: false });
     if (a.fail === 'time') {
         // Jamais mortel : l'audience s'ennuie, elle ne tue pas (au moins 1 H reste toujours).
@@ -8995,39 +8988,20 @@ function setEncounterIntroMode(mode) {
 
 // =========================================================================
 // SONS : BOUTONS ET PAGE D'ÉCOUTE (chantier 8) — moteur et catalogue dans sounds.js.
-// 🔊 coupe tous les sons (voix comprise), 🎙️ la voix du présentateur seule ; préférences d'écoute
-// (localStorage), jamais sauvegardées avec le crawler.
+// 🔊 coupe tous les sons ; préférence d'écoute (localStorage), jamais sauvegardée avec le crawler.
 // =========================================================================
 function updateSoundToggleButtons() {
+    if (!ui.btnSoundToggle) return;
     const soundOff = isSoundMuted();
-    const voiceOff = isVoiceMuted();
-    if (ui.btnSoundToggle) {
-        ui.btnSoundToggle.innerText = soundOff ? '🔇' : '🔊';
-        ui.btnSoundToggle.setAttribute('aria-pressed', soundOff ? 'true' : 'false');
-        const label = soundOff ? 'Remettre les sons' : 'Couper les sons';
-        ui.btnSoundToggle.setAttribute('aria-label', label);
-        ui.btnSoundToggle.title = label;
-    }
-    if (ui.btnVoiceToggle) {
-        // Voix éteinte par elle-même ou par la coupure générale : bouton barré et estompé.
-        const silent = voiceOff || soundOff;
-        ui.btnVoiceToggle.innerText = '🎙️';
-        ui.btnVoiceToggle.classList.toggle('opacity-40', silent);
-        ui.btnVoiceToggle.classList.toggle('line-through', silent);
-        ui.btnVoiceToggle.setAttribute('aria-pressed', voiceOff ? 'true' : 'false');
-        const label = voiceOff ? 'Remettre la voix du présentateur' : 'Couper la voix du présentateur';
-        ui.btnVoiceToggle.setAttribute('aria-label', label);
-        ui.btnVoiceToggle.title = soundOff && !voiceOff ? `${label} (tous les sons sont coupés)` : label;
-    }
+    ui.btnSoundToggle.innerText = soundOff ? '🔇' : '🔊';
+    ui.btnSoundToggle.setAttribute('aria-pressed', soundOff ? 'true' : 'false');
+    const label = soundOff ? 'Remettre les sons' : 'Couper les sons';
+    ui.btnSoundToggle.setAttribute('aria-label', label);
+    ui.btnSoundToggle.title = label;
 }
 
 function toggleSoundMuted() {
     setSoundMuted(!isSoundMuted());
-    updateSoundToggleButtons();
-}
-
-function toggleVoiceMuted() {
-    setVoiceMuted(!isVoiceMuted());
     updateSoundToggleButtons();
 }
 
@@ -9089,7 +9063,6 @@ function showEncounterIntro(kind, enemy, onContinue) {
     ui.encounterHint.innerText = text.hint;
     ui.encounterBanner.style.borderColor = text.accent;
     playSfx(kind === 'boss' || kind === 'hunter' ? 'bossSting' : 'encounterSting');
-    speakAnnouncer(`${text.title}. ${text.line}`, { interrupt: true });
     if (typeof document.activeElement !== 'undefined' && document.activeElement && document.activeElement.blur) document.activeElement.blur(); // Entrée ne doit pas réactiver le bouton qui a mené ici
     closeInventorySheets();
     gameState.encounterIntroPending = true;
@@ -9333,7 +9306,6 @@ if (ui.combatZone) {
 // Sons (chantier 8) : boutons de coupure, page d'écoute, déverrouillage audio au premier geste.
 updateSoundToggleButtons();
 if (ui.btnSoundToggle) ui.btnSoundToggle.addEventListener('click', toggleSoundMuted);
-if (ui.btnVoiceToggle) ui.btnVoiceToggle.addEventListener('click', toggleVoiceMuted);
 if (ui.btnOpenSoundLab) ui.btnOpenSoundLab.addEventListener('click', openSoundLab);
 if (ui.btnCloseSoundLab) ui.btnCloseSoundLab.addEventListener('click', closeSoundLab);
 if (ui.soundLabList) {
