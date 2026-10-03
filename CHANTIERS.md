@@ -532,4 +532,5 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 - [x] Salle des Machines Infernales : Imprimante à Rêves (s'endort en imprimant des moutons), Ordinateur en Colère (se dispute avec sa souris qui s'enfuit), Câble Électrique Vivant (force sa prise dans une prise murale trop petite, câbles noués).
 - [x] Parking Souterrain Maudit : Voiture Abandonnée Rouillée (coincée entre deux piliers en voulant se garer), Horodateur Vengeur (couvre de contraventions le pare-brise d'une voiture garée), Cône de Chantier Fou (balise une « zone de travaux » autour d'une tache d'huile).
 - [x] Piscine Municipale Désaffectée : Maître-Nageur Zombifié (siffle un canard en plastique qui « court » au fond du bassin vide), Frite de Piscine Étrangleuse (s'entraîne à étrangler une bouée canard), Nuage de Chlore Ambulant (trempe ses bras dans le pédiluve, décolore un bonnet oublié).
-- [ ] Studio · puis les 3 chasseurs (face).
+- [x] Studio de Télé-Achat Abandonné : Mannequin Vitrine Possédé (essaie une perruque devant un écran éteint), Caméra de Surveillance Autonome (filme avec passion une plante en plastique), Présentateur Télé-Achat Hystérique (démonstration d'un éplucheur miracle devant des chaises vides).
+- [ ] Les 3 chasseurs de primes (face).

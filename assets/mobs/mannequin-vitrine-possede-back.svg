@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Mannequin Vitrine Possédé, Studio de Télé-Achat Abandonné, cadrage « dos » (tu l'as vu) : sous le projecteur,
+       il essaie une perruque blonde devant un écran éteint qui lui sert de miroir. Aucun texte. -->
+  <defs>
+    <pattern id="mannequin-vitrine-possede-b-curtain" width="60" height="140" patternUnits="userSpaceOnUse">
+      <rect width="60" height="140" fill="#261c22"/>
+      <rect x="0" width="15" height="140" fill="#1f171c"/>
+      <rect x="30" width="9" height="140" fill="#2d2128"/>
+      <rect x="47" width="5" height="140" fill="#1c1519"/>
+    </pattern>
+    <pattern id="mannequin-vitrine-possede-b-planks" width="110" height="40" patternUnits="userSpaceOnUse">
+      <rect width="110" height="40" fill="#221e20"/>
+      <rect y="37" width="110" height="3" fill="#120f11"/>
+      <rect y="18" width="110" height="2" fill="#1a1618"/>
+      <rect x="66" width="3" height="18" fill="#120f11"/>
+      <rect x="24" y="20" width="3" height="17" fill="#120f11"/>
+    </pattern>
+    <radialGradient id="mannequin-vitrine-possede-b-spot">
+      <stop offset="0" stop-color="#fde68a" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#fde68a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Rideau du fond et plafond technique -->
+  <rect x="0" y="0" width="750" height="640" fill="url(#mannequin-vitrine-possede-b-curtain)"/>
+  <rect x="0" y="0" width="750" height="80" fill="#0e0c0e"/>
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M0 76 H750" stroke="#3a3a40" stroke-width="12"/>
+    <path d="M0 36 H750" stroke="#2a2a30" stroke-width="6"/>
+    <rect x="400" y="76" width="44" height="36" rx="6" fill="#3a3a40" transform="rotate(10 422 94)"/>
+    <rect x="620" y="76" width="44" height="36" rx="6" fill="#3a3a40"/>
+  </g>
+  <!-- Néon « à l'antenne » (illisible) -->
+  <rect x="200" y="140" width="110" height="46" rx="8" fill="#1a1216" stroke="#05060c" stroke-width="5"/>
+  <rect x="194" y="134" width="122" height="58" rx="12" fill="#f43f5e" opacity="0.1"/>
+  <g fill="none" stroke="#f43f5e" stroke-width="5" stroke-linecap="round" opacity="0.7">
+    <path d="M214 156 h20 M214 170 h10 M248 156 v14 M262 163 h18 M292 156 v14"/>
+  </g>
+  <!-- Faisceau du projecteur sur le présentoir -->
+  <path d="M416 108 L300 640 L560 640 Z" fill="#fde68a" opacity="0.07"/>
+  <!-- Écran de contrôle éteint qui sert de miroir -->
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M610 470 v170 M580 640 h60" stroke="#2a2a30" stroke-width="10"/>
+    <rect x="540" y="300" width="150" height="176" rx="10" fill="#2e2e36"/>
+    <rect x="556" y="316" width="118" height="144" rx="6" fill="#121216"/>
+  </g>
+  <!-- reflet sombre : une tête à perruque, sans visage -->
+  <g opacity="0.35" stroke="none">
+    <ellipse cx="612" cy="404" rx="22" ry="28" fill="#8a7c62"/>
+    <path d="M584 400 q-6 -40 28 -46 q36 4 30 46 q-10 -22 -30 -22 q-20 0 -28 22 Z" fill="#b8902e"/>
+    <path d="M590 440 q22 -12 44 0 l6 20 h-56 Z" fill="#5a3366"/>
+  </g>
+  <path d="M566 330 l30 0 l-30 30 Z" fill="#ffffff" opacity="0.06"/>
+  <!-- Porte-perruque en polystyrène, perruque rose -->
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M250 640 v-120 M226 640 h48" stroke="#2a2a30" stroke-width="8"/>
+    <rect x="236" y="500" width="28" height="22" fill="#9a948a"/>
+    <ellipse cx="250" cy="478" rx="26" ry="32" fill="#a8a296"/>
+    <path d="M222 474 q-4 -48 30 -48 q32 2 28 50 q-6 -14 -28 -18 q-22 4 -30 16 Z" fill="#b65a8a"/>
+  </g>
+  <!-- Sol en planches -->
+  <rect x="0" y="640" width="750" height="694" fill="url(#mannequin-vitrine-possede-b-planks)"/>
+  <path d="M0 640 H750" stroke="#05060c" stroke-width="5"/>
+  <rect x="0" y="643" width="750" height="10" fill="#141113"/>
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.16"/>
+  <ellipse cx="430" cy="520" rx="210" ry="260" fill="url(#mannequin-vitrine-possede-b-spot)"/>
+  <!-- Rond de lumière au sol -->
+  <ellipse cx="430" cy="642" rx="130" ry="20" fill="#fde68a" opacity="0.1"/>
+  <ellipse cx="434" cy="642" rx="62" ry="10" fill="#05060c" opacity="0.5"/>
+  <!-- ===== LE MANNEQUIN, de dos, perruque en main ===== -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="translate(432 640) scale(0.42) rotate(3) translate(-412 -1000)">
+    <!-- socle et tige -->
+    <path d="M285 1000 Q290 968 410 962 Q530 962 540 994 L540 1016 Q530 1046 410 1048 Q290 1046 285 1018 Z" fill="#4e2c5a" stroke-width="10"/>
+    <ellipse cx="412" cy="996" rx="127" ry="32" fill="#7a4a8a" stroke-width="10"/>
+    <rect x="396" y="800" width="30" height="196" rx="6" fill="#7a4a8a" stroke-width="10"/>
+    <rect x="416" y="800" width="10" height="190" fill="#4e2c5a"/>
+    <!-- bras levés (dos) -->
+    <path d="M276 456 Q220 400 250 300" fill="none" stroke-width="58"/>
+    <path d="M276 456 Q220 400 250 300" fill="none" stroke="#d9cbb0" stroke-width="44"/>
+    <circle cx="250" cy="296" r="28" fill="#c9b994" stroke-width="9"/>
+    <path d="M534 456 Q590 400 560 300" fill="none" stroke-width="58"/>
+    <path d="M534 456 Q590 400 560 300" fill="none" stroke="#d9cbb0" stroke-width="44"/>
+    <circle cx="560" cy="296" r="28" fill="#c9b994" stroke-width="9"/>
+    <path d="M250 296 L282 70 M560 296 L528 70" fill="none" stroke-width="56"/>
+    <path d="M250 296 L282 70 M560 296 L528 70" fill="none" stroke="#d9cbb0" stroke-width="42"/>
+    <!-- buste, vu de dos -->
+    <path d="M262 440 Q236 560 300 720 L510 720 Q574 560 548 440 Q405 408 262 440 Z" fill="#d9cbb0" stroke-width="12"/>
+    <path d="M262 440 Q236 560 300 720 L330 720 Q280 580 300 440 Z" fill="#a8977a" stroke="none"/>
+    <path d="M405 430 Q398 520 405 600" fill="none" stroke="#a8977a" stroke-width="8"/>
+    <path d="M320 480 q30 40 60 16 M490 480 q-30 40 -60 16" fill="none" stroke="#a8977a" stroke-width="7"/>
+    <!-- robe violette, fermeture éclair du dos à moitié ouverte -->
+    <path d="M282 600 Q405 584 528 600 L604 838 Q410 880 206 838 Z" fill="#7a4a8a" stroke-width="12"/>
+    <path d="M282 600 L206 838 Q240 846 270 850 L320 604 Z" fill="#5a3366" stroke="none"/>
+    <path d="M390 594 L405 680 L420 594 Z" fill="#d9cbb0" stroke-width="6"/>
+    <path d="M405 680 V860" fill="none" stroke-width="7"/>
+    <path d="M396 700 h18 M396 724 h18 M396 748 h18 M396 772 h18 M396 796 h18 M396 820 h18" stroke="#c9b994" stroke-width="5"/>
+    <rect x="394" y="672" width="22" height="30" rx="5" fill="#c9b994" stroke-width="6"/>
+    <path d="M206 838 Q410 880 604 838" fill="none" stroke-width="12"/>
+    <!-- cou et collier de perles, fermoir sur la nuque -->
+    <rect x="372" y="380" width="62" height="70" fill="#c9b994" stroke-width="10"/>
+    <g fill="#e8e4d8" stroke-width="5">
+      <circle cx="380" cy="420" r="12"/><circle cx="426" cy="420" r="12"/>
+    </g>
+    <path d="M372 416 Q403 432 434 416" fill="none" stroke="#e8e4d8" stroke-width="7"/>
+    <rect x="394" y="416" width="18" height="16" rx="4" fill="#caa23a" stroke-width="5"/>
+    <!-- étiquette prix pendue à la nuque, qui se balance dans le dos -->
+    <path d="M403 432 q-30 50 -50 92" fill="none" stroke-width="5"/>
+    <g transform="translate(-60 0) rotate(18 430 544)">
+      <rect x="402" y="518" width="58" height="42" rx="6" fill="#e8e4d8" stroke-width="7"/>
+      <circle cx="412" cy="528" r="5" fill="#05060c" stroke="none"/>
+      <path d="M424 534 h26 M424 548 h18" stroke="#c23b3b" stroke-width="7"/>
+    </g>
+    <!-- crâne chauve, vu de derrière -->
+    <path d="M300 250 C300 160 346 116 408 116 C470 116 512 160 512 250 C512 340 470 400 408 400 C346 400 300 340 300 250 Z" fill="#d9cbb0" stroke-width="12"/>
+    <path d="M300 250 C300 170 340 124 392 118 C350 150 330 200 336 260 C340 320 360 370 400 400 C340 396 300 340 300 250 Z" fill="#b8a888" stroke="none"/>
+    <path d="M408 122 Q414 260 408 396" fill="none" stroke="#a8977a" stroke-width="6"/>
+    <!-- la perruque blonde soulevée au-dessus du crâne (on voit le dessous du bonnet) -->
+    <path d="M232 90 C214 -40 320 -96 410 -94 C506 -92 600 -36 578 92 C590 140 570 190 540 186 C548 140 530 110 500 96 Q405 70 310 96 C280 110 262 140 270 186 C238 190 220 140 232 90 Z" fill="#e8c25a" stroke-width="12"/>
+    <path d="M300 98 Q405 64 510 98 Q405 120 300 98 Z" fill="#8a6a20" stroke-width="8"/>
+    <g fill="none" stroke="#b8902e" stroke-width="9">
+      <path d="M280 10 q20 -16 38 2 M350 -40 q22 -16 42 0 M430 -46 q22 -12 40 6 M500 -10 q20 -4 28 16 M266 70 q8 -18 28 -12 M536 50 q18 -8 30 10 M246 130 q14 -6 22 8 M552 130 q12 -8 22 6"/>
+    </g>
+    <!-- mains qui tiennent la perruque -->
+    <ellipse cx="282" cy="70" rx="28" ry="24" fill="#d9cbb0" stroke-width="9"/>
+    <ellipse cx="528" cy="70" rx="28" ry="24" fill="#d9cbb0" stroke-width="9"/>
+  </g>
+  <!-- Petites étoiles de coquetterie -->
+  <g fill="#fde68a" stroke="#05060c" stroke-width="3" opacity="0.85">
+    <path d="M330 300 l4 -12 l4 12 l12 4 l-12 4 l-4 12 l-4 -12 l-12 -4 Z"/>
+    <path d="M520 262 l3 -9 l3 9 l9 3 l-9 3 l-3 9 l-3 -9 l-9 -3 Z"/>
+  </g>
+  <!-- Cachette : bord du rideau au premier plan, à gauche -->
+  <path d="M0 0 H150 Q120 400 160 760 Q190 1050 140 1334 H0 Z" fill="#160f13" stroke="#05060c" stroke-width="6"/>
+  <g fill="none" stroke="#0c080a" stroke-width="10">
+    <path d="M40 0 Q20 500 50 1334 M96 0 Q80 400 110 900"/>
+  </g>
+  <!-- Cachette : caméra de plateau vue de dos, à droite -->
+  <g stroke="#05060c" stroke-width="6">
+    <path d="M660 960 l-60 374 M660 960 l70 374" fill="none" stroke="#131216" stroke-width="18"/>
+    <rect x="560" y="800" width="200" height="150" rx="14" fill="#141317"/>
+    <rect x="590" y="826" width="90" height="70" rx="8" fill="#0c0b0e"/>
+    <circle cx="732" cy="826" r="8" fill="#5a1a24"/>
+    <path d="M560 880 h-50" stroke="#131216" stroke-width="16"/>
+  </g>
+  <rect x="0" y="1040" width="750" height="294" fill="#05060c" opacity="0.2"/>
+</svg>

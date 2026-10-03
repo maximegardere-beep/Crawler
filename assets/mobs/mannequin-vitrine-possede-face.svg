@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Mannequin Vitrine Possédé, Studio de Télé-Achat Abandonné, cadrage « face » (il t'a vu) : il saute de son
+       présentoir, yeux rouges de possédé et sourire peint impeccable, perles qui sautent. Aucun texte. -->
+  <defs>
+    <pattern id="mannequin-vitrine-possede-f-curtain" width="90" height="200" patternUnits="userSpaceOnUse">
+      <rect width="90" height="200" fill="#261c22"/>
+      <rect x="0" width="22" height="200" fill="#1f171c"/>
+      <rect x="44" width="14" height="200" fill="#2d2128"/>
+      <rect x="70" width="8" height="200" fill="#1c1519"/>
+    </pattern>
+    <pattern id="mannequin-vitrine-possede-f-planks" width="160" height="60" patternUnits="userSpaceOnUse">
+      <rect width="160" height="60" fill="#221e20"/>
+      <rect y="56" width="160" height="4" fill="#120f11"/>
+      <rect x="0" y="28" width="160" height="3" fill="#1a1618"/>
+      <rect x="96" width="4" height="28" fill="#120f11"/>
+      <rect x="36" y="31" width="4" height="25" fill="#120f11"/>
+    </pattern>
+    <radialGradient id="mannequin-vitrine-possede-f-spot">
+      <stop offset="0" stop-color="#fde68a" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#fde68a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Rideau de scène et plafond technique -->
+  <rect x="0" y="0" width="750" height="880" fill="url(#mannequin-vitrine-possede-f-curtain)"/>
+  <rect x="0" y="0" width="750" height="90" fill="#0e0c0e"/>
+  <g stroke="#05060c" stroke-width="6">
+    <path d="M0 84 H750" stroke="#3a3a40" stroke-width="14"/>
+    <path d="M0 40 H750" stroke="#2a2a30" stroke-width="8"/>
+    <rect x="70" y="84" width="58" height="46" rx="8" fill="#3a3a40" transform="rotate(18 99 107)"/>
+    <rect x="626" y="84" width="58" height="46" rx="8" fill="#3a3a40" transform="rotate(-18 655 107)"/>
+  </g>
+  <path d="M120 130 L40 880 L330 880 Z" fill="#fde68a" opacity="0.05"/>
+  <path d="M630 130 L420 880 L720 880 Z" fill="#fde68a" opacity="0.05"/>
+  <!-- Néon « à l'antenne » (illisible) -->
+  <rect x="120" y="170" width="150" height="62" rx="10" fill="#1a1216" stroke="#05060c" stroke-width="6"/>
+  <rect x="112" y="162" width="166" height="78" rx="14" fill="#f43f5e" opacity="0.12"/>
+  <g fill="none" stroke="#f43f5e" stroke-width="7" stroke-linecap="round" opacity="0.8">
+    <path d="M140 190 h26 M140 214 h18 M184 188 q16 14 0 28 M204 202 h22 M244 188 v28 M244 202 h8"/>
+  </g>
+  <!-- Décor en carton (fausse cuisine de démonstration) -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="20" y="520" width="170" height="250" fill="#3a2f28"/>
+    <rect x="44" y="550" width="122" height="88" fill="#2a2420"/>
+    <path d="M105 550 v88 M44 594 h122" stroke-width="5"/>
+    <rect x="44" y="670" width="122" height="20" fill="#4a3c32"/>
+    <path d="M190 520 l24 16 v250 l-24 -16 Z" fill="#2a221d"/>
+  </g>
+  <!-- Caméra de plateau -->
+  <g stroke="#05060c" stroke-width="6">
+    <path d="M650 610 l-30 270 M650 610 l30 270 M650 610 v270" fill="none" stroke="#2a2a30" stroke-width="10"/>
+    <rect x="590" y="520" width="140" height="90" rx="10" fill="#2e2e36"/>
+    <rect x="560" y="540" width="40" height="50" rx="6" fill="#26262c"/>
+    <circle cx="566" cy="565" r="14" fill="#141418"/>
+    <circle cx="704" cy="534" r="7" fill="#f43f5e"/>
+  </g>
+  <!-- Plancher de scène -->
+  <rect x="0" y="880" width="750" height="454" fill="url(#mannequin-vitrine-possede-f-planks)"/>
+  <path d="M0 880 H750" stroke="#05060c" stroke-width="6"/>
+  <rect x="0" y="884" width="750" height="14" fill="#141113"/>
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.18"/>
+  <ellipse cx="390" cy="620" rx="330" ry="420" fill="url(#mannequin-vitrine-possede-f-spot)"/>
+  <!-- Lignes de mouvement et poussière du saut -->
+  <g fill="none" stroke="#e8e4d8" stroke-width="5" stroke-linecap="round" opacity="0.4">
+    <path d="M640 300 h70 M660 340 h60 M630 820 h80 M600 860 h60"/>
+  </g>
+  <ellipse cx="420" cy="1006" rx="210" ry="28" fill="#05060c" opacity="0.5"/>
+  <g fill="#4a4048" stroke="#05060c" stroke-width="4" opacity="0.85">
+    <path d="M230 1010 q-30 -40 10 -50 q10 -36 50 -20 q30 -14 40 22 q24 30 -10 48 Z"/>
+    <path d="M560 1016 q30 -30 0 -50 q-14 -30 -46 -10 q-36 0 -26 34 q-6 30 30 34 Z"/>
+  </g>
+  <g fill="#6b5f68">
+    <circle cx="200" cy="930" r="8"/><circle cx="610" cy="920" r="7"/><circle cx="250" cy="900" r="5"/><circle cx="580" cy="950" r="5"/>
+  </g>
+  <!-- ===== LE MANNEQUIN ===== -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="translate(0 -28) rotate(-7 400 640)">
+    <!-- socle violet qui décolle en biais, tige -->
+    <path d="M285 1000 Q290 968 410 962 Q530 962 540 994 L540 1016 Q530 1046 410 1048 Q290 1046 285 1018 Z" fill="#4e2c5a" stroke-width="8"/>
+    <ellipse cx="412" cy="996" rx="127" ry="32" fill="#7a4a8a" stroke-width="8"/>
+    <rect x="396" y="800" width="30" height="196" rx="6" fill="#7a4a8a" stroke-width="8"/>
+    <rect x="396" y="800" width="10" height="190" fill="#4e2c5a"/>
+    <!-- bras arrière levé, poing serré, étiquette prix au poignet -->
+    <path d="M540 450 Q600 430 628 380" fill="none" stroke-width="54"/>
+    <path d="M540 450 Q600 430 628 380" fill="none" stroke="#d9cbb0" stroke-width="42"/>
+    <circle cx="630" cy="376" r="26" fill="#c9b994" stroke-width="7"/>
+    <path d="M630 376 L660 270" fill="none" stroke-width="48"/>
+    <path d="M630 376 L660 270" fill="none" stroke="#d9cbb0" stroke-width="36"/>
+    <path d="M636 262 q-6 -50 30 -56 q40 -2 42 38 q2 34 -32 40 q-30 4 -40 -22 Z" fill="#d9cbb0" stroke-width="8"/>
+    <path d="M648 230 q14 -6 26 4 M650 252 q14 -4 26 6" fill="none" stroke-width="5"/>
+    <path d="M664 300 q40 14 56 70" fill="none" stroke-width="4"/>
+    <g transform="rotate(24 722 392)">
+      <rect x="694" y="370" width="58" height="42" rx="6" fill="#e8e4d8" stroke-width="6"/>
+      <circle cx="704" cy="380" r="5" fill="#05060c" stroke="none"/>
+      <path d="M716 386 h26 M716 400 h18" stroke="#c23b3b" stroke-width="6"/>
+    </g>
+    <!-- buste beige -->
+    <path d="M262 440 Q236 560 300 720 L510 720 Q574 560 548 440 Q405 408 262 440 Z" fill="#d9cbb0" stroke-width="10"/>
+    <path d="M510 720 Q560 590 540 450 Q556 456 548 440 Q574 560 510 720 Z" fill="#a8977a" stroke="none"/>
+    <path d="M520 470 Q548 580 500 712 L470 712 Q520 590 496 460 Z" fill="#b8a888" stroke="none" opacity="0.7"/>
+    <path d="M300 520 q40 30 90 6 q50 26 100 -6" fill="none" stroke="#a8977a" stroke-width="6"/>
+    <!-- robe violette de vitrine -->
+    <path d="M282 600 Q405 584 528 600 L604 838 Q410 880 206 838 Z" fill="#7a4a8a" stroke-width="10"/>
+    <path d="M528 600 L604 838 Q570 846 540 850 L490 604 Z" fill="#5a3366" stroke="none"/>
+    <path d="M300 640 L250 830 M380 630 L360 854 M450 630 L470 852" fill="none" stroke="#5a3366" stroke-width="7"/>
+    <path d="M206 838 Q410 880 604 838" fill="none" stroke-width="10"/>
+    <!-- collier de perles qui casse : perles sur l'encolure et perles qui volent -->
+    <g fill="#e8e4d8" stroke-width="4">
+      <circle cx="300" cy="600" r="12"/><circle cx="326" cy="608" r="12"/><circle cx="352" cy="613" r="12"/>
+      <circle cx="378" cy="616" r="12"/><circle cx="404" cy="616" r="12"/><circle cx="430" cy="614" r="12"/>
+      <circle cx="456" cy="610" r="12"/>
+      <circle cx="500" cy="650" r="11"/><circle cx="532" cy="690" r="10"/><circle cx="582" cy="720" r="10"/>
+      <circle cx="626" cy="680" r="9"/><circle cx="660" cy="740" r="9"/><circle cx="560" cy="770" r="8"/>
+    </g>
+    <g fill="#ffffff" stroke="none"><circle cx="296" cy="596" r="4"/><circle cx="374" cy="611" r="4"/><circle cx="452" cy="605" r="4"/><circle cx="622" cy="676" r="3"/></g>
+    <!-- bras avant tendu vers nous, grande main crispée -->
+    <path d="M272 456 Q210 490 190 570" fill="none" stroke-width="58"/>
+    <path d="M272 456 Q210 490 190 570" fill="none" stroke="#d9cbb0" stroke-width="46"/>
+    <circle cx="188" cy="576" r="30" fill="#c9b994" stroke-width="7"/>
+    <path d="M186 590 L160 700" fill="none" stroke-width="66"/>
+    <path d="M186 590 L160 700" fill="none" stroke="#d9cbb0" stroke-width="54"/>
+    <path d="M100 716 Q96 682 128 674 L190 670 Q226 676 222 712 Q218 742 190 748 L128 750 Q100 746 100 716 Z" fill="#d9cbb0" stroke-width="9"/>
+    <path d="M110 700 Q70 690 64 726 Q60 744 84 744 L108 736 Z" fill="#d9cbb0" stroke-width="8"/>
+    <path d="M118 744 L96 806 Q92 822 108 824 Q120 822 124 810 L146 750 Z" fill="#d9cbb0" stroke-width="8"/>
+    <path d="M152 748 L146 822 Q146 838 162 836 Q174 834 174 820 L180 750 Z" fill="#d9cbb0" stroke-width="8"/>
+    <path d="M190 744 L206 810 Q212 826 226 820 Q238 814 232 800 L216 738 Z" fill="#d9cbb0" stroke-width="8"/>
+    <path d="M118 700 q40 -10 80 4" fill="none" stroke="#a8977a" stroke-width="6"/>
+    <!-- cou -->
+    <rect x="372" y="380" width="62" height="70" fill="#c9b994" stroke-width="9"/>
+    <!-- tête ovale de mannequin, fêlée -->
+    <path d="M300 250 C300 160 346 116 408 116 C470 116 512 160 512 250 C512 340 470 400 408 400 C346 400 300 340 300 250 Z" fill="#d9cbb0" stroke-width="11"/>
+    <path d="M470 140 C506 166 520 220 512 270 C504 340 470 388 420 400 C470 360 492 300 486 240 C482 196 478 166 470 140 Z" fill="#b8a888" stroke="none"/>
+    <path d="M440 120 L428 168 L448 196 L432 232" fill="none" stroke-width="6"/>
+    <path d="M444 124 L434 166 L454 194" fill="none" stroke="#f5efe2" stroke-width="3"/>
+    <!-- sourcils peints, furieux -->
+    <path d="M326 226 L392 252 M488 220 L428 250" fill="none" stroke-width="13"/>
+    <!-- yeux de possédé, rouge vif, braqués sur nous -->
+    <path d="M330 262 Q356 250 392 270 Q362 296 334 282 Z" fill="#c23b3b" stroke-width="7"/>
+    <path d="M488 258 Q462 248 428 268 Q456 294 484 278 Z" fill="#c23b3b" stroke-width="7"/>
+    <circle cx="362" cy="272" r="7" fill="#ffe4e4" stroke="none"/>
+    <circle cx="458" cy="268" r="7" fill="#ffe4e4" stroke="none"/>
+    <path d="M318 248 q-10 -8 -22 -4 M500 244 q10 -8 22 -2" fill="none" stroke="#c23b3b" stroke-width="5" opacity="0.6"/>
+    <!-- joues fardées et sourire peint, imperturbable -->
+    <ellipse cx="334" cy="318" rx="20" ry="11" fill="#e58a8a" stroke="none" opacity="0.6"/>
+    <ellipse cx="482" cy="314" rx="20" ry="11" fill="#e58a8a" stroke="none" opacity="0.6"/>
+    <path d="M370 334 Q392 324 410 332 Q428 324 448 334 Q432 360 410 360 Q386 360 370 334 Z" fill="#c23b3b" stroke-width="6"/>
+    <path d="M374 336 Q410 348 444 336" fill="none" stroke-width="4"/>
+  </g>
+  <!-- éclats du socle -->
+  <g fill="#7a4a8a" stroke="#05060c" stroke-width="3">
+    <path d="M270 990 l-30 -10 l10 -16 Z"/><path d="M560 980 l34 -6 l-8 18 Z"/>
+  </g>
+  <rect x="0" y="0" width="50" height="1334" fill="#05060c" opacity="0.25"/>
+  <rect x="700" y="0" width="50" height="1334" fill="#05060c" opacity="0.25"/>
+</svg>
