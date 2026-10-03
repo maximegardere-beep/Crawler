@@ -44,7 +44,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 |---|----------|---------|--------|------------|
 | 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Codé (à playtester) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
-| 8 | Sons | M | Planifié — lots 0 (socle, boutons 🔊/🎙️, page d'écoute) et 1 (combat) codés | lots 2-3 à coder ; écoute réelle des sons |
+| 8 | Sons | M | Planifié — lots 0 (socle, boutons 🔊/🎙️, page d'écoute), 1 (combat) et 2 (événements) codés | lot 3 (voix) à coder ; écoute réelle des sons |
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
@@ -379,7 +379,7 @@ premier étage urbain.
 Salles à choix narratif basé sur les compétences, sans fuite possible. Le chantier 5 a prévu la place :
 un nouveau type de salle = une entrée de `ROOM_TYPES` (+ son effet dans `enterRoom()`).
 
-## 8. Sons — M — Planifié (lots 0 et 1 codés)
+## 8. Sons — M — Planifié (lots 0 à 2 codés)
 
 **Demande** : intégrer des effets audio, par la méthode la plus simple.
 
@@ -425,8 +425,14 @@ un nouveau type de salle = une entrée de `ROOM_TYPES` (+ son effet dans `enterR
   `playMobAttackFx()` (fx.js, même sous mouvement réduit ; cri jamais répété dans un multi-coups, « touché » seulement
   si des PV sont réellement perdus), `playSpellBackfireFx()`, `playClassAbilityFx()`, `triggerHeavyImpact()` et
   `winCombat()`. Chiffres composés sans écoute : à ajuster via la page d'écoute.
-- **Lot 2** — interface/événements : butin, PO, piège, montée de niveau, boîte de succès, issues de
-  mini-jeux, escalier, Game Over, victoire.
+- **Lot 2 (codé)** — interface/événements : butin, PO, piège, montée de niveau, boîte de succès, issues de
+  mini-jeux, escalier, Game Over, victoire. **Livré** : 18 sons (groupes `event` « Butin et progression » et `world`
+  « Exploration et grands moments ») : PO (trouvées, revente, revente d'office), objet obtenu, achat/formation, potion,
+  niveau (un seul arpège même pour plusieurs niveaux), compétence, succès (toast), issues de mini-jeu (`SFX_MINIGAME_OUTCOMES`,
+  jamais en jet automatique), piège, fuite réussie, repos, écran de rencontre (accord grave pour boss et chasseurs),
+  escalier, Game Over, victoire. **File d'attente** : les sons de ces deux groupes s'enchaînent (au plus
+  `SFX_QUEUE_MAX_GAP` = 0,35 s d'écart, `sfxQueuedStart()`) au lieu de se superposer (victoire + niveau + butin) ; les
+  sons de combat partent toujours tout de suite.
 - **Lot 3** — voix du présentateur (`speechSynthesis`, voix française si dispo, coupée par le bouton
   muet) : piques/réactions DeathWatch, succès, écrans de rencontre ; file d'attente (jamais deux voix à la
   fois), no-op sans `speechSynthesis`.

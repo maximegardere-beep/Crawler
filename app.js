@@ -2420,6 +2420,7 @@ function useConsumable(index) {
     const manaAmount = item.mana || 0;
     const actualHeal = applyPlayerHeal(healAmount);
     gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaAmount);
+    playSfx('potionDrink');
     const parts = [];
     if (actualHeal > 0) parts.push(`${actualHeal} PV`);
     if (manaAmount > 0) parts.push(`${manaAmount} Mana`);
@@ -2456,6 +2457,7 @@ function sellItem(index) {
     const price = getSellPrice(item);
     gameState.gold += price;
     gameState.inventory.splice(index, 1);
+    playSfx('goldPickup');
     logEvent(`Vous vendez [${formatItemDisplayName(item)}] pour ${price} PO.`, "success");
     updateUI();
     updateInventoryUI();
@@ -2472,6 +2474,7 @@ function sellSpell(index) {
     const price = getSellPrice(spell);
     gameState.gold += price;
     gameState.spellbook.splice(index, 1);
+    playSfx('goldPickup');
     logEvent(`Vous vendez [${formatItemDisplayName(spell)}] pour ${price} PO.`, "success");
     updateUI();
     updateSpellbookUI();
@@ -2540,6 +2543,7 @@ function rollGoldAmount() {
 function springTrap(trap) {
     const dmg = applyTrialToDamage(applyStarterBuffToDamage(applyRaceDamageMods(Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin, 'trap')));
     applyPlayerDamage(dmg);
+    playSfx('trapSpring');
     setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
     logEvent(`${trap.text} (-${dmg} PV)`, "danger");
     recordRunEvent('trap');
@@ -2677,6 +2681,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         const gold = rollGoldAmount();
         gameState.gold += gold;
+        playSfx('goldPickup');
         setSceneHeader('💰', 'Pièces d\'Or', 'Butin', 'gold');
         logEvent(`${pick(flavorText.goldFind)} (+${gold} PO)`, "success");
         return;
@@ -3764,6 +3769,7 @@ function openAchievementBox(tierKey) {
 let achievementToastTimer = null;
 function showAchievementToast(unlocked) {
     if (!ui.achievementToast || !unlocked.length) return;
+    playSfx('achievementUnlock');
     const last = unlocked[unlocked.length - 1];
     ui.achievementToast.innerHTML = unlocked.length > 1
         ? `🏆 ${unlocked.length} succès débloqués ! <span class="opacity-80">${unlocked.map(d => d.icon).join(' ')}</span>`
@@ -4224,6 +4230,7 @@ function triggerFloorTransition() {
     const stats = gameState.floorStats;
     gameState.floorTransitionPending = true;
     ui.combatZone.classList.add('hidden');
+    playSfx('stairsDescend');
 
     if (ui.floorTransitionTitle) {
         ui.floorTransitionTitle.innerText = pick(FLOOR_TRANSITION_TITLES).replace('{{floor}}', completedFloor);
@@ -4715,6 +4722,7 @@ function storeLootItem(item, prefix = "") {
     if (item.category === 'scrolls') {
         gameState.spellbook.push(item);
         gameState.floorStats.itemsFound += 1;
+        playSfx('itemPickup');
         logEvent(`${prefix}Sort appris : [${formatItemDisplayName(item)}] !`, "loot");
         updateSpellbookUI();
         recordRunEvent('spellLearned', { item });
@@ -4725,6 +4733,7 @@ function storeLootItem(item, prefix = "") {
     if (isConsumable || equipmentCount < gameState.maxInventory) {
         gameState.inventory.push(item);
         gameState.floorStats.itemsFound += 1;
+        playSfx('itemPickup');
         logEvent(`${prefix}Objet obtenu : [${formatItemDisplayName(item)}] !`, "loot");
         updateInventoryUI();
         recordRunEvent('itemStored', { item });
@@ -4735,6 +4744,7 @@ function storeLootItem(item, prefix = "") {
     // objet signature, boîte de succès), donc la règle s'applique partout sans rien dupliquer.
     const price = getOverflowSellPrice(item);
     gameState.gold += price;
+    playSfx('goldPickup');
     logEvent(`${prefix}Réserve pleine : [${formatItemDisplayName(item)}] est revendu d'office pour ${price} PO (moitié du prix marchand).`, "info");
     recordRunEvent('overflowSold', { item, price });
     return false;
@@ -4820,6 +4830,7 @@ function gainXp(amount) {
 
     // On utilise une boucle "while" pour gérer le cas (rare) d'un gain d'XP
     // suffisant pour franchir plusieurs niveaux d'un coup.
+    if (gameState.xp >= gameState.xpToNextLevel) playSfx('levelUp'); // un seul arpège, même pour plusieurs niveaux
     while (gameState.xp >= gameState.xpToNextLevel) {
         gameState.xp -= gameState.xpToNextLevel;
         gameState.level += 1;
@@ -4853,6 +4864,7 @@ function gainSkillXp(skillKey, amount) {
     amount += gameState.anomalyEffects.skillXpPerActionBonus || 0; // TEMPO_CREE (anomalies.js)
 
     skill.xp += amount;
+    if (skill.xp >= skill.xpToNext) playSfx('skillUp');
     while (skill.xp >= skill.xpToNext) {
         skill.xp -= skill.xpToNext;
         skill.level += 1;
@@ -5307,6 +5319,7 @@ function buyShopItem(stockIndex) {
         logEvent(`Vous achetez [${formatItemDisplayName(item)}] pour ${item.price} PO.`, "success");
         updateInventoryUI();
     }
+    playSfx('shopBuy');
     recordRunEvent('purchase', { item });
     updateUI();
     updateShopUI();
@@ -5326,6 +5339,7 @@ function trainSkill() {
     }
 
     gameState.gold -= cost;
+    playSfx('shopBuy');
     const xpNeeded = skill.xpToNext - skill.xp;
     logEvent(`Vous payez ${cost} PO pour une formation intensive en ${skillLabel(city.specialty)}.`, "success");
     gainSkillXp(city.specialty, xpNeeded);
@@ -5853,6 +5867,7 @@ function restAtSafehouse(kind = 'nap') {
     const costNote = freeMeals ? "repas offerts par la maison, aucun temps perdu" : `-${cost}H`;
     const intro = kind === 'sleep' ? "Vous dormez à poings fermés" : "Vous piquez un petit somme";
     logEvent(`${intro} (${costNote}, +${healed} PV${manaNote}).`, "success");
+    playSfx('restSleep');
 
     // Le compagnon se repose aussi : même part de ses PV perdus (et il se relève s'il était à terre),
     // et un repos partagé renforce sa loyauté.
@@ -8589,6 +8604,7 @@ function attemptFlee() {
         gameState.fleesThisRun = (gameState.fleesThisRun || 0) + 1; // Voir generateEpitaph() : mention spéciale à 3+ fuites
         gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null, plotShield: false }; // Les statuts ne survivent pas au combat
         setSceneHeader('🏃', 'Fuite Réussie', 'Exploration', 'fled');
+        playSfx('fleeEscape');
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
         changeCompanionLoyalty(config.companions.loyalty.flee); // Fuir n'inspire pas confiance à votre compagnon
         recordRunEvent('flee');
@@ -9062,6 +9078,7 @@ function showEncounterIntro(kind, enemy, onContinue) {
     ui.encounterLine.innerText = text.line;
     ui.encounterHint.innerText = text.hint;
     ui.encounterBanner.style.borderColor = text.accent;
+    playSfx(kind === 'boss' || kind === 'hunter' ? 'bossSting' : 'encounterSting');
     if (typeof document.activeElement !== 'undefined' && document.activeElement && document.activeElement.blur) document.activeElement.blur(); // Entrée ne doit pas réactiver le bouton qui a mené ici
     closeInventorySheets();
     gameState.encounterIntroPending = true;
@@ -9144,6 +9161,7 @@ function gameOver(timeout = false, killer = null) {
     gameState.inCombat = true; // Bloque toute action supplémentaire
     ui.combatZone.classList.add('hidden'); // Cache la zone de combat
     triggerHeavyImpact(); // Chantier 4 : la mort du joueur est l'un des 4 moments à hiérarchie forte
+    playSfx('gameOverDirge');
 
     const reason = timeout
         ? "Le temps est écoulé. Le donjon s'effondre sur vous..."
@@ -9196,6 +9214,7 @@ function winGame() {
     gameState.inCombat = true; // Bloque toute action supplémentaire, même logique que gameOver()
     gameState.hasWon = true;
     ui.combatZone.classList.add('hidden');
+    playSfx('victoryFanfare');
 
     logEvent("🎉 Vous franchissez la Sortie et quittez le Donjon, vivant !", "success");
     logEvent("--- VICTOIRE ---", "success");

@@ -187,3 +187,87 @@ withFakeAudio(stats => {
         resetTransientState();
     }
 }
+
+// --- Lot 2 : catalogue des événements ---
+{
+    const has = key => !!SFX_CATALOG[key];
+    const lot2 = ['goldPickup', 'itemPickup', 'shopBuy', 'potionDrink', 'levelUp', 'skillUp', 'achievementUnlock', 'minigamePerfect', 'minigameSuccess',
+        'minigameFail', 'trapSpring', 'fleeEscape', 'restSleep', 'encounterSting', 'bossSting', 'stairsDescend', 'gameOverDirge', 'victoryFanfare'];
+    assert(lot2.every(has), "Sons d'événements : butin, progression, mini-jeux, exploration et grands moments au catalogue");
+    assert(MINIGAME_OUTCOMES.every(o => has(SFX_MINIGAME_OUTCOMES[o])), "Sons d'événements : chaque issue de mini-jeu a son son");
+    assert(lot2.every(k => SFX_QUEUED_GROUPS.includes(SFX_CATALOG[k].group)), "Sons d'événements : tous mis en file");
+    assert(['melee', 'ranged', 'spell', 'mob', 'impact'].every(g => !SFX_QUEUED_GROUPS.includes(g)), "Sons de combat : jamais mis en file");
+    assert(sfxQueuedStart(5, 3) === 5 && sfxQueuedStart(5, 5.3) === 5.3, "sfxQueuedStart() : tout de suite si la file est libre, sinon après le précédent");
+}
+
+// --- Lot 2 : file d'attente des événements ---
+{
+    const starts = [];
+    global.AudioContext = class {
+        constructor() { this.state = 'running'; this.destination = {}; this.currentTime = 10; }
+        createBuffer(channels, length) { const data = new Float32Array(length); return { getChannelData: () => data }; }
+        createBufferSource() { return { connect() {}, start(at) { starts.push(at); } }; }
+    };
+    try {
+        sfxQueueEnd = 0;
+        playSfx('mobDeath'); playSfx('levelUp'); playSfx('itemPickup'); playSfx('swordSlash');
+        assert(starts[0] === 10 && starts[1] === 10, "File : le combat et le premier événement partent tout de suite");
+        assert(Math.abs(starts[2] - (10 + SFX_QUEUE_MAX_GAP)) < 1e-9, "File : l'événement suivant attend le précédent (au plus SFX_QUEUE_MAX_GAP)");
+        assert(starts[3] === 10, "File : un son de combat n'attend jamais la file");
+        playSfx('goldPickup', { force: true });
+        assert(starts[4] === 10, "File : la page d'écoute joue tout de suite");
+    } finally {
+        delete global.AudioContext;
+        sfxAudioContext = null;
+        sfxQueueEnd = 0;
+    }
+}
+
+// --- Lot 2 : branchements (playSfx espionné) ---
+{
+    const realPlay = playSfx;
+    const played = [];
+    global.playSfx = key => { played.push(key); return true; };
+    const take = () => { const out = played.slice(); played.length = 0; return out; };
+    try {
+        resetTransientState();
+        gameState.gold = 0;
+        gameState.inventory = [{ name: 'Potion Test', category: 'consumables', heal: 10, baseValue: 10 }];
+        sellItem(0);
+        assert(take().includes('goldPickup'), "Revente : son des pièces");
+
+        gameState.inventory = [{ name: 'Potion Test', category: 'consumables', heal: 10, baseValue: 10 }];
+        useConsumable(0);
+        assert(take().includes('potionDrink'), "Potion bue : son de la potion");
+
+        storeLootItem({ name: 'Potion Test', category: 'consumables', heal: 10, baseValue: 10 });
+        assert(take().includes('itemPickup'), "Objet obtenu : son du butin");
+
+        gameState.hp = gameState.maxHp;
+        springTrap({ dmgMin: 1, dmgMax: 1, text: 'Un piège de test.' });
+        assert(take().includes('trapSpring'), "Piège : son du piège");
+
+        gameState.xp = 0;
+        gainXp(gameState.xpToNextLevel * 3);
+        assert(take().filter(k => k === 'levelUp').length === 1, "Plusieurs niveaux d'un coup : un seul arpège");
+        gainXp(1);
+        assert(!take().includes('levelUp'), "Gain d'XP sans niveau : pas d'arpège");
+
+        const skill = gameState.skills.weapon;
+        gainSkillXp('weapon', skill.xpToNext - skill.xp);
+        assert(take().includes('skillUp'), "Compétence améliorée : son du carillon");
+
+        showAchievementToast([{ icon: '🏆', title: 'Test' }]);
+        assert(take().includes('achievementUnlock'), "Succès débloqué : son du ta-da");
+
+        const spec = { kind: 'timing', icon: '🎯', label: 'Test' };
+        settleMinigame(spec, 'perfect', {}, () => {});
+        settleMinigame(spec, 'fail', {}, () => {});
+        assert(take().filter(k => k.startsWith('minigame')).join(',') === 'minigamePerfect,minigameFail', "Mini-jeu joué : son de son issue");
+        settleMinigame(spec, 'success', { auto: true }, () => {});
+        assert(!take().some(k => k.startsWith('minigame')), "Mini-jeu en jet automatique : silence");
+    } finally {
+        global.playSfx = realPlay;
+        resetTransientState();
+    }
+}

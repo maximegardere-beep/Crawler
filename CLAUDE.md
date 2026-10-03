@@ -39,7 +39,11 @@ Tailwind CDN, **aucun build step**.
   style de mêlée/projectile/école de sort et un cri par archétype (`SFX_MELEE_STYLES`, `SFX_PROJECTILES`, `SFX_SPELL_STYLES`,
   `SFX_MOB_CRIES`, `playerAttackSfxKey()`/`mobAttackSfxKey()`), joués par `playPlayerAttackFx()`/`playMobAttackFx()` (fx.js),
   `triggerHeavyImpact()`, `winCombat()` — toute nouvelle arme, sort ou archétype dont le style/projectile est nouveau doit avoir son son
-  (exigé par `tests/regression/sounds.js`) ; chargé après `minigames-ui.js`, avant `app.js`
+  (exigé par `tests/regression/sounds.js`) ; **événements (lot 2)** : groupes `event`/`world` mis en file (`SFX_QUEUED_GROUPS`,
+  `sfxQueuedStart()`, écart max `SFX_QUEUE_MAX_GAP`), joués par `sellItem()`/`sellSpell()`, `storeLootItem()`, `useConsumable()`,
+  `buyShopItem()`/`trainSkill()`, `gainXp()`/`gainSkillXp()`, `showAchievementToast()`, `settleMinigame()` (`SFX_MINIGAME_OUTCOMES`),
+  `springTrap()`, `attemptFlee()`, `restAtSafehouse()`, `showEncounterIntro()`, `triggerFloorTransition()`, `gameOver()`, `winGame()` ;
+  chargé après `minigames-ui.js`, avant `app.js`
 - `minigames-ui.js` — hôte DOM des mini-jeux (`startMinigame()`, bande du bas, minuterie, rendus `MINIGAME_RENDERERS`,
   réglage Jouer / Réduit / Jet automatique) ; chargé après `fx.js`, avant `app.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier

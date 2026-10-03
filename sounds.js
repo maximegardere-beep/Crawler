@@ -17,8 +17,13 @@ const SFX_GROUPS = {
     spell: 'Sorts',
     mob: 'Cris de mobs',
     impact: 'Impacts et fins de combat',
-    event: 'Événements'
+    event: 'Butin et progression',
+    world: 'Exploration et grands moments'
 };
+// Groupes mis en file (lot 2) : plusieurs événements le même instant (victoire + niveau + butin) s'enchaînent
+// au lieu de se superposer ; les sons de combat partent toujours tout de suite.
+const SFX_QUEUED_GROUPS = ['event', 'world'];
+const SFX_QUEUE_MAX_GAP = .35; // secondes au plus entre deux sons de la file
 
 const sfx = (group, label, use, params) => ({ group, label, use, params });
 
@@ -65,10 +70,30 @@ const SFX_CATALOG = {
     playerHurt:   sfx('impact', 'Crawler touché', 'Le crawler encaisse un coup.', [1.4, .05, 180, 0, .02, .12, 2, 1, -10, 0, 0, 0, 0, .5, 0, .1, 0, .5, 0]),
     mobDeath:     sfx('impact', 'Mob vaincu', 'Le mob s\'effondre.', [1.3, .05, 400, 0, .05, .35, 2, 1, -8, 0, 0, 0, 0, .3, 0, 0, 0, .6, 0]),
     bossDeath:    sfx('impact', 'Boss vaincu', 'Le boss s\'écroule dans un fracas.', [2, .05, 120, .02, .3, .9, 4, 1.5, -.6, 0, 0, 0, 0, 4, 0, .3, .1, .7, .05]),
-    // Événements (lot 2).
-    goldPickup:   sfx('event', "Pièces d'or", 'Des PO trouvées en explorant.', [1, .02, 1675, 0, .06, .24, 1, 1.82, 0, 0, 837, .06]),
-    levelUp:      sfx('event', 'Montée de niveau', 'Arpège joyeux et un peu ironique.', [1.8, 0, 392, .02, .28, .35, 1, 1, 0, 0, 131, .07, .36, 0, 0, 0, .08, .7, .02])
+    // Butin et progression (lot 2).
+    goldPickup:   sfx('event', "Pièces d'or", 'PO trouvées, revente, revente d\'office.', [1, .02, 1675, 0, .06, .24, 1, 1.82, 0, 0, 837, .06]),
+    itemPickup:   sfx('event', 'Objet obtenu', 'Un objet ou un sort rejoint le sac / le grimoire.', [1.2, .02, 880, 0, .05, .15, 1, 1, 0, 0, 440, .05, 0, 0, 0, 0, 0, .6, 0]),
+    shopBuy:      sfx('event', 'Achat', 'Tiroir-caisse du marchand.', [1.8, 0, 1200, 0, .04, .3, 1, 1.5, 0, 0, 600, .03, 0, 0, 0, 0, .05, .6, 0]),
+    potionDrink:  sfx('event', 'Potion', 'Glouglou d\'un consommable.', [1.2, .1, 300, 0, .15, .1, 0, 1, 8, 0, 0, 0, .05, 0, 0, 0, 0, .6, 0]),
+    levelUp:      sfx('event', 'Montée de niveau', 'Arpège joyeux et un peu ironique.', [1.8, 0, 392, .02, .28, .35, 1, 1, 0, 0, 131, .07, .36, 0, 0, 0, .08, .7, .02]),
+    skillUp:      sfx('event', 'Compétence améliorée', 'Petit carillon.', [1, 0, 660, .01, .08, .15, 0, 1, 0, 0, 220, .06, 0, 0, 0, 0, 0, .6, 0]),
+    achievementUnlock: sfx('event', 'Succès débloqué', 'Ta-da des sponsors.', [1.5, 0, 523, .02, .35, .4, 1, 1, 0, 0, 196, .1, 0, 0, 0, 0, .1, .7, 0]),
+    minigamePerfect: sfx('event', 'Mini-jeu : Parfait', 'Étincelles aiguës.', [2.2, 0, 1046, 0, .1, .3, 1, 1, 0, 0, 523, .04, .12, 0, 0, 0, .06, .6, 0]),
+    minigameSuccess: sfx('event', 'Mini-jeu : Réussi', 'Deux notes montantes.', [1.2, 0, 784, 0, .06, .15, 1, 1, 0, 0, 262, .05, 0, 0, 0, 0, 0, .6, 0]),
+    minigameFail: sfx('event', 'Mini-jeu : Raté', 'Buzzer de plateau télé.', [1.3, 0, 140, 0, .15, .15, 2, 1, -1, 0, 0, 0, 0, .1, 0, .1, 0, .7, 0]),
+    // Exploration et grands moments (lot 2).
+    trapSpring:   sfx('world', 'Piège', 'Déclic puis mâchoires d\'acier.', [1.8, .05, 200, 0, .02, .25, 4, 1, -4, 0, 0, 0, 0, 3, 0, .2, .02, .5, .02]),
+    fleeEscape:   sfx('world', 'Fuite réussie', 'Le crawler détale.', [1.2, .05, 200, .02, .1, .15, 0, 1, 12, 0, 0, 0, 0, 2, 0, 0, 0, .5, 0]),
+    restSleep:    sfx('world', 'Repos', 'Ronflement en salle sécurisée.', [1, .05, 90, .2, .3, .4, 0, 1, 1, 0, 0, 0, 0, .3, 0, 0, 0, .6, 0]),
+    encounterSting: sfx('world', 'Rencontre', 'Coup de théâtre de l\'écran de rencontre.', [1.6, 0, 180, 0, .15, .3, 2, 1, -1, 0, 90, .05, 0, .2, 0, .1, .08, .7, 0]),
+    bossSting:    sfx('world', 'Arrivée du boss', 'Accord grave et menaçant (boss, chasseur de primes).', [2, 0, 70, .02, .3, .6, 2, 1, -.3, 0, 35, .15, 0, .5, 2, .15, .15, .8, 0]),
+    stairsDescend: sfx('world', 'Escalier', 'Pas qui descendent vers l\'étage suivant.', [1.3, 0, 600, 0, .5, .1, 1, 1, 0, 0, -90, .09, .1, 0, 0, 0, 0, .6, 0]),
+    gameOverDirge: sfx('world', 'Game Over', 'Lamento qui s\'éteint.', [1.6, 0, 220, .05, .5, .7, 2, 1, -1.5, 0, 0, 0, 0, 0, 3, 0, .15, .7, 0, .2]),
+    victoryFanfare: sfx('world', 'Victoire', 'Fanfare de sortie du Donjon.', [1.8, 0, 392, .02, .5, .5, 1, 1, 0, 0, 196, .12, .25, 0, 0, 0, .1, .7, 0])
 };
+
+// Son d'issue d'un mini-jeu (perfect / success / fail) — pure.
+const SFX_MINIGAME_OUTCOMES = { perfect: 'minigamePerfect', success: 'minigameSuccess', fail: 'minigameFail' };
 
 // Correspondances avec le catalogue des effets d'attaque (sprites/fx.js) : chaque style, projectile, école de sort et
 // archétype a son son (exigé par tests/regression/sounds.js).
@@ -175,6 +200,12 @@ function stopAnnouncerVoice() {
 
 // --- Lecture (Web Audio) ---
 let sfxAudioContext = null;
+let sfxQueueEnd = 0; // heure (contexte audio) à laquelle le dernier son de la file aura laissé la place
+
+// Heure de départ d'un son de la file (pure) : tout de suite si la file est libre, sinon après le précédent.
+function sfxQueuedStart(now, queueEnd) {
+    return Math.max(now, queueEnd);
+}
 
 function sfxAudioContextClass() {
     if (typeof AudioContext === 'function') return AudioContext;
@@ -208,7 +239,14 @@ function playSfx(key, { force = false } = {}) {
         const source = sfxAudioContext.createBufferSource();
         source.buffer = buffer;
         source.connect(sfxAudioContext.destination);
-        source.start();
+        const now = sfxAudioContext.currentTime || 0;
+        if (SFX_QUEUED_GROUPS.includes(def.group) && !force) {
+            const at = sfxQueuedStart(now, sfxQueueEnd);
+            sfxQueueEnd = at + Math.min(data.length / SFX_SAMPLE_RATE, SFX_QUEUE_MAX_GAP);
+            source.start(at);
+        } else {
+            source.start(now);
+        }
         return true;
     } catch (e) {
         return false;
