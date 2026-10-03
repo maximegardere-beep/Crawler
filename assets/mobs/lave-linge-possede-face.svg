@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Lave-Linge Possédé, Catacombes des Chaussettes Perdues, cadrage « face ». Aucun texte. -->
+  <defs>
+    <pattern id="lave-linge-possede-f-pierre" width="96" height="56" patternUnits="userSpaceOnUse">
+      <rect width="96" height="56" fill="#2a2622"/>
+      <rect x="1.5" y="1.5" width="44" height="25" rx="3" fill="#36312a"/>
+      <rect x="49.5" y="1.5" width="44" height="25" rx="3" fill="#3b352d"/>
+      <rect x="-21" y="29.5" width="44" height="25" rx="3" fill="#3b352d"/>
+      <rect x="27" y="29.5" width="44" height="25" rx="3" fill="#36312a"/>
+      <rect x="73" y="29.5" width="44" height="25" rx="3" fill="#38322a"/>
+    </pattern>
+    <radialGradient id="lave-linge-possede-f-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7fd6f0" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#7fd6f0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur de pierre, voûte -->
+  <rect x="0" y="0" width="750" height="880" fill="url(#lave-linge-possede-f-pierre)"/>
+  <path d="M0 0 H750 V96 Q375 20 0 96 Z" fill="#100e0c"/>
+  <path d="M0 96 Q375 20 750 96" fill="none" stroke="#05060c" stroke-width="6"/>
+  <!-- Fil à linge et chaussettes orphelines -->
+  <path d="M-10 150 Q375 236 760 150" fill="none" stroke="#6b6f75" stroke-width="4"/>
+  <g stroke="#05060c" stroke-width="3" opacity="0.8">
+    <path d="M60 164 v40 q0 14 14 14 h20 v-14 h-14 v-40 Z" fill="#5a4a6b"/>
+    <path d="M170 182 v40 q0 14 14 14 h20 v-14 h-14 v-40 Z" fill="#6b3a30"/>
+    <path d="M560 182 v40 q0 14 14 14 h20 v-14 h-14 v-40 Z" fill="#4a5b3a"/>
+    <path d="M670 164 v40 q0 14 14 14 h20 v-14 h-14 v-40 Z" fill="#6b6040"/>
+  </g>
+  <!-- Niches à chaussettes -->
+  <g stroke="#05060c" stroke-width="6">
+    <path d="M30 640 V520 Q30 460 95 460 Q160 460 160 520 V640 Z" fill="#0d0c10"/>
+    <path d="M600 600 V480 Q600 420 665 420 Q730 420 730 480 V600 Z" fill="#0d0c10"/>
+  </g>
+  <g stroke="#05060c" stroke-width="3" opacity="0.7">
+    <path d="M52 560 v40 q0 12 12 12 h18 v-12 h-12 v-40 Z" fill="#3a5a6b"/>
+    <path d="M98 572 v36 q0 12 12 12 h18 v-12 h-12 v-36 Z" fill="#6b6040"/>
+    <path d="M622 520 v40 q0 12 12 12 h18 v-12 h-12 v-40 Z" fill="#6b3a30"/>
+    <path d="M668 532 v36 q0 12 12 12 h18 v-12 h-12 v-36 Z" fill="#5a4a6b"/>
+  </g>
+  <!-- Torches -->
+  <ellipse cx="96" cy="330" rx="120" ry="100" fill="#ffb347" opacity="0.08"/>
+  <ellipse cx="664" cy="300" rx="120" ry="100" fill="#ffb347" opacity="0.08"/>
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M84 360 L108 360 L100 410 L92 410 Z" fill="#3a2a1c"/>
+    <path d="M652 330 L676 330 L668 380 L660 380 Z" fill="#3a2a1c"/>
+    <path d="M96 356 C80 340 86 318 96 300 C106 318 114 338 96 356 Z" fill="#e8892a"/>
+    <path d="M664 326 C648 310 654 288 664 270 C674 288 682 308 664 326 Z" fill="#e8892a"/>
+  </g>
+  <!-- Sol dallé -->
+  <rect x="0" y="880" width="750" height="454" fill="#26221e"/>
+  <path d="M0 880 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#12100e" stroke-width="5" fill="none">
+    <path d="M0 940 H750 M0 1030 H750 M0 1160 H750"/>
+    <path d="M150 880 L60 1334 M320 880 L290 1334 M470 880 L520 1334 M620 880 L740 1334"/>
+  </g>
+  <rect x="0" y="0" width="60" height="1334" fill="#05060c" opacity="0.25"/>
+  <rect x="690" y="0" width="60" height="1334" fill="#05060c" opacity="0.25"/>
+  <!-- Aura savonneuse irrégulière -->
+  <path d="M120 360 C60 470 70 760 150 930 C260 1060 520 1060 640 920 C720 780 700 470 610 330 C520 230 220 240 120 360 Z" fill="#4aa8c9" opacity="0.10"/>
+  <path d="M170 420 C120 540 140 780 220 900 C320 990 500 980 580 880 C650 760 640 520 570 410 C490 320 250 320 170 420 Z" fill="#7fd6f0" opacity="0.10"/>
+  <g fill="none" stroke="#bfe9f5" stroke-width="5" opacity="0.6">
+    <circle cx="96" cy="760" r="16"/><circle cx="660" cy="720" r="12"/><circle cx="120" cy="250" r="10"/><circle cx="640" cy="470" r="18"/>
+  </g>
+  <!-- Ombre au sol et flaque de mousse -->
+  <ellipse cx="380" cy="1036" rx="270" ry="34" fill="#05060c" opacity="0.5"/>
+  <path d="M110 1040 C130 1010 200 1016 240 1026 C300 1004 360 1030 420 1020 C500 1006 600 1016 650 1040 C600 1062 480 1058 380 1062 C260 1066 150 1062 110 1040 Z" fill="#bfe3ef" opacity="0.5" stroke="#05060c" stroke-width="4"/>
+  <!-- Poussière et éclats de dalle -->
+  <g fill="#3e3830" stroke="#05060c" stroke-width="4">
+    <path d="M90 1000 l26 -18 l14 22 Z"/><path d="M640 990 l22 -20 l16 24 Z"/><path d="M600 1060 l18 -10 l8 14 Z"/>
+  </g>
+  <g fill="none" stroke="#6a6258" stroke-width="6" stroke-linecap="round" opacity="0.7">
+    <path d="M60 950 q30 -10 50 6"/><path d="M680 930 q-26 -12 -46 4"/>
+  </g>
+
+  <!-- LE LAVE-LINGE : il fonce vers nous en penchant, un pied levé -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="rotate(-6 380 700)">
+    <!-- Tuyau arraché qui fouette et arrose -->
+    <path d="M600 560 C700 520 730 420 690 330" fill="none" stroke-width="34"/>
+    <path d="M600 560 C700 520 730 420 690 330" fill="none" stroke="#7a7f84" stroke-width="24"/>
+    <path d="M600 560 C700 520 730 420 690 330" fill="none" stroke="#5a5f64" stroke-width="24" stroke-dasharray="6 14"/>
+    <g fill="none" stroke="#9fdcef" stroke-width="7" opacity="0.85">
+      <path d="M690 324 C690 280 670 250 640 236"/><path d="M694 322 C710 268 740 250 760 252"/><path d="M688 320 C690 280 680 250 660 230"/>
+    </g>
+    <!-- Pieds -->
+    <rect x="190" y="968" width="110" height="56" rx="10" fill="#8a8578" stroke-width="7"/>
+    <rect x="458" y="930" width="104" height="52" rx="10" fill="#8a8578" stroke-width="7" transform="rotate(-14 510 956)"/>
+    <!-- Flanc droit -->
+    <path d="M522 300 L618 344 L646 930 L562 980 Z" fill="#a8a395" stroke-width="10"/>
+    <path d="M560 420 L626 450 M566 540 L632 566 M572 660 L636 684" fill="none" stroke="#8a8578" stroke-width="6"/>
+    <!-- Façade -->
+    <path d="M196 320 L522 300 L562 980 L156 996 Z" fill="#d6d2c4" stroke-width="11"/>
+    <path d="M196 320 L522 300 L526 336 L198 356 Z" fill="#eae7dc" stroke="none"/>
+    <path d="M520 300 L562 980 L536 981 L498 302 Z" fill="#8a8578" stroke="none" opacity="0.35"/>
+    <!-- Bandeau de commandes -->
+    <path d="M200 356 L524 336 L530 448 L194 470 Z" fill="#c4bfb0" stroke-width="7"/>
+    <rect x="216" y="386" width="64" height="38" rx="14" fill="#8a8578" stroke-width="6"/>
+    <circle cx="322" cy="414" r="24" fill="#8a8578" stroke-width="6"/>
+    <path d="M322 414 L336 396" stroke-width="6"/>
+    <circle cx="378" cy="410" r="20" fill="#8a8578" stroke-width="6"/>
+    <path d="M378 410 L364 396" stroke-width="6"/>
+    <!-- Afficheur bleu : deux yeux furieux braqués sur nous -->
+    <ellipse cx="466" cy="392" rx="96" ry="66" fill="url(#lave-linge-possede-f-glow)" stroke="none"/>
+    <rect x="404" y="352" width="124" height="80" rx="10" fill="#12303c" stroke-width="7"/>
+    <path d="M416 376 L460 390 L458 418 L418 412 Z" fill="#4aa8c9" stroke-width="3"/>
+    <path d="M516 368 L472 388 L474 414 L514 406 Z" fill="#4aa8c9" stroke-width="3"/>
+    <circle cx="442" cy="404" r="7" fill="#e6fbff" stroke="none"/>
+    <circle cx="490" cy="399" r="7" fill="#e6fbff" stroke="none"/>
+    <path d="M412 364 L462 380 M520 356 L470 378" fill="none" stroke="#05060c" stroke-width="9"/>
+    <!-- Antenne -->
+    <path d="M250 334 L222 210 L196 168" fill="none" stroke-width="9"/>
+    <circle cx="190" cy="158" r="54" fill="url(#lave-linge-possede-f-glow)" stroke="none"/>
+    <circle cx="190" cy="158" r="20" fill="#4aa8c9" stroke-width="7"/>
+    <circle cx="183" cy="151" r="6" fill="#e6fbff" stroke="none"/>
+    <!-- Molettes du bas -->
+    <circle cx="232" cy="920" r="18" fill="#8a8578" stroke-width="6"/>
+    <circle cx="282" cy="922" r="18" fill="#8a8578" stroke-width="6"/>
+    <rect x="420" y="900" width="100" height="40" rx="6" fill="#c4bfb0" stroke-width="6"/>
+    <!-- Hublot = gueule : joint, cerclage, tambour plein de crocs -->
+    <circle cx="360" cy="680" r="190" fill="#8a8578" stroke-width="10"/>
+    <circle cx="360" cy="680" r="166" fill="#2a3a4a" stroke-width="8"/>
+    <circle cx="360" cy="680" r="140" fill="#0b1118" stroke-width="7"/>
+    <g fill="#d9e2e6" stroke-width="5">
+      <path d="M260 582 L300 600 L272 628 Z"/>
+      <path d="M352 541 L382 574 L342 580 Z"/>
+      <path d="M452 574 L438 616 L414 586 Z"/>
+      <path d="M498 690 L458 708 L462 668 Z"/>
+      <path d="M222 690 L262 672 L262 712 Z"/>
+      <path d="M440 790 L408 762 L446 748 Z"/>
+    </g>
+    <!-- Tourbillon d'eau savonneuse au fond du tambour -->
+    <path d="M226 720 C250 820 470 830 496 716 C460 760 400 760 360 742 C310 722 262 736 226 720 Z" fill="#4aa8c9" stroke-width="5"/>
+    <path d="M270 650 C300 610 380 600 420 640" fill="none" stroke="#4aa8c9" stroke-width="8" opacity="0.6"/>
+    <path d="M300 690 C330 668 380 668 404 694" fill="none" stroke="#7fd6f0" stroke-width="6" opacity="0.5"/>
+    <!-- Seconde chaussette qui tourne dans le tambour -->
+    <path d="M384 646 C404 632 428 640 426 660 L410 668 C406 656 396 654 388 660 Z" fill="#c94f5a" stroke-width="4"/>
+    <!-- La chaussette rouge : une langue qui pend hors de la gueule -->
+    <path d="M300 760 C296 820 292 880 304 930 C310 960 352 968 372 948 C384 934 376 914 358 908 C344 904 338 890 340 870 C344 830 350 800 360 770 Z" fill="#c94f5a" stroke-width="7"/>
+    <path d="M298 812 C318 818 336 818 352 812 M296 846 C316 852 334 852 346 846" fill="none" stroke="#8e2f3a" stroke-width="9"/>
+    <path d="M318 942 C328 956 352 958 366 946 C372 938 366 924 356 918 C344 928 330 934 318 942 Z" fill="#8e2f3a" stroke-width="4"/>
+    <!-- Mousse qui déborde de la lèvre -->
+    <g fill="#eef6f8" stroke-width="5">
+      <path d="M238 790 C226 770 252 756 266 768 C276 752 302 756 304 774 C312 770 322 780 316 792 C300 806 254 808 238 790 Z"/>
+      <path d="M380 794 C376 774 400 768 410 780 C424 768 448 778 444 796 C440 812 392 814 380 794 Z"/>
+      <path d="M250 800 C252 830 244 856 236 870 C230 880 244 886 250 876 C258 860 262 830 262 806 Z"/>
+      <path d="M422 806 C428 828 430 846 424 860 C420 870 434 874 438 864 C444 846 440 824 434 804 Z"/>
+    </g>
+    <!-- Porte du hublot arrachée, qui bat comme une mâchoire -->
+    <rect x="164" y="640" width="30" height="80" rx="6" fill="#8a8578" stroke-width="6"/>
+    <ellipse cx="128" cy="690" rx="60" ry="176" fill="#2a3a4a" stroke-width="9" transform="rotate(8 128 690)"/>
+    <ellipse cx="128" cy="690" rx="40" ry="144" fill="#4aa8c9" stroke-width="6" opacity="0.9" transform="rotate(8 128 690)"/>
+    <path d="M118 590 C108 640 110 690 118 740" fill="none" stroke="#e6fbff" stroke-width="8" opacity="0.7"/>
+  </g>
+  <!-- Bulles de savon (comme sur le sprite) -->
+  <g fill="#ffffff" stroke="#05060c" stroke-width="3">
+    <circle cx="560" cy="430" r="16" opacity="0.75"/><circle cx="592" cy="380" r="11" opacity="0.65"/><circle cx="534" cy="372" r="8" opacity="0.6"/>
+    <circle cx="200" cy="500" r="9" opacity="0.6"/><circle cx="640" cy="620" r="13" opacity="0.6"/>
+  </g>
+  <!-- Projectile : une chaussette crachée droit sur nous, depuis la gueule -->
+  <g fill="none" stroke="#9fdcef" stroke-width="7" stroke-linecap="round" opacity="0.75">
+    <path d="M470 720 L560 790"/><path d="M462 760 L548 840"/><path d="M480 690 L586 748"/>
+  </g>
+  <g stroke="#05060c" stroke-width="8" stroke-linejoin="round">
+    <path d="M572 760 L668 712 C690 702 712 714 712 738 L714 856 C716 884 702 906 676 912 L612 926 C588 930 572 910 584 892 C592 880 610 878 630 874 L640 806 L596 828 Z" fill="#c94f5a"/>
+    <path d="M580 774 L676 726 M588 798 L680 750" fill="none" stroke="#f0ece2" stroke-width="10"/>
+    <path d="M600 926 C584 924 576 906 590 894 C602 886 620 884 632 888 L628 920 Z" fill="#8e2f3a" stroke-width="5"/>
+  </g>
+  <g fill="#e6fbff" stroke="#05060c" stroke-width="3">
+    <circle cx="540" cy="740" r="10" opacity="0.7"/><circle cx="700" cy="660" r="9" opacity="0.7"/><circle cx="560" cy="870" r="7" opacity="0.6"/><circle cx="728" cy="940" r="8" opacity="0.6"/>
+  </g>
+  <!-- Vapeur de surchauffe -->
+  <g fill="#cfd6da" stroke="#05060c" stroke-width="4" opacity="0.8">
+    <path d="M420 300 C400 270 430 244 456 258 C470 232 512 240 510 270 C530 274 528 304 506 306 C480 314 440 316 420 300 Z"/>
+    <path d="M300 300 C290 280 310 266 326 276 C336 258 362 264 360 284 C370 292 362 306 348 306 C330 310 308 312 300 300 Z"/>
+  </g>
+</svg>

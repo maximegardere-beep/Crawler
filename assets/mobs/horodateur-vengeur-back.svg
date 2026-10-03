@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Horodateur Vengeur, Parking Souterrain Maudit, cadrage « back » : il colle contravention sur contravention sur une voiture garée. Aucun texte. -->
+  <defs>
+    <pattern id="horodateur-vengeur-b-beton" width="110" height="56" patternUnits="userSpaceOnUse">
+      <rect width="110" height="56" fill="#2c2e30"/>
+      <rect x="55" y="28" width="55" height="28" fill="#292b2d"/>
+      <rect x="0" y="0" width="55" height="28" fill="#2a2c2e"/>
+      <path d="M0 27 H110 M55 0 V27 M0 28 V56 M110 28 V56" stroke="#17181a" stroke-width="2.5"/>
+      <circle cx="22" cy="14" r="2" fill="#1f2022"/>
+      <circle cx="84" cy="42" r="2.5" fill="#1f2022"/>
+    </pattern>
+    <radialGradient id="horodateur-vengeur-b-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fbbf24" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#fbbf24" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Décor : mur de béton, poutrelles, néon, numéros de place, pilier rayé -->
+  <rect x="0" y="0" width="750" height="650" fill="url(#horodateur-vengeur-b-beton)"/>
+  <rect x="0" y="0" width="750" height="80" fill="#18191b"/>
+  <g stroke="#05060c" stroke-width="4">
+    <rect x="-10" y="78" width="770" height="20" fill="#202124"/>
+    <path d="M120 0 V78 M380 0 V78 M620 0 V78" stroke="#202124" stroke-width="18"/>
+  </g>
+  <g stroke="#05060c" stroke-width="4">
+    <rect x="150" y="116" width="170" height="15" rx="7" fill="#c9d6e6"/>
+    <rect x="460" y="116" width="140" height="15" rx="7" fill="#4f5964"/>
+    <path d="M176 98 v18 M296 98 v18 M486 98 v18 M576 98 v18"/>
+  </g>
+  <ellipse cx="235" cy="160" rx="200" ry="70" fill="#dbeafe" opacity="0.07"/>
+  <g fill="#a3a3a3" opacity="0.16">
+    <path d="M146 222 h44 l-5 18 h-33 Z M198 224 h18 v34 h-18 Z M152 250 h32 l3 26 h-38 Z M226 228 l26 -5 l7 22 l-29 8 Z M204 264 h48 l-7 18 h-37 Z"/>
+    <path d="M496 224 h42 l-4 16 h-35 Z M546 220 h22 v38 h-22 Z M500 250 h34 l2 26 h-38 Z M576 226 l28 3 l-3 24 l-27 -3 Z M548 266 h54 l-8 16 h-42 Z"/>
+    <rect x="146" y="292" width="118" height="7"/><rect x="496" y="292" width="118" height="7"/>
+  </g>
+  <g stroke="#05060c" stroke-width="5">
+    <rect x="440" y="98" width="60" height="552" fill="#303236"/>
+    <rect x="440" y="520" width="60" height="110" fill="#141414"/>
+  </g>
+  <g fill="#8a7424" opacity="0.8"><rect x="442" y="530" width="56" height="11"/><rect x="442" y="556" width="56" height="11"/><rect x="442" y="582" width="56" height="11"/><rect x="442" y="608" width="56" height="11"/></g>
+  <!-- Sol : béton, lignes de place, flèche -->
+  <rect x="0" y="650" width="750" height="684" fill="#27292b"/>
+  <path d="M0 650 H750" stroke="#05060c" stroke-width="5"/>
+  <g stroke="#8a7424" stroke-width="10" opacity="0.38">
+    <path d="M20 650 L-120 1334 M430 650 L560 1334"/>
+  </g>
+  <path d="M120 900 H300 V878 L364 918 L300 958 V936 H120 Z" fill="#d4d4d4" opacity="0.1"/>
+  <!-- Ombres au sol -->
+  <ellipse cx="226" cy="676" rx="210" ry="18" fill="#05060c" opacity="0.5"/>
+  <ellipse cx="500" cy="684" rx="96" ry="12" fill="#05060c" opacity="0.5"/>
+  <!-- LA VOITURE GARÉE, vue de face, couverte de contraventions -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-width="5">
+    <rect x="58" y="618" width="54" height="56" rx="8" fill="#16171a"/>
+    <rect x="338" y="618" width="54" height="56" rx="8" fill="#16171a"/>
+    <path d="M100 418 L350 418 L362 434 L88 434 Z" fill="#43474e"/>
+    <path d="M88 434 L362 434 L398 528 L52 528 Z" fill="#4a4f57"/>
+    <path d="M98 444 L352 444 L384 520 L66 520 Z" fill="#1a2430"/>
+    <path d="M110 452 L160 452 L104 512 L80 512 Z" fill="#2a3644" stroke="none"/>
+    <rect x="40" y="524" width="370" height="104" rx="22" fill="#4f535b"/>
+    <path d="M56 540 q170 -14 338 0" fill="none" stroke="#3b3e44" stroke-width="5"/>
+    <ellipse cx="94" cy="572" rx="30" ry="18" fill="#9a9c90"/>
+    <ellipse cx="356" cy="572" rx="30" ry="18" fill="#9a9c90"/>
+    <rect x="156" y="560" width="138" height="34" rx="6" fill="#26282c"/>
+    <path d="M178 562 v30 M202 562 v30 M226 562 v30 M250 562 v30 M274 562 v30" stroke-width="4"/>
+    <rect x="184" y="604" width="82" height="20" rx="3" fill="#b8b8ae"/>
+    <rect x="34" y="616" width="382" height="18" rx="8" fill="#3b3e44"/>
+    <path d="M100 524 L210 506 M250 524 L350 504" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <!-- Les contraventions collées sur le pare-brise et le capot -->
+  <g fill="#e8e4d8" stroke="#05060c" stroke-width="3.5" stroke-linejoin="round">
+    <rect x="120" y="456" width="44" height="26" rx="2" transform="rotate(-8 142 469)"/>
+    <rect x="176" y="462" width="44" height="26" rx="2" transform="rotate(6 198 475)"/>
+    <rect x="226" y="450" width="44" height="26" rx="2" transform="rotate(-4 248 463)"/>
+    <rect x="276" y="464" width="44" height="26" rx="2" transform="rotate(10 298 477)"/>
+    <rect x="140" y="486" width="44" height="26" rx="2" transform="rotate(12 162 499)"/>
+    <rect x="200" y="490" width="44" height="26" rx="2" transform="rotate(-10 222 503)"/>
+    <rect x="256" y="492" width="44" height="26" rx="2" transform="rotate(4 278 505)"/>
+    <rect x="318" y="488" width="44" height="26" rx="2" transform="rotate(-14 340 501)"/>
+    <rect x="96" y="530" width="44" height="26" rx="2" transform="rotate(-20 118 543)"/>
+    <rect x="300" y="532" width="44" height="26" rx="2" transform="rotate(16 322 545)"/>
+    <rect x="20" y="676" width="44" height="26" rx="2" transform="rotate(-30 42 689)"/>
+    <rect x="140" y="690" width="44" height="26" rx="2" transform="rotate(20 162 703)"/>
+    <rect x="300" y="684" width="44" height="26" rx="2" transform="rotate(-12 322 697)"/>
+  </g>
+  <g stroke="#6f6a5c" stroke-width="3" opacity="0.9">
+    <path d="M128 466 h24 M184 472 h24 M234 460 h24 M284 474 h24 M148 496 h24 M208 500 h24 M264 502 h24 M324 498 h24"/>
+  </g>
+  <!-- La lueur de son afficheur, qu'on ne voit pas, éclaire le pare-brise -->
+  <ellipse cx="400" cy="500" rx="110" ry="80" fill="url(#horodateur-vengeur-b-glow)"/>
+  <!-- L'HORODATEUR, de trois-quarts dos, penché sur la voiture, sur la pointe d'un pied -->
+  <g transform="rotate(-11 500 678)" stroke="#05060c" stroke-linejoin="round" stroke-width="5">
+    <!-- Pieds : l'un levé derrière (il fait des pointes) -->
+    <path d="M436 650 L492 652 L494 682 L434 680 Z" fill="#4a553a"/>
+    <path d="M518 640 L572 628 L584 656 L528 668 Z" fill="#4a553a" transform="rotate(-24 548 648)"/>
+    <!-- Antenne + voyant ambré (à sa gauche, donc à droite vu de dos) -->
+    <path d="M552 414 L562 344 L580 318" fill="none" stroke-width="7"/>
+    <circle cx="584" cy="310" r="40" fill="url(#horodateur-vengeur-b-glow)" stroke="none"/>
+    <circle cx="584" cy="310" r="15" fill="#fbbf24" stroke-width="5"/>
+    <circle cx="579" cy="305" r="4" fill="#fff6d0" stroke="none"/>
+    <!-- Chapeau à fente à pièces (vu de derrière) -->
+    <rect x="456" y="392" width="88" height="28" rx="6" fill="#4a553a"/>
+    <!-- Flanc gauche, côté fente à tickets -->
+    <path d="M398 434 L424 416 L424 656 L400 668 Z" fill="#4a553a"/>
+    <rect x="398" y="556" width="10" height="34" fill="#05060c" stroke="none"/>
+    <!-- Dos -->
+    <path d="M424 422 Q424 410 436 410 L570 410 Q582 410 582 422 L582 650 Q582 662 570 662 L436 662 Q424 662 424 650 Z" fill="#7c8a5a" stroke-width="7"/>
+    <path d="M566 418 L578 418 L578 654 L566 654 Z" fill="#6b7850" stroke="none"/>
+    <!-- Grille d'aération -->
+    <g stroke="#4a553a" stroke-width="5" stroke-linecap="round">
+      <path d="M448 436 H556 M448 450 H556 M448 464 H556"/>
+    </g>
+    <!-- Porte de service, cadenas -->
+    <rect x="446" y="492" width="112" height="146" rx="8" fill="#72804f" stroke="#4a553a" stroke-width="6"/>
+    <path d="M496 556 q0 -16 12 -16 q12 0 12 16" fill="none" stroke-width="5"/>
+    <rect x="490" y="554" width="36" height="28" rx="4" fill="#fbbf24" stroke-width="4"/>
+    <circle cx="508" cy="566" r="4" fill="#05060c" stroke="none"/>
+    <circle cx="456" cy="502" r="4" fill="#4a553a" stroke="none"/>
+    <circle cx="548" cy="628" r="4" fill="#4a553a" stroke="none"/>
+  </g>
+  <!-- Le ruban de contraventions qu'il crache jusqu'au pare-brise -->
+  <g stroke="#05060c" stroke-linejoin="round">
+    <path d="M412 566 L396 592 C370 586 356 566 362 540 L372 506 L394 508 L386 540 C382 556 392 566 412 566 Z" fill="#e8e4d8" stroke-width="4.5"/>
+    <path d="M370 530 h18 M368 546 h18 M372 562 l16 4" stroke="#6f6a5c" stroke-width="3"/>
+    <rect x="352" y="488" width="46" height="26" rx="2" fill="#f4f1e6" stroke-width="4" transform="rotate(-18 375 501)"/>
+    <path d="M358 498 h26" stroke="#6f6a5c" stroke-width="3" transform="rotate(-18 375 501)"/>
+  </g>
+  <g stroke="#f4f1e6" stroke-width="4" stroke-linecap="round" opacity="0.75">
+    <path d="M344 486 l-14 -10 M362 474 l-4 -16 M398 480 l12 -10"/>
+  </g>
+  <!-- Pièces qu'il a fait tomber -->
+  <g fill="#fbbf24" stroke="#05060c" stroke-width="3">
+    <ellipse cx="560" cy="690" rx="9" ry="4"/><ellipse cx="584" cy="696" rx="9" ry="4"/><ellipse cx="420" cy="700" rx="8" ry="3.5"/>
+  </g>
+  <!-- Premier plan : cachette derrière un pilier rayé et une voiture garée, dans l'ombre -->
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.14"/>
+  <g stroke="#05060c" stroke-width="6" stroke-linejoin="round">
+    <path d="M630 0 L750 0 L750 1334 L614 1334 Z" fill="#17181b"/>
+    <path d="M620 760 L750 760 L750 820 L619 820 Z M618 880 L750 880 L750 940 L617 940 Z" fill="#3a3214" stroke="none"/>
+    <path d="M644 0 L660 0 L646 1334 L630 1334 Z" fill="#23252a" stroke="none"/>
+    <path d="M0 900 L250 900 Q268 900 272 916 L292 1050 L330 1150 L330 1334 L0 1334 Z" fill="#17181b"/>
+    <path d="M0 916 L262 916" stroke="#26282d" stroke-width="10"/>
+    <path d="M30 990 l40 -40 M110 990 l40 -40 M190 990 l40 -40" stroke="#3a3214" stroke-width="18"/>
+    <path d="M150 900 L178 798 L206 900 Z" fill="#3b2216"/>
+    <path d="M166 846 h24" stroke="#4a4a44" stroke-width="10"/>
+    <rect x="134" y="892" width="88" height="14" rx="3" fill="#2a1a12"/>
+  </g>
+  <ellipse cx="375" cy="1300" rx="300" ry="40" fill="#05060c" opacity="0.4"/>
+</svg>

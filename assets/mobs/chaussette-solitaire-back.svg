@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Chaussette Solitaire (Catacombes des Chaussettes Perdues), cadrage « dos ». Même mannequin sur pied en
+       chaussette rouge (#c94f5a / #7a2a3a), bord-côte crème, trous, talon rapiécé, fil qui pend, vu de dos au
+       fond de la crypte : il fouille une montagne de chaussettes à la recherche de sa paire, en jette par-dessus
+       son épaule et brandit à la lumière une chaussette rayée qui ne lui va pas du tout. On l'épie depuis
+       derrière un panier à linge, au pied d'un pilier. Aucun texte. -->
+  <defs>
+    <pattern id="chaussette-solitaire-b-pierre" width="96" height="56" patternUnits="userSpaceOnUse" patternTransform="scale(0.7)">
+      <rect width="96" height="56" fill="#1d1a17"/>
+      <rect x="1.5" y="1.5" width="44" height="25" rx="3" fill="#2a2622"/>
+      <rect x="49.5" y="1.5" width="44" height="25" rx="3" fill="#2e2924"/>
+      <rect x="-21" y="29.5" width="44" height="25" rx="3" fill="#2e2924"/>
+      <rect x="27" y="29.5" width="44" height="25" rx="3" fill="#2a2622"/>
+      <rect x="73" y="29.5" width="44" height="25" rx="3" fill="#2c2722"/>
+    </pattern>
+    <radialGradient id="chaussette-solitaire-b-halo">
+      <stop offset="0" stop-color="#ffb04a" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#ffb04a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur du fond, voûte -->
+  <rect x="0" y="0" width="750" height="610" fill="url(#chaussette-solitaire-b-pierre)"/>
+  <path d="M0 0 H750 V100 Q560 30 375 26 Q190 30 0 100 Z" fill="#100e0c"/>
+  <path d="M0 100 Q190 30 375 26 Q560 30 750 100" fill="none" stroke="#05060c" stroke-width="5"/>
+  <!-- Corde à linge -->
+  <path d="M-10 140 Q375 196 760 132" fill="none" stroke="#4a4239" stroke-width="4"/>
+  <g stroke="#05060c" stroke-width="3" stroke-linejoin="round">
+    <path d="M150 158 h20 v40 q0 7 7 10 l16 6 q8 4 4 12 q-4 6 -14 3 l-26 -9 q-8 -4 -8 -14 Z" fill="#33424c"/>
+    <path d="M300 172 h20 v36 q0 7 -7 10 l-15 6 q-8 3 -11 -4 q-1 -7 5 -10 l8 -4 Z" fill="#4c4830"/>
+    <path d="M590 162 h20 v38 q0 7 7 10 l15 5 q8 4 4 11 q-4 6 -14 3 l-24 -8 q-8 -4 -8 -14 Z" fill="#43394f"/>
+  </g>
+  <!-- Niches -->
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <path d="M170 400 V330 Q215 284 260 330 V400 Z" fill="#110f0d"/>
+    <path d="M610 390 V320 Q655 274 700 320 V390 Z" fill="#110f0d"/>
+  </g>
+  <g stroke="#05060c" stroke-width="3">
+    <ellipse cx="196" cy="386" rx="17" ry="12" fill="#33424c"/><ellipse cx="232" cy="388" rx="18" ry="11" fill="#4c4830"/>
+    <ellipse cx="638" cy="376" rx="17" ry="11" fill="#43394f"/><ellipse cx="672" cy="378" rx="18" ry="11" fill="#583530"/>
+  </g>
+  <!-- Torches -->
+  <circle cx="110" cy="330" r="150" fill="url(#chaussette-solitaire-b-halo)"/>
+  <circle cx="320" cy="300" r="150" fill="url(#chaussette-solitaire-b-halo)"/>
+  <g stroke="#05060c" stroke-width="4" stroke-linejoin="round">
+    <rect x="98" y="350" width="24" height="13" fill="#3a332b"/>
+    <path d="M104 350 L100 314 H120 L116 350 Z" fill="#4a3b2a"/>
+    <path d="M110 316 C94 304 98 282 110 268 C113 282 126 288 123 302 C121 311 117 314 110 316 Z" fill="#e8892a"/>
+    <rect x="308" y="320" width="24" height="13" fill="#3a332b"/>
+    <path d="M314 320 L310 284 H330 L326 320 Z" fill="#4a3b2a"/>
+    <path d="M320 286 C304 274 308 252 320 238 C323 252 336 258 333 272 C331 281 327 284 320 286 Z" fill="#e8892a"/>
+  </g>
+  <!-- Sol dallé -->
+  <rect x="0" y="610" width="750" height="724" fill="#221f1b"/>
+  <path d="M0 610 H750" stroke="#05060c" stroke-width="5"/>
+  <g stroke="#12100e" stroke-width="4" fill="none">
+    <path d="M0 650 H750 M0 710 H750 M0 800 H750 M0 930 H750 M0 1100 H750"/>
+    <path d="M320 610 L260 1334 M440 610 L520 1334 M200 610 L0 1000 M560 610 L780 1000"/>
+  </g>
+  <!-- Montagne de chaussettes orphelines (derrière lui) -->
+  <path d="M210 640 Q240 520 320 470 Q380 420 450 450 Q540 470 580 560 Q610 610 620 650 Z" fill="#2a2420" stroke="#05060c" stroke-width="5"/>
+  <g stroke="#05060c" stroke-width="3" stroke-linejoin="round">
+    <ellipse cx="270" cy="600" rx="30" ry="16" fill="#33424c"/>
+    <ellipse cx="560" cy="610" rx="32" ry="16" fill="#4c4830"/>
+    <ellipse cx="330" cy="520" rx="26" ry="14" fill="#583530"/>
+    <ellipse cx="500" cy="510" rx="28" ry="14" fill="#44503f"/>
+    <ellipse cx="420" cy="470" rx="26" ry="13" fill="#43394f"/>
+    <path d="M240 630 q20 -30 50 -20 l30 10 q8 6 0 12 l-40 4 Z" fill="#4c4830"/>
+    <path d="M580 590 q-16 -26 -44 -18 l-26 10 q-6 6 2 10 l40 4 Z" fill="#33424c"/>
+    <path d="M360 470 q10 -26 34 -20 q10 6 4 18 l-14 14 Z" fill="#4c4830"/>
+    <path d="M540 545 q-6 -24 -30 -20 l-20 6 q-6 8 4 12 l36 8 Z" fill="#583530"/>
+    <path d="M300 560 q14 -18 36 -10 l10 18 q-4 10 -18 8 Z" fill="#44503f"/>
+  </g>
+  <!-- Chaussettes jetées par-dessus l'épaule -->
+  <g stroke="#05060c" stroke-width="3" stroke-linejoin="round">
+    <path d="M250 300 h16 v30 q0 6 6 8 l12 4 q7 4 3 9 q-4 4 -11 2 l-20 -7 q-6 -3 -6 -10 Z" fill="#44503f" transform="rotate(-30 260 320)"/>
+    <path d="M610 230 h16 v30 q0 6 6 8 l12 4 q7 4 3 9 q-4 4 -11 2 l-20 -7 q-6 -3 -6 -10 Z" fill="#43394f" transform="rotate(40 620 250)"/>
+    <path d="M560 400 h14 v26 q0 5 5 7 l10 4 q6 3 2 8 q-4 3 -10 1 l-17 -6 q-5 -3 -5 -9 Z" fill="#583530" transform="rotate(70 570 420)"/>
+  </g>
+  <g fill="none" stroke="#8a8070" stroke-width="4" stroke-dasharray="10 10" opacity="0.6" stroke-linecap="round">
+    <path d="M380 430 Q320 300 268 318"/>
+    <path d="M470 420 Q560 230 616 246"/>
+    <path d="M480 470 Q540 380 566 412"/>
+  </g>
+  <!-- Ombre au sol -->
+  <ellipse cx="420" cy="702" rx="70" ry="10" fill="#05060c" opacity="0.5"/>
+  <!-- La Chaussette Solitaire, de dos (repère local : pied à l'origine) -->
+  <g transform="translate(420 700) scale(0.46) rotate(6)" stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Fil qui pend -->
+    <path d="M100 -384 q30 30 18 80 q-10 44 24 90 q20 30 4 60" fill="none" stroke="#05060c" stroke-width="13"/>
+    <path d="M100 -384 q30 30 18 80 q-10 44 24 90 q20 30 4 60" fill="none" stroke="#7a2a3a" stroke-width="7"/>
+    <!-- Bras gauche plongé dans le tas -->
+    <path d="M-80 -570 Q-150 -520 -150 -420" fill="none" stroke="#05060c" stroke-width="70"/>
+    <path d="M-80 -570 Q-150 -520 -150 -420" fill="none" stroke="#a83f4b" stroke-width="56"/>
+    <!-- Pied et socle -->
+    <rect x="-95" y="-40" width="190" height="40" rx="12" fill="#7a2a3a" stroke-width="9"/>
+    <rect x="-15" y="-235" width="30" height="200" fill="#7a2a3a" stroke-width="9"/>
+    <!-- Hanches + talon rapiécé (au dos) -->
+    <rect x="-78" y="-318" width="156" height="98" rx="30" fill="#c94f5a" stroke-width="10"/>
+    <!-- Torse, dos -->
+    <path d="M-96 -595 Q0 -620 96 -595 Q114 -442 68 -307 L-68 -307 Q-114 -442 -96 -595 Z" fill="#c94f5a" stroke-width="11"/>
+    <path d="M-96 -595 Q-114 -442 -68 -307 L-36 -307 Q-80 -450 -60 -604 Z" fill="#a83f4b" stroke="none"/>
+    <path d="M-110 -458 Q0 -446 110 -458" fill="none" stroke-width="7"/>
+    <path d="M0 -600 V-470" stroke="#a83f4b" stroke-width="6"/>
+    <ellipse cx="-6" cy="-360" rx="54" ry="46" fill="#e8e4d8" stroke-width="7"/>
+    <ellipse cx="-6" cy="-360" rx="40" ry="33" fill="none" stroke="#7a2a3a" stroke-width="5" stroke-dasharray="11 8"/>
+    <!-- Trous -->
+    <path d="M30 -540 l12 -10 l10 6 l12 -4 l6 12 l-4 12 l8 10 l-12 8 l-10 -4 l-12 6 l-8 -12 l-12 -4 Z" fill="#0b0d14" stroke-width="4"/>
+    <path d="M-60 -500 l9 -6 l8 4 l9 -2 l4 9 l-4 9 l-9 5 l-8 -3 l-9 -4 Z" fill="#0b0d14" stroke-width="4"/>
+    <!-- Bras droit levé : il brandit une chaussette rayée à la lumière -->
+    <path d="M80 -575 Q170 -620 190 -760" fill="none" stroke="#05060c" stroke-width="70"/>
+    <path d="M80 -575 Q170 -620 190 -760" fill="none" stroke="#c94f5a" stroke-width="56"/>
+    <g transform="translate(190 -790) rotate(10)">
+      <path d="M-28 -10 h56 v120 q0 22 22 30 l50 18 q26 12 14 38 q-12 18 -42 10 l-80 -26 q-26 -10 -26 -44 Z" fill="#3a6b8a" stroke-width="8"/>
+      <path d="M-28 30 h56 M-28 70 h56 M-28 110 h60" stroke="#e8e4d8" stroke-width="12"/>
+      <rect x="-34" y="-34" width="68" height="30" rx="10" fill="#e8e4d8" stroke-width="7"/>
+    </g>
+    <!-- Cou et bord-côte (vu de dos) -->
+    <rect x="-24" y="-662" width="48" height="76" fill="#c94f5a" stroke-width="9"/>
+    <rect x="-76" y="-694" width="152" height="74" rx="26" fill="#e8e4d8" stroke-width="10"/>
+    <path d="M-50 -686 V-628 M-28 -688 V-626 M-6 -689 V-625 M16 -689 V-625 M38 -688 V-626 M58 -684 V-630" stroke="#b8b2a2" stroke-width="6"/>
+    <!-- Arrière de la tête : couture du bout, aucun visage -->
+    <ellipse cx="0" cy="-780" rx="82" ry="102" fill="#c94f5a" stroke-width="12"/>
+    <path d="M-80 -760 Q-70 -700 -30 -684 Q-60 -740 -50 -860 Q-82 -820 -80 -760 Z" fill="#a83f4b" stroke="none"/>
+    <ellipse cx="0" cy="-780" rx="82" ry="102" fill="none" stroke-width="12"/>
+    <path d="M-66 -840 Q0 -872 66 -840" fill="none" stroke="#7a2a3a" stroke-width="6"/>
+    <path d="M-48 -858 l6 14 M-24 -866 l4 14 M0 -870 l0 14 M24 -866 l-4 14 M48 -858 l-6 14" stroke="#7a2a3a" stroke-width="4"/>
+  </g>
+  <!-- Petits traits de perplexité au-dessus de sa tête -->
+  <g fill="none" stroke="#e8e4d8" stroke-width="4" stroke-linecap="round" opacity="0.75">
+    <path d="M360 268 l-10 -18 M392 258 l0 -20 M424 266 l10 -16"/>
+  </g>
+  <!-- Pilier sombre à gauche -->
+  <rect x="0" y="0" width="120" height="1334" fill="#0c0a09"/>
+  <path d="M120 0 V1334" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#1a1714" stroke-width="5"><path d="M0 180 H120 M0 420 H120 M0 660 H120 M0 900 H120 M60 180 V420 M30 420 V660 M80 660 V900"/></g>
+  <rect x="96" y="0" width="24" height="1334" fill="#1c1916" opacity="0.6"/>
+  <!-- Panier à linge (cachette, premier plan) -->
+  <path d="M60 880 Q250 850 440 880 L410 1334 H90 Z" fill="#14110e" stroke="#05060c" stroke-width="7" stroke-linejoin="round"/>
+  <g stroke="#221d17" stroke-width="7" fill="none">
+    <path d="M70 950 Q250 925 434 950 M76 1030 Q250 1005 428 1030 M82 1110 Q250 1085 422 1110 M88 1190 Q250 1165 418 1190"/>
+    <path d="M140 875 L150 1334 M210 866 L215 1334 M280 864 L280 1334 M350 868 L345 1334"/>
+  </g>
+  <path d="M50 880 Q250 836 452 880 Q250 870 50 880 Z" fill="#1d1914" stroke="#05060c" stroke-width="7" stroke-linejoin="round"/>
+  <g stroke="#05060c" stroke-width="4" stroke-linejoin="round">
+    <path d="M150 872 q-4 40 -18 70 q-6 16 6 20 q14 2 20 -14 l12 -76 Z" fill="#2a2f35"/>
+    <path d="M330 866 q10 30 30 46 q12 10 4 18 q-10 6 -22 -4 l-30 -56 Z" fill="#34302a"/>
+  </g>
+  <!-- Ombre portée du premier plan -->
+  <rect x="0" y="1040" width="750" height="294" fill="#05060c" opacity="0.25"/>
+  <rect x="690" y="0" width="60" height="1334" fill="#05060c" opacity="0.35"/>
+</svg>

@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Savant Dingue, mob du Laboratoire de Fous, cadrage « dos » : il verse sa fiole fumante dans un bécher qui déborde. Aucun texte. -->
+  <defs>
+    <pattern id="savant-dingue-b-tiles" width="80" height="42" patternUnits="userSpaceOnUse" patternTransform="scale(0.62)">
+      <rect width="80" height="42" fill="#1e2427"/>
+      <rect x="1.5" y="1.5" width="37" height="18" rx="2" fill="#2d363a"/>
+      <rect x="41.5" y="1.5" width="37" height="18" rx="2" fill="#313b3f"/>
+      <rect x="-18" y="22.5" width="37" height="18" rx="2" fill="#313b3f"/>
+      <rect x="22.5" y="22.5" width="37" height="18" rx="2" fill="#2d363a"/>
+      <rect x="61.5" y="22.5" width="37" height="18" rx="2" fill="#2f393d"/>
+    </pattern>
+    <radialGradient id="savant-dingue-b-glow">
+      <stop offset="0" stop-color="#84cc16" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#84cc16" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="750" height="700" fill="url(#savant-dingue-b-tiles)"/>
+  <rect x="0" y="0" width="750" height="110" fill="#14191b"/>
+  <g fill="none" stroke="#05060c" stroke-width="16"><path d="M0 70 H750 M300 70 V140 M620 30 V150"/></g>
+  <g fill="none" stroke="#283034" stroke-width="9"><path d="M0 70 H750 M300 70 V140 M620 30 V150"/></g>
+  <!-- tableau d'équations (gribouillis illisibles) -->
+  <rect x="460" y="170" width="230" height="150" rx="4" fill="#1b2822" stroke="#05060c" stroke-width="5"/>
+  <g fill="none" stroke="#93a89a" stroke-width="3.5" stroke-linecap="round" opacity="0.5">
+    <path d="M480 196 q8 -10 16 0 t16 0 M522 192 h22 M552 188 l10 10 M552 198 l10 -10 M574 194 q12 -14 24 0 M610 192 h50"/>
+    <path d="M482 232 h34 M526 226 q6 12 16 0 q8 -12 18 4 M572 232 h30 M612 224 l14 14 M640 230 h30"/>
+    <path d="M486 270 q16 -16 32 0 M530 268 l34 -8 M576 274 q8 -12 18 -2 q6 8 14 -4 M490 300 h60 M566 298 q10 -8 22 2 M610 296 l40 0"/>
+  </g>
+  <!-- étagère de bocaux -->
+  <g stroke="#05060c" stroke-width="4">
+    <rect x="200" y="262" width="210" height="11" fill="#283034"/>
+    <rect x="218" y="208" width="34" height="54" rx="7" fill="#26422b"/>
+    <rect x="224" y="198" width="22" height="12" rx="3" fill="#353f43"/>
+    <rect x="274" y="218" width="32" height="44" rx="7" fill="#382b48"/>
+    <rect x="279" y="208" width="22" height="12" rx="3" fill="#353f43"/>
+    <rect x="328" y="212" width="34" height="50" rx="7" fill="#1b3a42"/>
+    <rect x="334" y="202" width="22" height="12" rx="3" fill="#353f43"/>
+    <rect x="376" y="226" width="24" height="36" rx="6" fill="#26422b"/>
+  </g>
+  <!-- sol -->
+  <rect x="0" y="700" width="750" height="634" fill="#1f2527"/>
+  <path d="M0 700 H750" stroke="#05060c" stroke-width="5"/>
+  <g stroke="#171c1e" stroke-width="4">
+    <path d="M0 760 H750 M0 850 H750 M0 970 H750 M0 1130 H750 M330 700 L250 1334 M520 700 L600 1334 M690 700 L840 1334"/>
+  </g>
+  <!-- désordre au sol -->
+  <g stroke="#05060c" stroke-width="4" stroke-linejoin="round">
+    <ellipse cx="600" cy="860" rx="54" ry="16" fill="#2a3134"/>
+    <path d="M556 860 L600 790 L612 796 L574 862 Z M630 862 L620 800 L634 798 L646 858 Z" fill="#262d30"/>
+    <ellipse cx="616" cy="796" rx="30" ry="10" fill="#323b3e"/>
+    <path d="M300 900 l20 -10 l6 14 Z M340 920 l12 -12 l8 12 Z M470 800 l14 -8 l4 12 Z" fill="#9fb3a6" opacity="0.5"/>
+    <path d="M260 980 Q360 940 420 990 Q470 1020 540 1000" fill="none" stroke="#2a3134" stroke-width="7"/>
+  </g>
+  <g fill="#84cc16" opacity="0.35"><ellipse cx="560" cy="760" rx="16" ry="5"/><ellipse cx="520" cy="820" rx="12" ry="4"/></g>
+  <!-- halo du bécher -->
+  <ellipse cx="600" cy="500" rx="190" ry="170" fill="url(#savant-dingue-b-glow)"/>
+  <!-- paillasse -->
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <rect x="262" y="572" width="16" height="128" fill="#2a3134"/>
+    <rect x="680" y="572" width="16" height="128" fill="#2a3134"/>
+    <rect x="250" y="556" width="460" height="18" rx="3" fill="#3b4549"/>
+    <rect x="272" y="640" width="414" height="10" fill="#262d30"/>
+  </g>
+  <!-- bobine Tesla et hamster électrifié -->
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M206 700 L214 670 L250 670 L258 700 Z" fill="#2a3134"/>
+    <rect x="220" y="560" width="24" height="110" rx="4" fill="#3e3226"/>
+    <path d="M220 580 h24 M220 600 h24 M220 620 h24 M220 640 h24" stroke-width="3"/>
+    <ellipse cx="232" cy="550" rx="24" ry="12" fill="#353f43"/>
+  </g>
+  <path d="M232 540 l-10 -24 l8 2 l-10 -26 M236 540 l14 -20 l-6 0 l12 -22" fill="none" stroke="#c4b5fd" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+  <path d="M244 560 Q270 520 290 530" fill="none" stroke="#05060c" stroke-width="4"/>
+  <g stroke="#05060c" stroke-width="4" transform="translate(-10 0)">
+    <path d="M300 556 L316 520 L332 556" fill="none" stroke-width="5"/>
+    <circle cx="316" cy="512" r="32" fill="#2a3134" fill-opacity="0.5" stroke-width="5"/>
+    <path d="M316 480 V544 M284 512 H348 M294 490 L338 534 M338 490 L294 534" stroke-width="2.5" opacity="0.7"/>
+    <ellipse cx="316" cy="532" rx="15" ry="10" fill="#b8865a"/>
+    <circle cx="328" cy="526" r="7" fill="#b8865a"/>
+    <circle cx="330" cy="524" r="2" fill="#05060c" stroke="none"/>
+  </g>
+  <path transform="translate(-10 0)" d="M300 478 l8 -10 l-2 8 l10 -8 M334 474 l6 -12 l0 8 l8 -8" fill="none" stroke="#facc15" stroke-width="3" stroke-linecap="round"/>
+  <!-- bécher qui déborde -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M582 466 L652 466 L648 556 L586 556 Z" fill="#e6f4ea" fill-opacity="0.7" stroke-width="5"/>
+    <path d="M585 494 L649 494 L648 556 L586 556 Z" fill="#84cc16" stroke-width="4"/>
+    <path d="M572 474 Q576 448 600 452 Q614 436 634 448 Q660 444 662 470 Q672 488 656 494 Q652 520 660 548 L664 574 Q672 600 666 640 Q660 610 652 576 L646 494 L590 494 Q586 520 590 556 L582 574 Q578 600 574 624 Q568 594 574 556 Q576 512 570 494 Q560 486 572 474 Z" fill="#a3e635" stroke-width="4"/>
+    <g fill="#d9f99d" stroke-width="3"><circle cx="600" cy="462" r="6"/><circle cx="626" cy="452" r="7"/><circle cx="648" cy="466" r="5"/></g>
+  </g>
+  <path d="M520 702 Q570 690 620 700 Q680 694 720 708 Q680 720 600 718 Q540 720 520 702 Z" fill="#84cc16" opacity="0.55" stroke="#05060c" stroke-width="3"/>
+  <g fill="#84cc16" stroke="#05060c" stroke-width="3"><circle cx="666" cy="666" r="5"/><circle cx="575" cy="660" r="4"/></g>
+  <!-- vapeur -->
+  <g fill="#cbd5e1" stroke="#05060c" stroke-width="3" opacity="0.7">
+    <circle cx="616" cy="420" r="13"/><circle cx="640" cy="390" r="17"/><circle cx="612" cy="358" r="14"/><circle cx="644" cy="330" r="19"/><circle cx="618" cy="300" r="11"/>
+  </g>
+  <ellipse cx="440" cy="704" rx="100" ry="14" fill="#05060c" opacity="0.5"/>
+  <!-- le Savant, de dos -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M396 618 L432 618 L428 690 L398 690 Z" fill="#8a8578" stroke-width="5"/>
+    <path d="M446 618 L482 618 L488 688 L454 690 Z" fill="#8a8578" stroke-width="5"/>
+    <path d="M390 684 Q412 678 432 686 L432 702 L388 702 Z" fill="#2a2622" stroke-width="4"/>
+    <path d="M452 684 Q474 678 494 686 L494 702 L450 702 Z" fill="#2a2622" stroke-width="4"/>
+    <!-- bras gauche, coude écarté -->
+    <path d="M392 440 Q356 470 350 520 L374 530 Q376 490 404 466 Z" fill="#d8d2c4" stroke-width="5"/>
+    <path d="M352 516 L376 526 L372 538 L348 528 Z" fill="#c9c3b4" stroke-width="4"/>
+    <path d="M354 528 Q362 556 392 562 L396 544 Q378 540 372 530 Z" fill="#8a8578" stroke-width="5"/>
+    <!-- blouse vue de dos : fente, martingale -->
+    <path d="M388 434 Q440 414 494 432 Q510 520 504 590 L512 632 Q440 646 370 632 L378 590 Q370 520 388 434 Z" fill="#d8d2c4" stroke-width="6"/>
+    <path d="M494 432 Q510 520 504 590 L512 632 Q498 636 486 636 Q494 540 478 440 Z" fill="#a9a395" stroke="none"/>
+    <path d="M440 590 L440 640" fill="none" stroke-width="4"/>
+    <path d="M412 540 L470 540 L470 556 L412 556 Z" fill="#c9c3b4" stroke-width="4"/>
+    <circle cx="420" cy="548" r="3.5" fill="#8a8578" stroke-width="2"/>
+    <circle cx="462" cy="548" r="3.5" fill="#8a8578" stroke-width="2"/>
+    <path d="M440 432 Q438 480 440 538" fill="none" stroke="#b5afa1" stroke-width="4"/>
+    <path d="M384 610 q12 -8 22 2 q2 10 -10 12 q-12 -2 -12 -14 Z" fill="#84cc16" opacity="0.75" stroke-width="3"/>
+    <path d="M478 470 q10 -8 18 2 q2 10 -8 10 Z" fill="#6f6b60" stroke-width="3"/>
+    <!-- bras droit, verse la fiole -->
+    <path d="M486 436 Q526 422 548 400 L564 418 Q540 448 498 466 Z" fill="#d8d2c4" stroke-width="5"/>
+    <path d="M544 396 L566 414 L574 404 L552 386 Z" fill="#c9c3b4" stroke-width="4"/>
+    <path d="M556 392 Q568 376 580 380 L586 394 L572 406 Z" fill="#8a8578" stroke-width="5"/>
+    <g transform="translate(582 392) rotate(112)">
+      <path d="M-8 -48 L8 -48 L8 -24 L30 18 Q32 26 24 26 L-24 26 Q-32 26 -30 18 L-8 -24 Z" fill="#e6f4ea" fill-opacity="0.85" stroke-width="5"/>
+      <path d="M-30 18 L-18 -6 L18 -6 L30 18 Q32 26 24 26 L-24 26 Q-32 26 -30 18 Z" fill="#84cc16" stroke-width="3"/>
+      <rect x="-11" y="-54" width="22" height="8" fill="#e6f4ea" stroke-width="4"/>
+    </g>
+    <path d="M582 384 Q576 372 590 372 Q598 380 590 392" fill="#8a8578" stroke-width="4"/>
+    <path d="M636 412 Q646 430 630 446 Q616 456 618 470" fill="none" stroke="#05060c" stroke-width="12"/>
+    <path d="M636 412 Q646 430 630 446 Q616 456 618 470" fill="none" stroke="#84cc16" stroke-width="6"/>
+    <!-- nuque, tête vue de dos, lunettes sur les oreilles -->
+    <rect x="424" y="404" width="34" height="32" fill="#c7c0ad" stroke-width="5"/>
+    <path d="M402 370 q-16 -6 -16 12 q2 14 18 12 Z" fill="#c7c0ad" stroke-width="4"/>
+    <path d="M480 370 q16 -6 16 12 q-2 14 -18 12 Z" fill="#c7c0ad" stroke-width="4"/>
+    <path d="M384 372 L402 376 M498 372 L480 376" stroke-width="4"/>
+    <circle cx="441" cy="368" r="42" fill="#c7c0ad" stroke-width="6"/>
+    <path d="M466 342 Q482 372 466 402 Q476 372 462 346 Z" fill="#a49d8b" stroke="none"/>
+    <ellipse cx="438" cy="352" rx="20" ry="13" fill="#d8d0bd" stroke="none"/>
+    <path d="M402 358 L374 340 L398 336 L372 312 L408 322 L404 296 L428 322 L446 300 L452 328 Q430 322 414 340 Z" fill="#e8e4d8" stroke-width="5"/>
+    <path d="M478 356 L506 336 L486 330 L512 306 L476 318 L478 292 L458 318 L452 328 Q470 330 478 356 Z" fill="#e8e4d8" stroke-width="5"/>
+    <path d="M404 380 Q392 400 410 414 Q420 404 440 410 Q462 404 472 414 Q490 400 478 380 Q470 394 440 396 Q412 394 404 380 Z" fill="#e8e4d8" stroke-width="5"/>
+  </g>
+  <!-- cachette : armoire sombre au premier plan -->
+  <path d="M0 0 H190 V1334 H0 Z" fill="#0f1315"/>
+  <path d="M172 0 H206 V1334 H172 Z" fill="#1a2023" stroke="#05060c" stroke-width="5"/>
+  <g fill="#151a1c" stroke="#05060c" stroke-width="4">
+    <rect x="16" y="260" width="140" height="300" rx="3"/>
+    <rect x="16" y="580" width="140" height="300" rx="3"/>
+    <rect x="16" y="900" width="140" height="130" rx="3"/>
+  </g>
+  <g fill="#1f2a24" stroke="#05060c" stroke-width="3" opacity="0.9">
+    <rect x="36" y="290" width="40" height="70" rx="8"/><rect x="92" y="306" width="36" height="54" rx="8"/>
+  </g>
+  <g fill="#232a2d" stroke="#05060c" stroke-width="3">
+    <rect x="132" y="396" width="14" height="44" rx="4"/><rect x="132" y="716" width="14" height="44" rx="4"/>
+  </g>
+  <path d="M206 590 Q188 578 172 586" fill="none" stroke="#283034" stroke-width="6"/>
+  <ellipse cx="110" cy="1050" rx="130" ry="18" fill="#05060c" opacity="0.5"/>
+  <path d="M190 1334 L750 1334 L750 1230 Q500 1200 190 1280 Z" fill="#05060c" opacity="0.35"/>
+  <rect x="690" y="0" width="60" height="1334" fill="#05060c" opacity="0.2"/>
+</svg>

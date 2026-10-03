@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Caméra de Surveillance Autonome, Studio de Télé-Achat Abandonné, cadrage « dos » : elle filme avec passion une plante en plastique. Aucun texte. -->
+  <defs>
+    <pattern id="camera-de-surveillance-autonome-b-mur" width="100" height="60" patternUnits="userSpaceOnUse">
+      <rect width="100" height="60" fill="#1e1c2e"/>
+      <rect x="2" y="2" width="96" height="56" rx="4" fill="#26233c"/>
+      <circle cx="20" cy="18" r="3" fill="#2e2a48"/>
+      <circle cx="72" cy="40" r="4" fill="#2e2a48"/>
+      <circle cx="48" cy="50" r="2.5" fill="#2e2a48"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="750" height="700" fill="url(#camera-de-surveillance-autonome-b-mur)"/>
+  <rect x="0" y="0" width="750" height="64" fill="#171526"/>
+  <g stroke="#05060c" stroke-width="7">
+    <path d="M0 110 H750" stroke="#3a3652" stroke-width="14"/>
+    <rect x="370" y="110" width="56" height="40" rx="8" fill="#3a3652"/>
+    <rect x="640" y="110" width="56" height="40" rx="8" fill="#3a3652"/>
+  </g>
+  <!-- Projecteur braqué sur la plante -->
+  <g stroke="#05060c" stroke-width="7">
+    <rect x="126" y="110" width="64" height="46" rx="8" fill="#3a3652" transform="rotate(14 158 133)"/>
+  </g>
+  <path d="M136 156 L184 150 L290 640 L40 640 Z" fill="#fde047" opacity="0.07"/>
+  <ellipse cx="165" cy="636" rx="130" ry="20" fill="#fde047" opacity="0.08"/>
+  <!-- Enseigne « à l'antenne », éteinte (formes illisibles) -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="250" y="190" width="150" height="48" rx="10" fill="#2a1a24"/>
+    <g fill="#7a2a3a" stroke="none">
+      <rect x="266" y="204" width="20" height="20" rx="9"/><rect x="292" y="204" width="14" height="20" rx="4"/>
+      <rect x="326" y="204" width="14" height="20" rx="4"/><rect x="346" y="204" width="8" height="20" rx="3"/><rect x="362" y="204" width="22" height="20" rx="6"/>
+    </g>
+  </g>
+  <!-- Moniteur de contrôle mural : il retransmet la plante -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="470" y="210" width="150" height="104" rx="10" fill="#33304e"/>
+    <rect x="484" y="224" width="122" height="76" rx="4" fill="#1f3a3a"/>
+    <path d="M545 314 v26 M520 342 h50" stroke-width="7"/>
+  </g>
+  <g fill="#3f8a58" stroke="none" opacity="0.7">
+    <path d="M545 290 q-24 -20 -18 -46 q12 18 18 30 q4 -26 16 -36 q2 22 -6 40 q18 -14 30 -12 q-14 14 -40 24 Z"/>
+  </g>
+  <rect x="534" y="286" width="22" height="12" fill="#7a4a36" opacity="0.7"/>
+  <circle cx="596" cy="234" r="5" fill="#ef4444"/>
+  <!-- Plancher du plateau -->
+  <rect x="0" y="640" width="750" height="694" fill="#232038"/>
+  <path d="M0 640 H750" stroke="#05060c" stroke-width="6"/>
+  <g fill="none" stroke="#1a1828" stroke-width="5">
+    <path d="M0 700 H750 M0 780 H750 M0 880 H750 M0 1000 H750 M0 1150 H750"/>
+    <path d="M160 640 l-40 60 M380 640 l-10 60 M600 640 l30 60 M100 700 l-50 80 M360 700 l-14 80 M620 700 l40 80"/>
+  </g>
+  <rect x="0" y="0" width="45" height="1334" fill="#05060c" opacity="0.22"/>
+
+  <!-- La plante en plastique, star du jour, sur son tabouret -->
+  <g stroke="#05060c" stroke-width="6" stroke-linejoin="round">
+    <path d="M128 560 L202 560 L196 632 L134 632 Z" fill="#3a3652"/>
+    <path d="M140 632 l-8 18 M190 632 l8 18" stroke-width="7"/>
+    <path d="M136 512 L194 512 L186 562 L144 562 Z" fill="#a0583c"/>
+    <path d="M132 506 h66 v12 h-66 Z" fill="#b8694a"/>
+    <path d="M165 508 C140 470 112 452 96 420 C126 430 150 450 160 480 C150 430 160 392 178 372 C186 412 178 450 172 490 C192 454 222 440 244 446 C224 470 196 490 170 508 Z" fill="#4caf6e"/>
+    <path d="M165 508 C164 470 170 430 178 400" fill="none" stroke-width="4"/>
+  </g>
+  <circle cx="186" cy="398" r="5" fill="#d9f99d" opacity="0.8"/>
+  <!-- Petits cœurs d'admiration (elle est fan) -->
+  <g fill="#ef4444" stroke="#05060c" stroke-width="3">
+    <path d="M262 352 c-8 -12 -24 -4 -16 10 l16 16 l16 -16 c8 -14 -8 -22 -16 -10 Z"/>
+    <path d="M226 300 c-5 -8 -16 -3 -11 7 l11 11 l11 -11 c5 -10 -6 -15 -11 -7 Z" opacity="0.85"/>
+    <path d="M290 296 c-4 -6 -12 -2 -8 5 l8 8 l8 -8 c4 -7 -4 -11 -8 -5 Z" opacity="0.7"/>
+  </g>
+  <!-- Traits de mise au point vers la plante -->
+  <g fill="none" stroke="#22d3ee" stroke-width="4" stroke-linecap="round" opacity="0.55" stroke-dasharray="10 10">
+    <path d="M300 440 L212 470 M300 456 L214 520 M302 424 L224 420"/>
+  </g>
+
+  <!-- ===== LA CAMÉRA, de trois-quarts dos ===== -->
+  <ellipse cx="400" cy="636" rx="110" ry="16" fill="#05060c" opacity="0.5"/>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Câble d'alimentation qui traîne jusqu'au mur -->
+    <path d="M440 560 C470 610 520 620 560 640 C600 660 640 650 700 660" fill="none" stroke-width="12"/>
+    <path d="M440 560 C470 610 520 620 560 640 C600 660 640 650 700 660" fill="none" stroke="#2a2f3a" stroke-width="5"/>
+    <!-- Pieds : l'arrière sur la pointe, penchée vers sa star -->
+    <path d="M360 596 L404 600 L402 634 L356 630 Z" fill="#4f5560" stroke-width="6"/>
+    <path d="M420 590 L466 588 L470 616 L428 624 Z" fill="#4f5560" stroke-width="6" transform="rotate(-16 446 606)"/>
+    <g transform="rotate(-8 400 480)">
+      <!-- Objectif, pointé vers la plante (on n'en voit que le bout) -->
+      <path d="M250 418 L312 408 L314 466 L252 470 Z" fill="#2a2f3a" stroke-width="6"/>
+      <ellipse cx="252" cy="444" rx="10" ry="28" fill="#22d3ee" stroke-width="5"/>
+      <!-- Flanc gauche (de profil, dans l'ombre) -->
+      <path d="M300 352 L352 366 L352 610 L304 590 Z" fill="#6f7782" stroke-width="7"/>
+      <!-- Dos du boîtier -->
+      <path d="M352 366 L478 354 L480 600 L352 610 Z" fill="#8a929c" stroke-width="8"/>
+      <path d="M300 352 L428 342 L478 354 L352 366 Z" fill="#a3aab3" stroke-width="6"/>
+      <!-- Grilles d'aération et ventilateur -->
+      <g fill="none" stroke="#4f5560" stroke-width="6">
+        <path d="M372 392 h86 M372 410 h86 M372 428 h86"/>
+      </g>
+      <circle cx="414" cy="500" r="40" fill="#4f5560" stroke-width="6"/>
+      <path d="M414 466 v68 M380 500 h68 M390 476 l48 48 M438 476 l-48 48" stroke="#2a2f3a" stroke-width="5"/>
+      <circle cx="414" cy="500" r="10" fill="#2a2f3a" stroke-width="4"/>
+      <!-- Plaque de maintenance (vierge) et prise du câble -->
+      <rect x="366" y="556" width="40" height="28" rx="4" fill="#a3aab3" stroke-width="4"/>
+      <rect x="434" y="552" width="22" height="22" rx="3" fill="#2a2f3a" stroke-width="4"/>
+      <!-- Antenne + boule rouge, voyant d'enregistrement sur le dessus -->
+      <path d="M452 350 L466 250" stroke-width="7" fill="none"/>
+      <path d="M452 350 L466 250" stroke="#4f5560" stroke-width="3" fill="none"/>
+      <circle cx="467" cy="244" r="12" fill="#ef4444" stroke-width="5"/>
+      <circle cx="400" cy="346" r="16" fill="#ef4444" opacity="0.3" stroke="none"/>
+      <circle cx="400" cy="346" r="8" fill="#ef4444" stroke-width="4"/>
+    </g>
+  </g>
+
+  <!-- Cachette au premier plan : une caisse de matériel et le décor en carton, à droite -->
+  <g stroke="#05060c" stroke-width="8" stroke-linejoin="round">
+    <path d="M560 760 L750 740 L750 1334 L540 1334 Z" fill="#14121e"/>
+    <path d="M560 760 L750 740 L750 790 L556 812 Z" fill="#1c1a28"/>
+    <path d="M574 880 L740 868 M574 1010 L740 1000" fill="none" stroke="#211f2e" stroke-width="10"/>
+    <rect x="600" y="930" width="44" height="30" rx="4" fill="#1c1a28" stroke-width="5"/>
+    <path d="M600 610 L750 598 L750 746 L596 762 Z" fill="#191724"/>
+    <path d="M630 650 h90" fill="none" stroke="#211f2e" stroke-width="8"/>
+  </g>
+  <path d="M0 1334 L0 1100 C120 1140 220 1210 280 1334 Z" fill="#05060c" opacity="0.5"/>
+</svg>

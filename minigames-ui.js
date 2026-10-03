@@ -511,6 +511,7 @@ function settleMinigame(spec, outcome, detail, onResult) {
         logEvent(`${prefix}${spec.icon} ${spec.label} : ${fx.label} ${pickMinigameLine(outcome)}`, outcome === 'fail' ? 'danger' : 'success');
     }
     if (!(detail && detail.auto)) {
+        if (typeof playSfx === 'function') playSfx(SFX_MINIGAME_OUTCOMES[outcome]); // sounds.js (chantier 8)
         triggerHaptic(fx.haptic);
         showMinigameBanner(fx);
     }

@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <defs>
+    <pattern id="creature-en-bocaux-b-tiles" width="60" height="32" patternUnits="userSpaceOnUse">
+      <rect width="60" height="32" fill="#202729"/>
+      <rect x="1.2" y="1.2" width="27.6" height="13.6" rx="2" fill="#2e383c"/>
+      <rect x="31.2" y="1.2" width="27.6" height="13.6" rx="2" fill="#313c40"/>
+      <rect x="-13.8" y="17.2" width="27.6" height="13.6" rx="2" fill="#313c40"/>
+      <rect x="16.2" y="17.2" width="27.6" height="13.6" rx="2" fill="#2e383c"/>
+      <rect x="46.2" y="17.2" width="27.6" height="13.6" rx="2" fill="#2f3a3e"/>
+    </pattern>
+    <radialGradient id="creature-en-bocaux-b-glow">
+      <stop offset="0" stop-color="#a78bfa" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#a78bfa" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur carrelé et plafond -->
+  <rect x="0" y="0" width="750" height="700" fill="url(#creature-en-bocaux-b-tiles)"/>
+  <rect x="0" y="0" width="750" height="60" fill="#1a2023"/>
+  <path d="M0 86 H750" stroke="#283135" stroke-width="16"/>
+  <path d="M0 60 H750" stroke="#05060c" stroke-width="5"/>
+  <!-- Néon de labo -->
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M470 60 V96" />
+    <rect x="400" y="96" width="140" height="14" rx="5" fill="#d6e6e2"/>
+  </g>
+  <path d="M400 110 L330 330 L610 330 L540 110 Z" fill="#d6e6e2" opacity="0.05"/>
+  <!-- Étagère de bocaux au mur -->
+  <g stroke="#05060c" stroke-width="4" stroke-linejoin="round">
+    <path d="M300 300 H640" stroke="#3b2f22" stroke-width="10"/>
+    <rect x="320" y="238" width="40" height="58" rx="7" fill="#141c22"/>
+    <rect x="325" y="258" width="30" height="34" rx="4" fill="#4ade80" fill-opacity="0.4" stroke="none"/>
+    <rect x="322" y="228" width="36" height="11" rx="3" fill="#3a3f45"/>
+    <rect x="384" y="246" width="34" height="50" rx="6" fill="#141c22"/>
+    <rect x="389" y="264" width="24" height="28" rx="4" fill="#c084fc" fill-opacity="0.38" stroke="none"/>
+    <rect x="386" y="237" width="30" height="10" rx="3" fill="#3a3f45"/>
+    <rect x="590" y="242" width="36" height="54" rx="7" fill="#141c22"/>
+    <rect x="595" y="262" width="26" height="30" rx="4" fill="#22d3ee" fill-opacity="0.38" stroke="none"/>
+    <rect x="592" y="233" width="32" height="10" rx="3" fill="#3a3f45"/>
+  </g>
+  <!-- Tableau d'équations (illisible) -->
+  <rect x="200" y="120" width="170" height="92" fill="#1a231f" stroke="#3a2f20" stroke-width="7"/>
+  <g fill="none" stroke="#9aa59a" stroke-width="3" stroke-linecap="round" opacity="0.38">
+    <path d="M214 142 q10 -8 18 0 t18 0 M262 140 h26 M300 132 l10 14 M298 146 l14 -12"/>
+    <path d="M216 170 l14 -12 l8 12 q14 -14 26 0 M280 164 h50"/>
+    <path d="M218 194 h30 M262 190 q12 -10 22 2 q10 10 20 -4"/>
+  </g>
+  <!-- Bobine Tesla au fond à droite -->
+  <circle cx="680" cy="420" r="110" fill="url(#creature-en-bocaux-b-glow)"/>
+  <g stroke="#05060c" stroke-width="4" stroke-linejoin="round">
+    <rect x="656" y="590" width="52" height="20" fill="#23262c"/>
+    <rect x="670" y="440" width="24" height="150" fill="#4f3c22"/>
+    <path d="M670 470 h24 M670 500 h24 M670 530 h24 M670 560 h24" stroke="#2c2214" stroke-width="4"/>
+    <circle cx="682" cy="420" r="26" fill="#2f343d"/>
+  </g>
+  <path d="M664 404 l-24 -18 l6 16 l-24 -10 M700 402 l20 -22 l-2 16 l20 -12" fill="none" stroke="#c4b5fd" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Sol carrelé -->
+  <rect x="0" y="700" width="750" height="634" fill="#22292b"/>
+  <path d="M0 700 H750" stroke="#05060c" stroke-width="5"/>
+  <g stroke="#181d1f" stroke-width="4">
+    <path d="M0 750 H750 M0 820 H750 M0 920 H750 M0 1060 H750 M0 1240 H750"/>
+    <path d="M280 700 v50 M520 700 v50 M200 750 v70 M460 750 v70 M690 750 v70 M340 820 v100 M600 820 v100 M240 920 v140 M540 920 v140 M380 1060 v180 M680 1060 v180"/>
+  </g>
+  <!-- Paillasse de labo -->
+  <ellipse cx="440" cy="702" rx="210" ry="12" fill="#05060c" opacity="0.45"/>
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <rect x="250" y="568" width="380" height="132" fill="#2b3236"/>
+    <rect x="236" y="550" width="408" height="22" fill="#3c454a"/>
+    <path d="M300 590 v90 M440 590 v90 M580 590 v90" stroke="#1b2023" stroke-width="5"/>
+  </g>
+  <!-- LA CRÉATURE, de dos, qui essaie de se faire rentrer dans un bocal minuscule -->
+  <g transform="translate(470 590) scale(0.82)" stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <g transform="translate(-227 -49) scale(1.3) translate(227 0)">
+    <!-- petit bocal sur la paillasse (à gauche), déjà plein à craquer -->
+    <path d="M-250 0 L-250 -54 Q-250 -60 -244 -60 L-210 -60 Q-204 -60 -204 -54 L-204 0 Z" fill="#cde8e5" fill-opacity="0.25" stroke-width="5"/>
+    <path d="M-246 -4 L-246 -50 C-236 -56 -220 -48 -208 -54 L-208 -4 Z" fill="#79b8b0" stroke="none"/>
+    <path d="M-256 -58 C-272 -70 -262 -96 -240 -90 C-228 -104 -206 -96 -202 -80 C-188 -80 -190 -60 -204 -58 Z" fill="#79b8b0" stroke-width="5"/>
+    <path d="M-250 -40 C-264 -30 -268 -10 -262 2 L-252 2 Z" fill="#79b8b0" stroke-width="4"/>
+    <circle cx="-228" cy="-80" r="5" fill="#c23b3b" stroke-width="2.5"/>
+    </g>
+    <!-- tentacule gauche qui tasse la bouillie dans le bocal -->
+    <path d="M-90 -110 C-140 -190 -210 -200 -238 -168 C-252 -150 -236 -134 -224 -146 C-206 -166 -150 -160 -100 -70 Z" fill="#79b8b0" stroke-width="6"/>
+    <g fill="#4a7a74" stroke-width="2.5"><circle cx="-150" cy="-164" r="5"/><circle cx="-190" cy="-176" r="5"/></g>
+    <!-- tentacule droit qui brandit le couvercle du petit bocal, prêt à refermer -->
+    <path d="M100 -70 C150 -100 176 -160 164 -210 C160 -226 180 -232 186 -214 C200 -160 180 -90 116 -30 Z" fill="#4a7a74" stroke-width="5"/>
+    <rect x="160" y="-246" width="52" height="16" rx="4" fill="#8a929c" stroke-width="4" transform="rotate(-18 186 -238)"/>
+    <!-- corps vu de dos : masse gélatineuse -->
+    <path d="M-120 140 C-150 80 -132 -20 -96 -90 C-80 -118 -66 -130 -50 -140 L60 -140 C80 -126 104 -90 118 -40 C136 30 140 100 120 140 C100 154 70 146 50 152 C20 158 -10 146 -40 154 C-70 160 -100 154 -120 140 Z" fill="#79b8b0" stroke-width="7"/>
+    <path d="M60 -140 C80 -126 104 -90 118 -40 C136 30 140 100 120 140 C108 148 96 148 86 148 C104 60 96 -40 50 -120 Z" fill="#4a7a74" stroke="none" opacity="0.75"/>
+    <path d="M-110 80 C-118 20 -104 -40 -80 -90" fill="none" stroke="#b5e0da" stroke-width="7" opacity="0.5"/>
+    <g stroke-width="4">
+      <circle cx="-60" cy="40" r="14" fill="#4a7a74"/>
+      <circle cx="-20" cy="100" r="9" fill="#4a7a74"/>
+      <circle cx="50" cy="60" r="16" fill="#c23b3b"/>
+      <circle cx="84" cy="10" r="11" fill="#c23b3b"/>
+      <circle cx="20" cy="126" r="8" fill="#c23b3b"/>
+    </g>
+    <!-- le bocal sur le corps, vu de derrière -->
+    <g transform="rotate(6 0 -200)">
+      <path d="M-78 -64 L-78 -290 C-60 -300 -40 -290 -20 -294 C0 -298 20 -288 40 -294 C60 -298 74 -290 82 -286 L82 -64 Z" fill="#6aa8a0" stroke="none"/>
+      <path d="M50 -294 C70 -296 78 -290 82 -286 L82 -64 L60 -64 C66 -140 64 -230 50 -294 Z" fill="#4a7a74" stroke="none" opacity="0.7"/>
+      <!-- dos de l'étiquette, vu à travers le verre -->
+      <rect x="-30" y="-150" width="66" height="42" rx="3" fill="#cfcabd" stroke-width="4" opacity="0.8"/>
+      <g fill="#cde8e5" stroke-width="2" opacity="0.8"><circle cx="-50" cy="-200" r="5"/><circle cx="-40" cy="-236" r="3.5"/></g>
+      <path d="M-88 -350 L-88 -70 Q-88 -50 -68 -50 L72 -50 Q92 -50 92 -70 L92 -350 Z" fill="#cde8e5" fill-opacity="0.22" stroke-width="6"/>
+      <path d="M-72 -330 L-72 -80" stroke="#f2fbfa" stroke-width="8" opacity="0.5"/>
+      <path d="M76 -330 L76 -200" stroke="#f2fbfa" stroke-width="4" opacity="0.3"/>
+      <rect x="-96" y="-376" width="196" height="30" rx="8" fill="#8a929c" stroke-width="6"/>
+      <path d="M-82 -366 h168" stroke="#b3bac2" stroke-width="5"/>
+    </g>
+  </g>
+  <!-- Ombre de la créature et bocal brisé au sol -->
+  <ellipse cx="480" cy="712" rx="130" ry="12" fill="#05060c" opacity="0.4"/>
+  <g stroke="#05060c" stroke-width="4" stroke-linejoin="round">
+    <path d="M420 860 C460 846 540 848 570 862 C540 880 450 880 420 860 Z" fill="#4a7a74"/>
+    <path d="M470 850 L478 806 L500 798 L524 812 L520 852 Z" fill="#cde8e5" fill-opacity="0.2"/>
+    <path d="M440 858 l14 -18 l10 16 Z M540 856 l12 -14 l6 14 Z" fill="#cde8e5" fill-opacity="0.35"/>
+    <rect x="578" y="842" width="44" height="14" rx="4" fill="#5d646c" transform="rotate(12 600 849)"/>
+  </g>
+  <!-- Effort : gouttelettes et traits -->
+  <g fill="none" stroke="#cde8e5" stroke-width="4" stroke-linecap="round" opacity="0.55">
+    <path d="M250 446 l-16 -12 M246 476 l-20 2 M272 420 l-8 -16 M660 340 l14 -10 M666 370 l18 0"/>
+  </g>
+  <g fill="#79b8b0" stroke="#05060c" stroke-width="2.5"><circle cx="236" cy="480" r="6"/><circle cx="272" cy="440" r="4"/><circle cx="350" cy="700" r="5"/></g>
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.1"/>
+  <!-- CACHETTE : armoire de labo sombre au premier plan, à gauche -->
+  <g stroke="#05060c" stroke-width="7" stroke-linejoin="round">
+    <path d="M-10 160 L190 180 L200 1334 L-10 1334 Z" fill="#161b1e"/>
+    <path d="M150 176 L190 180 L200 1334 L160 1334 Z" fill="#1d2427"/>
+    <path d="M-10 520 L172 524 M-10 900 L178 904" stroke="#0b0e10" stroke-width="14" fill="none"/>
+    <rect x="20" y="300" width="110" height="180" rx="6" fill="#12181b" stroke-width="5"/>
+    <path d="M28 330 h94 M28 380 h94" stroke="#202a2e" stroke-width="5"/>
+    <circle cx="140" cy="700" r="9" fill="#2a3236" stroke-width="4"/>
+    <rect x="40" y="400" width="30" height="44" rx="5" fill="#1b2a28" stroke-width="3"/>
+  </g>
+  <path d="M-10 820 L176 800 L190 1334 L-10 1334 Z" fill="#05060c" opacity="0.3"/>
+  <rect x="700" y="0" width="50" height="1334" fill="#05060c" opacity="0.28"/>
+  <ellipse cx="420" cy="1200" rx="420" ry="100" fill="#05060c" opacity="0.3"/>
+</svg>

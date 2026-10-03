@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Garde du Marché, cadrage « back » : il « contrôle » l'étal de brochettes en les goûtant toutes (et confisque le reste sur sa sagaie). Aucun texte. -->
+  <defs>
+    <pattern id="garde-du-marche-b-mur" width="64" height="42" patternUnits="userSpaceOnUse">
+      <rect width="64" height="42" fill="#1e1a27"/>
+      <rect x="3" y="3" width="58" height="36" rx="3" fill="#272233"/>
+      <rect x="3" y="3" width="58" height="7" fill="#2f2940"/>
+      <circle cx="16" cy="22" r="3" fill="#2f2940"/>
+      <circle cx="46" cy="29" r="3" fill="#2f2940"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="750" height="690" fill="url(#garde-du-marche-b-mur)"/>
+  <!-- Bâche du plafond -->
+  <path d="M0 0 H750 V50 H0 Z" fill="#1a1620"/>
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M0 44 Q36 72 72 44 Q108 72 144 44 Q180 72 216 44 Q252 72 288 44 Q324 72 360 44 Q396 72 432 44 Q468 72 504 44 Q540 72 576 44 Q612 72 648 44 Q684 72 720 44 Q735 58 750 44 V28 H0 Z" fill="#3a2622"/>
+    <path d="M72 44 Q108 72 144 44 M216 44 Q252 72 288 44 M360 44 Q396 72 432 44 M504 44 Q540 72 576 44 M648 44 Q684 72 720 44" fill="none" stroke="#262a38" stroke-width="7"/>
+  </g>
+  <!-- Guirlande de lanternes -->
+  <path d="M0 110 Q190 170 375 128 Q560 170 750 110" fill="none" stroke="#2f2940" stroke-width="5"/>
+  <ellipse cx="300" cy="180" rx="90" ry="60" fill="#b91c1c" opacity="0.07"/>
+  <ellipse cx="600" cy="190" rx="90" ry="60" fill="#d97706" opacity="0.07"/>
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M300 140 v10 M600 146 v10" stroke-width="3"/>
+    <rect x="286" y="150" width="28" height="38" rx="9" fill="#7a2a1a"/>
+    <rect x="586" y="156" width="28" height="38" rx="9" fill="#8a5410"/>
+  </g>
+  <circle cx="300" cy="169" r="7" fill="#ffd76a" opacity="0.55"/>
+  <circle cx="600" cy="175" r="7" fill="#ffd76a" opacity="0.5"/>
+  <!-- Étal voisin fermé (fond gauche) -->
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M20 420 H230 L240 460 H10 Z" fill="#33241f"/>
+    <path d="M60 420 L66 460 H96 L90 420 Z M150 420 L158 460 H188 L180 420 Z" fill="#26303c" stroke-width="3"/>
+    <rect x="16" y="540" width="214" height="110" rx="4" fill="#241e2a"/>
+    <path d="M30 460 V540 M216 460 V540" stroke-width="6"/>
+  </g>
+  <!-- Enseigne illisible au-dessus du grill -->
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M540 264 v16 M640 264 v16" stroke-width="3"/>
+    <rect x="520" y="280" width="140" height="46" rx="6" fill="#2b2418"/>
+    <rect x="534" y="292" width="46" height="10" rx="5" fill="#6b5a36" stroke="none"/>
+    <rect x="588" y="292" width="58" height="10" rx="5" fill="#6b5a36" stroke="none"/>
+    <rect x="544" y="308" width="76" height="9" rx="4" fill="#5a4a2e" stroke="none"/>
+  </g>
+  <!-- Étal de brochettes : auvent rayé -->
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M462 520 V650 M716 520 V650" stroke-width="8"/>
+    <path d="M440 380 H740 L750 430 H430 Z" fill="#4a2f2a"/>
+    <path d="M470 380 L466 430 H506 L510 380 Z M560 380 L560 430 H600 L600 380 Z M650 380 L654 430 H694 L690 380 Z" fill="#2f3d4a" stroke-width="3"/>
+    <path d="M430 430 Q462 450 494 430 Q526 450 558 430 Q590 450 622 430 Q654 450 686 430 Q718 450 750 430" fill="#4a2f2a" stroke-width="4"/>
+  </g>
+  <!-- Le marchand, horrifié, derrière son comptoir -->
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M590 556 Q592 500 626 498 Q660 500 662 556 Z" fill="#4a4436"/>
+    <circle cx="626" cy="484" r="26" fill="#7a8a6a"/>
+    <path d="M606 470 l-14 -18 l22 8 Z M646 470 l14 -18 l-22 8 Z" fill="#7a8a6a" stroke-width="3"/>
+    <circle cx="616" cy="484" r="5" fill="#e8e4d8" stroke-width="2"/>
+    <circle cx="636" cy="484" r="5" fill="#e8e4d8" stroke-width="2"/>
+    <circle cx="614" cy="485" r="2" fill="#05060c" stroke="none"/>
+    <circle cx="634" cy="485" r="2" fill="#05060c" stroke="none"/>
+    <ellipse cx="626" cy="500" rx="5" ry="7" fill="#2b1a12" stroke-width="2"/>
+    <path d="M598 520 Q584 494 592 466 M654 520 Q668 494 660 466" fill="none" stroke-width="9"/>
+    <path d="M598 520 Q584 494 592 466 M654 520 Q668 494 660 466" fill="none" stroke="#4a4436" stroke-width="4"/>
+  </g>
+  <!-- Comptoir, grill et brochettes -->
+  <g stroke="#05060c" stroke-width="5">
+    <rect x="456" y="560" width="270" height="110" rx="5" fill="#33261e"/>
+    <path d="M456 586 H726" stroke-width="4"/>
+    <rect x="480" y="530" width="210" height="32" rx="4" fill="#2a2a2e"/>
+  </g>
+  <g stroke="#05060c" stroke-width="3">
+    <path d="M500 536 h170" stroke="#c2410c" stroke-width="4" opacity="0.8"/>
+    <path d="M504 528 L548 520 M560 528 L604 520 M616 528 L660 520" stroke="#b8b2a0" stroke-width="3"/>
+    <rect x="512" y="516" width="12" height="12" rx="3" fill="#8a4a2a"/><rect x="528" y="514" width="12" height="12" rx="3" fill="#c9a24a"/>
+    <rect x="624" y="516" width="12" height="12" rx="3" fill="#8a4a2a"/><rect x="640" y="514" width="12" height="12" rx="3" fill="#7a8a3a"/>
+  </g>
+  <!-- Fumée du grill -->
+  <g fill="#4a4458" opacity="0.5">
+    <path d="M520 500 q-24 -30 4 -56 q30 -20 14 -54 q40 26 12 62 q-20 24 4 48 Z"/>
+    <path d="M650 500 q-20 -26 6 -48 q24 -18 10 -46 q34 24 8 54 q-16 20 2 40 Z"/>
+  </g>
+  <rect x="0" y="600" width="750" height="90" fill="#05060c" opacity="0.18"/>
+  <!-- Sol pavé -->
+  <rect x="0" y="690" width="750" height="644" fill="#221d2b"/>
+  <path d="M0 690 H750" stroke="#05060c" stroke-width="5"/>
+  <g fill="none" stroke="#18141f" stroke-width="5">
+    <path d="M0 740 h750 M0 810 h750 M0 900 h750 M0 1010 h750 M0 1140 h750 M120 690 v50 M300 690 v50 M480 690 v50 M640 690 v50 M210 740 v70 M400 740 v70 M580 740 v70 M100 810 v90 M330 810 v90 M560 810 v90 M240 900 v110 M480 900 v110 M700 900 v110 M370 1010 v130 M620 1010 v130"/>
+  </g>
+  <rect x="690" y="0" width="60" height="1334" fill="#05060c" opacity="0.22"/>
+  <ellipse cx="410" cy="694" rx="120" ry="14" fill="#05060c" opacity="0.45"/>
+
+  <!-- ===== Le garde, de dos, petit et occupé ===== -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="translate(410 692) scale(0.42) translate(-390 -1000)">
+    <!-- Sagaie plantée au sol, chargée de brochettes confisquées -->
+    <path d="M210 1004 L196 150" stroke-width="22"/>
+    <path d="M210 1004 L196 150" stroke="#6b5a3a" stroke-width="12"/>
+    <path d="M196 156 L172 94 L196 60 L220 94 Z" fill="#b8b2a0" stroke-width="7"/>
+    <g stroke-width="7">
+      <rect x="176" y="190" width="42" height="40" rx="11" fill="#8a4a2a"/>
+      <rect x="178" y="232" width="40" height="38" rx="11" fill="#c9a24a"/>
+      <rect x="176" y="272" width="42" height="40" rx="11" fill="#7a8a3a"/>
+      <rect x="178" y="314" width="40" height="38" rx="11" fill="#8a4a2a"/>
+    </g>
+    <!-- Carquois dans le dos -->
+    <path d="M300 300 L360 560" stroke-width="22"/>
+    <path d="M300 300 L360 560" stroke="#6b5a3a" stroke-width="12"/>
+    <path d="M340 290 L384 560" stroke-width="22"/>
+    <path d="M340 290 L384 560" stroke="#6b5a3a" stroke-width="12"/>
+    <path d="M294 306 l-10 -44 l26 36 Z M336 296 l-4 -44 l20 40 Z" fill="#b8b2a0" stroke-width="6"/>
+    <!-- Jambes (talons vers nous) -->
+    <path d="M300 772 L384 780 L366 900 L346 1000 L272 998 L290 900 Z" fill="#5a3a2a" stroke-width="12"/>
+    <path d="M410 772 L490 764 L512 990 L440 996 Z" fill="#4a2f22" stroke-width="12"/>
+    <path d="M260 990 Q306 976 352 990 L354 1020 L256 1020 Z" fill="#2a1d16" stroke-width="9"/>
+    <path d="M430 988 Q476 976 520 988 L522 1018 L426 1018 Z" fill="#2a1d16" stroke-width="9"/>
+    <!-- Bras gauche, qui tient la sagaie -->
+    <path d="M280 506 Q224 580 214 700 L270 708 Q272 610 316 556 Z" fill="#5a3a2a" stroke-width="11"/>
+    <path d="M190 690 Q192 650 230 650 Q270 656 270 694 Q266 734 228 736 Q192 732 190 690 Z" fill="#9cb06e" stroke-width="10"/>
+    <!-- Dos -->
+    <path d="M266 498 Q390 462 512 484 Q546 620 498 792 L294 792 Q246 640 266 498 Z" fill="#9cb06e" stroke-width="13"/>
+    <path d="M266 498 Q300 486 330 482 Q298 640 312 792 L294 792 Q246 640 266 498 Z" fill="#6f8150" stroke="none"/>
+    <path d="M394 500 Q402 640 394 760" fill="none" stroke="#6f8150" stroke-width="8"/>
+    <path d="M330 560 q30 24 52 6 M412 562 q24 22 54 2" fill="none" stroke="#6f8150" stroke-width="7"/>
+    <path d="M440 620 L470 700" fill="none" stroke-width="5"/>
+    <path d="M436 640 l16 -6 M446 664 l16 -6 M456 688 l16 -6" stroke-width="4"/>
+    <!-- Baudrier qui croise le dos, carquois -->
+    <path d="M290 500 L480 770" stroke-width="38"/>
+    <path d="M290 500 L480 770" stroke="#5a3a2a" stroke-width="24"/>
+    <path d="M300 460 L372 444 L400 600 L336 618 Z" fill="#4a2f22" stroke-width="10"/>
+    <path d="M310 490 L380 476" stroke="#6b4a32" stroke-width="7"/>
+    <!-- Ceinture vue de dos -->
+    <path d="M292 792 L500 792 L504 754 L290 754 Z" fill="#43291d" stroke-width="10"/>
+    <!-- Bras droit levé jusqu'à la bouche -->
+    <path d="M490 490 Q570 500 590 440 L548 400 Q534 448 480 452 Z" fill="#5a3a2a" stroke-width="11"/>
+    <path d="M526 440 L566 470 L578 446 L540 418 Z" fill="#fbbf24" stroke-width="7"/>
+    <path d="M590 440 L548 400 L506 380 L520 340 Q572 360 596 420 Z" fill="#5a3a2a" stroke-width="11"/>
+    <!-- Bâton de brochette qui dépasse, dernier morceau -->
+    <path d="M500 360 L640 250" stroke="#b8b2a0" stroke-width="8"/>
+    <rect x="606" y="252" width="40" height="38" rx="11" fill="#c9a24a" stroke-width="7" transform="rotate(-38 626 271)"/>
+    <!-- Nuque et tête de dos -->
+    <rect x="360" y="440" width="76" height="62" fill="#9cb06e" stroke-width="10"/>
+    <path d="M300 344 Q296 244 400 236 Q504 242 502 346 Q502 430 456 470 Q426 494 398 494 Q364 494 332 470 Q300 432 300 344 Z" fill="#9cb06e" stroke-width="13"/>
+    <path d="M300 344 Q302 420 340 466 Q330 410 334 350 Z" fill="#6f8150" stroke="none"/>
+    <path d="M318 420 L482 420 L472 496 L328 496 Z" fill="#9cb06e" stroke="none"/>
+    <path d="M326 440 L336 500 M474 440 L464 500" fill="none" stroke-width="10"/>
+    <path d="M346 470 Q350 440 344 420 M454 470 Q450 440 456 420" fill="none" stroke="#6f8150" stroke-width="7"/>
+    <path d="M302 352 q-30 4 -28 32 q4 24 32 18 Z" fill="#9cb06e" stroke-width="9"/>
+    <path d="M500 346 q30 0 30 28 q-2 26 -30 22 Z" fill="#9cb06e" stroke-width="9"/>
+    <!-- Joue gonflée qui déborde (il mâche) -->
+    <path d="M498 380 q34 10 30 46 q-10 22 -36 12" fill="#9cb06e" stroke-width="9"/>
+    <!-- Casque vu de dos : dôme, crête, couvre-nuque -->
+    <path d="M288 320 Q292 182 400 176 Q508 182 514 320 Z" fill="#5a3a2a" stroke-width="13"/>
+    <path d="M288 320 Q292 230 340 196 Q316 260 318 320 Z" fill="#43291d" stroke="none"/>
+    <path d="M300 330 Q400 316 504 330 L494 426 Q400 410 310 426 Z" fill="#5a3a2a" stroke-width="11"/>
+    <path d="M340 340 L336 418 M400 334 L400 412 M460 340 L464 418" stroke="#43291d" stroke-width="6"/>
+    <path d="M280 312 Q400 296 522 312 L516 352 Q400 336 286 352 Z" fill="#43291d" stroke-width="11"/>
+    <g fill="#8a6a4a" stroke-width="4"><circle cx="318" cy="330" r="7"/><circle cx="400" cy="320" r="7"/><circle cx="482" cy="330" r="7"/></g>
+    <path d="M362 186 Q398 112 452 190 Q420 170 400 172 Q378 172 362 186 Z" fill="#43291d" stroke-width="10"/>
+    <path d="M374 172 Q398 136 428 172" fill="none" stroke="#8a6a4a" stroke-width="6"/>
+  </g>
+  <!-- Miettes qui volent -->
+  <g fill="#c9a24a" stroke="#05060c" stroke-width="1.5">
+    <circle cx="512" cy="530" r="4"/><circle cx="524" cy="514" r="3"/><circle cx="500" cy="548" r="3"/>
+  </g>
+  <g fill="none" stroke="#05060c" stroke-width="3" stroke-linecap="round" opacity="0.7">
+    <path d="M498 494 l12 -8 M510 512 l14 -2"/>
+  </g>
+  <!-- Cachette : caisses et sac au premier plan (gauche), sombres -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="-20" y="780" width="250" height="210" rx="6" fill="#16121b"/>
+    <path d="M-20 780 L230 990 M230 780 L-20 990" stroke="#0e0b12" stroke-width="10"/>
+    <rect x="-20" y="620" width="190" height="160" rx="6" fill="#1b1620"/>
+    <path d="M-20 700 H170" stroke="#0e0b12" stroke-width="8"/>
+    <path d="M190 990 Q186 900 236 880 Q300 870 312 930 Q322 990 300 1000 Z" fill="#1a1520"/>
+    <path d="M228 884 l-10 -26 l26 8" fill="#1a1520" stroke-width="5"/>
+  </g>
+  <rect x="-20" y="990" width="360" height="344" fill="#0c0a10"/>
+  <ellipse cx="160" cy="992" rx="190" ry="18" fill="#05060c" opacity="0.5"/>
+  <path d="M0 0 H70 V1334 H0 Z" fill="#05060c" opacity="0.35"/>
+  <path d="M340 1334 L750 1334 L750 1230 Q540 1200 340 1290 Z" fill="#05060c" opacity="0.35"/>
+</svg>

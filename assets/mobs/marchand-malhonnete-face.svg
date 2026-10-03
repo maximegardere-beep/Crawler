@@ -1,0 +1,209 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Marchand Malhonnête, mob du Marché Noir du Donjon, cadrage « face » : il te jette ses pièces truquées. Aucun texte. -->
+  <defs>
+    <pattern id="marchand-malhonnete-f-mur" width="100" height="66" patternUnits="userSpaceOnUse">
+      <rect width="100" height="66" fill="#211d2b"/>
+      <rect x="4" y="4" width="92" height="58" rx="4" fill="#2a2438"/>
+      <rect x="4" y="4" width="92" height="10" fill="#332c48"/>
+      <circle cx="24" cy="34" r="4" fill="#332c48"/>
+      <circle cx="72" cy="46" r="5" fill="#332c48"/>
+      <circle cx="55" cy="22" r="3" fill="#3a3352"/>
+    </pattern>
+    <radialGradient id="marchand-malhonnete-f-halo">
+      <stop offset="0" stop-color="#e58a3a" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#e58a3a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#marchand-malhonnete-f-mur)"/>
+  <!-- Bâche du plafond, drapée -->
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M0 0 H750 V70 Q712 110 675 70 Q637 110 600 70 Q562 110 525 70 Q487 110 450 70 Q412 110 375 70 Q337 110 300 70 Q262 110 225 70 Q187 110 150 70 Q112 110 75 70 Q37 110 0 70 Z" fill="#2c1e1b"/>
+    <path d="M75 0 V70 Q112 110 150 70 V0 Z M225 0 V70 Q262 110 300 70 V0 Z M375 0 V70 Q412 110 450 70 V0 Z M525 0 V70 Q562 110 600 70 V0 Z M675 0 V70 Q712 110 750 70 V0 Z" fill="#20232e" stroke-width="3"/>
+  </g>
+  <!-- Guirlande de lanternes -->
+  <path d="M0 150 Q190 230 375 160 Q560 230 750 150" fill="none" stroke="#05060c" stroke-width="6"/>
+  <ellipse cx="150" cy="250" rx="150" ry="120" fill="url(#marchand-malhonnete-f-halo)"/>
+  <ellipse cx="610" cy="250" rx="130" ry="105" fill="url(#marchand-malhonnete-f-halo)" opacity="0.7"/>
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M150 195 v14 M610 195 v14" stroke-width="4"/>
+    <rect x="128" y="208" width="44" height="58" rx="16" fill="#a8461a"/>
+    <rect x="590" y="208" width="40" height="52" rx="14" fill="#9a2a22"/>
+    <path d="M136 222 h28 M136 252 h28 M597 220 h26 M597 248 h26" stroke-width="3"/>
+  </g>
+  <ellipse cx="150" cy="237" rx="9" ry="14" fill="#ffc46a" opacity="0.7"/>
+  <ellipse cx="610" cy="234" rx="8" ry="12" fill="#ffb05a" opacity="0.55"/>
+  <!-- Enseigne illisible (formes seulement) -->
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M560 330 v-30 M690 330 v-30" stroke-width="4"/>
+    <rect x="540" y="330" width="170" height="64" rx="8" fill="#2e2618"/>
+    <rect x="558" y="348" width="40" height="12" rx="5" fill="#8a7444" stroke="none"/>
+    <rect x="606" y="348" width="60" height="12" rx="5" fill="#8a7444" stroke="none"/>
+    <rect x="566" y="368" width="90" height="12" rx="5" fill="#8a7444" stroke="none"/>
+    <circle cx="684" cy="372" r="8" fill="#8a7444" stroke="none"/>
+  </g>
+  <!-- Étal à auvent rayé -->
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M10 600 L230 600 L250 650 L-10 650 Z" fill="#3a2522"/>
+    <path d="M44 600 L30 650 L70 650 L80 600 Z M116 600 L110 650 L150 650 L152 600 Z M188 600 L190 650 L230 650 L224 600 Z" fill="#262f3a" stroke-width="3"/>
+    <path d="M-10 650 q26 22 52 0 q26 22 52 0 q26 22 52 0 q26 22 52 0 q26 22 52 0" fill="#3a2522"/>
+    <rect x="20" y="650" width="10" height="150" fill="#2a2018"/>
+    <rect x="210" y="650" width="10" height="150" fill="#2a2018"/>
+    <rect x="0" y="790" width="240" height="26" rx="4" fill="#3a2c20"/>
+    <rect x="10" y="816" width="220" height="150" fill="#2a2018"/>
+    <path d="M10 870 h220 M10 920 h220" stroke-width="3"/>
+    <rect x="34" y="760" width="40" height="30" rx="4" fill="#4a3f5c"/>
+    <path d="M100 790 l14 -44 l14 44 Z" fill="#5a4a30"/>
+    <circle cx="170" cy="772" r="18" fill="#3e4a3a"/>
+  </g>
+  <g fill="#6d5a34" stroke="#05060c" stroke-width="3">
+    <path d="M60 754 l18 -8 l6 12 l-18 8 Z"/><path d="M150 752 l16 -6 l5 11 l-16 6 Z"/>
+  </g>
+  <!-- Caisses de contrebande -->
+  <g stroke="#05060c" stroke-width="5">
+    <rect x="590" y="880" width="150" height="120" rx="5" fill="#2e2620"/>
+    <path d="M590 880 l150 120 M740 880 l-150 120" stroke="#241d18" stroke-width="10"/>
+    <rect x="590" y="880" width="150" height="120" rx="5" fill="none"/>
+    <rect x="620" y="800" width="104" height="80" rx="5" fill="#2a231d"/>
+    <path d="M620 840 h104" stroke-width="4"/>
+  </g>
+  <!-- Sol pavé -->
+  <rect x="0" y="1040" width="750" height="294" fill="#2a241e"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g fill="#26201b" stroke="#140f0b" stroke-width="5">
+    <ellipse cx="60" cy="1080" rx="56" ry="24"/><ellipse cx="190" cy="1078" rx="62" ry="24"/><ellipse cx="330" cy="1082" rx="60" ry="24"/>
+    <ellipse cx="470" cy="1078" rx="62" ry="24"/><ellipse cx="610" cy="1082" rx="60" ry="24"/><ellipse cx="730" cy="1078" rx="50" ry="24"/>
+    <ellipse cx="120" cy="1150" rx="70" ry="30"/><ellipse cx="280" cy="1152" rx="74" ry="30"/><ellipse cx="440" cy="1148" rx="74" ry="30"/>
+    <ellipse cx="600" cy="1152" rx="72" ry="30"/><ellipse cx="40" cy="1240" rx="80" ry="38"/><ellipse cx="220" cy="1244" rx="86" ry="38"/>
+    <ellipse cx="410" cy="1240" rx="88" ry="38"/><ellipse cx="600" cy="1244" rx="86" ry="38"/>
+  </g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
+  <!-- Aura dorée irrégulière (cupidité) -->
+  <path d="M260 210 Q420 150 560 260 Q680 420 640 640 Q620 860 500 980 Q360 1020 250 940 Q130 800 150 580 Q150 340 260 210 Z" fill="#caa23a" opacity="0.07"/>
+  <path d="M300 280 Q430 230 530 320 Q600 460 580 650 Q550 850 440 930 Q330 940 270 820 Q210 640 230 460 Q240 340 300 280 Z" fill="#caa23a" opacity="0.07"/>
+  <!-- Ombre au sol et poussière -->
+  <ellipse cx="400" cy="1048" rx="230" ry="26" fill="#05060c" opacity="0.45"/>
+  <g fill="#3a3128" opacity="0.85">
+    <ellipse cx="560" cy="1030" rx="52" ry="14"/><ellipse cx="610" cy="1012" rx="26" ry="9"/><ellipse cx="250" cy="1028" rx="38" ry="11"/>
+  </g>
+  <!-- ===== Le marchand ===== -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="rotate(-5 400 1000)">
+    <!-- Jambe arrière -->
+    <path d="M318 820 L382 824 L352 940 L330 1004 L278 998 L300 930 Z" fill="#5a4b34" stroke-width="10"/>
+    <path d="M250 990 Q300 974 344 990 L344 1016 L244 1016 Z" fill="#2b2218" stroke-width="7"/>
+    <!-- Jambe avant -->
+    <path d="M410 820 L486 818 L512 920 L520 1000 L456 1004 L446 930 L420 870 Z" fill="#6b5a3f" stroke-width="10"/>
+    <path d="M440 996 Q500 978 560 998 L564 1034 L436 1034 Z" fill="#2b2218" stroke-width="8"/>
+    <path d="M454 1008 Q500 998 542 1006" fill="none" stroke="#45382a" stroke-width="6"/>
+    <!-- Pan du manteau arrière (côté gauche de l'image) -->
+    <path d="M304 500 Q250 520 238 610 L208 958 Q262 986 326 972 L340 720 Q330 610 346 532 Z" fill="#5c4d36" stroke-width="10"/>
+    <path d="M326 972 L340 720 Q330 610 346 532 L330 524 Q314 620 322 720 L304 976 Z" fill="#3f3426" stroke="none"/>
+    <!-- Torse (chemise verte) -->
+    <path d="M300 520 Q392 494 482 514 Q508 650 484 838 L320 842 Q284 680 300 520 Z" fill="#9cb06e" stroke-width="11"/>
+    <path d="M440 520 Q476 640 456 838 L484 838 Q508 650 482 514 Z" fill="#7f9458" stroke="none"/>
+    <path d="M360 560 l6 30 M380 610 l-4 26 M350 690 l10 24" stroke="#6f8450" stroke-width="5"/>
+    <circle cx="398" cy="600" r="6" fill="#6b5a3f" stroke-width="3"/>
+    <circle cx="400" cy="680" r="6" fill="#6b5a3f" stroke-width="3"/>
+    <path d="M316 806 L486 800 L486 836 L318 842 Z" fill="#3e3222" stroke-width="7"/>
+    <rect x="384" y="800" width="36" height="38" rx="5" fill="#caa23a" stroke-width="5"/>
+    <!-- Pan du manteau avant, doublure pleine d'objets volés -->
+    <path d="M478 498 Q540 512 560 604 L596 976 Q526 1002 452 988 L442 720 Q452 610 444 524 Z" fill="#6b5a3f" stroke-width="10"/>
+    <path d="M452 988 L442 720 Q452 610 444 524 L486 540 Q500 640 492 740 L500 994 Z" fill="#3f3426" stroke-width="5"/>
+    <path d="M470 570 v34 M478 650 v40 M470 760 v30" stroke="#caa23a" stroke-width="3"/>
+    <circle cx="470" cy="618" r="15" fill="#caa23a" stroke-width="5"/>
+    <circle cx="470" cy="618" r="7" fill="#e8e4c8" stroke-width="2"/>
+    <circle cx="478" cy="706" r="17" fill="#b8b2a0" stroke-width="5"/>
+    <circle cx="478" cy="706" r="8" fill="#e8e4c8" stroke-width="2"/>
+    <path d="M462 800 l16 0 l-2 46 l-12 0 Z" fill="#b8b2a0" stroke-width="4"/>
+    <ellipse cx="470" cy="794" rx="12" ry="8" fill="#b8b2a0" stroke-width="4"/>
+    <path d="M548 640 Q560 760 570 900" fill="none" stroke="#584a33" stroke-width="5"/>
+    <!-- Col relevé et revers -->
+    <path d="M300 505 L282 430 L342 470 L372 540 Z" fill="#5c4d36" stroke-width="8"/>
+    <path d="M482 500 L512 424 L452 470 L420 540 Z" fill="#6b5a3f" stroke-width="8"/>
+    <!-- Cou -->
+    <rect x="364" y="460" width="56" height="62" fill="#8ea262" stroke-width="8"/>
+    <!-- Bras arrière levé : il lance une pièce truquée -->
+    <path d="M308 530 Q240 530 206 470 Q186 430 192 386 L244 384 Q244 426 262 456 Q286 486 330 494 Z" fill="#5c4d36" stroke-width="9"/>
+    <path d="M180 396 Q164 362 180 334 Q206 314 238 330 Q256 356 246 392 Z" fill="#9cb06e" stroke-width="7"/>
+    <path d="M186 344 Q206 336 228 346 M184 362 Q206 354 232 364" fill="none" stroke-width="4"/>
+    <path d="M226 336 Q236 304 258 290 Q274 288 272 302 Q258 316 248 344 Z" fill="#9cb06e" stroke-width="6"/>
+    <path d="M258 294 q6 -2 10 2" fill="none" stroke="#e8e4c8" stroke-width="3"/>
+    <!-- Étiquette de prix (vierge) qui pend à la manche -->
+    <path d="M214 470 L196 520" fill="none" stroke="#4a4436" stroke-width="3"/>
+    <path d="M178 516 L210 512 L222 556 L190 562 L176 546 Z" fill="#e8dcae" stroke-width="4"/>
+    <circle cx="186" cy="534" r="4" fill="#05060c" stroke="none"/>
+    <!-- Bras avant tendu vers nous, bourse gonflée -->
+    <path d="M478 512 Q560 520 600 590 Q626 640 616 704 L558 708 Q562 656 546 622 Q520 580 470 566 Z" fill="#6b5a3f" stroke-width="10"/>
+    <path d="M552 698 L622 694 L626 726 L552 732 Z" fill="#584a33" stroke-width="7"/>
+    <!-- Bourse -->
+    <path d="M548 760 Q520 820 548 890 Q600 930 660 900 Q700 850 676 780 Q650 744 610 742 Q570 744 548 760 Z" fill="#8a5a2e" stroke-width="9"/>
+    <path d="M660 900 Q700 850 676 780 Q672 840 640 892 Z" fill="#6e4723" stroke="none"/>
+    <path d="M570 770 q40 -16 92 6" fill="none" stroke="#4a4436" stroke-width="7"/>
+    <path d="M584 800 q8 40 -4 70 M630 800 q14 30 8 70" fill="none" stroke="#6e4723" stroke-width="5"/>
+    <g fill="#caa23a" stroke-width="4">
+      <ellipse cx="580" cy="744" rx="18" ry="9"/><ellipse cx="612" cy="738" rx="18" ry="9"/><ellipse cx="642" cy="748" rx="16" ry="8"/>
+    </g>
+    <!-- Main qui serre le cordon -->
+    <path d="M560 728 Q554 762 580 772 Q616 778 632 756 Q640 732 622 720 Z" fill="#9cb06e" stroke-width="7"/>
+    <path d="M578 740 l26 -4 M580 756 l30 -4" stroke-width="4"/>
+    <!-- Tête -->
+    <g transform="rotate(-7 392 330)">
+      <path d="M296 330 C292 252 330 206 396 206 C464 206 500 252 500 330 C500 396 484 440 456 464 C438 478 418 484 396 484 C374 484 354 478 338 464 C308 438 296 396 296 330 Z" fill="#9cb06e" stroke-width="11"/>
+      <path d="M470 262 C490 310 490 384 460 444 C478 400 482 342 474 300 Z" fill="#7f9458" stroke="none"/>
+      <path d="M298 330 q-34 -14 -34 22 q4 30 38 26 Z" fill="#9cb06e" stroke-width="7"/>
+      <path d="M496 326 q30 -10 30 20 q-4 26 -30 24 Z" fill="#9cb06e" stroke-width="7"/>
+      <path d="M340 236 Q370 226 392 240 M352 226 l-4 18 M366 226 l-2 18 M380 230 l-4 16" fill="none" stroke="#5c6b4f" stroke-width="5"/>
+      <path d="M420 212 q8 -26 26 -30 M436 216 q16 -18 34 -16" fill="none" stroke-width="5"/>
+      <!-- Sourcils furieux -->
+      <path d="M316 296 L380 316" stroke-width="14"/>
+      <path d="M484 284 L420 314" stroke-width="14"/>
+      <!-- Yeux braqués sur nous : un œil doré -->
+      <ellipse cx="352" cy="342" rx="26" ry="22" fill="#e8e4c8" stroke-width="6"/>
+      <circle cx="358" cy="344" r="10" fill="#6b5a3f" stroke-width="3"/>
+      <circle cx="359" cy="344" r="4.5" fill="#05060c" stroke="none"/>
+      <ellipse cx="444" cy="340" rx="31" ry="27" fill="#caa23a" stroke-width="6"/>
+      <circle cx="438" cy="342" r="13" fill="#7a5a12" stroke-width="3"/>
+      <circle cx="437" cy="342" r="6" fill="#05060c" stroke="none"/>
+      <circle cx="452" cy="330" r="5" fill="#fff3c4" stroke="none"/>
+      <path d="M326 366 q14 8 30 6" fill="none" stroke="#7f9458" stroke-width="5"/>
+      <path d="M396 352 L410 384 L392 390" fill="none" stroke-width="5"/>
+      <!-- Fine moustache de filou et rictus à dent en or -->
+      <path d="M352 412 Q376 398 398 410 Q420 398 446 410 Q424 416 398 418 Q372 418 352 412 Z" fill="#3a3020" stroke-width="4"/>
+      <path d="M344 424 Q398 418 456 422 Q454 454 424 464 Q396 470 368 462 Q344 450 344 424 Z" fill="#2b1a12" stroke-width="7"/>
+      <path d="M356 428 l8 13 l8 -13 l8 13 l8 -13 M412 428 l8 13 l8 -13 l8 13" fill="#e8e0c8" stroke-width="4"/>
+      <path d="M396 427 l4 13 l8 0 l4 -13 Z" fill="#caa23a" stroke-width="4"/>
+      <path d="M374 456 Q396 446 418 456" fill="#b04a4a" stroke-width="4"/>
+      <path d="M470 400 l10 6 M474 416 l12 2" stroke-width="4"/>
+    </g>
+  </g>
+  <!-- Pièces truquées qui volent vers nous -->
+  <g fill="none" stroke="#05060c" stroke-width="5" stroke-linecap="round" opacity="0.75">
+    <path d="M250 300 Q240 250 268 214 M276 296 Q290 252 322 236"/>
+    <path d="M200 430 Q150 470 140 540 M170 400 Q110 420 80 480"/>
+    <path d="M140 820 l-40 -10 M150 856 l-44 6 M170 890 l-30 20"/>
+  </g>
+  <g stroke="#05060c" stroke-linejoin="round">
+    <ellipse cx="282" cy="214" rx="24" ry="9" fill="#caa23a" stroke-width="5" transform="rotate(-24 282 214)"/>
+    <g transform="rotate(18 110 600)">
+      <ellipse cx="110" cy="600" rx="40" ry="34" fill="#caa23a" stroke-width="6"/>
+      <ellipse cx="110" cy="600" rx="26" ry="21" fill="none" stroke="#9a7a24" stroke-width="5"/>
+      <path d="M96 586 l10 6 l-6 12 l14 8" fill="none" stroke-width="4"/>
+    </g>
+    <g transform="rotate(-20 180 850)">
+      <ellipse cx="180" cy="850" rx="52" ry="44" fill="#caa23a" stroke-width="7"/>
+      <path d="M152 828 L176 846 L166 866 L198 884 L228 846 Q206 812 152 828 Z" fill="#7d7f86" stroke-width="5"/>
+      <ellipse cx="180" cy="850" rx="52" ry="44" fill="none" stroke-width="7"/>
+      <path d="M140 846 q8 -24 30 -32" fill="none" stroke="#f1d27a" stroke-width="5"/>
+    </g>
+    <g fill="#caa23a" stroke-width="4">
+      <ellipse cx="64" cy="430" rx="16" ry="10" transform="rotate(30 64 430)"/>
+      <ellipse cx="300" cy="140" rx="12" ry="6"/>
+    </g>
+  </g>
+  <g fill="#f1d27a" opacity="0.85">
+    <path d="M90 520 l6 -16 l6 16 l16 6 l-16 6 l-6 16 l-6 -16 l-16 -6 Z"/>
+    <path d="M232 780 l4 -12 l4 12 l12 4 l-12 4 l-4 12 l-4 -12 l-12 -4 Z"/>
+    <path d="M660 700 l5 -14 l5 14 l14 5 l-14 5 l-5 14 l-5 -14 l-14 -5 Z"/>
+  </g>
+  <path d="M260 1334 L750 1334 L750 1250 Q520 1220 260 1290 Z" fill="#05060c" opacity="0.3"/>
+</svg>

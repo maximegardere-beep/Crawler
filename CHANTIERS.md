@@ -28,7 +28,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 
 ## Point d'étape (30/09/2026)
 
-- **Tous les chantiers du registre sont codés**, sauf 6, 7 et 8 (pas encore explorés).
+- **Tous les chantiers du registre sont codés**, sauf 7 (pas encore exploré) ; 8 (sons) codé le 03/10/2026.
 - **Tous les chantiers codés restent « à playtester »** : les chiffres sont des valeurs de départ,
   calibrées au mieux par simulation. Les points à vérifier sont regroupés plus bas (« À playtester »).
 - **PR #32 mergée** (chantiers 9, 10 et 11) : tag `v32` et release non créés (le versioning par tag/release n'est plus une consigne du projet).
@@ -44,10 +44,10 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 |---|----------|---------|--------|------------|
 | 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Codé (à playtester) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
-| 8 | Sons | M | Idée | hébergement des fichiers non tranché |
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
+| 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié — lots 0 à 3 et 6 codés (catalogue `encounters.js`, overlay + repli sprite agrandi), toutes les images livrées en SVG : 13 boss (face, Vibe), 39 mobs (face + dos) et 3 chasseurs (face) dessinés par Claude | playtest de l'ensemble (lisibilité des écrans sur téléphone) |
 
 ### Codés (à playtester)
 
@@ -62,6 +62,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 10 | Expansion de la banque d'objets + refonte de la rareté | L | #32 | `NOTES_ITEMS.md` (section « Chantier 10 ») |
 | 11 | Nouveaux sorts (effets et utilitaires) | M | #32 | `NOTES_SORTS.md` |
 | 12 | Villes explorables (étages urbains sur le modèle de la carte) | XL | prochaine PR | `NOTES_VILLES.md` |
+| 8 | Sons (ZzFX + recettes Web Audio) | M | prochaine PR | `NOTES_SONS.md` |
 
 ### Chantiers antérieurs au registre
 
@@ -94,6 +95,8 @@ Leviers à regarder en premier ; le détail est dans la section « À surveiller
   ville trop généreuse ? pickpocket, lisibilité des routes diagonales sur petit écran.
 - **Objets** (10) : rareté (Légendaire « miracle » avant l'étage 10), économie (un Légendaire vaut ~20× un
   Commun), taux de proc des qualificatifs.
+- **Sons** (8) : écoute réelle de tous les sons (composés sans écoute), volume combat / événements, fatigue
+  d'écoute, déblocage du son sur iOS.
 - **Sorts** (11) : combo Bouclier de Mana + Soin Express, Pas de l'Ombre et le kiting, étourdissement à 30 %.
 - **Hérité du backlog** (`CLAUDE.md`) : table D100 des événements, furtivité, boss plus punitifs que les mobs
   en fin de run, économie urbaine.
@@ -378,9 +381,27 @@ premier étage urbain.
 Salles à choix narratif basé sur les compétences, sans fuite possible. Le chantier 5 a prévu la place :
 un nouveau type de salle = une entrée de `ROOM_TYPES` (+ son effet dans `enterRoom()`).
 
-## 8. Sons — M — Idée (ancien backlog de `CLAUDE.md`)
+## 8. Sons — M — Codé (à playtester)
 
-Hébergement des fichiers non tranché (3 catégories : actions, ambiance, mobs).
+**Demande** : intégrer des effets audio, par la méthode la plus simple.
+
+**Décisions** : sons **synthétisés par ZzFX** (aucun fichier audio, aucun CDN — tranche l'hébergement) ; bruitages
+de combat détaillés (famille d'arme, projectile, école de sort, cri par archétype) et d'événements ; son actif par défaut, bouton 🔊 (tout couper) dans
+l'en-tête ; page d'écoute ; catalogue composé par Claude, échantillon de 5 sons validé avant le code.
+Ambiance / musique non retenue.
+
+**Livré** (4 lots) : socle `sounds.js` + boutons + page d'écoute, 36 sons de combat, 18 sons d'événements (en file
+d'attente) — voir `NOTES_SONS.md`. La voix du présentateur (`speechSynthesis`, lot 3) a été codée puis **retirée** à la
+demande de l'utilisateur (rendu jugé horrible), avec son bouton 🎙️.
+
+**Suite — sons plus reconnaissables** (03/10/2026, codée) : comparaison de 5 sons en trois versions (ZzFX actuel,
+ZzFX en couches, recettes Web Audio). **Choix** : Web Audio pour le coup d'épée, les pièces d'or, l'arbalète, la potion
+et la foudre ; **ZzFX en couches pour l'arc**. Propositions Web Audio faites pour les 24 sons les plus fréquents
+(attaques, sorts, cris des 10 archétypes, crawler touché, mob vaincu, objet, niveau, rencontre, mini-jeux), à valider
+à l'oreille avant d'intégrer un moteur de recettes dans `sounds.js`. **Validées** : toutes, sauf « rencontre » (refusée :
+doit symboliser le combat qui commence) — 4 alternatives proposées (lame dégainée, cloche de ring, tambours de guerre,
+dégaine + cuivres) ; **option D retenue**. **Codé** : `sounds-recipes.js` (briques et 28 recettes Web Audio), entrées
+`recipe()`/`layered()` du catalogue, arbalète en couches ZzFX ; le reste du catalogue reste en ZzFX simple.
 
 ## 9. Interface inventaire allégée — M — Codé (PR #32, ouverte)
 
@@ -465,3 +486,71 @@ scénario** (1 fois par étage 1-3, un coup mortel laisse 1 PV, boss compris) ·
 
 **Lot 5 codé** : habillage satirique — 4 thèmes de piques DeathWatch (`trial` sur la Période d'essai, `trialEnd` à l'arrivée à l'étage 4, `plotArmor` après un coup mortel évité, `interim` après un boss intérimaire vaincu ; répliques sur les 4 tons), 2 succès Bronze (« Le scénariste vous aime », « Licenciement sans préavis », catalogue 53 → 55), message de fin de la Convention collective à la première élite croisée (une fois, `gameState.eliteConventionEnded`).
 **À playtester avant merge** : élites encore létales aux étages 3-5 malgré la rampe ; le suspense du tutoriel face à l'Armure de scénario ; la falaise de l'étage 4.
+
+## 16. Entrées en combat (fluidité et lisibilité) — L — Planifié
+
+**Demande** : le début d'un combat est trop instantané. Un écran plein écran statique par mob (rage s'il nous attaque, de dos
+et au loin en cas d'embuscade), images générées par Vibe avec un fichier de consignes, boss d'abord puis mobs les plus puissants ;
+et, en embuscade, pouvoir choisir un départ à distance ou au corps à corps.
+
+**Exploré** : `initiateCombat()` (app.js) bascule d'un coup de la scène d'exploration au combat (en-tête posé, journal, `updateUI()`),
+sans temps mort. Cinq entrées y mènent : rencontre repérée (`handleStealthEncounter()`), esquive ratée (`attemptStealthEvasion()`),
+attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de trajet (`triggerNextAmbushOrArrive()`), boss
+(`triggerBossEncounter()`), chasseur de primes (`maybeSpawnBountyHunter()`). Seule la furtivité non repérée a déjà un écran
+(vignette `stealthUnseen`, petite). L'écart de départ n'a qu'une règle : `mobWantsFar()` → `config.rangedCombat.initialDistance`, sinon 0.
+
+**Décidé (round 1)** : overlay **toujours fermé par un tap** (Espace/Entrée aussi) · variantes **« il t'a vu » (face, rage)**,
+**« tu l'as vu » (dos, au loin, occupé)**, **arrivée de boss** distincte, **chasseur de primes** (affiche RECHERCHÉ) · embuscade :
+**Attaque furtive à 2 boutons** (corps à corps / de loin) · images **WebP dans `assets/mobs/`**.
+
+**Plan** :
+- **Lot 0 — catalogue pur `encounters.js`** (**codé**, `tests/regression/encounters.js`) (chargé avant `app.js`, ajouté à `index.html` ET `tests/load_game.js`) : `ENCOUNTER_KINDS`
+  (`spotted`, `unseen`, `ambush`, `boss`, `hunter` : titre, réplique sarcastique, couleur d'accent), `encounterArtSlug(nom)`,
+  manifeste `ENCOUNTER_ART` (`{ 'Nom exact': { face, back } }`, mis à jour à chaque livraison de Vibe), `resolveEncounterArt(enemy, kind)`.
+  Test : chaque entrée du manifeste existe sur disque et correspond à un mob/boss réel, aucun slug en double.
+- **Lot 1 — overlay `#encounter-overlay`** (**codé**, vérifié dans Chromium à 375 px ; aperçu en console : `devPreviewEncounter('spotted'|'ambush'|'unseen'|'boss'|'hunter', 'Nom exact')`) : image plein écran (`object-fit: cover`, ancrage haut), bandeau titre + « Toucher pour continuer »,
+  fondu d'entrée, léger zoom lent et secousse à la révélation, coupés sous `prefers-reduced-motion`. **Repli sans image** : le mob actuel
+  (`resolveMobSprite()`, aura comprise) agrandi sur le décor du quartier (`composeBackdrop()`), de face ou de dos — la fonctionnalité marche
+  dès le lot 1, chaque image livrée ne fait qu'améliorer un mob. Image chargée via `<img>` avec repli sur `onerror`.
+- **Lot 2 — branchement** (**codé**, vérifié dans Chromium : furtif → tap → boutons, attaque furtive → combat direct, embuscade → Espace → combat) : `initiateCombat(enemy, { intro: 'spotted'|'ambush'|'boss'|'hunter' })` joue l'overlay PUIS démarre le combat
+  (callback, jamais de Promise) ; les étapes de `initiateCombat()` sont découpées en `showEncounterIntro()` → `beginCombat()`. Écran « tu l'as vu »
+  (`unseen`) avant les boutons Esquiver / Attaque furtive. Blocage `gameState.encounterIntroPending` (`isActionBlocked()`, `resetTransientState()`,
+  `KNOWN_GAMESTATE_KEYS`, résolveur de `tests/long_playthrough.js`). Sans interface (tests Node, `saveEnabled` faux) : appel immédiat du
+  callback, comme les mini-jeux. Pas de rejouage à la restauration d'une sauvegarde.
+- **Lot 3 — départ à distance ou au corps à corps** (**codé**, valeurs validées : ×2 au contact, ×1,5 de loin, écart 6, tireur surpris au contact perd son premier tour, condition arme OU sort offensif à distance) : `attemptStealthAttack(mode)` avec deux boutons « Surgir au corps à corps » (écart 0) et
+  « Tirer de loin » (écart `initialDistance`, grisé sans arme à distance ni sort offensif à distance). Option `startDistance` de `initiateCombat()`
+  (le `mobWantsFar()` actuel reste le défaut). Le bonus ×2 du premier coup (`pendingSneakAttack`) s'applique à l'attaque choisie ; un mob de
+  mêlée tenu à distance perd donc des tours à avancer (déjà géré par les règles d'écart et la ruée). Aucune modification des formules.
+- **Lot 4 — consigne Vibe `prompts/vibe-rencontres.md`** (modèle de `gemini-boss.md`) : format 750×1334 portrait, WebP q≈80 (~100 Ko), style du
+  bestiaire, deux plans par mob — *face* (le mob fixe le joueur, hostile, caméra au niveau du crawler) et *dos* (de dos, loin, occupé à une
+  activité propre à son archétype) —, boss : un seul plan face, plus imposant, avec son objet signature ; décor du quartier d'origine ; aucun texte.
+  Nommage `assets/mobs/<slug>-face.webp` / `-back.webp`, liste ordonnée des 13 boss.
+- **Lot 5 — vagues d'images** : 13 boss → mobs les plus puissants (les élites étant des modificateurs, on classe par stats de base d'étage tardif) → le reste (39 mobs
+  × 2 plans). Chaque livraison = images + lignes du manifeste ; un mob sans image garde le repli du lot 1. Poids total visé ≈ 10 Mo, chargées à la demande (jamais au démarrage).
+- **Lot 6 — habillage** (**codé** : réglage joueur Toujours / Importants / Jamais dans ⚙️ Réglages ; vibration de boss déjà en place ; la réplique DeathWatch de chasseur et le succès « surpris en train de bailler » sont écartés, DeathWatch n'intervenant qu'aux changements d'étage) : réglage de durée facultatif, vibration (`navigator.vibrate`) à la révélation d'un boss, réplique DeathWatch pour l'arrivée d'un chasseur,
+  succès éventuel « Surpris en train de bailler » (se faire attaquer à dos tourné).
+
+**Chiffres du lot 3 : validés** (×2 / ×1,5, écart 6, tireur surpris, arme ou sort à distance). **Restent à valider** : le tap obligatoire sur chaque rencontre (surtout les mobs ordinaires aux étages tardifs) est-il lassant ? (option envisagée si oui : tap dès le 1er étage, auto-fermeture
+~3 s ensuite, à décider au playtest).
+
+**Évaluation de Vibe** : `prompts/vibe-test-rencontres.md` (à coller dans Vibe) — rapport de capacités d'abord, puis lot de test de 5 images (boss, mob face, même mob de dos, machine non humanoïde, chasseur de primes), page d'aperçu iPhone avec bandeau, auto-évaluation, et rédaction par Vibe de sa propre consigne de série `prompts/vibe-rencontres.md`. Ressources graphiques lues sur `main` (la branche `graphique` est périmée). Le lot 4 du plan s'appuiera sur ce retour.
+
+**Livraisons de Vibe** (format **SVG** 750 x 1334, 5-9 Ko, accepté de fait : plus léger et net que le WebP prévu, le manifeste porte l'extension par image) : **les 13 boss** en cadrage face (vague 1 terminée). Fidèles aux sprites (palette, objet signature), mais compositions très frontales et symétriques, auras en ellipses plates, décors génériques ; à corriger : sifflet du Chef de Gare (à la bouche), Mère-Liane trop fine, Boucher en cône, Gardien aux mains illisibles. Le Gardien du Parking Éternel est le plus faible (véhicule bas, ~35 % de la hauteur, beaucoup de vide au-dessus). Manquent encore : les plans de dos, le chasseur de primes, les mobs (vague 2), le rapport de capacités et la page d'aperçu. Seule retouche aux fichiers : identifiants `usine-tôle` / `machines-tôle` passés en ASCII.
+
+**Retouches de Vibe, tour 1** : aura « vivante » (halo irrégulier, éclats propres à l'effet) et accessoires de décor ajoutés sur les 5 boss déjà réussis (Maître des Illusions, Baron des Ombres, IA Malveillante, Grand Requin Gonflable, Animateur Vedette) — appliqués aux fichiers sans changer leurs dessins. En attente : les corrections des 8 boss problématiques (Chef de Gare, Mère-Liane, Boucher, Gardien des Mots Perdus, Gardien du Parking, Professeur, Directeur, Roi des Chaussettes).
+
+**Vague 2 (mobs) : Vibe abandonné, SVG dessinés par Claude**, quartier par quartier (ordre de `districts.js`), les 3 mobs d'un quartier en parallèle (un agent par mob, chacun produit sa paire `face` + `back` à partir de son sprite actuel, du décor du quartier et de la face du boss du quartier comme référence de style ; intégration et contrôle dans l'overlay réel par le coordinateur). `prompts/vibe-rencontres-vague2.md` reste la référence des cadrages. Les tests d'`encounters.js` ne supposent plus « 13 boss, aucun mob » (mob fictif « Mob de Test » pour le repli, contrôle de format sur toutes les vues déclarées).
+- [x] Tunnels de Métro Abandonnés : Rat Goulot (tête dans une poubelle), Distributeur de Snacks Hanté (se recharge sur une prise), Contrôleur de Billets Zombifié (composte les tickets d'une file de rats).
+- [x] Jardins Carnivores : Tulipe Géante (s'arrose sous une lampe horticole), Ronce Étrangleuse (étrangle un tuyau d'arrosage), Gobelin Paysagiste (décapite une haie taillée en crawler).
+- [x] Bureaux de l'Administration Pénitentiaire : Photocopieuse Carnivore (mâchonne le stagiaire réparateur), Stagiaire Démoniaque (tournée du café, tour de mugs), Garde-Chiourme Bureaucrate (tamponne une montagne de dossiers).
+- [x] Usine de Transformation Alimentaire : Saucisse Vivante (bronze sous la lampe chauffante), Fromage qui Pue (s'asperge de désodorisant, rat évanoui), Ouvrier à la Chaîne (boulonne les saucisses du tapis).
+- [x] Bibliothèque des Oubliés : Livre Maudit (le fantôme porte le livre qui dévore un grimoire ; une retouche pour coller au sprite fantôme + livre), Bibliothécaire Fantôme (fait léviter les livres, pointe celui rangé à l'envers), Encre Vivante (repeint en noir les pages d'un livre).
+- [x] Laboratoire de Fous : Savant Dingue (fait déborder un bécher, hamster électrifié), Créature en Bocaux (se tasse dans un bocal trop petit), Robot Défectueux (tabasse un terminal en erreur).
+- [x] Rue des Illusions : Mime Aggressif (coincé dans sa boîte invisible), Ombre Suspicieuse (espionne aux jumelles derrière un réverbère trop fin), Miroir Brisé (se recolle au scotch).
+- [x] Catacombes des Chaussettes Perdues : Chaussette Solitaire (cherche sa paire dans un tas de chaussettes), Lave-Linge Possédé (pille une niche en plein essorage), Monstre de Poussière (saute vers une chaussette sur le fil à linge).
+- [x] Marché Noir du Donjon : Marchand Malhonnête (étiquette sa camelote, s'en colle une dans le dos), Sac de Pièces Vivant (vérifie une pièce sous une lanterne), Garde du Marché (« contrôle » un étal de brochettes en les goûtant).
+- [x] Salle des Machines Infernales : Imprimante à Rêves (s'endort en imprimant des moutons), Ordinateur en Colère (se dispute avec sa souris qui s'enfuit), Câble Électrique Vivant (force sa prise dans une prise murale trop petite, câbles noués).
+- [x] Parking Souterrain Maudit : Voiture Abandonnée Rouillée (coincée entre deux piliers en voulant se garer), Horodateur Vengeur (couvre de contraventions le pare-brise d'une voiture garée), Cône de Chantier Fou (balise une « zone de travaux » autour d'une tache d'huile).
+- [x] Piscine Municipale Désaffectée : Maître-Nageur Zombifié (siffle un canard en plastique qui « court » au fond du bassin vide), Frite de Piscine Étrangleuse (s'entraîne à étrangler une bouée canard), Nuage de Chlore Ambulant (trempe ses bras dans le pédiluve, décolore un bonnet oublié).
+- [x] Studio de Télé-Achat Abandonné : Mannequin Vitrine Possédé (essaie une perruque devant un écran éteint), Caméra de Surveillance Autonome (filme avec passion une plante en plastique), Présentateur Télé-Achat Hystérique (démonstration d'un éplucheur miracle devant des chaises vides).
+- [x] Chasseurs de primes (face seulement, décor de route de nuit, affiche RECHERCHÉ sans lettres) : Gobelin Pisteur de Primes (compare l'avis à ta tête, arbalète armée), Gobelin Cogneur de Primes (gourdin clouté levé, filet prêt), Chef d'Escouade Gobelin (hurle dans son porte-voix, sbires au loin).

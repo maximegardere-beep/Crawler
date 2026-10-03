@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Ordinateur en Colère, Salle des Machines Infernales, cadrage « face ». Aucun texte. -->
+  <defs>
+    <pattern id="ordinateur-en-colere-f-tole" width="110" height="70" patternUnits="userSpaceOnUse">
+      <rect width="110" height="70" fill="#2a2e33"/>
+      <rect x="2" y="2" width="106" height="66" rx="5" fill="#33393f"/>
+      <circle cx="12" cy="12" r="3" fill="#23272c"/>
+      <circle cx="98" cy="12" r="3" fill="#23272c"/>
+      <circle cx="12" cy="58" r="3" fill="#23272c"/>
+      <circle cx="98" cy="58" r="3" fill="#23272c"/>
+      <path d="M0 35 h110" stroke="#23272c" stroke-width="5"/>
+      <rect x="20" y="16" width="26" height="12" rx="2" fill="#3a4148"/>
+      <rect x="64" y="44" width="26" height="12" rx="2" fill="#3a4148"/>
+    </pattern>
+    <radialGradient id="ordinateur-en-colere-f-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ef4444" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ef4444" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur de tôle -->
+  <rect x="0" y="0" width="750" height="880" fill="url(#ordinateur-en-colere-f-tole)"/>
+  <rect x="0" y="0" width="750" height="64" fill="#1f2226"/>
+  <g fill="none" stroke="#05060c" stroke-linecap="round">
+    <path d="M0 42 H750" stroke-width="20"/>
+    <path d="M0 42 H750" stroke="#2f3439" stroke-width="12"/>
+    <path d="M640 42 V120 H750" stroke-width="18"/>
+    <path d="M640 42 V120 H750" stroke="#2f3439" stroke-width="10"/>
+  </g>
+  <!-- Grand engrenage + petit engrenage -->
+  <g stroke="#05060c" stroke-width="6" fill="#30353b">
+    <path d="M110 250 l18 -62 l30 6 l4 64 l52 -36 l20 22 l-38 52 l64 6 l0 30 l-64 4 l36 54 l-22 20 l-52 -38 l-6 64 l-30 2 l-6 -64 l-52 36 l-20 -22 l38 -52 l-64 -6 l0 -30 l64 -4 l-36 -52 l22 -22 Z" transform="translate(-40 0)"/>
+    <circle cx="103" cy="312" r="34" fill="#23272c"/>
+    <path d="M190 150 l10 -28 l18 4 l0 30 l28 -12 l8 16 l-24 20 l26 14 l-8 16 l-28 -10 l2 30 l-18 4 l-8 -28 l-24 18 l-12 -14 l20 -24 l-28 -10 l6 -16 l30 6 Z" fill="#2c3136"/>
+  </g>
+  <!-- Manomètres -->
+  <g stroke="#05060c" stroke-width="6">
+    <circle cx="612" cy="270" r="34" fill="#3a4047"/>
+    <circle cx="612" cy="270" r="22" fill="#7a7468"/>
+    <path d="M612 270 l16 -14" stroke="#ef4444" stroke-width="5"/>
+    <circle cx="690" cy="300" r="26" fill="#3a4047"/>
+    <circle cx="690" cy="300" r="15" fill="#7a7468"/>
+    <path d="M690 300 l13 6" stroke="#ef4444" stroke-width="5"/>
+    <path d="M580 270 h-40 M716 300 h40" stroke-width="10"/>
+  </g>
+  <!-- Gyrophares rouges -->
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M300 64 v22 h40 v-22" fill="#2f3439"/>
+    <path d="M304 86 a16 16 0 0 0 32 0 Z" fill="#b91c1c"/>
+    <path d="M520 64 v22 h40 v-22" fill="#2f3439"/>
+    <path d="M524 86 a16 16 0 0 0 32 0 Z" fill="#7f1d1d"/>
+  </g>
+  <path d="M320 100 L230 250 L410 250 Z" fill="#ef4444" opacity="0.06"/>
+  <!-- Tuyau horizontal -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M560 700 H760" stroke="#05060c" stroke-width="30"/>
+    <path d="M560 700 H760" stroke="#3a342c" stroke-width="20"/>
+    <path d="M600 686 v28 M690 686 v28" stroke="#05060c" stroke-width="6"/>
+  </g>
+  <!-- Sol en caillebotis -->
+  <rect x="0" y="880" width="750" height="454" fill="#24272b"/>
+  <path d="M0 880 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#1a1c1f" stroke-width="7">
+    <path d="M0 950 H750 M0 1040 H750 M0 1150 H750 M0 1280 H750"/>
+    <path d="M330 880 L240 1334 M420 880 L510 1334 M240 880 L40 1334 M510 880 L710 1334 M150 880 L-150 1334 M600 880 L900 1334"/>
+  </g>
+  <!-- Vapeur au sol -->
+  <g fill="#9ca3af" opacity="0.18">
+    <ellipse cx="640" cy="880" rx="90" ry="40"/>
+    <ellipse cx="610" cy="830" rx="60" ry="34"/>
+    <ellipse cx="660" cy="780" rx="40" ry="26"/>
+  </g>
+  <rect x="0" y="0" width="45" height="1334" fill="#05060c" opacity="0.25"/>
+  <rect x="705" y="0" width="45" height="1334" fill="#05060c" opacity="0.25"/>
+
+  <!-- Halo rouge de colère, irrégulier -->
+  <ellipse cx="420" cy="470" rx="300" ry="250" fill="url(#ordinateur-en-colere-f-glow)"/>
+  <path d="M200 300 C330 220 560 240 640 380 C700 500 640 660 560 720 C470 650 420 600 330 640 C240 560 150 420 200 300 Z" fill="#ef4444" opacity="0.08"/>
+
+  <!-- Ombre au sol -->
+  <ellipse cx="400" cy="1000" rx="260" ry="34" fill="#05060c" opacity="0.55"/>
+  <!-- Poussière soulevée -->
+  <g fill="#6b6f75" stroke="#05060c" stroke-width="4" opacity="0.85">
+    <path d="M560 985 q20 -40 55 -20 q30 -24 50 8 q30 4 20 30 Z"/>
+    <path d="M200 985 q-6 -30 26 -30 q14 -24 40 -6 q20 10 8 36 Z"/>
+  </g>
+
+  <!-- Câble d'alimentation qui traîne, prise arrachée -->
+  <path d="M215 780 C120 850 160 940 80 960 C40 970 30 1000 60 1010" fill="none" stroke="#05060c" stroke-width="16" stroke-linecap="round"/>
+  <path d="M215 780 C120 850 160 940 80 960 C40 970 30 1000 60 1010" fill="none" stroke="#2a2f3a" stroke-width="8" stroke-linecap="round"/>
+  <g stroke="#05060c" stroke-width="5"><rect x="44" y="996" width="44" height="30" rx="5" fill="#cbd5e1"/><path d="M56 996 v-14 M76 996 v-14" stroke-width="6"/></g>
+
+  <!-- ===== Le corps, penché en avant, en marche vers nous ===== -->
+  <g transform="rotate(-6 400 640)" stroke="#05060c" stroke-linejoin="round">
+    <!-- pied arrière -->
+    <rect x="262" y="880" width="100" height="58" rx="10" fill="#37435a" stroke-width="10"/>
+    <!-- antenne + ampoule rouge -->
+    <path d="M300 335 L280 180" stroke-width="12" fill="none"/>
+    <circle cx="278" cy="166" r="24" fill="#ef4444" stroke-width="9"/>
+    <circle cx="270" cy="158" r="7" fill="#fecaca" stroke="none"/>
+    <!-- flanc gauche (corps tourné) -->
+    <path d="M250 340 L182 300 L182 846 L250 900 Z" fill="#37435a" stroke-width="11"/>
+    <path d="M200 380 l32 18 M200 420 l32 18 M200 460 l32 18" stroke="#2a3346" stroke-width="7"/>
+    <!-- dessus -->
+    <path d="M250 340 L182 300 L500 290 L572 334 Z" fill="#6b7d9e" stroke-width="11"/>
+    <!-- façade -->
+    <rect x="250" y="334" width="322" height="570" rx="20" fill="#5a6b8a" stroke-width="11"/>
+    <!-- écran-visage -->
+    <rect x="322" y="372" width="230" height="196" rx="16" fill="#37435a" stroke-width="9"/>
+    <rect x="340" y="390" width="194" height="160" rx="10" fill="#ef4444" stroke-width="6"/>
+    <g stroke="#dc2626" stroke-width="5" opacity="0.8">
+      <path d="M346 410 H528 M346 430 H528 M346 450 H528 M346 470 H528 M346 490 H528 M346 510 H528 M346 530 H528"/>
+    </g>
+    <!-- yeux pixelisés furieux, braqués sur nous -->
+    <path d="M362 452 h20 v10 h20 v10 h14 v34 h-54 Z" fill="#450a0a" stroke="none"/>
+    <path d="M512 452 h-20 v10 h-20 v10 h-14 v34 h54 Z" fill="#450a0a" stroke="none"/>
+    <rect x="384" y="482" width="12" height="12" fill="#fee2e2" stroke="none"/>
+    <rect x="478" y="482" width="12" height="12" fill="#fee2e2" stroke="none"/>
+    <!-- sourcils rouges en V -->
+    <path d="M352 418 L418 452 M522 418 L456 452" stroke-width="24" stroke-linecap="round"/>
+    <path d="M352 418 L418 452 M522 418 L456 452" stroke="#f87171" stroke-width="12" stroke-linecap="round"/>
+    <!-- bouche pixelisée en zigzag -->
+    <path d="M390 528 h14 v-8 h14 v8 h14 v-8 h14 v8 h14 v-8 h14 v8" fill="none" stroke="#450a0a" stroke-width="7" stroke-linejoin="miter"/>
+    <!-- dents serrées sous l'écran -->
+    <rect x="356" y="590" width="170" height="44" rx="8" fill="#cbd5e1" stroke-width="8"/>
+    <path d="M356 612 H526 M390 590 v44 M424 590 v44 M458 590 v44 M492 590 v44" stroke-width="5"/>
+    <!-- boutons sombres -->
+    <circle cx="308" cy="770" r="28" fill="#37435a" stroke-width="9"/>
+    <circle cx="398" cy="770" r="28" fill="#37435a" stroke-width="9"/>
+    <circle cx="398" cy="770" r="9" fill="#ef4444" stroke="none"/>
+    <!-- fente de lecteur + aérations -->
+    <rect x="280" y="672" width="130" height="18" rx="5" fill="#2a3346" stroke-width="6"/>
+    <path d="M462 700 h80 M462 728 h80 M462 756 h80 M462 784 h80 M462 812 h80" stroke="#37435a" stroke-width="9"/>
+    <!-- trou d'où giclent les touches -->
+    <rect x="262" y="582" width="60" height="44" rx="6" fill="#1b2130" stroke-width="7"/>
+    <!-- pied avant, qui avance -->
+    <rect x="440" y="900" width="126" height="70" rx="12" fill="#37435a" stroke-width="11"/>
+    <path d="M452 948 h100" stroke="#2a3346" stroke-width="7"/>
+  </g>
+
+  <!-- Fumée qui s'échappe en haut à gauche -->
+  <g fill="#cbd5e1" stroke="#05060c" stroke-width="5">
+    <circle cx="232" cy="300" r="26" opacity="0.7"/>
+    <circle cx="196" cy="246" r="34" opacity="0.6"/>
+    <circle cx="150" cy="180" r="42" opacity="0.5"/>
+    <circle cx="200" cy="200" r="20" opacity="0.5"/>
+  </g>
+  <!-- Étincelles autour de l'ampoule -->
+  <g stroke="#ef4444" stroke-width="7" stroke-linecap="round">
+    <path d="M300 120 l14 -24 M330 150 l26 -6 M240 112 l-10 -24"/>
+  </g>
+
+  <!-- Touches de clavier tirées vers nous -->
+  <g stroke="#05060c" stroke-linejoin="round">
+    <g fill="none" stroke="#e5e7eb" stroke-width="6" stroke-linecap="round" opacity="0.55">
+      <path d="M250 560 L170 520 M240 610 L150 640 M250 650 L190 740 M235 590 L120 600"/>
+    </g>
+    <g transform="rotate(18 150 510)"><rect x="118" y="478" width="60" height="60" rx="8" fill="#cbd5e1" stroke-width="7"/><rect x="128" y="486" width="40" height="36" rx="5" fill="#e5e7eb" stroke-width="4"/></g>
+    <g transform="rotate(-24 120 640)"><rect x="92" y="612" width="54" height="54" rx="8" fill="#cbd5e1" stroke-width="7"/><rect x="101" y="619" width="36" height="32" rx="5" fill="#e5e7eb" stroke-width="4"/></g>
+    <g transform="rotate(30 200 760)"><rect x="174" y="734" width="50" height="50" rx="7" fill="#cbd5e1" stroke-width="7"/><rect x="182" y="741" width="34" height="30" rx="5" fill="#e5e7eb" stroke-width="4"/></g>
+    <g transform="rotate(-12 110 360)"><rect x="70" y="320" width="84" height="84" rx="10" fill="#cbd5e1" stroke-width="8"/><rect x="84" y="331" width="56" height="50" rx="7" fill="#e5e7eb" stroke-width="5"/></g>
+    <g transform="rotate(10 70 820)"><rect x="40" y="788" width="66" height="66" rx="8" fill="#cbd5e1" stroke-width="7"/><rect x="50" y="797" width="46" height="40" rx="6" fill="#e5e7eb" stroke-width="4"/></g>
+  </g>
+  <!-- Éclats -->
+  <g fill="#f87171" stroke="#05060c" stroke-width="3">
+    <path d="M600 420 l18 -8 l-6 18 Z"/><path d="M640 520 l20 4 l-14 14 Z"/><path d="M180 430 l-16 -10 l18 -6 Z"/>
+  </g>
+  <g fill="none" stroke="#e5e7eb" stroke-width="5" stroke-linecap="round" opacity="0.4">
+    <path d="M640 600 h60 M650 640 h44 M630 680 h70"/>
+  </g>
+</svg>

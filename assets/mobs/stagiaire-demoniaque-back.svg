@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Stagiaire Démoniaque, mob des Bureaux de l'Administration Pénitentiaire, cadrage « dos » : il fait la tournée du café pour tout le service, une tour de mugs sous le bras. Aucun texte. -->
+  <defs>
+    <pattern id="stagiaire-demoniaque-b-wall" width="100" height="70" patternUnits="userSpaceOnUse" patternTransform="scale(0.7)">
+      <rect width="100" height="70" fill="#2a2a33"/>
+      <rect x="3" y="3" width="44" height="64" rx="3" fill="#34343f"/>
+      <rect x="52" y="3" width="44" height="64" rx="3" fill="#31313c"/>
+      <rect x="3" y="3" width="44" height="8" fill="#3b3b46"/>
+      <rect x="52" y="3" width="44" height="8" fill="#393944"/>
+    </pattern>
+    <radialGradient id="stagiaire-demoniaque-b-glow">
+      <stop offset="0" stop-color="#e2f0e6" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#e2f0e6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="750" height="660" fill="url(#stagiaire-demoniaque-b-wall)"/>
+  <rect x="0" y="0" width="750" height="54" fill="#202026"/>
+  <rect x="300" y="22" width="180" height="18" rx="8" fill="#5a6a6a"/>
+  <path d="M320 40 L230 640 L620 640 L460 40 Z" fill="#e2f0e6" opacity="0.04"/>
+  <!-- Fenêtre à barreaux, horloge, panneau rouge illisible -->
+  <g stroke="#05060c" stroke-width="5">
+    <rect x="280" y="120" width="110" height="88" fill="#1a1f24"/>
+    <path d="M308 120 V208 M335 120 V208 M362 120 V208" stroke-width="6"/>
+    <circle cx="620" cy="140" r="34" fill="#3e3e48"/>
+    <circle cx="620" cy="140" r="25" fill="#cbc4ad"/>
+    <path d="M620 140 V120 M620 140 L634 150" stroke-width="4"/>
+    <rect x="470" y="210" width="120" height="40" rx="4" fill="#4a1d1d"/>
+  </g>
+  <path d="M486 230 h88" stroke="#cbbf9f" stroke-width="6" opacity="0.5"/>
+  <!-- Sol -->
+  <rect x="0" y="660" width="750" height="674" fill="#2f2f37"/>
+  <path d="M0 660 H750" stroke="#05060c" stroke-width="5"/>
+  <g stroke="#24242b" stroke-width="4"><path d="M0 700 H750 M0 760 H750 M0 850 H750 M0 980 H750 M0 1160 H750"/></g>
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.14"/>
+  <ellipse cx="520" cy="500" rx="260" ry="230" fill="url(#stagiaire-demoniaque-b-glow)"/>
+  <!-- Comptoir et machine à café -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <rect x="520" y="600" width="240" height="100" fill="#3d3a33" stroke-width="6"/>
+    <rect x="510" y="588" width="250" height="18" fill="#4a463d" stroke-width="6"/>
+    <path d="M560 620 h60 M650 620 h60" stroke="#2a2822" stroke-width="5"/>
+    <rect x="570" y="380" width="140" height="210" rx="10" fill="#4a4a54" stroke-width="6"/>
+    <rect x="584" y="398" width="112" height="56" rx="6" fill="#2a2a33" stroke-width="5"/>
+    <circle cx="604" cy="426" r="8" fill="#c23b3b" stroke-width="3"/>
+    <circle cx="630" cy="426" r="8" fill="#5a6a6a" stroke-width="3"/>
+    <circle cx="656" cy="426" r="8" fill="#5a6a6a" stroke-width="3"/>
+    <rect x="596" y="470" width="88" height="96" fill="#1c1c22" stroke-width="5"/>
+    <rect x="628" y="470" width="24" height="18" fill="#6a6a74" stroke-width="4"/>
+    <path d="M640 488 V552" stroke="#5a3a22" stroke-width="6"/>
+    <rect x="618" y="540" width="44" height="46" rx="5" fill="#e8e4d8" stroke-width="5"/>
+    <path d="M618 548 Q600 560 606 600 L622 600 Q620 570 626 556 Z" fill="#5a3a22" stroke-width="4"/>
+    <path d="M520 700 Q560 690 610 706 Q560 720 520 712 Z" fill="#5a3a22" opacity="0.8" stroke-width="3"/>
+    <g fill="none" stroke="#9aa0a6" stroke-width="5" opacity="0.6"><path d="M630 372 q-12 -20 0 -40 M652 368 q12 -22 0 -44"/></g>
+  </g>
+  <!-- Le Stagiaire, de dos, appuie sur le bouton, tour de dix mugs vacillante sous le bras -->
+  <g transform="translate(440 700) scale(1.1)" stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <ellipse cx="0" cy="0" rx="82" ry="12" fill="#05060c" opacity="0.5" stroke="none"/>
+    <path d="M-44 -124 L-10 -124 L-14 -22 L-44 -22 Z" fill="#3a4a6b" stroke-width="6"/>
+    <path d="M8 -124 L42 -124 L46 -24 L14 -24 Z" fill="#2c3854" stroke-width="6"/>
+    <rect x="-54" y="-32" width="46" height="30" rx="9" fill="#1c1f2a" stroke-width="6"/>
+    <rect x="8" y="-34" width="48" height="30" rx="9" fill="#1c1f2a" stroke-width="6"/>
+    <path d="M-64 -246 Q0 -268 64 -246 Q78 -176 60 -112 L-60 -112 Q-78 -176 -64 -246 Z" fill="#8fae5a" stroke-width="7"/>
+    <path d="M40 -244 Q70 -176 50 -114 L60 -114 Q78 -176 64 -246 Z" fill="#74924a" stroke="none"/>
+    <rect x="-62" y="-134" width="124" height="22" rx="6" fill="#74924a" stroke-width="6"/>
+    <!-- Col de chemise blanc et cordon du badge (le badge pend devant) -->
+    <path d="M-30 -252 Q0 -238 30 -252 L26 -238 Q0 -226 -26 -238 Z" fill="#e8e4d8" stroke-width="5"/>
+    <path d="M-30 -246 Q-46 -220 -52 -196 M30 -246 Q44 -222 50 -198" fill="none" stroke="#3a4a6b" stroke-width="5"/>
+    <path d="M0 -226 V-120" stroke="#74924a" stroke-width="5"/>
+    <!-- Bras droit vers le bouton -->
+    <path d="M56 -232 Q100 -236 116 -262" fill="none" stroke-width="28"/>
+    <path d="M56 -232 Q100 -236 116 -262" fill="none" stroke="#3a4a6b" stroke-width="18"/>
+    <circle cx="120" cy="-266" r="12" fill="#8fae5a" stroke-width="5"/>
+    <path d="M126 -272 l14 -6" stroke-width="10"/>
+    <path d="M126 -272 l14 -6" stroke="#8fae5a" stroke-width="4"/>
+    <!-- Bras gauche qui soutient la tour de mugs -->
+    <path d="M-58 -228 Q-100 -200 -96 -150" fill="none" stroke-width="28"/>
+    <path d="M-58 -228 Q-100 -200 -96 -150" fill="none" stroke="#3a4a6b" stroke-width="18"/>
+    <g transform="rotate(-7 -110 -150)">
+      <g fill="#e8e4d8" stroke-width="4">
+        <rect x="-136" y="-176" width="52" height="34" rx="4"/>
+        <rect x="-132" y="-210" width="50" height="34" rx="4" fill="#d8d2bf"/>
+        <rect x="-138" y="-244" width="52" height="34" rx="4"/>
+        <rect x="-132" y="-278" width="50" height="34" rx="4" fill="#c23b3b"/>
+        <rect x="-136" y="-312" width="52" height="34" rx="4"/>
+        <rect x="-128" y="-346" width="50" height="34" rx="4" fill="#d8d2bf"/>
+        <rect x="-134" y="-380" width="52" height="34" rx="4"/>
+        <rect x="-126" y="-414" width="50" height="34" rx="4" fill="#3a4a6b"/>
+        <rect x="-130" y="-448" width="52" height="34" rx="4"/>
+        <rect x="-122" y="-482" width="50" height="34" rx="4" fill="#d8d2bf"/>
+      </g>
+      <g fill="none" stroke-width="4">
+        <path d="M-136 -166 q-12 4 0 14 M-132 -200 q-12 4 0 14 M-138 -234 q-12 4 0 14 M-132 -268 q-12 4 0 14 M-136 -302 q-12 4 0 14 M-128 -336 q-12 4 0 14 M-134 -370 q-12 4 0 14 M-126 -404 q-12 4 0 14 M-130 -438 q-12 4 0 14 M-122 -472 q-12 4 0 14"/>
+      </g>
+    </g>
+    <circle cx="-96" cy="-150" r="12" fill="#8fae5a" stroke-width="5"/>
+    <!-- Traits de vacillement -->
+    <path d="M-176 -420 q-10 20 0 40 M-62 -470 q10 20 0 40" fill="none" stroke="#cbc4ad" stroke-width="4" opacity="0.8"/>
+    <!-- Oreilles, tête, cornes, post-it collé dans le dos de la tête -->
+    <path d="M-38 -296 L-120 -330 Q-94 -288 -38 -270 Z" fill="#8fae5a" stroke-width="6"/>
+    <path d="M-50 -294 L-102 -316 Q-86 -296 -48 -280" fill="none" stroke="#5f7a3a" stroke-width="5"/>
+    <path d="M40 -298 L120 -324 Q96 -282 40 -270 Z" fill="#8fae5a" stroke-width="6"/>
+    <circle cx="0" cy="-290" r="50" fill="#8fae5a" stroke-width="7"/>
+    <path d="M-48 -300 Q-44 -334 -10 -340" fill="none" stroke="#a4c26e" stroke-width="6"/>
+    <path d="M30 -322 Q56 -292 34 -252 Q40 -292 22 -320 Z" fill="#74924a" stroke="none"/>
+    <!-- Nuque plissée et crâne vu de dos -->
+    <path d="M-40 -258 Q0 -270 40 -258 Q20 -244 0 -244 Q-20 -244 -40 -258 Z" fill="#5f7a3a" stroke="none" opacity="0.8"/>
+    <!-- Bout du nez qui dépasse : il regarde la machine -->
+    <path d="M44 -298 Q70 -292 66 -276 Q56 -272 44 -276 Z" fill="#8fae5a" stroke-width="5"/>
+    <path d="M-6 -336 q4 -14 14 -16 q-2 10 4 16" fill="#8fae5a" stroke-width="4"/>
+    <path d="M-26 -330 Q-40 -350 -42 -372 Q-24 -362 -12 -338 Z" fill="#8a4a3a" stroke-width="5"/>
+    <path d="M22 -334 Q34 -356 54 -364 Q50 -342 34 -330 Z" fill="#8a4a3a" stroke-width="5"/>
+    <!-- Post-it rouge que quelqu'un lui a collé derrière la tête -->
+    <g transform="rotate(14 -24 -300)">
+      <rect x="-40" y="-318" width="28" height="26" fill="#c23b3b" stroke-width="4"/>
+      <path d="M-35 -309 h18 M-35 -300 h12" stroke="#7a1f1f" stroke-width="3"/>
+    </g>
+  </g>
+  <!-- Cachette : l'armoire à dossiers du premier plan, et un dossier tombé -->
+  <g stroke="#05060c" stroke-linejoin="round">
+    <rect x="-20" y="520" width="250" height="830" fill="#1a1a21" stroke-width="7"/>
+    <rect x="230" y="520" width="34" height="830" fill="#131318" stroke-width="7"/>
+    <path d="M-20 700 H230 M-20 900 H230 M-20 1100 H230" stroke-width="6"/>
+    <rect x="70" y="600" width="90" height="16" rx="5" fill="#26262f" stroke-width="5"/>
+    <rect x="70" y="790" width="90" height="16" rx="5" fill="#26262f" stroke-width="5"/>
+    <rect x="70" y="990" width="90" height="16" rx="5" fill="#26262f" stroke-width="5"/>
+    <path d="M10 520 L30 470 L200 470 L230 520 Z" fill="#202027" stroke-width="6"/>
+    <path d="M40 480 L60 440 L180 446 L170 486 Z" fill="#3a382f" stroke-width="5"/>
+    <path d="M290 990 L400 970 L420 1010 L310 1030 Z" fill="#3a382f" stroke-width="5"/>
+  </g>
+  <rect x="0" y="1040" width="750" height="294" fill="#05060c" opacity="0.25"/>
+  <rect x="690" y="0" width="60" height="1334" fill="#05060c" opacity="0.3"/>
+</svg>

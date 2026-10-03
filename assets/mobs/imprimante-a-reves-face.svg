@@ -1,0 +1,163 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Imprimante à Rêves, Salle des Machines Infernales, cadrage « face » : elle charge en crachant ses rêves. Aucun texte. -->
+  <defs>
+    <pattern id="imprimante-a-reves-f-tole" width="110" height="70" patternUnits="userSpaceOnUse">
+      <rect width="110" height="70" fill="#2c3136"/>
+      <rect x="2" y="2" width="106" height="66" rx="5" fill="#373e45"/>
+      <circle cx="12" cy="12" r="3" fill="#252a30"/><circle cx="98" cy="12" r="3" fill="#252a30"/>
+      <circle cx="12" cy="58" r="3" fill="#252a30"/><circle cx="98" cy="58" r="3" fill="#252a30"/>
+      <path d="M0 35 h110" stroke="#252a30" stroke-width="5"/>
+      <rect x="20" y="16" width="26" height="12" rx="2" fill="#3f4750"/>
+      <rect x="64" y="44" width="26" height="12" rx="2" fill="#3f4750"/>
+    </pattern>
+    <radialGradient id="imprimante-a-reves-f-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#c084fc" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#c084fc" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#imprimante-a-reves-f-tole)"/>
+  <rect x="0" y="0" width="750" height="70" fill="#22262b"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M0 48 H750" stroke="#05060c" stroke-width="24"/><path d="M0 48 H750" stroke="#2a2f35" stroke-width="15"/>
+    <path d="M0 92 H300 Q330 92 330 122 V150" stroke="#05060c" stroke-width="18"/><path d="M0 92 H300 Q330 92 330 122 V150" stroke="#2f343a" stroke-width="10"/>
+  </g>
+  <!-- Engrenages, manomètres, voyants rouges, tuyau -->
+    <path d="M178.8 338.3 L198.6 346.9 L195.4 360.6 L173.8 359.4 L163.5 378.6 L176.4 395.9 L166.8 406.2 L148.7 394.4 L130.2 405.8 L132.7 427.3 L119.2 431.4 L109.4 412.1 L87.7 412.8 L79.1 432.6 L65.4 429.4 L66.6 407.8 L47.4 397.5 L30.1 410.4 L19.8 400.8 L31.6 382.7 L20.2 364.2 L-1.3 366.7 L-5.4 353.2 L13.9 343.4 L13.2 321.7 L-6.6 313.1 L-3.4 299.4 L18.2 300.6 L28.5 281.4 L15.6 264.1 L25.2 253.8 L43.3 265.6 L61.8 254.2 L59.3 232.7 L72.8 228.6 L82.6 247.9 L104.3 247.2 L112.9 227.4 L126.6 230.6 L125.4 252.2 L144.6 262.5 L161.9 249.6 L172.2 259.2 L160.4 277.3 L171.8 295.8 L193.3 293.3 L197.4 306.8 L178.1 316.6 Z" fill="#3a3a36" stroke="#05060c" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="96" cy="330" r="43.7" fill="#2a2a27" stroke="#05060c" stroke-width="4"/>
+    <circle cx="96" cy="330" r="14.6" fill="#4a473f" stroke="#05060c" stroke-width="3"/>
+    <path d="M280.3 209.7 L289.8 217.7 L285 227.1 L273 224 L261.1 235 L263.2 247.2 L253.5 251.3 L246.3 241.2 L230.2 242 L224 252.7 L213.9 249.6 L214.8 237.3 L202 227.5 L190.3 231.7 L184.6 222.9 L193.2 214 L189.7 198.3 L178 194 L179.4 183.6 L191.7 182.3 L199 168 L192.9 157.2 L200.6 150.1 L210.9 157 L225.7 150.8 L227.9 138.6 L238.4 138.1 L241.8 150 L257.2 154.7 L266.7 146.8 L275.1 153.2 L270 164.5 L278.8 178 L291.2 178.1 L293.5 188.3 L282.3 193.7 Z" fill="#3a3a36" stroke="#05060c" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="236" cy="196" r="24.4" fill="#2a2a27" stroke="#05060c" stroke-width="4"/>
+    <circle cx="236" cy="196" r="8.1" fill="#4a473f" stroke="#05060c" stroke-width="3"/>
+  <g stroke="#05060c" stroke-width="5">
+    <circle cx="600" cy="230" r="40" fill="#3b3d3a"/>
+    <circle cx="600" cy="230" r="29.6" fill="#8b8775" stroke-width="3"/>
+    <path d="M600 230 L585.4 209.9" stroke="#ef4444" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="600" cy="230" r="3.5" fill="#05060c"/></g><g stroke="#05060c" stroke-width="5">
+    <circle cx="690" cy="232" r="36" fill="#3b3d3a"/>
+    <circle cx="690" cy="232" r="26.6" fill="#8b8775" stroke-width="3"/>
+    <path d="M690 232 L709.6 221.3" stroke="#ef4444" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="690" cy="232" r="3.5" fill="#05060c"/></g>
+  <ellipse cx="470" cy="175.6" rx="48" ry="35.2" fill="#ef4444" opacity="0.08"/>
+  <path d="M449.2 146.8 h41.6" stroke="#05060c" stroke-width="5"/>
+  <path d="M454 150 a16 16 0 0 0 32 0 z" fill="#b83232" stroke="#05060c" stroke-width="4"/><ellipse cx="700" cy="172.4" rx="42" ry="30.800000000000004" fill="#ef4444" opacity="0.08"/>
+  <path d="M681.8 147.2 h36.4" stroke="#05060c" stroke-width="5"/>
+  <path d="M686 150 a14 14 0 0 0 28 0 z" fill="#b83232" stroke="#05060c" stroke-width="4"/>
+  <g fill="none" stroke-linecap="round"><path d="M560 760 H750" stroke="#05060c" stroke-width="40"/><path d="M560 760 H750" stroke="#3a342c" stroke-width="28"/></g>
+  <g stroke="#05060c" stroke-width="5"><rect x="600" y="736" width="16" height="48" fill="#2d2924"/><rect x="690" y="736" width="16" height="48" fill="#2d2924"/></g>
+  <path d="M590 735 q-14 -40 8 -64 q-8 -30 14 -48" fill="none" stroke="#9ca3af" stroke-width="10" stroke-linecap="round" opacity="0.4"/>
+  <ellipse cx="380" cy="640" rx="340" ry="300" fill="#3b3550" opacity="0.35"/>
+  <!-- Sol : caillebotis -->
+  <rect x="0" y="1040" width="750" height="294" fill="#282d33"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#1f2328" stroke-width="6"><path d="M0 1100 h750 M0 1170 h750 M0 1245 h750 M0 1315 h750"/>
+  <path d="M60 1040 l-30 294 M190 1040 l-20 294 M320 1040 l-8 294 M450 1040 l8 294 M580 1040 l22 294 M710 1040 l34 294"/></g>
+  <path d="M60 1290 q30 -50 0 -90 q-20 -30 10 -60" fill="none" stroke="#9ca3af" stroke-width="12" stroke-linecap="round" opacity="0.25"/>
+  <rect x="0" y="0" width="50" height="1334" fill="#05060c" opacity="0.25"/><rect x="700" y="0" width="50" height="1334" fill="#05060c" opacity="0.25"/>
+
+  <!-- Aura de rêve, irrégulière : brume violette + étoiles -->
+  <path d="M370 120 C520 110 650 260 640 470 C632 650 690 820 560 930 C450 1010 260 1000 170 900 C70 790 120 640 98 500 C80 330 210 130 370 120 Z" fill="#c084fc" opacity="0.10"/>
+  <path d="M360 230 C480 220 580 330 570 500 C560 660 600 780 500 860 C410 920 280 910 220 830 C150 740 190 620 170 500 C150 360 250 240 360 230 Z" fill="#c084fc" opacity="0.10"/>
+  <g fill="#fde047" stroke="#05060c" stroke-width="3" stroke-linejoin="round">
+    <path d="M143.2 544.3 L145.3 555.1 L155.9 558.2 L146.3 563.5 L146.6 574.6 L138.6 567.1 L128.2 570.8 L132.8 560.8 L126.1 552.1 L137 553.5 Z"/><path d="M646.2 508.6 L645.3 517.5 L652.8 522.4 L644 524.3 L641.7 532.9 L637.2 525.1 L628.3 525.6 L634.3 518.9 L631.1 510.5 L639.3 514.2 Z"/><path d="M621.1 869.1 L623.3 876.3 L630.7 877.7 L624.5 882 L625.5 889.5 L619.5 884.9 L612.7 888.2 L615.2 881.1 L609.9 875.6 L617.5 875.7 Z"/><path d="M303 110.4 L303.6 117.3 L310 119.9 L303.7 122.6 L303.2 129.5 L298.7 124.3 L292 126 L295.5 120.1 L291.8 114.2 L298.5 115.7 Z"/>
+  </g>
+  <path d="M582 380 a22 22 0 1 0 18 34 a17 17 0 1 1 -18 -34 z" fill="#fde68a" stroke="#05060c" stroke-width="4"/>
+  <!-- Lignes de vitesse (elle fonce vers nous, de la droite) -->
+  <g stroke="#cfc8f0" stroke-width="7" stroke-linecap="round" opacity="0.35">
+    <path d="M640 300 h90 M660 340 h70 M650 620 h80 M670 660 h60"/>
+  </g>
+
+  <!-- Ombre au sol et poussière soulevée -->
+  <ellipse cx="370" cy="1048" rx="270" ry="34" fill="#05060c" opacity="0.5"/>
+  <g fill="#5b5f66" stroke="#05060c" stroke-width="4" opacity="0.9">
+    <path d="M110 1030 a26 22 0 0 1 40 -22 a24 20 0 0 1 40 4 a20 18 0 0 1 10 22 z"/>
+    <path d="M560 1012 a20 18 0 0 1 34 -14 a18 16 0 0 1 30 10 a14 12 0 0 1 4 16 z"/>
+  </g>
+
+  <!-- ===== L'IMPRIMANTE À RÊVES : grand boîtier debout sur deux patins, penchée en avant, un patin qui avance ===== -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Patin arrière (droite) -->
+    <rect x="430" y="950" width="140" height="62" rx="16" fill="#6b7488" stroke-width="7" transform="rotate(6 500 980)"/>
+    <g transform="rotate(-7 380 650)">
+      <!-- Antenne (à gauche) avec ampoule violette -->
+      <path d="M230 352 C222 300 200 260 196 196" fill="none" stroke-width="13"/>
+      <circle cx="196" cy="180" r="44" fill="url(#imprimante-a-reves-f-glow)" stroke="none"/>
+      <circle cx="196" cy="182" r="24" fill="#c084fc" stroke-width="7"/>
+      <circle cx="188" cy="174" r="7" fill="#f3e8ff" stroke="none"/>
+      <!-- Feuille de rêve qui jaillit du capot : nuage violet + étoile jaune (détail signature) -->
+      <g transform="rotate(10 380 260)">
+        <rect x="300" y="150" width="170" height="205" rx="6" fill="#e8e4d8" stroke-width="7"/>
+        <path d="M325 292 a28 28 0 1 1 42 -14 a22 22 0 1 1 36 6 a20 20 0 1 1 18 30 h-86 a18 18 0 0 1 -10 -22 z" fill="#c084fc" stroke-width="5"/>
+        <path d="M418.6 181.3 L422.6 197.3 L438.7 201.1 L424.7 209.8 L426 226.3 L413.4 215.7 L398.2 222.1 L404.3 206.8 L393.5 194.3 L410 195.4 Z" fill="#fde047" stroke-width="4"/>
+        <path d="M300 356 h170" stroke-width="7"/>
+      </g>
+      <path d="M298 128 q60 -34 130 -8 q30 12 52 -6" fill="none" stroke="#c084fc" stroke-width="10" opacity="0.8"/>
+      <!-- Flanc (côté droit, en fuite) -->
+      <path d="M548 352 L626 398 L620 916 L548 958 Z" fill="#939db3" stroke-width="8"/>
+      <g stroke="#6b7488" stroke-width="7"><path d="M570 460 L604 478 M570 500 L604 518 M570 540 L604 558 M570 580 L604 598"/></g>
+      <!-- Bac à papier latéral, ouvert comme une mâchoire de côté -->
+      <path d="M612 680 L700 650 L706 700 L614 744 Z" fill="#6b7488" stroke-width="7"/>
+      <path d="M640 676 L690 660 M642 704 L694 684" stroke="#e8e4d8" stroke-width="6"/>
+      <!-- Face avant -->
+      <rect x="176" y="340" width="380" height="622" rx="30" fill="#b9c3d8" stroke-width="9"/>
+      <path d="M206 360 h300" stroke="#d6dcea" stroke-width="12" opacity="0.9"/>
+      <path d="M196 380 v540" stroke="#d6dcea" stroke-width="10" opacity="0.6"/>
+      <!-- Fente d'alimentation du capot -->
+      <rect x="290" y="346" width="200" height="16" rx="6" fill="#2a2d38" stroke-width="5"/>
+      <!-- Écran violet = son œil furieux braqué sur nous -->
+      <rect x="372" y="428" width="150" height="128" rx="16" fill="#c084fc" stroke-width="8"/>
+      <path d="M384 446 l40 0" stroke="#e9d5ff" stroke-width="6" opacity="0.8"/>
+      <path d="M388 508 Q446 462 508 504 Q448 540 388 508 Z" fill="#fff7ed" stroke-width="5"/>
+      <path d="M398 506 l14 4 M404 518 l14 -2 M494 504 l-14 2 M488 516 l-12 -4" stroke="#ef4444" stroke-width="3"/>
+      <circle cx="450" cy="504" r="14" fill="#05060c" stroke="none"/>
+      <circle cx="445" cy="499" r="4" fill="#fff7ed" stroke="none"/>
+      <path d="M380 462 L450 492 L520 458" fill="none" stroke-width="14"/>
+      <path d="M402 538 q12 8 30 2 M468 540 q14 4 28 -6" fill="none" stroke="#7e22ce" stroke-width="5"/>
+      <!-- Petits voyants (écran insomniaque) -->
+      <circle cx="226" cy="440" r="9" fill="#4ade80" stroke-width="4"/><circle cx="256" cy="440" r="9" fill="#fbbf24" stroke-width="4"/>
+      <!-- Bouche = fente de sortie en grimace, rouleaux-dents serrés, une feuille crachée comme une langue -->
+      <path d="M210 600 L522 590 Q530 650 506 700 L232 708 Q206 660 210 600 Z" fill="#1b1424" stroke-width="8"/>
+      <path d="M218 606 L516 596 L512 616 l-20 22 l-18 -20 l-20 22 l-18 -20 l-20 22 l-18 -20 l-20 22 l-18 -20 l-20 22 l-18 -20 l-20 22 l-18 -20 l-20 22 l-18 -20 l-20 22 l-18 -18 Z" fill="#d6dcea" stroke-width="4"/>
+      <path d="M236 700 L502 694 l6 -14 l-20 -22 l-18 22 l-20 -22 l-18 22 l-20 -22 l-18 22 l-20 -22 l-18 22 l-20 -22 l-18 22 l-20 -22 l-18 22 l-20 -22 l-14 18 Z" fill="#d6dcea" stroke-width="4"/>
+      <path d="M300 664 L420 660 L436 760 L292 770 Z" fill="#e8e4d8" stroke-width="6" transform="rotate(-4 360 700)"/>
+      <path d="M367.2 710.3 L369.3 721.1 L379.9 724.2 L370.3 729.5 L370.6 740.6 L362.6 733.1 L352.2 736.8 L356.8 726.8 L350.1 718.1 L361 719.5 Z" fill="#fde047" stroke-width="3"/>
+      <path d="M520 646 l18 -6 M520 664 l20 4" stroke="#6b7488" stroke-width="6"/>
+      <!-- Boutons ronds sombres (comme le sprite) -->
+      <circle cx="250" cy="812" r="30" fill="#6b7488" stroke-width="7"/>
+      <circle cx="346" cy="826" r="30" fill="#6b7488" stroke-width="7"/>
+      <circle cx="242" cy="804" r="8" fill="#9aa3b6" stroke="none"/><circle cx="338" cy="818" r="8" fill="#9aa3b6" stroke="none"/>
+      <!-- Plaque de fond, bas du boîtier -->
+      <rect x="420" y="780" width="104" height="70" rx="10" fill="#939db3" stroke-width="5"/>
+      <path d="M436 800 h72 M436 816 h72 M436 832 h50" stroke="#6b7488" stroke-width="5"/>
+      <path d="M176 900 h380" stroke="#6b7488" stroke-width="8" opacity="0.7"/>
+    </g>
+    <!-- Patin avant (gauche), qui avance vers nous -->
+    <rect x="150" y="972" width="186" height="74" rx="18" fill="#6b7488" stroke-width="8" transform="rotate(-5 240 1008)"/>
+    <path d="M176 990 h130" stroke="#8790a4" stroke-width="7" transform="rotate(-5 240 1008)"/>
+  </g>
+
+  <!-- Feuilles de rêves crachées vers nous (moutons, nuages, œil, lune) -->
+  <g stroke="#05060c" stroke-linejoin="round">
+    <g transform="rotate(-18 110 760)">
+      <rect x="30" y="680" width="150" height="180" rx="6" fill="#e8e4d8" stroke-width="7"/>
+      <g transform="translate(100 770) scale(2.2)" stroke="#05060c" stroke-width="1.4">
+      <path d="M-5 10 v12 M8 10 v12" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M-14 4 a8 8 0 0 1 6 -12 a9 9 0 0 1 15 -2 a8 8 0 0 1 12 6 a7 7 0 0 1 -2 13 h-26 a7 7 0 0 1 -5 -5 z" fill="#f4f1e8"/>
+      <ellipse cx="22" cy="0" rx="6" ry="7" fill="#2a2730"/>
+    </g>
+      <path d="M50 830 h110 M70 800 v40 M140 800 v40" stroke="#8b7f6a" stroke-width="6"/>
+    </g>
+    <g transform="rotate(22 650 470)">
+      <rect x="592" y="400" width="110" height="136" rx="5" fill="#e8e4d8" stroke-width="6"/>
+      <path d="M612 470 Q647 432 684 468 Q648 500 612 470 Z" fill="#fff" stroke-width="4"/>
+      <circle cx="648" cy="468" r="12" fill="#c084fc" stroke-width="3"/><circle cx="648" cy="468" r="5" fill="#05060c" stroke="none"/>
+    </g>
+    <g transform="rotate(-30 120 470)">
+      <rect x="74" y="420" width="92" height="112" rx="5" fill="#ddd8ca" stroke-width="5"/>
+      <path d="M134 446 a26 26 0 1 0 12 46 a20 20 0 1 1 -12 -46 z" fill="#fde047" stroke-width="4"/>
+    </g>
+    <g transform="rotate(12 640 960)">
+      <rect x="590" y="900" width="100" height="120" rx="5" fill="#e8e4d8" stroke-width="5"/>
+      <path transform="translate(640 960) scale(2.2)" d="M-16 6 a8 8 0 0 1 4 -14 a10 10 0 0 1 18 -2 a8 8 0 0 1 10 14 z" fill="#c084fc"/>
+    </g>
+  </g>
+</svg>

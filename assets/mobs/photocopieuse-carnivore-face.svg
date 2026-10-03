@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <defs>
+    <pattern id="photocopieuse-carnivore-f-panels" width="100" height="70" patternUnits="userSpaceOnUse">
+      <rect width="100" height="70" fill="#2b2d33"/>
+      <rect x="3" y="3" width="44" height="64" rx="3" fill="#363841"/>
+      <rect x="52" y="3" width="44" height="64" rx="3" fill="#33353e"/>
+      <rect x="3" y="3" width="44" height="8" fill="#3d4049"/>
+      <rect x="52" y="3" width="44" height="8" fill="#3b3e47"/>
+    </pattern>
+    <radialGradient id="photocopieuse-carnivore-f-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ff5a4a" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#ff5a4a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Décor : bureaux pénitentiaires (panneaux, néons, fenêtre à barreaux, horloge, classeur, panneau rouge) -->
+  <rect x="0" y="0" width="750" height="1040" fill="url(#photocopieuse-carnivore-f-panels)"/>
+  <rect x="0" y="0" width="750" height="70" fill="#202227"/>
+  <g stroke="#05060c" stroke-width="4">
+    <rect x="70" y="32" width="210" height="24" rx="10" fill="#c9d6cc"/>
+    <rect x="470" y="32" width="210" height="24" rx="10" fill="#5a6460"/>
+  </g>
+  <ellipse cx="175" cy="110" rx="190" ry="70" fill="#e2f0e6" opacity="0.07"/>
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="48" y="170" width="190" height="150" fill="#18202a"/>
+    <path d="M86 170 V320 M124 170 V320 M162 170 V320 M200 170 V320" stroke="#4a4e56" stroke-width="9"/>
+    <rect x="48" y="170" width="190" height="150" fill="none"/>
+    <circle cx="635" cy="215" r="48" fill="#cbc6b4"/>
+    <path d="M635 215 V182 M635 215 L660 228" stroke-width="7" stroke-linecap="round"/>
+    <rect x="555" y="505" width="160" height="56" rx="6" fill="#4a1d1d"/>
+    <rect x="25" y="600" width="165" height="440" fill="#363841"/>
+    <path d="M25 710 h165 M25 820 h165 M25 930 h165" stroke-width="4"/>
+    <rect x="52" y="640" width="110" height="12" rx="4" fill="#474a55"/>
+    <rect x="52" y="750" width="110" height="12" rx="4" fill="#474a55"/>
+    <rect x="52" y="860" width="110" height="12" rx="4" fill="#474a55"/>
+  </g>
+  <g fill="#8a826c"><rect x="575" y="524" width="38" height="16" rx="3"/><rect x="620" y="524" width="72" height="16" rx="3"/></g>
+  <path d="M60 300 L230 190" stroke="#7dd3fc" stroke-width="5" opacity="0.08"/>
+  <!-- Sol -->
+  <rect x="0" y="1040" width="750" height="294" fill="#2c2d30"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#232427" stroke-width="4"><path d="M110 1120 h520 M70 1200 h610 M40 1280 h670"/></g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <!-- Aura de fureur, irrégulière -->
+  <path d="M110 620 C90 430 160 250 300 210 C420 170 560 220 620 330 C680 450 660 650 640 820 C620 960 540 1030 370 1030 C210 1030 130 880 110 620 Z" fill="#c23b3b" opacity="0.07"/>
+  <path d="M170 640 C160 480 220 330 330 300 C440 270 560 330 590 450 C620 580 600 760 580 880 C560 980 470 1010 370 1000 C250 990 180 830 170 640 Z" fill="#ff5a4a" opacity="0.07"/>
+  <!-- Lignes de mouvement -->
+  <g stroke="#a6aeb8" stroke-width="6" stroke-linecap="round" opacity="0.5">
+    <path d="M640 640 h70"/><path d="M655 720 h50"/><path d="M630 900 h80"/><path d="M40 440 h50"/>
+  </g>
+  <!-- Ombre au sol -->
+  <ellipse cx="370" cy="1040" rx="260" ry="26" fill="#05060c" opacity="0.5"/>
+  <!-- LA PHOTOCOPIEUSE : elle bascule vers nous, gueule grande ouverte -->
+  <g transform="translate(36 0) rotate(-7 370 1030)" stroke="#05060c" stroke-linejoin="round">
+    <!-- Antenne et voyant rouge -->
+    <path d="M232 250 L238 150 L214 108" fill="none" stroke-width="8"/>
+    <circle cx="210" cy="102" r="42" fill="url(#photocopieuse-carnivore-f-glow)" stroke="none"/>
+    <circle cx="210" cy="102" r="18" fill="#c23b3b" stroke-width="6"/>
+    <circle cx="204" cy="96" r="5" fill="#ffb3a8" stroke="none"/>
+    <!-- Roulettes -->
+    <g fill="#5f6770" stroke-width="7">
+      <rect x="150" y="1000" width="80" height="34" rx="6"/>
+      <rect x="392" y="992" width="80" height="34" rx="6"/>
+      <rect x="532" y="956" width="56" height="30" rx="6"/>
+    </g>
+    <g fill="#05060c"><circle cx="190" cy="1040" r="14"/><circle cx="432" cy="1032" r="14"/><circle cx="560" cy="992" r="11"/></g>
+    <!-- Intérieur de la gueule (scanner ouvert) -->
+    <path d="M140 330 L485 282 L592 345 L594 500 L470 452 L140 480 Z" fill="#2a0d10" stroke-width="9"/>
+    <ellipse cx="310" cy="440" rx="190" ry="50" fill="url(#photocopieuse-carnivore-f-glow)" stroke="none"/>
+    <path d="M150 462 L466 434 L466 420 L150 448 Z" fill="#ff6a55" stroke="none"/>
+    <path d="M240 400 C280 380 340 380 380 392 C350 410 290 414 240 400 Z" fill="#7a1e22" stroke="none"/>
+    <!-- Flanc droit (sombre) -->
+    <path d="M470 452 L592 497 L602 950 L490 995 Z" fill="#5f6770" stroke-width="9"/>
+    <path d="M500 520 L572 548 M500 560 L572 588 M502 600 L574 628" stroke="#4a5058" stroke-width="7"/>
+    <!-- Façade -->
+    <path d="M140 480 L470 452 L490 995 L124 1010 Z" fill="#9aa3ad" stroke-width="11"/>
+    <path d="M444 456 L470 452 L490 995 L464 997 Z" fill="#7f8892" stroke="none"/>
+    <path d="M158 506 L186 503 L170 982 L142 984 Z" fill="#b6bec7" stroke="none"/>
+    <!-- Bac de sortie et feuille qui dépasse sur le flanc -->
+    <path d="M496 664 L582 698 L584 742 L498 712 Z" fill="#3a4047" stroke-width="6"/>
+    <path d="M520 684 L668 634 L690 698 L548 752 Z" fill="#e8e4d8" stroke-width="6"/>
+    <path d="M560 690 L650 660 M566 706 L660 674 M572 722 L640 698" stroke="#8a8478" stroke-width="5"/>
+    <!-- Écran de contrôle = œil furieux -->
+    <ellipse cx="398" cy="540" rx="84" ry="60" fill="url(#photocopieuse-carnivore-f-glow)" stroke="none"/>
+    <path d="M340 508 L450 498 L452 576 L342 586 Z" fill="#c23b3b" stroke-width="7"/>
+    <path d="M350 518 L440 510 L442 566 L352 574 Z" fill="#e0574b" stroke="none"/>
+    <rect x="376" y="524" width="36" height="36" fill="#05060c" stroke="none"/>
+    <rect x="380" y="528" width="11" height="11" fill="#ffd8d0" stroke="none"/>
+    <path d="M326 534 L466 482" stroke-width="18" stroke-linecap="round"/>
+    <!-- Clavier sous l'écran -->
+    <g fill="#5f6770" stroke-width="3">
+      <rect x="352" y="604" width="20" height="14" rx="2"/><rect x="378" y="602" width="20" height="14" rx="2"/><rect x="404" y="600" width="20" height="14" rx="2"/>
+      <rect x="353" y="624" width="20" height="14" rx="2"/><rect x="379" y="622" width="20" height="14" rx="2"/>
+      <rect x="405" y="620" width="20" height="14" rx="2" fill="#6fae5a"/>
+    </g>
+    <!-- Bacs à papier et leurs deux boutons sombres -->
+    <path d="M134 730 L474 712 M131 838 L478 822 M128 938 L482 924" fill="none" stroke-width="6"/>
+    <g fill="#5f6770" stroke-width="6">
+      <circle cx="226" cy="780" r="21"/><circle cx="344" cy="774" r="21"/>
+      <rect x="236" y="872" width="116" height="18" rx="6"/>
+    </g>
+    <circle cx="220" cy="774" r="6" fill="#8a929c" stroke="none"/>
+    <circle cx="338" cy="768" r="6" fill="#8a929c" stroke="none"/>
+    <!-- Dents du bas (bord de la vitre) -->
+    <path d="M146 480 L161 433 L175 478 L190 437 L205 475 L219 428 L234 473 L248 432 L263 470 L278 423 L292 468 L307 427 L322 465 L336 418 L351 463 L366 422 L380 460 L395 413 L409 458 L424 418 L439 455 L453 408 L468 453 Z" fill="#e8e4d8" stroke-width="4"/>
+    <!-- Couvercle relevé (mâchoire du haut) avec chargeur de documents -->
+    <path d="M170 298 L452 258 L430 196 L196 226 Z" fill="#7a828c" stroke-width="8"/>
+    <path d="M212 248 L420 220 L428 242 L218 270 Z" fill="#4a5058" stroke="none"/>
+    <path d="M136 296 L482 248 L596 310 L592 345 L485 282 L140 330 Z" fill="#5f6770" stroke-width="9"/>
+    <path d="M140 330 L485 282 L592 345 L588 358 L484 296 L142 344 Z" fill="#3a4047" stroke-width="5"/>
+    <!-- Dents du haut -->
+    <path d="M142 344 L158 396 L173 340 L189 383 L204 335 L220 387 L235 331 L251 375 L266 327 L282 378 L297 322 L313 366 L329 318 L344 370 L360 313 L375 357 L391 309 L406 361 L422 305 L437 348 L453 300 L468 352 L484 296 Z" fill="#e8e4d8" stroke-width="4"/>
+    <!-- Voyant rouge du couvercle -->
+    <circle cx="424" cy="270" r="30" fill="url(#photocopieuse-carnivore-f-glow)" stroke="none"/>
+    <circle cx="424" cy="270" r="12" fill="#c23b3b" stroke-width="5"/>
+    <!-- Formulaire à moitié mâché qui pend de la gueule -->
+    <path d="M168 440 L232 430 L248 520 L224 508 L210 536 L194 512 L172 528 Z" fill="#e8e4d8" stroke-width="5"/>
+    <path d="M182 460 L226 454 M186 480 L230 474 M188 498 L218 494" stroke="#8a8478" stroke-width="4"/>
+  </g>
+  <!-- Feuilles crachées comme des projectiles -->
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <g transform="rotate(-24 600 300)">
+      <rect x="560" y="250" width="84" height="108" rx="3" fill="#e8e4d8"/>
+      <path d="M574 274 h56 M574 292 h56 M574 310 h40" stroke="#8a8478" stroke-width="5"/>
+    </g>
+    <g transform="translate(-34 210) rotate(18 110 560) scale(0.85)">
+      <rect x="62" y="500" width="100" height="128" rx="3" fill="#f2efe6"/>
+      <path d="M78 528 h68 M78 548 h68 M78 568 h48" stroke="#8a8478" stroke-width="6"/>
+    </g>
+    <g transform="rotate(-38 640 820)">
+      <rect x="606" y="776" width="68" height="88" rx="3" fill="#ddd8ca"/>
+      <path d="M618 796 h44 M618 812 h44" stroke="#8a8478" stroke-width="4"/>
+    </g>
+    <g transform="rotate(30 330 120)">
+      <rect x="306" y="92" width="50" height="62" rx="2" fill="#d6d1c2"/>
+    </g>
+  </g>
+  <!-- Traînées des feuilles -->
+  <g stroke="#e8e4d8" stroke-width="5" stroke-linecap="round" opacity="0.45">
+    <path d="M540 360 l-46 40 M556 380 l-34 30"/>
+    <path d="M140 760 l40 22 M136 790 l30 16"/>
+    <path d="M590 860 l-40 -10"/>
+  </g>
+  <!-- Agrafes et éclats -->
+  <g fill="none" stroke="#c8ccd2" stroke-width="5" stroke-linecap="round">
+    <path d="M510 230 v-12 h16 v12"/><path d="M96 760 h12 v16 h-12"/><path d="M660 470 v12 h14 v-12"/><path d="M262 150 l8 -9 l12 10 l-8 9"/>
+  </g>
+  <!-- Poussière soulevée -->
+  <g fill="#3e4046" stroke="#05060c" stroke-width="3">
+    <path d="M520 1040 q20 -34 50 -20 q26 -22 48 4 q26 6 10 30 Z"/>
+    <path d="M100 1046 q8 -26 34 -18 q20 -14 34 6 q14 10 -4 20 Z"/>
+  </g>
+</svg>

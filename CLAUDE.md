@@ -29,6 +29,26 @@ Tailwind CDN, **aucun build step**.
   `buildUrbanMapSvg()`, `floorMapHitTest()`, zooms `FLOOR_MAP_ZOOMS`), chargé après `floorgen.js`
 - `minigames.js` — mini-jeux (chantier 6, voir `NOTES_MINIJEUX.md`) : catalogue PUR des épreuves (`MINIGAME_KINDS`),
   jet automatique, résolution du « timing », spécification des animations d'issue ; chargé après `floormap.js`
+- `encounters.js` — écrans plein écran des entrées en combat (chantier 16, lot 0, voir `CHANTIERS.md`) : catalogue PUR (`ENCOUNTER_KINDS` spotted/ambush/unseen/boss/hunter : cadrage `face`/`back`, titres et répliques à `{mob}`, `pickEncounterText()` à hasard injectable), manifeste des images livrées `ENCOUNTER_ART` (nom exact → cadrages, chacun `'svg'` ou `'webp'`/`true` ; à compléter à chaque nouvelle image, le test vérifie que les fichiers de `assets/mobs/<slug>-<cadrage>.svg|webp` existent, que tout fichier est déclaré et que les SVG sont en 750 x 1334 sans texte ni script) — tout est livré en SVG dessiné à la main : les 13 boss (face), les 39 mobs de `baseMobs` (face + dos) et les 3 chasseurs de primes (face), `encounterArtSlug()`, `resolveEncounterArt(enemy, kind)` (`fallback: true` = sprite agrandi), `encounterArtTargets()` (liste ordonnée des images à faire : boss, chasseurs, mobs du plus puissant au plus faible) ; **overlay (lot 1)** : `#encounter-overlay` (index.html), `showEncounterIntro(kind, enemy, onContinue)`/`dismissEncounterIntro()` (app.js, section « ÉCRAN PLEIN ÉCRAN DE RENCONTRE ») — par callback, fermé par un tap (jamais automatiquement ; délai anti-tap résiduel `ENCOUNTER_INTRO_MIN_MS`) ou Espace/Entrée/Échap, bloque via `gameState.encounterIntroPending` (dans `isActionBlocked()`), sans `requestAnimationFrame` (tests Node) le callback est appelé tout de suite ; image WebP du manifeste, sinon repli `renderScene('encounter', { kind, enemy })` (scene.js : `encounterSceneSpec()`/`composeEncounterScene()` purs, cadre portrait 360 x 640, décor du quartier étiré, mob agrandi, préfixe `'xbd'`) ; `devPreviewEncounter(kind, nom)` pour la console ; **branché (lot 2)** : `initiateCombat(enemy, { intro })` (écran puis `beginCombat()` ; `intro: false` = aucun écran — combat enchaîné d'un repaire, compagnon hostile, attaque furtive, `fightBossNow()` ; `'ambush'` = embuscade de trajet ; un boss reste `'boss'`, un chasseur `'hunter'`, voir `resolveEncounterKind()`), `handleStealthEncounter()` (écran « tu l'as vu » AVANT les boutons Esquiver / Attaque furtive), `triggerBossEncounter()` (arrivée du boss AVANT le choix Combattre / Repérer, première fois seulement : `boss._encounterShown`) ; réglage joueur `getEncounterIntroMode()`/`setEncounterIntroMode()` (menu ⚙️ Réglages, `localStorage` `crawler_encounter_intro_mode`, **lot 6** : `all` toujours / `important` boss + chasseurs + embuscades + élites / `off` jamais, lu par `encounterIntroWanted(kind, enemy)` dans `showEncounterIntro()`) ; interrupteur global `config.encounterIntro.enabled` (neutralisé par défaut dans les tests, réactivé par `withEncounterIntro()`), nettoyé à la restauration d'une sauvegarde et reconnu par le résolveur de `tests/long_playthrough.js` ; chargé après `minigames.js`
+- `sounds.js` — sons (chantier 8, voir `CHANTIERS.md`) : bruitages synthétisés par ZzFX, aucun fichier audio — catalogue PUR
+  `SFX_CATALOG` (paramètres ZzFX par son, groupes `SFX_GROUPS`), génération pure `zzfxGenerate()`, point d'entrée unique
+  `playSfx(key, { force })` (no-op sans `AudioContext`, tests Node), `unlockAudio()` (premier geste), préférence d'écoute
+  hors `gameState` : `isSoundMuted()`/`setSoundMuted()` (🔊 `#btn-sound-toggle`, coupe tout) ; page d'écoute `#sound-lab-overlay`
+  (`openSoundLab()`, `listSfxForLab()`) ; boutons et page branchés dans `app.js` (section « SONS ») ; **combat (lot 1)** : un son par
+  style de mêlée/projectile/école de sort et un cri par archétype (`SFX_MELEE_STYLES`, `SFX_PROJECTILES`, `SFX_SPELL_STYLES`,
+  `SFX_MOB_CRIES`, `playerAttackSfxKey()`/`mobAttackSfxKey()`), joués par `playPlayerAttackFx()`/`playMobAttackFx()` (fx.js),
+  `triggerHeavyImpact()`, `winCombat()` — toute nouvelle arme, sort ou archétype dont le style/projectile est nouveau doit avoir son son
+  (exigé par `tests/regression/sounds.js`) ; **événements (lot 2)** : groupes `event`/`world` mis en file (`SFX_QUEUED_GROUPS`,
+  `sfxQueuedStart()`, écart max `SFX_QUEUE_MAX_GAP`), joués par `sellItem()`/`sellSpell()`, `storeLootItem()`, `useConsumable()`,
+  `buyShopItem()`/`trainSkill()`, `gainXp()`/`gainSkillXp()`, `showAchievementToast()`, `settleMinigame()` (`SFX_MINIGAME_OUTCOMES`),
+  `springTrap()`, `attemptFlee()`, `restAtSafehouse()`, `showEncounterIntro()`, `triggerFloorTransition()`, `gameOver()`, `winGame()` ;
+  **pas de voix de synthèse** (essayée au lot 3, retirée à la demande de l'utilisateur : rendu jugé horrible) ; **trois façons de faire un son** : `sfx()` (ZzFX), `layered()` (couches ZzFX,
+  `sfxSamples()`), `recipe()` (recette Web Audio de même clé dans `SFX_RECIPES`, voir `sounds-recipes.js`) ; voir `NOTES_SONS.md` ;
+  chargé après `minigames-ui.js`, avant `sounds-recipes.js` et `app.js`
+- `sounds-recipes.js` — recettes Web Audio des sons (chantier 8, suite) : briques `sfxWhoosh`/`sfxBurst`/`sfxTone`/`sfxMetal`/`sfxBell`/
+  `sfxCreature` (voix à formants)/`sfxGrains`… et `SFX_RECIPES` (une recette par son déclaré `recipe()` : `(contexte, sortie, heure)`) ;
+  jamais de rampe exponentielle vers 0, tout s'arrête dans la durée déclarée (exigé par `tests/regression/sounds.js`) ; chargé juste
+  après `sounds.js`, avant `app.js`
 - `minigames-ui.js` — hôte DOM des mini-jeux (`startMinigame()`, bande du bas, minuterie, rendus `MINIGAME_RENDERERS`,
   réglage Jouer / Réduit / Jet automatique) ; chargé après `fx.js`, avant `app.js`
 - `sprites/` — silhouettes SVG des scènes, **découpées en petits fichiers thématiques** (pour ne relire/modifier
@@ -53,7 +73,7 @@ Tailwind CDN, **aucun build step**.
 - `tests/` — voir plus bas
 - `CHANTIERS.md` — registre des chantiers (statut, décisions, point d'étape, voir « Chantiers »)
 - `NOTES_*.md` — notes détaillées d'un chantier (diagnostic, chiffres, tests, « À surveiller en playtest ») :
-  `COMPAGNONS`, `ORIGINES`, `DEBUT_DE_PARTIE`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
+  `COMPAGNONS`, `ORIGINES`, `DEBUT_DE_PARTIE`, `SONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
   chantiers antérieurs au registre `COMBAT`, `LISIBILITE_COMBAT`, `QOL_EQUILIBRAGE`
 
 ## Architecture (résumé)
@@ -137,7 +157,7 @@ Tailwind CDN, **aucun build step**.
   `gameState.timeLeft` (`config.rangedCombat.timeCostPerRound`), jamais les tours d'attaque standards —
   un combat kité de bout en bout a donc un coût en temps réel, pas seulement en risque.
 - **Furtivité** : détection avant rencontre aléatoire (plafond 60%), Esquiver (plafond 70%) / Attaque
-  Furtive (bonus x2 garanti). Un échec d'esquive laisse le mob "alerted" (`enemy.alerted`) pour tout le
+  Furtive à DEUX départs (chantier 16, lot 3, `config.sneakAttack`, `attemptStealthAttack(mode)`) : « Surgir au corps à corps » (écart 0, premier coup ×2 ; contre un mob À DISTANCE il est pris au dépourvu et perd sa première riposte, `enemy.surprised`/`consumeSurprise()`) ou « Tirer de loin » (écart de départ 6, premier coup ×1,5 ; exige une arme à distance équipée OU un sort offensif à distance avec assez de mana, `canStealthShootFromAfar()`) ; `gameState.pendingSneakAttack` vaut `'melee'`/`'ranged'` (`true` = ×2, compatibilité), `initiateCombat(enemy, { startDistance })` impose l'écart de départ ; boutons `#btn-stealth-attack`/`#btn-stealth-ranged` (libellés et grisage par `updateStealthChoiceButtons()`). Un échec d'esquive laisse le mob "alerted" (`enemy.alerted`) pour tout le
   combat qui suit : `attemptFlee()` y est bloqué, pour que la boucle "esquive ratée sans conséquence"
   ne reste pas totalement gratuite.
 - **Compagnons** (chantier « rework des compagnons », voir `NOTES_COMPAGNONS.md`, chiffres dans
@@ -901,7 +921,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`, `origin-choice.js`, `classes.js`, `crawler-races.js`, `origins-flavor.js`, `early-game.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`, `origin-choice.js`, `classes.js`, `crawler-races.js`, `origins-flavor.js`, `early-game.js`, `encounters.js`, `sounds.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests

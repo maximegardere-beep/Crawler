@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Frite de Piscine Etrangleuse, cadrage face : plante a tete de frite en mousse qui fonce sur nous. Aucun texte. -->
+  <defs>
+    <pattern id="frite-de-piscine-etrangleuse-f-mur" width="80" height="42" patternUnits="userSpaceOnUse">
+      <rect width="80" height="42" fill="#11202a"/>
+      <rect x="1.5" y="1.5" width="37" height="18" rx="2" fill="#1f3441"/>
+      <rect x="41.5" y="1.5" width="37" height="18" rx="2" fill="#1b2e3a"/>
+      <rect x="-18" y="22.5" width="37" height="18" rx="2" fill="#1b2e3a"/>
+      <rect x="22.5" y="22.5" width="37" height="18" rx="2" fill="#1f3441"/>
+      <rect x="61.5" y="22.5" width="37" height="18" rx="2" fill="#1d3240"/>
+    </pattern>
+    <pattern id="frite-de-piscine-etrangleuse-f-sol" width="120" height="60" patternUnits="userSpaceOnUse">
+      <rect width="120" height="60" fill="#122029"/>
+      <rect x="2" y="2" width="56" height="26" rx="2" fill="#223440"/>
+      <rect x="62" y="2" width="56" height="26" rx="2" fill="#1e2f3a"/>
+      <rect x="-28" y="32" width="56" height="26" rx="2" fill="#1e2f3a"/>
+      <rect x="32" y="32" width="56" height="26" rx="2" fill="#223440"/>
+      <rect x="92" y="32" width="56" height="26" rx="2" fill="#203240"/>
+    </pattern>
+    <radialGradient id="frite-de-piscine-etrangleuse-f-halo">
+      <stop offset="0" stop-color="#bae6fd" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#bae6fd" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur carrele, plafond a poutrelles, tube lumineux -->
+  <rect x="0" y="0" width="750" height="900" fill="url(#frite-de-piscine-etrangleuse-f-mur)"/>
+  <rect x="0" y="0" width="750" height="80" fill="#121c24"/>
+  <g stroke="#05060c" stroke-width="5" fill="none">
+    <path d="M0 80 H750 M0 30 H750"/>
+    <path d="M40 30 L90 80 L140 30 L190 80 L240 30 L290 80 L340 30 L390 80 L440 30 L490 80 L540 30 L590 80 L640 30 L690 80 L740 30" stroke="#1c2832" stroke-width="6"/>
+  </g>
+  <rect x="440" y="90" width="210" height="22" rx="10" fill="#bae6fd" stroke="#05060c" stroke-width="5" opacity="0.9"/>
+  <ellipse cx="545" cy="150" rx="250" ry="150" fill="url(#frite-de-piscine-etrangleuse-f-halo)"/>
+  <!-- Reflets d'eau (caustiques) au mur -->
+  <g fill="none" stroke="#bae6fd" stroke-width="5" stroke-linecap="round" opacity="0.08">
+    <path d="M80 200 q30 -18 60 0 t60 0 t60 0 M420 170 q30 -18 60 0 t60 0 t60 0"/>
+    <path d="M120 260 q25 -15 50 0 t50 0 M500 240 q25 -15 50 0 t50 0 t50 0"/>
+    <path d="M60 330 q30 -18 60 0 t60 0 M560 320 q30 -18 60 0 t60 0"/>
+  </g>
+  <!-- Panneau de profondeur, illisible -->
+  <g stroke="#05060c" stroke-width="5">
+    <rect x="70" y="120" width="150" height="58" rx="8" fill="#1d3b4a"/>
+    <path d="M90 140 h70 M90 158 h104" stroke="#9fb8c4" stroke-width="8" opacity="0.6"/>
+  </g>
+  <!-- Plongeoir a droite -->
+  <g stroke="#05060c" stroke-width="6" stroke-linejoin="round">
+    <path d="M690 900 V640 H740 V900" fill="#2a3a45"/>
+    <path d="M560 600 H760 V632 H560 Z" fill="#3a5560"/>
+    <path d="M570 632 v12 h170 v-12" fill="#2a3a45"/>
+  </g>
+  <!-- Echelle de bassin a gauche -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M40 900 V620 q0 -60 60 -60 q50 0 50 50 M120 900 V640 q0 -50 46 -50 q40 0 40 40" stroke="#05060c" stroke-width="18"/>
+    <path d="M40 900 V620 q0 -60 60 -60 q50 0 50 50 M120 900 V640 q0 -50 46 -50 q40 0 40 40" stroke="#6a7f88" stroke-width="9"/>
+    <path d="M40 720 H120 M40 800 H120" stroke="#05060c" stroke-width="14"/>
+    <path d="M40 720 H120 M40 800 H120" stroke="#4a5d66" stroke-width="7"/>
+  </g>
+  <!-- Sol de la plage du bassin -->
+  <rect x="0" y="900" width="750" height="434" fill="url(#frite-de-piscine-etrangleuse-f-sol)"/>
+  <path d="M0 900 H750" stroke="#05060c" stroke-width="6"/>
+  <rect x="0" y="900" width="750" height="20" fill="#3a5560" stroke="#05060c" stroke-width="4"/>
+  <g fill="#2a5265" stroke="#05060c" stroke-width="4" opacity="0.8">
+    <ellipse cx="620" cy="1010" rx="100" ry="16"/>
+    <ellipse cx="140" cy="1130" rx="110" ry="18"/>
+  </g>
+  <rect x="0" y="0" width="50" height="1334" fill="#05060c" opacity="0.25"/>
+  <rect x="700" y="0" width="50" height="1334" fill="#05060c" opacity="0.25"/>
+
+  <!-- Aura d'eau chlorée, irreguliere -->
+  <path d="M260 210 Q420 120 590 260 Q680 400 600 600 Q560 790 430 920 Q300 930 220 780 Q130 600 170 420 Z" fill="#22d3ee" opacity="0.07"/>
+  <path d="M300 280 Q430 210 540 300 Q610 420 550 580 Q500 740 410 820 Q310 800 270 650 Q230 470 300 280 Z" fill="#c94f5a" opacity="0.07"/>
+
+  <!-- Ombre au sol -->
+  <ellipse cx="350" cy="1010" rx="230" ry="30" fill="#05060c" opacity="0.5"/>
+
+  <!-- Poussiere / eclaboussures au pied -->
+  <g fill="#9fb8c4" stroke="#05060c" stroke-width="3" opacity="0.8">
+    <path d="M190 1000 q-40 -20 -70 -10 q30 20 70 10 Z"/>
+    <path d="M500 1000 q40 -26 80 -16 q-34 24 -80 16 Z"/>
+  </g>
+
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="translate(340 1000) scale(1.08) translate(-340 -1000)">
+    <!-- Racines -->
+    <path d="M330 1000 q-50 10 -90 -4 M350 1004 q40 14 90 0 M340 1004 q-10 16 -30 22" fill="none" stroke-width="18"/>
+    <path d="M330 1000 q-50 10 -90 -4 M350 1004 q40 14 90 0 M340 1004 q-10 16 -30 22" fill="none" stroke="#9e3a44" stroke-width="9"/>
+    <!-- Feuille arriere (bras gauche), levee -->
+    <path d="M330 790 C270 770 220 730 190 670" fill="none" stroke-width="22"/>
+    <path d="M330 790 C270 770 220 730 190 670" fill="none" stroke="#9e3a44" stroke-width="12"/>
+    <path d="M190 670 C130 640 110 560 150 520 C200 540 230 610 190 670 Z" fill="#a8434e" stroke-width="6"/>
+    <path d="M190 660 C170 610 160 570 152 530" fill="none" stroke="#6e2a32" stroke-width="4"/>
+    <!-- Tige : la frite rouge qui ondule -->
+    <path d="M340 1000 C260 900 270 810 350 740 C430 670 430 600 400 540" fill="none" stroke-width="74"/>
+    <path d="M340 1000 C260 900 270 810 350 740 C430 670 430 600 400 540" fill="none" stroke="#c94f5a" stroke-width="62"/>
+    <path d="M318 980 C258 900 272 820 336 760 C400 700 408 640 388 590" fill="none" stroke="#e27a84" stroke-width="12" stroke-linecap="round"/>
+    <path d="M300 900 q30 6 50 -10 M320 820 q24 10 52 -6 M380 680 q20 12 44 0" fill="none" stroke="#9e3a44" stroke-width="7"/>
+    <!-- Feuille avant (bras droit) qui fonce vers nous en lasso -->
+    <path d="M360 760 C420 790 450 820 470 840" fill="none" stroke-width="36"/>
+    <path d="M360 760 C420 790 450 820 470 840" fill="none" stroke="#c94f5a" stroke-width="22"/>
+    <g transform="translate(-70 -10)">
+    <path d="M520 860 C560 770 700 760 722 850 C740 940 640 980 590 940 C550 905 580 860 630 870 C660 878 664 905 640 915" fill="none" stroke-width="60"/>
+    <path d="M520 860 C560 770 700 760 722 850 C740 940 640 980 590 940 C550 905 580 860 630 870 C660 878 664 905 640 915" fill="none" stroke="#c94f5a" stroke-width="44"/>
+    <path d="M548 830 C590 784 676 784 702 830" fill="none" stroke="#e27a84" stroke-width="10"/>
+    <path d="M580 800 q16 10 14 26 M650 790 q4 18 -8 30 M712 880 q-18 4 -30 -6" fill="none" stroke="#9e3a44" stroke-width="7"/>
+    </g>
+    <!-- Tete : boule de mousse jaune -->
+    <path d="M250 380 C240 260 330 190 430 200 C540 210 600 300 585 410 C570 520 480 580 390 570 C300 560 258 480 250 380 Z" fill="#fbbf24" stroke-width="8"/>
+    <path d="M290 300 Q340 230 420 228" fill="none" stroke="#fde68a" stroke-width="14"/>
+    <path d="M300 520 Q380 570 480 540" fill="none" stroke="#d99a12" stroke-width="16" opacity="0.7"/>
+    <!-- Rayures rouges de frite en mousse -->
+    <path d="M330 210 q90 30 120 110 M290 290 q110 30 150 120 M270 390 q100 26 130 110" fill="none" stroke="#05060c" stroke-width="22"/>
+    <path d="M330 210 q90 30 120 110 M290 290 q110 30 150 120 M270 390 q100 26 130 110" fill="none" stroke="#c94f5a" stroke-width="13"/>
+    <!-- Gueule ouverte vers nous (machoires cyan, dents) -->
+    <path d="M410 430 L590 340 L600 470 Q560 560 470 545 Z" fill="#1a2430" stroke-width="8"/>
+    <path d="M410 430 L590 340 L604 372 L430 446 Z" fill="#22d3ee" stroke-width="7"/>
+    <path d="M430 470 L600 450 Q580 560 470 556 Z" fill="#22d3ee" stroke-width="7"/>
+    <path d="M440 440 l14 24 l10 -30 l16 26 l10 -32 l16 26 l10 -32 l16 24 l10 -32 l14 22 l8 -28" fill="#e8e4d8" stroke-width="5"/>
+    <path d="M452 486 l12 -22 l12 20 l12 -24 l12 20 l12 -24 l12 20 l12 -22 l12 18" fill="#e8e4d8" stroke-width="5"/>
+    <path d="M490 520 q16 12 30 4" fill="none" stroke="#c94f5a" stroke-width="8"/>
+    <!-- Oeil furieux braque sur nous -->
+    <circle cx="350" cy="330" r="46" fill="#e8e4d8" stroke-width="8"/>
+    <circle cx="362" cy="342" r="19" fill="#05060c"/>
+    <circle cx="354" cy="334" r="6" fill="#e8e4d8" stroke="none"/>
+    <path d="M292 262 L408 300" stroke-width="18"/>
+    <path d="M292 262 L408 300" stroke="#9e3a44" stroke-width="8"/>
+    <!-- Veine de colere -->
+    <path d="M470 260 l10 14 l12 -8 l6 16" fill="none" stroke="#c94f5a" stroke-width="7"/>
+  </g>
+
+  <!-- Gouttes d'eau de piscine qui volent -->
+  <g fill="#22d3ee" stroke="#05060c" stroke-width="4">
+    <path d="M640 330 q-12 30 0 38 q12 -8 0 -38 Z"/>
+    <path d="M670 420 q-9 22 0 28 q9 -6 0 -28 Z"/>
+    <path d="M616 520 q-8 20 0 25 q8 -5 0 -25 Z"/>
+    <path d="M230 200 q-9 22 0 28 q9 -6 0 -28 Z"/>
+    <path d="M200 440 q-8 20 0 25 q8 -5 0 -25 Z"/>
+  </g>
+  <g fill="#22d3ee" opacity="0.5">
+    <circle cx="660" cy="380" r="6"/><circle cx="250" cy="250" r="5"/><circle cx="600" cy="600" r="5"/>
+  </g>
+  <!-- Lignes de mouvement -->
+  <g fill="none" stroke="#e8e4d8" stroke-width="5" stroke-linecap="round" opacity="0.35">
+    <path d="M150 260 h-70 M140 300 h-90 M170 860 h-80 M160 900 h-110"/>
+    <path d="M690 600 l40 -10 M660 900 l60 -6"/>
+  </g>
+  <rect x="0" y="1040" width="750" height="294" fill="#05060c" opacity="0.3"/>
+</svg>
