@@ -127,6 +127,10 @@ const ENCOUNTER_ART = {
     'Imprimante à Rêves': { face: 'svg', back: 'svg' },
     'Ordinateur en Colère': { face: 'svg', back: 'svg' },
     'Câble Électrique Vivant': { face: 'svg', back: 'svg' },
+    // Parking Souterrain Maudit
+    'Voiture Abandonnée Rouillée': { face: 'svg', back: 'svg' },
+    'Horodateur Vengeur': { face: 'svg', back: 'svg' },
+    'Cône de Chantier Fou': { face: 'svg', back: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';

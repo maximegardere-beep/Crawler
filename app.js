@@ -8985,6 +8985,8 @@ function showEncounterIntro(kind, enemy, onContinue) {
             ui.encounterImg.onload = () => ui.encounterImg.classList.remove('hidden');
             ui.encounterImg.onerror = () => ui.encounterImg.classList.add('hidden'); // le sprite agrandi reste dessous
             ui.encounterImg.src = art.src;
+            // Même image que la fois précédente : déjà chargée, `load` peut ne pas se redéclencher.
+            if (ui.encounterImg.complete && ui.encounterImg.naturalWidth) ui.encounterImg.classList.remove('hidden');
         } else {
             ui.encounterImg.onload = ui.encounterImg.onerror = null;
         }
