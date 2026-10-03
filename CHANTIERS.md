@@ -395,6 +395,12 @@ Ambiance / musique non retenue.
 d'attente), voix du présentateur (piques et réactions DeathWatch, succès, écrans de rencontre) — voir
 `NOTES_SONS.md`.
 
+**Suite en cours — sons plus reconnaissables** (03/10/2026) : comparaison de 5 sons en trois versions (ZzFX actuel,
+ZzFX en couches, recettes Web Audio). **Choix** : Web Audio pour le coup d'épée, les pièces d'or, l'arbalète, la potion
+et la foudre ; **ZzFX en couches pour l'arc**. Propositions Web Audio faites pour les 24 sons les plus fréquents
+(attaques, sorts, cris des 10 archétypes, crawler touché, mob vaincu, objet, niveau, rencontre, mini-jeux), à valider
+à l'oreille avant d'intégrer un moteur de recettes dans `sounds.js`.
+
 ## 9. Interface inventaire allégée — M — Codé (PR #32, ouverte)
 
 **Demande** : passer les PV et les stats sous le nom du crawler ; une icône pour l'équipement porté, une

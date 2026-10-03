@@ -52,6 +52,17 @@ mêlée, projectile, école de sort et archétype a son son), lecture et coupure
 d'attente, boutons, page d'écoute, branchements (playSfx espionné), voix avec une fausse synthèse vocale (file,
 interruption, coupure, émission, succès, rencontre).
 
+## Suite : sons plus reconnaissables (en cours)
+- Limite de ZzFX : un seul générateur et une seule enveloppe par son, d'où un rendu « 8-bit ». Trois pistes sans fichier :
+  couches ZzFX décalées, recettes Web Audio (bruit filtré, partiels métalliques, synthèse FM, corde pincée
+  Karplus-Strong, filtres de formants pour les voix de créatures), ZzFXM pour les jingles.
+- Comparaison sur 5 sons : **Web Audio retenu** pour coup d'épée, pièces d'or, arbalète, potion, foudre ; **couches
+  ZzFX** pour l'arc.
+- Propositions Web Audio pour les 24 sons les plus fréquents, niveaux égalisés par rendu hors ligne (même énergie
+  moyenne que les sons actuels) ; en attente du choix de l'utilisateur.
+- Limite : les voix (cris, râles, grognements) restent stylisées (« dessin animé »), jamais réalistes sans
+  enregistrements.
+
 ## À surveiller en playtest
 - **Écoute réelle** : tous les paramètres ont été composés sans écoute (seules durée et intensité vérifiées) —
   à ajuster via la page d'écoute (page en ligne ou ⚙️ Réglages).
