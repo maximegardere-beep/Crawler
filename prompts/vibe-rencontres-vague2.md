@@ -1,3 +1,5 @@
+> **OBSOLÈTE** : Vibe a été abandonné. Les mobs (face + dos) et les chasseurs de primes ont été dessinés directement en SVG (chantier 16, voir `CHANTIERS.md`). Ce fichier n'est gardé que pour ses consignes de cadrage (§1-2).
+
 # Prompt Vibe — VAGUE 2 : les mobs (face + dos) et les chasseurs de primes
 
 > À coller dans Vibe une fois les retouches des boss validées (voir `prompts/vibe-test-rencontres.md` pour le brief d'origine). Généré à partir de

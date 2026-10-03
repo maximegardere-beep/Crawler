@@ -139,6 +139,10 @@ const ENCOUNTER_ART = {
     'Mannequin Vitrine Possédé': { face: 'svg', back: 'svg' },
     'Caméra de Surveillance Autonome': { face: 'svg', back: 'svg' },
     'Présentateur Télé-Achat Hystérique': { face: 'svg', back: 'svg' },
+    // Chasseurs de primes (face seulement : ils te traquent, jamais vus de dos)
+    'Gobelin Pisteur de Primes': { face: 'svg' },
+    'Gobelin Cogneur de Primes': { face: 'svg' },
+    "Chef d'Escouade Gobelin": { face: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';
