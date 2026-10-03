@@ -44,7 +44,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 |---|----------|---------|--------|------------|
 | 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Codé (à playtester) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
-| 8 | Sons | M | Suggéré — plan par lots proposé, à valider | ZzFX synthétisé + voix du présentateur |
+| 8 | Sons | M | Planifié — lot 0 codé (socle `sounds.js`, boutons 🔊/🎙️, page d'écoute) | lots 1 à 3 à coder ; écoute réelle des sons |
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
@@ -379,7 +379,7 @@ premier étage urbain.
 Salles à choix narratif basé sur les compétences, sans fuite possible. Le chantier 5 a prévu la place :
 un nouveau type de salle = une entrée de `ROOM_TYPES` (+ son effet dans `enterRoom()`).
 
-## 8. Sons — M — Suggéré
+## 8. Sons — M — Planifié (lot 0 codé)
 
 **Demande** : intégrer des effets audio, par la méthode la plus simple.
 
@@ -401,14 +401,21 @@ un nouveau type de salle = une entrée de `ROOM_TYPES` (+ son effet dans `enterR
   rencontre.
 - **Combat détaillé** : un son par famille d'arme (tranchant / contondant / estoc), par projectile, par
   école de sort, plus **un cri par archétype de mob** (10).
-- **Réglage : un seul bouton muet** 🔊/🔇 (coupe sons ET voix), accessible depuis l'écran de jeu.
+- **Réglage : un bouton muet** 🔊/🔇 (coupe sons ET voix), accessible depuis l'écran de jeu — **plus un bouton 🎙️**
+  qui coupe la voix du présentateur seule (demandé à la validation du plan).
 - **Page d'écoute** de tous les sons (bouton ▶ par son) pour les ajuster.
 
-**Plan proposé (à valider)** :
-- **Lot 0** — `sounds.js` (catalogue PUR `SFX_CATALOG`, ZzFX recopié, `playSfx(key)` no-op sans
+**Échantillon validé** (5 sons : coup d'épée, tir d'arbalète, cri de gobelin, pièces d'or, montée de niveau).
+
+**Plan validé** :
+- **Lot 0 (codé)** — `sounds.js` (catalogue PUR `SFX_CATALOG`, ZzFX recopié, `playSfx(key)` no-op sans
   `AudioContext`, légère variation de hauteur à chaque lecture), déverrouillage au premier geste, bouton
   muet (`localStorage`), page d'écoute, ajout à `index.html` ET `GAME_FILES`, tests (catalogue complet,
-  no-op sous Node).
+  no-op sous Node). **Livré** : les 5 sons de l'échantillon au catalogue (pas encore branchés en jeu), `playSfx(key, { force })`,
+  `unlockAudio()` au premier `pointerdown`/`keydown`, `isSoundMuted()`/`isVoiceMuted()`/`announcerVoiceEnabled()`
+  (clés `crawler_sound_muted`/`crawler_voice_muted`), boutons `#btn-sound-toggle`/`#btn-voice-toggle` dans l'en-tête,
+  page d'écoute `#sound-lab-overlay` (⚙️ Réglages → 🎧 Écouter les sons, joue même son coupé),
+  `tests/regression/sounds.js`.
 - **Lot 1** — combat : coups par famille d'arme, projectiles, sorts, impact/coup lourd, cri par archétype,
   mort mob/boss, branchés sur `playPlayerAttackFx()`/`playMobAttackFx()`/`onImpact` (fx.js) ; test : une
   entrée par arme, sort, archétype (comme `combat-scene.js`).

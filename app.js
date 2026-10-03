@@ -787,6 +787,12 @@ const ui = {
     stealthChoiceZone: document.getElementById('stealth-choice-zone'),
     encounterOverlay: document.getElementById('encounter-overlay'),
     encounterModeSelect: document.getElementById('encounter-mode-select'),
+    btnSoundToggle: document.getElementById('btn-sound-toggle'),
+    btnVoiceToggle: document.getElementById('btn-voice-toggle'),
+    btnOpenSoundLab: document.getElementById('btn-open-sound-lab'),
+    soundLabOverlay: document.getElementById('sound-lab-overlay'),
+    soundLabList: document.getElementById('sound-lab-list'),
+    btnCloseSoundLab: document.getElementById('btn-close-sound-lab'),
     encounterArt: document.getElementById('encounter-art'),
     encounterImg: document.getElementById('encounter-img'),
     encounterTitle: document.getElementById('encounter-title'),
@@ -8959,6 +8965,64 @@ function setEncounterIntroMode(mode) {
     if (ui.encounterModeSelect) ui.encounterModeSelect.value = mode;
 }
 
+// =========================================================================
+// SONS : BOUTONS ET PAGE D'ÉCOUTE (chantier 8) — moteur et catalogue dans sounds.js.
+// 🔊 coupe tous les sons (voix comprise), 🎙️ la voix du présentateur seule ; préférences d'écoute
+// (localStorage), jamais sauvegardées avec le crawler.
+// =========================================================================
+function updateSoundToggleButtons() {
+    const soundOff = isSoundMuted();
+    const voiceOff = isVoiceMuted();
+    if (ui.btnSoundToggle) {
+        ui.btnSoundToggle.innerText = soundOff ? '🔇' : '🔊';
+        ui.btnSoundToggle.setAttribute('aria-pressed', soundOff ? 'true' : 'false');
+        const label = soundOff ? 'Remettre les sons' : 'Couper les sons';
+        ui.btnSoundToggle.setAttribute('aria-label', label);
+        ui.btnSoundToggle.title = label;
+    }
+    if (ui.btnVoiceToggle) {
+        // Voix éteinte par elle-même ou par la coupure générale : bouton barré et estompé.
+        const silent = voiceOff || soundOff;
+        ui.btnVoiceToggle.innerText = '🎙️';
+        ui.btnVoiceToggle.classList.toggle('opacity-40', silent);
+        ui.btnVoiceToggle.classList.toggle('line-through', silent);
+        ui.btnVoiceToggle.setAttribute('aria-pressed', voiceOff ? 'true' : 'false');
+        const label = voiceOff ? 'Remettre la voix du présentateur' : 'Couper la voix du présentateur';
+        ui.btnVoiceToggle.setAttribute('aria-label', label);
+        ui.btnVoiceToggle.title = soundOff && !voiceOff ? `${label} (tous les sons sont coupés)` : label;
+    }
+}
+
+function toggleSoundMuted() {
+    setSoundMuted(!isSoundMuted());
+    updateSoundToggleButtons();
+}
+
+function toggleVoiceMuted() {
+    setVoiceMuted(!isVoiceMuted());
+    updateSoundToggleButtons();
+}
+
+function buildSoundLabHtml() {
+    return listSfxForLab().map(section => `<section class="flex flex-col gap-1.5">
+        <p class="text-[10px] text-sky-400 uppercase tracking-widest font-bold">${section.title}</p>
+        ${section.sounds.map(sound => `<button type="button" data-sfx="${sound.key}" class="text-left min-h-[44px] px-3 py-2 bg-gray-950 border border-gray-700 hover:border-sky-500 rounded-lg">
+            <span class="block text-xs text-gray-200 font-bold">▶ ${sound.label}</span>
+            <span class="block text-[10px] text-gray-500">${sound.use}</span>
+        </button>`).join('')}
+    </section>`).join('');
+}
+
+function openSoundLab() {
+    if (!ui.soundLabOverlay) return;
+    if (ui.soundLabList) ui.soundLabList.innerHTML = buildSoundLabHtml();
+    ui.soundLabOverlay.classList.remove('hidden');
+}
+
+function closeSoundLab() {
+    if (ui.soundLabOverlay) ui.soundLabOverlay.classList.add('hidden');
+}
+
 // Le réglage autorise-t-il l'écran de ce type de rencontre pour cet ennemi ?
 function encounterIntroWanted(kind, enemy) {
     const mode = getEncounterIntroMode();
@@ -9234,6 +9298,19 @@ if (ui.combatZone) {
         requestCombatSkip();
     });
 }
+// Sons (chantier 8) : boutons de coupure, page d'écoute, déverrouillage audio au premier geste.
+updateSoundToggleButtons();
+if (ui.btnSoundToggle) ui.btnSoundToggle.addEventListener('click', toggleSoundMuted);
+if (ui.btnVoiceToggle) ui.btnVoiceToggle.addEventListener('click', toggleVoiceMuted);
+if (ui.btnOpenSoundLab) ui.btnOpenSoundLab.addEventListener('click', openSoundLab);
+if (ui.btnCloseSoundLab) ui.btnCloseSoundLab.addEventListener('click', closeSoundLab);
+if (ui.soundLabList) {
+    ui.soundLabList.addEventListener('click', (e) => {
+        const button = e.target && e.target.closest ? e.target.closest('[data-sfx]') : null;
+        if (button) playSfx(button.getAttribute('data-sfx'), { force: true });
+    });
+}
+['pointerdown', 'keydown'].forEach(type => document.addEventListener(type, () => unlockAudio(), { once: true, capture: true }));
 if (ui.encounterModeSelect) {
     ui.encounterModeSelect.value = getEncounterIntroMode();
     ui.encounterModeSelect.addEventListener('change', () => setEncounterIntroMode(ui.encounterModeSelect.value));
