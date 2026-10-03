@@ -111,6 +111,10 @@ const ENCOUNTER_ART = {
     'Savant Dingue': { face: 'svg', back: 'svg' },
     'Créature en Bocaux': { face: 'svg', back: 'svg' },
     'Robot Défectueux': { face: 'svg', back: 'svg' },
+    // Rue des Illusions
+    'Mime Aggressif': { face: 'svg', back: 'svg' },
+    'Ombre Suspicieuse': { face: 'svg', back: 'svg' },
+    'Miroir Brisé': { face: 'svg', back: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';

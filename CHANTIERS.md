@@ -526,4 +526,5 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 - [x] Usine de Transformation Alimentaire : Saucisse Vivante (bronze sous la lampe chauffante), Fromage qui Pue (s'asperge de désodorisant, rat évanoui), Ouvrier à la Chaîne (boulonne les saucisses du tapis).
 - [x] Bibliothèque des Oubliés : Livre Maudit (le fantôme porte le livre qui dévore un grimoire ; une retouche pour coller au sprite fantôme + livre), Bibliothécaire Fantôme (fait léviter les livres, pointe celui rangé à l'envers), Encre Vivante (repeint en noir les pages d'un livre).
 - [x] Laboratoire de Fous : Savant Dingue (fait déborder un bécher, hamster électrifié), Créature en Bocaux (se tasse dans un bocal trop petit), Robot Défectueux (tabasse un terminal en erreur).
-- [ ] Rue des Illusions · Catacombes · Marché Noir · Salle des Machines · Parking · Piscine · Studio · puis les 3 chasseurs (face).
+- [x] Rue des Illusions : Mime Aggressif (coincé dans sa boîte invisible), Ombre Suspicieuse (espionne aux jumelles derrière un réverbère trop fin), Miroir Brisé (se recolle au scotch).
+- [ ] Catacombes · Marché Noir · Salle des Machines · Parking · Piscine · Studio · puis les 3 chasseurs (face).
