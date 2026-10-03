@@ -531,4 +531,5 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 - [x] Marché Noir du Donjon : Marchand Malhonnête (étiquette sa camelote, s'en colle une dans le dos), Sac de Pièces Vivant (vérifie une pièce sous une lanterne), Garde du Marché (« contrôle » un étal de brochettes en les goûtant).
 - [x] Salle des Machines Infernales : Imprimante à Rêves (s'endort en imprimant des moutons), Ordinateur en Colère (se dispute avec sa souris qui s'enfuit), Câble Électrique Vivant (force sa prise dans une prise murale trop petite, câbles noués).
 - [x] Parking Souterrain Maudit : Voiture Abandonnée Rouillée (coincée entre deux piliers en voulant se garer), Horodateur Vengeur (couvre de contraventions le pare-brise d'une voiture garée), Cône de Chantier Fou (balise une « zone de travaux » autour d'une tache d'huile).
-- [ ] Piscine · Studio · puis les 3 chasseurs (face).
+- [x] Piscine Municipale Désaffectée : Maître-Nageur Zombifié (siffle un canard en plastique qui « court » au fond du bassin vide), Frite de Piscine Étrangleuse (s'entraîne à étrangler une bouée canard), Nuage de Chlore Ambulant (trempe ses bras dans le pédiluve, décolore un bonnet oublié).
+- [ ] Studio · puis les 3 chasseurs (face).

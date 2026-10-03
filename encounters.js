@@ -131,6 +131,10 @@ const ENCOUNTER_ART = {
     'Voiture Abandonnée Rouillée': { face: 'svg', back: 'svg' },
     'Horodateur Vengeur': { face: 'svg', back: 'svg' },
     'Cône de Chantier Fou': { face: 'svg', back: 'svg' },
+    // Piscine Municipale Désaffectée
+    'Maître-Nageur Zombifié': { face: 'svg', back: 'svg' },
+    'Frite de Piscine Étrangleuse': { face: 'svg', back: 'svg' },
+    'Nuage de Chlore Ambulant': { face: 'svg', back: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';
