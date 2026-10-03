@@ -44,7 +44,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 |---|----------|---------|--------|------------|
 | 6 | Mini-jeux (adresse, glyphes, combat, stand) | XL | Codé (à playtester) | `NOTES_MINIJEUX.md` |
 | 7 | Salles spéciales à choix narratif (compétences, sans fuite) | M | Idée | à rapprocher de 6 (même zone du jeu, fusion possible) |
-| 8 | Sons | M | Idée | hébergement des fichiers non tranché |
+| 8 | Sons | M | Suggéré — plan par lots proposé, à valider | ZzFX synthétisé + voix du présentateur |
 | 13 | Race et classe choisies à l'étage 3 | L | Codé (lots 0 à 5 codés, les 6 corps de Vibe livrés, à playtester) | playtest réel avant merge pour le lot 4 — cahier des charges dans `NOTES_ORIGINES.md` |
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
@@ -379,9 +379,50 @@ premier étage urbain.
 Salles à choix narratif basé sur les compétences, sans fuite possible. Le chantier 5 a prévu la place :
 un nouveau type de salle = une entrée de `ROOM_TYPES` (+ son effet dans `enterRoom()`).
 
-## 8. Sons — M — Idée (ancien backlog de `CLAUDE.md`)
+## 8. Sons — M — Suggéré
 
-Hébergement des fichiers non tranché (3 catégories : actions, ambiance, mobs).
+**Demande** : intégrer des effets audio, par la méthode la plus simple.
+
+**Méthodes proposées** (03/10/2026) : (1) sons synthétisés ZzFX/jsfxr, aucun fichier ; (2) fichiers dans
+`assets/sfx/` + `new Audio()` ; (3) fichiers + Web Audio API (préchargés, sans latence) ; (4) Howler.js
+(cdnjs) + sprite audio ; bonus : voix du présentateur par `speechSynthesis`.
+
+**Décidé (round 1)** :
+- **Méthode : ZzFX** (micro-bibliothèque ~1 Ko recopiée dans le dépôt, sons = listes de paramètres) —
+  tranche la question d'hébergement : aucun fichier audio, aucun CDN, fonctionne hors ligne.
+- **Périmètre** : bruitages de combat (coups, tirs, sorts, impacts, coup lourd, mort mob/boss), bruitages
+  d'interface/événements (butin, PO, piège, niveau, succès/boîte, mini-jeux, Game Over) et **voix
+  DeathWatch** (`speechSynthesis`). Ambiance/musique : non retenue (exigerait des fichiers).
+- **Son activé par défaut**, coupure + volume dans ⚙️ Réglages (`localStorage`).
+- **Claude compose tout le catalogue**, ajusté à l'écoute par l'utilisateur.
+
+**Décidé (round 2)** :
+- **Voix : le présentateur partout** — piques DeathWatch (et réactions), annonces de succès, écrans de
+  rencontre.
+- **Combat détaillé** : un son par famille d'arme (tranchant / contondant / estoc), par projectile, par
+  école de sort, plus **un cri par archétype de mob** (10).
+- **Réglage : un seul bouton muet** 🔊/🔇 (coupe sons ET voix), accessible depuis l'écran de jeu.
+- **Page d'écoute** de tous les sons (bouton ▶ par son) pour les ajuster.
+
+**Plan proposé (à valider)** :
+- **Lot 0** — `sounds.js` (catalogue PUR `SFX_CATALOG`, ZzFX recopié, `playSfx(key)` no-op sans
+  `AudioContext`, légère variation de hauteur à chaque lecture), déverrouillage au premier geste, bouton
+  muet (`localStorage`), page d'écoute, ajout à `index.html` ET `GAME_FILES`, tests (catalogue complet,
+  no-op sous Node).
+- **Lot 1** — combat : coups par famille d'arme, projectiles, sorts, impact/coup lourd, cri par archétype,
+  mort mob/boss, branchés sur `playPlayerAttackFx()`/`playMobAttackFx()`/`onImpact` (fx.js) ; test : une
+  entrée par arme, sort, archétype (comme `combat-scene.js`).
+- **Lot 2** — interface/événements : butin, PO, piège, montée de niveau, boîte de succès, issues de
+  mini-jeux, escalier, Game Over, victoire.
+- **Lot 3** — voix du présentateur (`speechSynthesis`, voix française si dispo, coupée par le bouton
+  muet) : piques/réactions DeathWatch, succès, écrans de rencontre ; file d'attente (jamais deux voix à la
+  fois), no-op sans `speechSynthesis`.
+
+**Principes d'architecture envisagés** : point d'entrée unique `playSfx(key)`, catalogue pur dans un
+nouveau `sounds.js` (sur le modèle de `fx.js`) ; branchements sur les points uniques existants (`onImpact`
+des effets d'attaque, `playMinigameOutcomeFx()`, `openAchievementBox()`, `gainXp()`, `gameOver()`,
+`showEncounterIntro()`…) ; déverrouillage audio au premier geste (confirmation du nom) ; no-op sans
+`AudioContext` (tests Node).
 
 ## 9. Interface inventaire allégée — M — Codé (PR #32, ouverte)
 
