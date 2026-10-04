@@ -48,6 +48,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
 | 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié — lots 0 à 3 et 6 codés (catalogue `encounters.js`, overlay + repli sprite agrandi), toutes les images livrées en SVG : 13 boss (face, Vibe), 39 mobs (face + dos) et 3 chasseurs (face) dessinés par Claude | playtest de l'ensemble (lisibilité des écrans sur téléphone) |
+| 17 | Boss de Niveau : le démon de l'antre (4 clés, armurerie démoniaque, combat en 3 actes, adaptation) | XL | Suggéré (décisions des rounds 1-2 prises) | chiffres à proposer en liste, plan en lots |
 
 ### Codés (à playtester)
 
@@ -554,3 +555,44 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 - [x] Piscine Municipale Désaffectée : Maître-Nageur Zombifié (siffle un canard en plastique qui « court » au fond du bassin vide), Frite de Piscine Étrangleuse (s'entraîne à étrangler une bouée canard), Nuage de Chlore Ambulant (trempe ses bras dans le pédiluve, décolore un bonnet oublié).
 - [x] Studio de Télé-Achat Abandonné : Mannequin Vitrine Possédé (essaie une perruque devant un écran éteint), Caméra de Surveillance Autonome (filme avec passion une plante en plastique), Présentateur Télé-Achat Hystérique (démonstration d'un éplucheur miracle devant des chaises vides).
 - [x] Chasseurs de primes (face seulement, décor de route de nuit, affiche RECHERCHÉ sans lettres) : Gobelin Pisteur de Primes (compare l'avis à ta tête, arbalète armée), Gobelin Cogneur de Primes (gourdin clouté levé, filet prêt), Chef d'Escouade Gobelin (hurle dans son porte-voix, sbires au loin).
+
+## 17. Boss de Niveau : le démon de l'antre — XL — Suggéré
+
+**Demande** : un nouveau type de boss, hors du système actuel. Un démon, le MÊME d'un étage à l'autre : vaincu, il n'est qu'assommé.
+Pour l'affronter, vaincre les 4 boss de quartier d'un étage → 4 clés → porte colossale → antre du démon. Son armurerie contient une arme,
+une armure, une arme à distance et un sort « uniques », très puissants, à effets propres ; on ne peut en sortir qu'UN de l'antre (concentration
+de puissance démoniaque). Combat différent des mobs et des boss, qui intègre les stats du joueur, épique et stressant. Il garde la Sortie
+de l'étage 18. Il évolue selon les combats (tué au tir → devient impénétrable au tir, à garder faisable).
+
+**Exploré** : briques réutilisables — 4 boss par étage classique (un par quartier, `districtBosses`, cache 👑, repères dérivés des salles
+`listFloorLandmarks()`), stats calées sur le joueur (`getPlayerCombatProfile()` → `computeBountyHunterStats()`, chasseurs), séquenceur
+`runCombatBeats()` et épreuves interactives (Parade, Coup de grâce), écran plein écran `showEncounterIntro()` (chantier 16), constructeur
+`buildSignatureItem()`, recettes Web Audio, `runStats`/DeathWatch. Frictions : les étages urbains (3, 6, 9, 12, 15, 18) n'ont pas 4 boss → clés
+sur les 12 étages classiques seulement ; tuer les 4 boss coûte une grosse part du budget temps (130 H + 5/étage) — détour volontairement
+coûteux ; une immunité totale casserait un build déjà engagé.
+
+**Décidé (rounds 1-2)** :
+- **Clés par étage** : les 4 boss du même étage, porte sur cet étage, clés perdues en descendant (jusqu'à 12 rencontres possibles).
+- **Combat en 3 actes (C) + intentions annoncées (A) + jauge d'Emprise (B)** : acte 1 démon enchaîné (4 chaînes = 4 clés), acte 2 l'antre
+  s'embrase et l'écart maximal rétrécit (8 → 6 → 4), acte 3 compte à rebours avant son coup final (à abattre avant ou à parer par une épreuve) ;
+  chaque tour une intention visible (Fauche, Brasier, Emprise, Garde…) dont la bonne réponse neutralise et ouvre une fenêtre, stats du joueur en
+  jets (Furtivité lit une intention cachée, Magie contre l'Emprise) ; jauge d'Emprise 0-100 qui monte chaque tour (plus vite si on encaisse ou
+  DEF faible), à 100 Possession (tour perdu / frappe le compagnon), redescend sur Parfaits et gros coups. Stats calées sur le profil du joueur,
+  qui cible sa stat la plus faible. Victoire = « Mise au tapis » (assommé).
+- **Défaite = expulsé** : rejeté hors de l'antre à 1 PV, perte de temps, porte rescellée pour l'étage ; mort réelle seulement à l'étage 18.
+- **Adaptation = Cicatrices plafonnées + faiblesse** : style dominant de chaque victoire (mêlée / distance / magie / mains nues) → cran −20 / −40 /
+  −60 % (« Impénétrable », immunité à ses effets), jamais 100 % ; chaque Cicatrice ouvre une faiblesse visible ailleurs.
+- **Armurerie : 1 sur 4, échangeable** : chaque victoire, choisir 1 des 4 objets, les autres restent au râtelier ; victoire suivante : garder
+  (l'objet monte de niveau) ou échanger.
+- **Malédiction** : chaque objet démoniaque a un effet unique très puissant ET un prix (soins réduits, coût en PV, temps…).
+- **Étage 18 : forme finale** — toutes ses Cicatrices + un 4e acte, pas d'assommage, Fatigue −5 % PV par mise au tapis passée ; remplace le
+  gardien actuel de la Sortie.
+- **Graphisme** : **scène agrandie** pour le montrer en entier (format haut dédié au combat contre le démon), direction artistique **« style
+  Balrog »** (colosse d'ombre et de flammes, cornes, ailes de fumée, fouet et lame de feu) — inspiration seulement : nom et design propres au jeu.
+  Aussi : porte colossale (nouveau type de salle, sceau à 4 serrures, 🗝️ × 4 dans le header), antre (obsidienne, braises, trône, râtelier de
+  l'armurerie), barre de vie en chaînes qui cassent à chaque acte, Emprise en veines rouges sur les bords de l'écran + battement de cœur, écran
+  d'entrée « Il se souvient de toi : N rencontres », Mise au tapis cartoon commentée par DeathWatch.
+
+**Reste à proposer / valider** : nom du démon, chiffres en LISTE (stats calées sur le joueur, montée par rencontre, vitesse de l'Emprise,
+crans de Cicatrice, coût de l'expulsion, 4 objets et leurs malédictions), découpage en lots.
+
