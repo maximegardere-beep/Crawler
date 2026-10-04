@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Ombre Suspicieuse, mob de la Rue des Illusions, cadrage « dos ». Au fond de la rue, de dos, elle
+       « se cache » derrière un réverbère dix fois trop fin et espionne aux jumelles une fenêtre éclairée
+       (un chat y fait sa toilette). On la guette depuis l'angle d'un mur et derrière une poubelle.
+       Palette du sprite : base #3a4152, sombre #232836, accent #ffd76a. Aucun texte. -->
+  <defs>
+    <pattern id="ombre-suspicieuse-b-bricks" width="84" height="44" patternUnits="userSpaceOnUse" patternTransform="scale(0.6)">
+      <rect width="84" height="44" fill="#110e15"/>
+      <rect x="2" y="2" width="38" height="18" rx="2" fill="#221c2a"/>
+      <rect x="44" y="2" width="38" height="18" rx="2" fill="#1d1824"/>
+      <rect x="-19" y="24" width="38" height="18" rx="2" fill="#1d1824"/>
+      <rect x="23" y="24" width="38" height="18" rx="2" fill="#241e2d"/>
+      <rect x="65" y="24" width="38" height="18" rx="2" fill="#1d1824"/>
+    </pattern>
+    <pattern id="ombre-suspicieuse-b-corner" width="84" height="44" patternUnits="userSpaceOnUse">
+      <rect width="84" height="44" fill="#07060a"/>
+      <rect x="2" y="2" width="38" height="18" rx="2" fill="#141119"/>
+      <rect x="44" y="2" width="38" height="18" rx="2" fill="#110e15"/>
+      <rect x="-19" y="24" width="38" height="18" rx="2" fill="#110e15"/>
+      <rect x="23" y="24" width="38" height="18" rx="2" fill="#16121b"/>
+      <rect x="65" y="24" width="38" height="18" rx="2" fill="#110e15"/>
+    </pattern>
+    <radialGradient id="ombre-suspicieuse-b-halo">
+      <stop offset="0" stop-color="#fbbf24" stop-opacity="0.38"/>
+      <stop offset="0.5" stop-color="#fbbf24" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#fbbf24" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="750" height="745" fill="url(#ombre-suspicieuse-b-bricks)"/>
+  <rect x="0" y="0" width="750" height="110" fill="#07080f"/>
+  <g fill="#c9c2d8" opacity="0.6"><circle cx="330" cy="36" r="3"/><circle cx="470" cy="70" r="2"/><circle cx="600" cy="28" r="3"/></g>
+  <path d="M0 110 H750" stroke="#05060c" stroke-width="4"/>
+  <!-- Façade du fond, de travers, avec LA fenêtre éclairée -->
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M500 90 L730 80 L742 745 L520 745 Z" fill="#2b2336"/>
+    <path d="M494 80 L736 70 L736 86 L496 96 Z" fill="#05060c" opacity="0.6"/>
+    <g stroke-width="3">
+      <rect x="530" y="430" width="44" height="54" fill="#0b0d14"/>
+      <rect x="650" y="424" width="44" height="54" fill="#0b0d14"/>
+      <rect x="536" y="540" width="44" height="54" fill="#0b0d14"/>
+      <rect x="656" y="536" width="44" height="54" fill="#e8c46a" fill-opacity="0.3"/>
+    </g>
+  </g>
+  <circle cx="610" cy="270" r="190" fill="#e8c46a" opacity="0.07"/>
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <rect x="540" y="190" width="140" height="170" fill="#e8c46a"/>
+    <path d="M540 190 h40 q-6 90 -40 150 Z" fill="#8a3a4a"/>
+    <path d="M680 190 h-36 q6 90 36 140 Z" fill="#8a3a4a"/>
+    <!-- Le chat qui fait sa toilette (silhouette) -->
+    <path d="M590 350 C584 312 598 286 620 284 L616 266 L628 278 L638 266 L640 288 C656 296 664 322 656 350 Z" fill="#1a1620" stroke-width="3"/>
+    <path d="M656 340 q22 -6 18 -30" fill="none" stroke="#1a1620" stroke-width="7"/>
+    <rect x="530" y="356" width="160" height="14" fill="#3a3044"/>
+  </g>
+  <!-- Façade de gauche, au fond -->
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M190 120 L330 132 L322 745 L190 745 Z" fill="#262032"/>
+    <rect x="214" y="190" width="40" height="50" fill="#0b0d14" stroke-width="3"/>
+    <rect x="270" y="196" width="40" height="50" fill="#e8c46a" fill-opacity="0.3" stroke-width="3"/>
+    <rect x="214" y="300" width="40" height="50" fill="#0b0d14" stroke-width="3"/>
+    <rect x="270" y="306" width="40" height="50" fill="#0b0d14" stroke-width="3"/>
+  </g>
+  <!-- Sol pavé en perspective -->
+  <rect x="0" y="745" width="750" height="589" fill="#27242d"/>
+  <path d="M0 745 H750" stroke="#05060c" stroke-width="5"/>
+  <g fill="#222029" stroke="#141218" stroke-width="4">
+    <ellipse cx="240" cy="770" rx="34" ry="10"/><ellipse cx="330" cy="772" rx="34" ry="10"/><ellipse cx="510" cy="770" rx="34" ry="10"/><ellipse cx="600" cy="772" rx="34" ry="10"/>
+    <ellipse cx="270" cy="820" rx="44" ry="14"/><ellipse cx="380" cy="824" rx="44" ry="14"/><ellipse cx="490" cy="820" rx="44" ry="14"/><ellipse cx="600" cy="824" rx="44" ry="14"/>
+    <ellipse cx="300" cy="890" rx="56" ry="18"/><ellipse cx="430" cy="894" rx="56" ry="18"/><ellipse cx="560" cy="890" rx="56" ry="18"/>
+    <ellipse cx="350" cy="980" rx="70" ry="24"/><ellipse cx="510" cy="984" rx="70" ry="24"/>
+    <ellipse cx="320" cy="1100" rx="84" ry="30"/><ellipse cx="500" cy="1104" rx="84" ry="30"/>
+    <ellipse cx="380" cy="1250" rx="100" ry="36"/>
+  </g>
+  <!-- Brume au ras des pavés -->
+  <path d="M150 730 C260 712 360 744 470 726 C560 712 640 736 750 724 L750 790 L150 790 Z" fill="#8a8098" opacity="0.12"/>
+  <!-- Réverbère beaucoup trop fin -->
+  <circle cx="452" cy="250" r="230" fill="url(#ombre-suspicieuse-b-halo)"/>
+  <g stroke="#05060c" stroke-linecap="round">
+    <path d="M424 748 V230" stroke-width="16"/>
+    <path d="M424 748 V230" stroke="#2b2e35" stroke-width="7"/>
+    <path d="M424 232 Q424 200 456 200" fill="none" stroke-width="12"/>
+    <path d="M424 232 Q424 200 456 200" fill="none" stroke="#2b2e35" stroke-width="5"/>
+    <path d="M444 198 L478 198 L472 214 L450 214 Z" fill="#2b2e35" stroke-width="4"/>
+    <ellipse cx="461" cy="215" rx="10" ry="5" fill="#fde68a" stroke-width="3"/>
+  </g>
+  <ellipse cx="420" cy="752" rx="96" ry="14" fill="#05060c" opacity="0.5"/>
+  <!-- L'Ombre, de dos, collée au réverbère, jumelles braquées sur la fenêtre -->
+  <g transform="translate(410 752) scale(1.12) translate(-410 -752)" stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Corps-drap vu de dos -->
+    <path d="M410 474 C456 474 474 516 470 566 C476 622 484 670 494 718 C480 712 470 732 456 724 C444 742 430 726 418 742 C404 756 392 736 378 750 C364 764 350 746 334 758 C344 718 344 680 348 640 C352 590 346 540 352 516 C360 488 380 474 410 474 Z" fill="#3a4152" stroke-width="6"/>
+    <path d="M352 516 C346 540 352 590 348 640 C344 680 344 718 334 758 C350 746 364 764 378 750 C372 710 376 660 378 620 C380 572 372 540 380 512 Z" fill="#232836" stroke="none" opacity="0.9"/>
+    <path d="M494 718 C480 712 470 732 456 724 C444 742 430 726 418 742 C404 756 392 736 378 750" fill="none" stroke="#232836" stroke-width="6"/>
+    <path d="M436 484 C462 500 468 530 464 566 C470 620 478 666 486 708" fill="none" stroke="#f2cf72" stroke-width="4" opacity="0.8"/>
+    <!-- Bras levés, coudes en pointe : elle tient les jumelles devant ses yeux -->
+    <path d="M364 560 L326 520 L366 486" fill="none" stroke-width="30"/>
+    <path d="M364 560 L326 520 L366 486" fill="none" stroke="#232836" stroke-width="20"/>
+    <path d="M458 556 L500 514 L470 480" fill="none" stroke-width="30"/>
+    <path d="M458 556 L500 514 L470 480" fill="none" stroke="#3a4152" stroke-width="20"/>
+    <path d="M466 548 L496 518" fill="none" stroke="#f2cf72" stroke-width="3" opacity="0.8"/>
+    <!-- Col relevé, vu de dos -->
+    <path d="M348 530 Q410 506 474 526 L470 490 Q410 470 352 492 Z" fill="#232836" stroke-width="5"/>
+    <path d="M362 518 Q410 500 462 514" fill="none" stroke="#3a4152" stroke-width="3"/>
+    <!-- Fedora, de dos -->
+    <g transform="rotate(7 410 460)">
+      <path d="M372 466 L376 414 Q410 400 444 414 L448 466 Z" fill="#232836" stroke-width="5"/>
+      <rect x="374" y="446" width="72" height="14" fill="#3a4152" stroke-width="4"/>
+      <path d="M334 470 Q410 452 488 470 Q494 484 480 486 Q410 472 340 488 Q326 482 334 470 Z" fill="#232836" stroke-width="5"/>
+      <path d="M430 408 Q442 414 446 424 L448 462" fill="none" stroke="#f2cf72" stroke-width="3" opacity="0.8"/>
+    </g>
+    <!-- Jumelles qui dépassent à droite du chapeau, braquées sur la fenêtre -->
+    <g transform="rotate(-28 476 486)" stroke-width="4">
+      <rect x="456" y="466" width="62" height="18" rx="6" fill="#1a1c22"/>
+      <rect x="456" y="488" width="62" height="18" rx="6" fill="#1a1c22"/>
+      <rect x="512" y="462" width="12" height="25" rx="3" fill="#2b2e35"/>
+      <rect x="512" y="485" width="12" height="25" rx="3" fill="#2b2e35"/>
+      <path d="M520 466 v16 M520 489 v16" stroke="#ffd76a" stroke-width="3"/>
+    </g>
+    <circle cx="468" cy="488" r="11" fill="#3a4152" stroke-width="4"/>
+  </g>
+  <!-- Cachette : angle de mur sombre à gauche, poubelle à droite -->
+  <path d="M0 0 H160 L176 1334 H0 Z" fill="url(#ombre-suspicieuse-b-corner)"/>
+  <path d="M160 0 L176 1334" stroke="#05060c" stroke-width="10"/>
+  <path d="M148 0 L162 1334 L176 1334 L160 0 Z" fill="#241e2d"/>
+  <path d="M0 0 H160 L176 1334 H0 Z" fill="#05060c" opacity="0.3"/>
+  <g stroke="#05060c" stroke-width="7" stroke-linejoin="round">
+    <path d="M560 960 L750 950 L750 1334 L580 1334 Z" fill="#16141b"/>
+    <path d="M540 930 Q650 900 760 922 L760 962 Q650 944 548 970 Z" fill="#1e1b25"/>
+    <path d="M600 1010 L610 1300 M660 1004 L666 1300 M712 1000 L716 1300" stroke="#0c0b10" stroke-width="10"/>
+    <path d="M570 930 l-24 -30 l30 6 Z" fill="#2a2632" stroke-width="5"/>
+  </g>
+  <path d="M590 940 Q650 920 720 930" fill="none" stroke="#f2cf72" stroke-width="3" opacity="0.25"/>
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.1"/>
+</svg>

@@ -985,6 +985,75 @@ function renderGameOverScene(opts) {
     gameOverSceneUi.content.innerHTML = composeGameOverScene(cause, resolveBackdropKey(gameState.currentDistrict), 'gbd');
 }
 
+// --- Écran plein écran de rencontre (chantier 16, lot 1) ------------------------------------------
+// Repli quand le mob n'a pas encore d'image WebP (voir encounters.js) : son sprite agrandi sur le décor de
+// son quartier, dans un cadre PORTRAIT 360 x 640 (le cadre de l'overlay est recadré en `cover`). Le décor 360 x 150
+// est étiré pour que son sol tombe au niveau du sol de la rencontre ; les 22 % du bas restent réservés au bandeau
+// de texte. Tout est pur : spécification géométrique (`encounterSceneSpec()`) + chaîne SVG (`composeEncounterScene()`).
+const ENCOUNTER_VIEW = { w: 360, h: 640 };
+const ENCOUNTER_BACKDROP_H = 568;                 // hauteur du décor étiré (sous : sol uni)
+const ENCOUNTER_FACE_GROUND_Y = 470;              // pieds du mob de face (premier plan)
+const ENCOUNTER_BACK_GROUND_Y = 372;              // pieds du mob de dos (loin, plus haut)
+const ENCOUNTER_MOB_HEIGHT = { face: 400, boss: 450, back: 150 };
+const ENCOUNTER_MOB_MAX_HALF_WIDTH = 165;         // le mob reste dans le cadre quelle que soit sa largeur
+
+// Échelle, position et orientation du mob. `sprite` : résultat de resolveMobSprite() (`top` négatif, `bounds` éventuels).
+// Renvoie { view, scale, x, y, flip, glow, height } ; `kind` inconnu -> 'spotted'.
+function encounterSceneSpec(kind, sprite, isBoss) {
+    const def = (typeof ENCOUNTER_KINDS !== 'undefined' && ENCOUNTER_KINDS[kind]) || { view: 'face' };
+    const view = def.view === 'back' ? 'back' : 'face';
+    const top = Math.abs((sprite && sprite.top) || 86) + (isBoss ? 16 : 0); // la couronne dépasse du sprite
+    const bounds = sprite && sprite.bounds;
+    const halfWidth = Math.max(MOB_EXTENT, bounds ? Math.max(Math.abs(bounds[0]), Math.abs(bounds[1])) : 0);
+    const target = view === 'back' ? ENCOUNTER_MOB_HEIGHT.back : (isBoss ? ENCOUNTER_MOB_HEIGHT.boss : ENCOUNTER_MOB_HEIGHT.face);
+    const maxHalf = view === 'back' ? ENCOUNTER_MOB_MAX_HALF_WIDTH / 2 : ENCOUNTER_MOB_MAX_HALF_WIDTH;
+    const scale = Math.min(target / top, maxHalf / halfWidth);
+    return {
+        view, scale,
+        x: view === 'back' ? 222 : 180,
+        y: view === 'back' ? ENCOUNTER_BACK_GROUND_Y : ENCOUNTER_FACE_GROUND_Y,
+        flip: view === 'back',
+        glow: view === 'face',
+        height: top * scale
+    };
+}
+
+// Scène de repli en SVG : décor du quartier (préfixe `prefix`), halo d'accent derrière un mob de face, mob (aura et
+// couronne comprises), caisse sombre au premier plan pour un mob de dos, voile sombre et vignette.
+function composeEncounterScene(kind, enemy, district, prefix) {
+    const sprite = resolveMobSprite(enemy, { aura: true });
+    const spec = encounterSceneSpec(kind, sprite, !!(enemy && enemy.isBoss));
+    const def = SCENE_BACKDROPS[resolveBackdropKey(district)];
+    const k = ENCOUNTER_BACKDROP_H / BACKDROP_HEIGHT;
+    const bw = BACKDROP_WIDTH * k;
+    const accent = ((typeof ENCOUNTER_KINDS !== 'undefined' && ENCOUNTER_KINDS[kind]) || { accent: '#ef4444' }).accent;
+    const crown = enemy && enemy.isBoss ? `<g transform="translate(0 ${sprite.top - 2})">${SCENE_BOSS_CROWN_SVG}</g>` : '';
+    const sx = spec.flip ? -spec.scale : spec.scale;
+    const mob = `<g transform="translate(${spec.x} ${spec.y}) scale(${sx.toFixed(3)} ${spec.scale.toFixed(3)})" style="${tintStyle(sprite.palette)}">${sprite.markup}${crown}</g>`;
+    const glow = spec.glow ? `<ellipse class="enc-glow" cx="180" cy="${Math.round(spec.y - spec.height / 2)}" rx="200" ry="${Math.round(spec.height / 2 + 70)}" fill="url(#${prefix}-enc-glow)" opacity="0.5"/>` : '';
+    const crate = spec.view === 'back'
+        ? `<g transform="translate(70 548) scale(3.4)" opacity="0.92">${BACKDROP_PROPS.crate.markup({ type: 'crate', w: 40, h: 34 }, null)}</g>`
+        : '';
+    const shade = spec.view === 'back' ? 0.4 : 0.22;
+    return `<svg x="${Math.round(-(bw - ENCOUNTER_VIEW.w) / 2)}" y="0" width="${Math.round(bw)}" height="${ENCOUNTER_BACKDROP_H}" viewBox="0 0 ${BACKDROP_WIDTH} ${BACKDROP_HEIGHT}" overflow="hidden">${composeBackdrop(def, prefix)}</svg>`
+        + `<rect x="0" y="${ENCOUNTER_BACKDROP_H}" width="${ENCOUNTER_VIEW.w}" height="${ENCOUNTER_VIEW.h - ENCOUNTER_BACKDROP_H}" fill="${def.palette.floor}"/>`
+        + `<rect x="0" y="0" width="${ENCOUNTER_VIEW.w}" height="${ENCOUNTER_VIEW.h}" fill="#05060c" opacity="${shade}"/>`
+        + glow + mob + crate
+        + `<defs><radialGradient id="${prefix}-enc-glow"><stop offset="0%" stop-color="${accent}" stop-opacity="0.55"/><stop offset="100%" stop-color="${accent}" stop-opacity="0"/></radialGradient><radialGradient id="${prefix}-enc-vig" cx="50%" cy="42%" r="75%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.75"/></radialGradient></defs>`
+        + `<rect x="0" y="0" width="${ENCOUNTER_VIEW.w}" height="${ENCOUNTER_VIEW.h}" fill="url(#${prefix}-enc-vig)"/>`;
+}
+
+// Cible de l'overlay (#encounter-overlay) : redessinée à chaque ouverture (rare, jamais dans updateUI()).
+const encounterSceneUi = {
+    svg: document.getElementById('encounter-svg')
+};
+function renderEncounterScene(opts) {
+    const o = opts || {};
+    if (!encounterSceneUi.svg || !o.enemy) return;
+    encounterSceneUi.svg.setAttribute('viewBox', `0 0 ${ENCOUNTER_VIEW.w} ${ENCOUNTER_VIEW.h}`);
+    encounterSceneUi.svg.innerHTML = composeEncounterScene(o.kind, o.enemy, gameState.currentDistrict, 'xbd');
+}
+
 // Point d'entrée unique du rendu des scènes : 'combat' (#combat-zone), 'explore' (scène d'exploration,
 // `opts` = nom de vignette ou { key, enemy, ... }), 'merchant' | 'trainer' | 'arcade' (#shop-zone), 'safehouse'
 // (#safehouse-choice-zone), 'stairs' (écran d'escalier), 'gameOver' (cadavre vu de dessus, `opts` =
@@ -997,4 +1066,5 @@ function renderScene(mode, opts) {
     else if (mode === 'stairs') renderStairsScene();
     else if (mode === 'gameOver') renderGameOverScene(opts);
     else if (mode === 'crawlers') refreshSceneCrawlers();
+    else if (mode === 'encounter') renderEncounterScene(opts);
 }

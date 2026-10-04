@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Marchand Malhonnête, cadrage « back » : il colle des étiquettes de prix sur sa camelote, des objets volés plein le manteau. Aucun texte. -->
+  <defs>
+    <pattern id="marchand-malhonnete-b-mur" width="70" height="46" patternUnits="userSpaceOnUse">
+      <rect width="70" height="46" fill="#211d2b"/>
+      <rect x="3" y="3" width="64" height="40" rx="3" fill="#2a2438"/>
+      <rect x="3" y="3" width="64" height="7" fill="#332c48"/>
+      <circle cx="17" cy="24" r="3" fill="#332c48"/>
+      <circle cx="50" cy="32" r="3.5" fill="#332c48"/>
+      <circle cx="38" cy="15" r="2" fill="#3a3352"/>
+    </pattern>
+    <radialGradient id="marchand-malhonnete-b-halo">
+      <stop offset="0" stop-color="#e58a3a" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#e58a3a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="750" height="650" fill="url(#marchand-malhonnete-b-mur)"/>
+  <!-- Bâche du plafond -->
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M0 0 H750 V54 Q725 82 700 54 Q675 82 650 54 Q625 82 600 54 Q575 82 550 54 Q525 82 500 54 Q475 82 450 54 Q425 82 400 54 Q375 82 350 54 Q325 82 300 54 Q275 82 250 54 Q225 82 200 54 Q175 82 150 54 Q125 82 100 54 Q75 82 50 54 Q25 82 0 54 Z" fill="#2c1e1b"/>
+    <path d="M50 0 V54 Q75 82 100 54 V0 Z M150 0 V54 Q175 82 200 54 V0 Z M250 0 V54 Q275 82 300 54 V0 Z M350 0 V54 Q375 82 400 54 V0 Z M450 0 V54 Q475 82 500 54 V0 Z M550 0 V54 Q575 82 600 54 V0 Z M650 0 V54 Q675 82 700 54 V0 Z" fill="#20232e" stroke-width="2.5"/>
+  </g>
+  <!-- Guirlande de lanternes -->
+  <path d="M180 120 Q370 190 560 120 Q650 96 750 126" fill="none" stroke="#05060c" stroke-width="5"/>
+  <ellipse cx="370" cy="200" rx="200" ry="150" fill="url(#marchand-malhonnete-b-halo)"/>
+  <ellipse cx="640" cy="170" rx="110" ry="90" fill="url(#marchand-malhonnete-b-halo)" opacity="0.6"/>
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M370 155 v12 M640 112 v12" stroke-width="3"/>
+    <rect x="352" y="166" width="36" height="46" rx="13" fill="#a8461a"/>
+    <rect x="624" y="122" width="32" height="40" rx="11" fill="#9a2a22"/>
+    <path d="M358 178 h24 M358 200 h24" stroke-width="2.5"/>
+  </g>
+  <ellipse cx="370" cy="189" rx="7" ry="11" fill="#ffc46a" opacity="0.75"/>
+  <ellipse cx="640" cy="142" rx="6" ry="9" fill="#ffb05a" opacity="0.5"/>
+  <!-- Enseigne illisible -->
+  <g stroke="#05060c" stroke-width="4">
+    <rect x="560" y="210" width="140" height="54" rx="7" fill="#2e2618"/>
+    <rect x="576" y="226" width="34" height="10" rx="4" fill="#8a7444" stroke="none"/>
+    <rect x="616" y="226" width="56" height="10" rx="4" fill="#8a7444" stroke="none"/>
+    <rect x="584" y="242" width="72" height="10" rx="4" fill="#8a7444" stroke="none"/>
+  </g>
+  <!-- L'étal : auvent rayé, étagère de camelote, comptoir -->
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M250 290 L690 290 L712 340 L228 340 Z" fill="#3a2522"/>
+    <path d="M300 290 L284 340 L334 340 L342 290 Z M384 290 L380 340 L430 340 L426 290 Z M468 290 L476 340 L526 340 L510 290 Z M552 290 L572 340 L622 340 L594 290 Z" fill="#262f3a" stroke-width="2.5"/>
+    <path d="M228 340 q24 20 48 0 q24 20 48 0 q24 20 48 0 q24 20 48 0 q24 20 48 0 q24 20 48 0 q24 20 48 0 q24 20 48 0 q24 20 48 0 q24 20 48 0" fill="#3a2522"/>
+    <rect x="252" y="350" width="10" height="290" fill="#2a2018"/>
+    <rect x="668" y="350" width="10" height="290" fill="#2a2018"/>
+    <rect x="262" y="420" width="406" height="10" fill="#3a2c20"/>
+  </g>
+  <g stroke="#05060c" stroke-width="3">
+    <rect x="280" y="388" width="30" height="32" rx="3" fill="#3e3a4e"/>
+    <path d="M330 420 l12 -40 l12 40 Z" fill="#4a3f2a"/>
+    <circle cx="600" cy="402" r="17" fill="#3a4636"/>
+    <rect x="630" y="392" width="26" height="28" rx="4" fill="#4a3a30"/>
+  </g>
+  <g fill="#8c8466" stroke="#05060c" stroke-width="2.5">
+    <path d="M300 384 l12 -5 l4 9 l-12 5 Z"/><path d="M344 378 l12 -4 l3 9 l-12 4 Z"/><path d="M610 384 l12 -4 l3 9 l-12 4 Z"/>
+  </g>
+  <!-- Sol pavé -->
+  <rect x="0" y="640" width="750" height="694" fill="#2a241e"/>
+  <path d="M0 640 H750" stroke="#05060c" stroke-width="5"/>
+  <g fill="#26201b" stroke="#140f0b" stroke-width="4">
+    <ellipse cx="300" cy="664" rx="40" ry="14"/><ellipse cx="400" cy="666" rx="42" ry="14"/><ellipse cx="510" cy="664" rx="44" ry="14"/><ellipse cx="620" cy="666" rx="42" ry="14"/><ellipse cx="720" cy="664" rx="36" ry="14"/>
+    <ellipse cx="350" cy="712" rx="52" ry="18"/><ellipse cx="470" cy="714" rx="54" ry="18"/><ellipse cx="590" cy="712" rx="54" ry="18"/><ellipse cx="710" cy="714" rx="50" ry="18"/>
+    <ellipse cx="300" cy="790" rx="66" ry="24"/><ellipse cx="450" cy="794" rx="70" ry="24"/><ellipse cx="610" cy="790" rx="70" ry="24"/>
+    <ellipse cx="380" cy="900" rx="84" ry="32"/><ellipse cx="580" cy="904" rx="86" ry="32"/><ellipse cx="740" cy="900" rx="70" ry="32"/>
+    <ellipse cx="320" cy="1060" rx="100" ry="40"/><ellipse cx="540" cy="1064" rx="104" ry="40"/><ellipse cx="740" cy="1060" rx="80" ry="40"/>
+  </g>
+  <!-- Comptoir -->
+  <g stroke="#05060c" stroke-width="5">
+    <rect x="240" y="510" width="450" height="22" rx="4" fill="#3a2c20"/>
+    <rect x="252" y="532" width="426" height="112" fill="#2a2018"/>
+    <path d="M252 572 h426 M252 610 h426" stroke-width="3"/>
+  </g>
+  <!-- Camelote étiquetée sur le comptoir -->
+  <g stroke="#05060c" stroke-width="4" stroke-linejoin="round">
+    <path d="M272 510 l4 -40 q10 -10 22 0 l4 40 Z" fill="#5a6a7a"/>
+    <path d="M286 470 l-4 -10 l14 0 l-4 10" fill="#5a6a7a"/>
+    <path d="M314 510 l0 -24 q0 -10 10 -10 l18 0 l0 34 Z" fill="#4a3a30"/>
+    <path d="M342 484 q14 2 12 14 q-2 10 -12 8" fill="none" stroke-width="4"/>
+    <path d="M574 510 q-14 -30 4 -54 q18 -16 34 0 q16 24 2 54 Z" fill="#6f5a8a"/>
+    <path d="M588 456 l-6 -14 l26 0 l-6 14" fill="#6f5a8a"/>
+    <path d="M628 510 l2 -28 l30 -6 l4 34 Z" fill="#4a4436"/>
+    <path d="M640 482 l0 -16 l12 -2 l2 16" fill="#3a3428"/>
+  </g>
+  <g fill="#e8dcae" stroke="#05060c" stroke-width="3">
+    <path d="M296 488 l20 -4 l6 20 l-20 4 Z"/>
+    <path d="M348 500 l18 2 l-2 18 l-18 -2 Z" transform="rotate(10 357 509)"/>
+    <path d="M652 492 l18 -2 l2 18 l-18 2 Z"/>
+  </g>
+  <g fill="#05060c"><circle cx="301" cy="492" r="2"/><circle cx="353" cy="504" r="2"/><circle cx="657" cy="497" r="2"/></g>
+  <!-- ===== Le marchand, de dos ===== -->
+  <ellipse cx="468" cy="664" rx="96" ry="13" fill="#05060c" opacity="0.4"/>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Jambes et chaussures -->
+    <path d="M428 600 L460 600 L456 652 L426 652 Z" fill="#5a4b34" stroke-width="5"/>
+    <path d="M474 600 L506 600 L512 652 L480 652 Z" fill="#6b5a3f" stroke-width="5"/>
+    <path d="M420 648 Q442 642 462 650 L462 666 L418 666 Z" fill="#2b2218" stroke-width="4"/>
+    <path d="M476 648 Q498 642 518 650 L518 666 L474 666 Z" fill="#2b2218" stroke-width="4"/>
+    <!-- Butin qui dépasse sous le manteau : chandelier et chaîne de montres -->
+    <path d="M404 590 L392 642" stroke-width="10"/>
+    <path d="M404 590 L392 642" stroke="#caa23a" stroke-width="5"/>
+    <path d="M380 642 Q392 632 404 644 L400 652 L384 652 Z" fill="#caa23a" stroke-width="3"/>
+    <path d="M520 600 q6 18 -2 34" fill="none" stroke="#caa23a" stroke-width="3"/>
+    <circle cx="516" cy="640" r="7" fill="#caa23a" stroke-width="3"/>
+    <circle cx="524" cy="618" r="5" fill="#b8b2a0" stroke-width="2.5"/>
+    <!-- Long manteau vu de dos, bosselé d'objets cachés -->
+    <path d="M420 384 Q470 370 522 384 Q544 470 552 608 Q506 620 470 614 Q430 620 388 608 Q396 470 420 384 Z" fill="#6b5a3f" stroke-width="6"/>
+    <path d="M420 384 Q440 378 452 378 Q426 480 424 614 Q404 612 388 608 Q396 470 420 384 Z" fill="#5c4d36" stroke="none"/>
+    <path d="M470 470 L470 612" stroke-width="4"/>
+    <path d="M432 470 Q470 478 510 470 L512 488 Q470 496 430 488 Z" fill="#584a33" stroke-width="4"/>
+    <rect x="456" y="472" width="28" height="14" rx="3" fill="#584a33" stroke-width="3"/>
+    <circle cx="463" cy="479" r="3" fill="#caa23a" stroke="none"/><circle cx="477" cy="479" r="3" fill="#caa23a" stroke="none"/>
+    <path d="M410 540 Q420 520 440 534 Q444 560 420 566 Q404 560 410 540 Z" fill="#6b5a3f" stroke-width="3.5"/>
+    <path d="M500 530 Q524 518 536 546 Q530 572 508 568 Q494 556 500 530 Z" fill="#6b5a3f" stroke-width="3.5"/>
+    <path d="M436 420 Q470 430 506 418" fill="none" stroke="#584a33" stroke-width="3"/>
+    <!-- Étiquette de prix collée par mégarde sur son propre dos -->
+    <path d="M478 396 q-4 14 -14 22" fill="none" stroke="#4a4436" stroke-width="2.5"/>
+    <path d="M450 418 L478 414 L486 446 L458 452 L446 438 Z" fill="#e8dcae" stroke-width="3.5"/>
+    <circle cx="454" cy="430" r="2.5" fill="#05060c" stroke="none"/>
+    <path d="M462 432 l16 -3 M464 442 l12 -2" stroke="#8a7444" stroke-width="3"/>
+    <!-- Bourse pendue à la ceinture -->
+    <path d="M530 488 q-6 20 4 38" fill="none" stroke="#4a4436" stroke-width="3"/>
+    <path d="M524 524 Q512 548 528 566 Q550 576 564 558 Q572 534 556 522 Q540 516 524 524 Z" fill="#8a5a2e" stroke-width="4"/>
+    <path d="M526 528 q16 -8 32 0" fill="none" stroke="#4a4436" stroke-width="3"/>
+    <!-- Bras gauche : le rouleau d'étiquettes -->
+    <path d="M422 392 Q396 420 394 470 L414 476 Q416 434 436 408 Z" fill="#5c4d36" stroke-width="5"/>
+    <path d="M392 466 Q386 486 400 494 Q416 494 418 476 Z" fill="#9cb06e" stroke-width="4"/>
+    <circle cx="388" cy="488" r="15" fill="#e8dcae" stroke-width="4"/>
+    <circle cx="388" cy="488" r="5" fill="#8a7444" stroke-width="2"/>
+    <path d="M374 494 l-14 22 l14 4" fill="#e8dcae" stroke-width="3"/>
+    <!-- Bras droit tendu vers le vase : il y colle une étiquette -->
+    <path d="M518 392 Q556 404 572 440 Q578 456 576 470 L556 472 Q556 446 540 428 Q526 418 510 414 Z" fill="#6b5a3f" stroke-width="5"/>
+    <path d="M558 466 Q556 484 572 488 Q588 486 590 470 Q588 458 576 456 Z" fill="#9cb06e" stroke-width="4"/>
+    <path d="M582 470 L604 462 L610 482 L588 490 Z" fill="#e8dcae" stroke-width="3"/>
+    <!-- Col relevé -->
+    <path d="M424 392 L416 352 L452 366 L462 392 Z" fill="#5c4d36" stroke-width="5"/>
+    <path d="M520 392 L530 352 L494 366 L484 392 Z" fill="#6b5a3f" stroke-width="5"/>
+    <!-- Nuque et arrière du crâne -->
+    <rect x="456" y="350" width="30" height="34" fill="#8ea262" stroke-width="5"/>
+    <g transform="rotate(10 472 330)">
+      <path d="M432 330 C432 298 450 284 472 284 C494 284 512 298 512 330 C512 356 496 370 472 370 C448 370 432 356 432 330 Z" fill="#9cb06e" stroke-width="6"/>
+      <path d="M432 330 q-14 -6 -14 10 q2 12 16 10 Z" fill="#9cb06e" stroke-width="4"/>
+      <path d="M512 330 q14 -6 14 10 q-2 12 -16 10 Z" fill="#9cb06e" stroke-width="4"/>
+      <path d="M494 296 C506 312 508 340 496 362 C510 344 512 316 502 300 Z" fill="#7f9458" stroke="none"/>
+      <path d="M450 306 Q470 298 490 308 M458 300 l-2 12 M468 298 l0 12 M478 300 l-1 12" fill="none" stroke="#5c6b4f" stroke-width="3"/>
+      <path d="M466 284 q2 -14 14 -18 M476 286 q10 -10 22 -8" fill="none" stroke-width="3"/>
+      <path d="M452 356 Q472 362 492 356" fill="none" stroke="#7f9458" stroke-width="3"/>
+    </g>
+  </g>
+  <!-- Petits traits de concentration (il lisse l'étiquette) -->
+  <g fill="none" stroke="#05060c" stroke-width="3.5" stroke-linecap="round" opacity="0.7">
+    <path d="M612 450 l10 -12 M620 470 l16 -4 M606 498 l12 10"/>
+  </g>
+  <!-- Cachette : pile de caisses bâchée au premier plan, à gauche -->
+  <g stroke="#05060c" stroke-width="6" stroke-linejoin="round">
+    <rect x="-10" y="700" width="230" height="340" rx="6" fill="#16131a"/>
+    <path d="M-10 700 l230 340 M220 700 l-230 340" stroke="#120f15" stroke-width="16"/>
+    <rect x="-10" y="700" width="230" height="340" rx="6" fill="none"/>
+    <rect x="-10" y="520" width="190" height="180" rx="6" fill="#1a1620"/>
+    <path d="M-10 610 h190" stroke-width="4"/>
+    <path d="M-20 500 Q80 470 196 520 L210 600 Q150 580 160 650 Q90 640 40 660 Q10 620 -20 640 Z" fill="#1e1a26"/>
+    <path d="M40 520 Q60 580 40 660 M130 510 Q150 560 160 650" fill="none" stroke="#141118" stroke-width="5"/>
+    <rect x="-10" y="1040" width="260" height="300" fill="#141118"/>
+  </g>
+  <path d="M220 706 V1036 M180 526 V696" fill="none" stroke="#3a2c2a" stroke-width="4" opacity="0.8"/>
+  <path d="M196 524 Q204 560 208 598" fill="none" stroke="#3a2c2a" stroke-width="4" opacity="0.7"/>
+  <ellipse cx="120" cy="1046" rx="150" ry="20" fill="#05060c" opacity="0.5"/>
+  <path d="M220 1334 L750 1334 L750 1230 Q500 1200 220 1280 Z" fill="#05060c" opacity="0.35"/>
+  <rect x="690" y="0" width="60" height="1334" fill="#05060c" opacity="0.2"/>
+</svg>

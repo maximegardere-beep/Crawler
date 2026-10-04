@@ -1,0 +1,176 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Câble Électrique Vivant, Salle des Machines Infernales, cadrage « face ». Aucun texte. -->
+  <defs>
+    <pattern id="cable-electrique-vivant-f-tole" width="110" height="70" patternUnits="userSpaceOnUse">
+      <rect width="110" height="70" fill="#2c3136"/>
+      <rect x="2" y="2" width="106" height="66" rx="5" fill="#373e45"/>
+      <circle cx="12" cy="12" r="3" fill="#252a30"/>
+      <circle cx="98" cy="12" r="3" fill="#252a30"/>
+      <circle cx="12" cy="58" r="3" fill="#252a30"/>
+      <circle cx="98" cy="58" r="3" fill="#252a30"/>
+      <path d="M0 35 h110" stroke="#252a30" stroke-width="5"/>
+      <rect x="20" y="16" width="26" height="12" rx="2" fill="#3f4750"/>
+      <rect x="64" y="44" width="26" height="12" rx="2" fill="#3f4750"/>
+    </pattern>
+    <radialGradient id="cable-electrique-vivant-f-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fde047" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#fde047" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur de tôle, plafond à tuyaux -->
+  <rect x="0" y="0" width="750" height="1040" fill="url(#cable-electrique-vivant-f-tole)"/>
+  <rect x="0" y="0" width="750" height="70" fill="#22262b"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M0 96 H750" stroke="#05060c" stroke-width="24"/>
+    <path d="M0 96 H750" stroke="#2f353b" stroke-width="15"/>
+    <path d="M610 96 V170 H750" stroke="#05060c" stroke-width="20"/>
+    <path d="M610 96 V170 H750" stroke="#2f353b" stroke-width="11"/>
+  </g>
+  <g fill="#3a4148" stroke="#05060c" stroke-width="4"><rect x="180" y="82" width="18" height="28" rx="3"/><rect x="470" y="82" width="18" height="28" rx="3"/></g>
+  <!-- Engrenages muraux -->
+  <g stroke="#05060c" stroke-width="6" stroke-linejoin="round">
+    <path d="M118 236 l14 -4 l6 -18 l18 4 l10 -14 l16 10 l14 -8 l8 18 l18 2 l-2 18 l14 12 l-12 14 l4 18 l-18 6 l-6 18 l-18 -4 l-10 14 l-16 -10 l-14 8 l-8 -18 l-18 -2 l2 -18 l-14 -12 l12 -14 Z" fill="#3b4147"/>
+    <circle cx="156" cy="262" r="20" fill="#2a2f35"/>
+    <path d="M236 176 l10 -2 l4 -12 l12 4 l8 -8 l10 8 l10 -4 l4 12 l12 2 l-2 12 l8 8 l-8 10 l2 12 l-12 4 l-4 12 l-12 -4 l-8 8 l-10 -8 l-10 4 l-4 -12 l-12 -2 l2 -12 l-8 -8 l8 -10 Z" fill="#353b41"/>
+    <circle cx="262" cy="198" r="12" fill="#2a2f35"/>
+  </g>
+  <!-- Armoires électriques -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="30" y="520" width="140" height="400" rx="8" fill="#323940"/>
+    <path d="M46 572 h108 M46 632 h108 M46 692 h108 M46 752 h108 M46 812 h108" stroke-width="4"/>
+    <circle cx="66" cy="572" r="6" fill="#4ade80"/>
+    <circle cx="66" cy="692" r="6" fill="#ef4444"/>
+    <rect x="590" y="470" width="140" height="450" rx="8" fill="#323940"/>
+    <path d="M606 530 h108 M606 590 h108 M606 650 h108 M606 710 h108 M606 770 h108" stroke-width="4"/>
+    <circle cx="626" cy="590" r="6" fill="#ef4444"/>
+    <circle cx="626" cy="710" r="6" fill="#fbbf24"/>
+  </g>
+  <!-- Manomètres dans le rouge, gyrophare rouge, panneau de danger illisible -->
+  <g stroke="#05060c" stroke-width="6">
+    <circle cx="612" cy="290" r="30" fill="#333b42"/>
+    <circle cx="682" cy="290" r="22" fill="#333b42"/>
+    <path d="M612 290 l18 -14 M682 290 l14 6" stroke="#ef4444" stroke-width="5"/>
+    <path d="M582 290 h-60" stroke-width="10"/>
+    <path d="M516 236 h30 v-14 a15 15 0 0 0 -30 0 Z" fill="#7f1d1d"/>
+  </g>
+  <ellipse cx="531" cy="226" rx="56" ry="40" fill="#ef4444" opacity="0.12"/>
+  <path d="M0 250 L220 200 M750 380 L560 330" stroke="#ef4444" stroke-width="5" opacity="0.3"/>
+  <!-- Vapeur -->
+  <path d="M130 1010 q-14 -40 14 -62 q-6 -36 26 -48 q30 -4 30 30 q30 10 18 44 q-8 26 -40 22 Z" fill="#6b7280" opacity="0.22"/>
+  <!-- Sol en caillebotis -->
+  <rect x="0" y="1040" width="750" height="294" fill="#282d33"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#1f2328" stroke-width="6">
+    <path d="M30 1100 h690 M10 1170 h730 M0 1245 h750 M0 1315 h750"/>
+    <path d="M150 1045 L110 1334 M300 1045 L285 1334 M450 1045 L465 1334 M600 1045 L640 1334"/>
+  </g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
+
+  <!-- AURA électrique irrégulière -->
+  <path d="M420 190 C600 220 690 380 660 560 C640 720 560 860 400 900 C250 930 120 840 100 660 C80 480 210 170 420 190 Z" fill="#fde047" opacity="0.08"/>
+  <path d="M430 280 C560 300 610 410 590 530 C570 650 500 720 400 730 C290 735 200 660 195 540 C190 410 300 265 430 280 Z" fill="#fde047" opacity="0.1"/>
+  <circle cx="420" cy="470" r="250" fill="url(#cable-electrique-vivant-f-glow)"/>
+  <!-- Lignes de mouvement : il fonce depuis le fond à droite -->
+  <g stroke="#e8e4d8" stroke-width="6" stroke-linecap="round" opacity="0.4">
+    <path d="M640 250 l70 -40 M660 340 l80 -34 M630 170 l50 -40 M690 430 l50 -18"/>
+  </g>
+  <ellipse cx="380" cy="1046" rx="290" ry="30" fill="#05060c" opacity="0.5"/>
+
+  <!-- ===== LE CÂBLE ===== -->
+  <g stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- Câble arrière gauche -->
+    <path d="M330 600 C250 680 180 740 150 860 C140 920 170 990 200 1018" stroke="#05060c" stroke-width="40"/>
+    <path d="M330 600 C250 680 180 740 150 860 C140 920 170 990 200 1018" stroke="#7a3a1c" stroke-width="28"/>
+    <!-- Câble arrière droit planté -->
+    <path d="M470 610 C520 700 560 820 540 920 C530 970 560 1000 600 1020" stroke="#05060c" stroke-width="40"/>
+    <path d="M470 610 C520 700 560 820 540 920 C530 970 560 1000 600 1020" stroke="#7a3a1c" stroke-width="28"/>
+    <path d="M498 690 C530 760 552 840 540 910" stroke="#a0522d" stroke-width="7" opacity="0.7"/>
+    <!-- Câble levé en fouet, à droite -->
+    <path d="M520 470 C600 430 640 360 620 300 C605 250 640 210 690 200" stroke="#05060c" stroke-width="38"/>
+    <path d="M520 470 C600 430 640 360 620 300 C605 250 640 210 690 200" stroke="#7a3a1c" stroke-width="26"/>
+    <path d="M560 440 C605 405 628 360 618 316" stroke="#a0522d" stroke-width="7" opacity="0.7"/>
+  </g>
+  <!-- Bout dénudé du fouet -->
+  <g stroke-linecap="round">
+    <path d="M688 200 l26 -24 M690 202 l34 -4 M688 204 l26 18 M686 196 l4 -32" stroke="#05060c" stroke-width="11"/>
+    <path d="M688 200 l26 -24 M690 202 l34 -4 M688 204 l26 18 M686 196 l4 -32" stroke="#c97a3a" stroke-width="5"/>
+  </g>
+  <!-- Bouts dénudés au sol -->
+  <g stroke-linecap="round">
+    <path d="M200 1018 l-30 10 M204 1020 l-6 18 M206 1016 l20 16 M600 1020 l28 -8 M602 1024 l22 14 M598 1022 l-4 18" stroke="#05060c" stroke-width="10"/>
+    <path d="M200 1018 l-30 10 M204 1020 l-6 18 M206 1016 l20 16 M600 1020 l28 -8 M602 1024 l22 14 M598 1022 l-4 18" stroke="#c97a3a" stroke-width="4"/>
+  </g>
+
+  <!-- Boule-tête -->
+  <g stroke="#05060c" stroke-linejoin="round">
+    <circle cx="420" cy="455" r="185" fill="#c97a3a" stroke-width="12"/>
+    <path d="M560 340 C640 450 600 600 470 636 C560 560 600 450 560 340 Z" fill="#a8612c"/>
+    <path d="M300 340 C330 300 380 282 420 284" fill="none" stroke="#e8a46a" stroke-width="16" stroke-linecap="round"/>
+    <!-- gaine : anneaux de l'isolant -->
+    <path d="M250 520 C330 560 480 570 590 520" fill="none" stroke="#a8612c" stroke-width="7"/>
+    <path d="M276 580 C350 610 470 615 560 580" fill="none" stroke="#a8612c" stroke-width="7"/>
+  </g>
+
+  <!-- Câble avant gauche, qui se tend vers nous (au premier plan) -->
+  <g stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M360 610 C330 720 250 800 160 860 C110 895 80 940 70 990" stroke="#05060c" stroke-width="58"/>
+    <path d="M360 610 C330 720 250 800 160 860 C110 895 80 940 70 990" stroke="#7a3a1c" stroke-width="44"/>
+    <path d="M330 700 C300 770 240 820 180 858" stroke="#a0522d" stroke-width="9" opacity="0.7"/>
+  </g>
+  <g stroke-linecap="round">
+    <path d="M70 990 l-34 14 M72 994 l-14 34 M76 994 l18 34 M66 984 l-40 -12" stroke="#05060c" stroke-width="13"/>
+    <path d="M70 990 l-34 14 M72 994 l-14 34 M76 994 l18 34 M66 984 l-40 -12" stroke="#c97a3a" stroke-width="6"/>
+  </g>
+
+  <!-- La prise, qui pointe vers nous -->
+  <g stroke="#05060c" stroke-linejoin="round" stroke-width="10">
+    <path d="M250 430 L300 420 L304 520 L254 534 Z" fill="#1c2028"/>
+    <path d="M150 420 L250 400 L256 548 L156 560 Z" fill="#2a2f3a"/>
+    <path d="M150 420 L250 400 L256 420 L154 440 Z" fill="#3a404c" stroke="none"/>
+    <path d="M166 470 h80 M168 500 h80" stroke="#1c2028" stroke-width="5"/>
+  </g>
+  <g stroke="#05060c" stroke-width="7" stroke-linejoin="round">
+    <rect x="60" y="436" width="96" height="26" rx="4" fill="#b8b2a0"/>
+    <rect x="60" y="500" width="96" height="26" rx="4" fill="#b8b2a0"/>
+    <path d="M70 444 h70 M70 508 h70" stroke="#e8e4d8" stroke-width="5"/>
+  </g>
+  <!-- Arcs entre les broches -->
+  <path d="M60 462 l-14 8 l12 6 l-14 10 l12 6 l-10 8" fill="none" stroke="#fde047" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- L'oeil, braqué sur nous -->
+  <g stroke="#05060c" stroke-linejoin="round">
+    <circle cx="368" cy="430" r="66" fill="#fde047" stroke-width="10"/>
+    <circle cx="350" cy="440" r="30" fill="#05060c"/>
+    <circle cx="340" cy="430" r="9" fill="#fff8d0" stroke="none"/>
+    <!-- paupière furieuse -->
+    <path d="M292 400 C320 352 410 350 440 382 L432 400 C396 386 340 388 302 418 Z" fill="#7a3a1c" stroke-width="8"/>
+    <path d="M276 360 L458 338" stroke-width="22" stroke-linecap="round"/>
+    <path d="M276 360 L458 338" stroke="#4a220f" stroke-width="10" stroke-linecap="round"/>
+    <!-- mâchoire-craquelure : fissure grimaçante -->
+    <path d="M330 540 l24 -14 l20 16 l22 -16 l20 14 l22 -14" fill="none" stroke-width="9" stroke-linecap="round"/>
+  </g>
+
+  <!-- Étincelle en zigzag au-dessus -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M520 250 L578 214 L540 196 L604 148" stroke="#05060c" stroke-width="22"/>
+    <path d="M520 250 L578 214 L540 196 L604 148" stroke="#fde047" stroke-width="12"/>
+  </g>
+  <!-- Arcs et étincelles autour -->
+  <g fill="none" stroke="#fde047" stroke-linecap="round" stroke-linejoin="round" opacity="0.85">
+    <path d="M230 260 l-20 -26 l18 -8 l-16 -26" stroke-width="7"/>
+    <path d="M620 560 l26 10 l-12 16 l24 12" stroke-width="6"/>
+    <path d="M300 930 l-16 22 l18 6 l-14 22" stroke-width="6"/>
+    <path d="M730 180 l-10 -24 M724 214 l22 6" stroke-width="5"/>
+  </g>
+  <g fill="#fde047" stroke="#05060c" stroke-width="3">
+    <circle cx="40" cy="430" r="8"/><circle cx="28" cy="520" r="6"/><circle cx="260" cy="980" r="7"/>
+    <circle cx="640" cy="990" r="6"/><circle cx="110" cy="1030" r="7"/><circle cx="700" cy="250" r="6"/>
+    <path d="M44 950 l10 -18 l4 12 l12 -6 l-8 16 l-4 -8 Z"/>
+  </g>
+  <!-- Poussière soulevée -->
+  <g fill="#6b6259" stroke="#05060c" stroke-width="3" opacity="0.8">
+    <path d="M150 1030 q-8 -26 18 -30 q8 -20 30 -8 q22 -4 20 20 q8 18 -14 24 Z"/>
+    <path d="M560 1032 q-6 -20 16 -24 q10 -16 28 -4 q18 0 14 18 Z"/>
+  </g>
+</svg>

@@ -66,6 +66,8 @@ try {
             const choice = steps % 3;
             if (choice === 0) restAtSafehouse('nap'); else if (choice === 1) restAtSafehouse('sleep');
             if (gameState.safehouseChoicePending) leaveSafehouse();
+        } else if (gameState.encounterIntroPending) {
+            dismissEncounterIntro(true); // écran de rencontre (chantier 16) : jamais bloqué dessus
         } else if (gameState.stealthChoicePending) {
             stealthEncounters++;
             attemptStealthAttack();
@@ -268,6 +270,8 @@ try {
             fightBossNow();
         } else if (gameState.safehouseChoicePending) {
             leaveSafehouse(); // Étage final : pas de repos, priorité à la Sortie
+        } else if (gameState.encounterIntroPending) {
+            dismissEncounterIntro(true); // écran de rencontre (chantier 16) : jamais bloqué dessus
         } else if (gameState.stealthChoicePending) {
             attemptStealthAttack();
         } else if (gameState.companionChoicePending) {

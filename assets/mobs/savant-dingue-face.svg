@@ -1,0 +1,161 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Savant Dingue, mob du Laboratoire de Fous, cadrage « face ». Aucun texte. -->
+  <defs>
+    <pattern id="savant-dingue-f-tiles" width="80" height="42" patternUnits="userSpaceOnUse">
+      <rect width="80" height="42" fill="#22292c"/>
+      <rect x="1.5" y="1.5" width="37" height="18" rx="2" fill="#323c40"/>
+      <rect x="41.5" y="1.5" width="37" height="18" rx="2" fill="#364145"/>
+      <rect x="-18" y="22.5" width="37" height="18" rx="2" fill="#364145"/>
+      <rect x="22.5" y="22.5" width="37" height="18" rx="2" fill="#323c40"/>
+      <rect x="61.5" y="22.5" width="37" height="18" rx="2" fill="#343e42"/>
+    </pattern>
+    <radialGradient id="savant-dingue-f-glow">
+      <stop offset="0" stop-color="#84cc16" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#84cc16" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#savant-dingue-f-tiles)"/>
+  <rect x="0" y="0" width="750" height="66" fill="#161b1d"/>
+  <g fill="none" stroke="#05060c" stroke-width="22"><path d="M0 40 H750 M120 40 V120"/></g>
+  <g fill="none" stroke="#2c3438" stroke-width="13"><path d="M0 40 H750 M120 40 V120"/></g>
+  <!-- tableau d'équations (gribouillis illisibles) -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="40" y="110" width="250" height="170" rx="4" fill="#1d2b24"/>
+  </g>
+  <g fill="none" stroke="#9fb3a6" stroke-width="4" stroke-linecap="round" opacity="0.55">
+    <path d="M62 140 q10 -12 20 0 t20 0 M116 136 h26 M150 132 l12 12 M150 144 l12 -12 M174 138 q14 -16 28 0"/>
+    <path d="M64 178 h40 M114 172 q8 14 20 0 q10 -14 22 6 M168 178 h34 M214 170 l18 18"/>
+    <path d="M70 216 q20 -20 40 0 M124 214 l40 -10 M178 222 q10 -14 22 -2 q8 10 18 -6 M60 252 h70 M146 250 q12 -10 26 2"/>
+  </g>
+  <!-- étagère de bocaux -->
+  <g stroke="#05060c" stroke-width="5">
+    <rect x="540" y="720" width="190" height="14" fill="#2c3438"/>
+    <rect x="560" y="648" width="40" height="72" rx="8" fill="#2c4a30"/>
+    <rect x="568" y="636" width="24" height="14" rx="3" fill="#3a4448"/>
+    <rect x="618" y="664" width="38" height="56" rx="8" fill="#3d2f4f"/>
+    <rect x="624" y="652" width="26" height="14" rx="3" fill="#3a4448"/>
+    <rect x="672" y="654" width="40" height="66" rx="8" fill="#1e4048"/>
+    <rect x="680" y="642" width="24" height="14" rx="3" fill="#3a4448"/>
+  </g>
+  <g fill="#4ade80" opacity="0.25"><circle cx="580" cy="684" r="12"/></g>
+  <g fill="#c084fc" opacity="0.25"><circle cx="637" cy="694" r="10"/></g>
+  <g fill="#22d3ee" opacity="0.25"><circle cx="692" cy="688" r="12"/></g>
+  <!-- bobine Tesla -->
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M40 1040 L56 980 L134 980 L150 1040 Z" fill="#2a3236"/>
+    <rect x="72" y="760" width="46" height="220" rx="6" fill="#4a3a2a"/>
+    <path d="M72 790 h46 M72 820 h46 M72 850 h46 M72 880 h46 M72 910 h46 M72 940 h46" stroke-width="4"/>
+    <ellipse cx="95" cy="742" rx="44" ry="22" fill="#3a4448"/>
+  </g>
+  <ellipse cx="95" cy="720" rx="90" ry="70" fill="#a78bfa" opacity="0.08"/>
+  <path d="M95 722 l-24 -40 l14 4 l-20 -46 M100 720 l26 -34 l-12 2 l22 -40" fill="none" stroke="#c4b5fd" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+  <rect x="0" y="1040" width="750" height="294" fill="#22282a"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#1a1f21" stroke-width="5">
+    <path d="M0 1110 H750 M0 1190 H750 M0 1270 H750 M200 1040 L160 1334 M420 1040 V1334 M640 1040 L690 1334"/>
+  </g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <!-- aura de vapeurs toxiques (irrégulière) -->
+  <ellipse cx="420" cy="560" rx="300" ry="380" fill="url(#savant-dingue-f-glow)"/>
+  <path d="M220 320 Q250 170 400 160 Q560 160 640 300 Q720 500 640 720 Q600 900 470 990 Q320 1000 240 900 Q140 760 170 560 Q170 420 220 320 Z" fill="#84cc16" opacity="0.07"/>
+  <path d="M270 360 Q320 250 430 250 Q560 270 590 400 Q630 580 560 780 Q490 930 390 930 Q290 900 260 760 Q230 560 270 360 Z" fill="#84cc16" opacity="0.06"/>
+  <ellipse cx="400" cy="1046" rx="240" ry="26" fill="#05060c" opacity="0.45"/>
+  <g fill="#323a3c" opacity="0.85"><ellipse cx="200" cy="1030" rx="46" ry="12"/><ellipse cx="610" cy="1028" rx="40" ry="11"/><ellipse cx="560" cy="1012" rx="22" ry="7"/></g>
+  <!-- débris de verre -->
+  <g fill="#cfe9d8" stroke="#05060c" stroke-width="3" opacity="0.85">
+    <path d="M150 1024 l18 -10 l6 14 Z"/><path d="M640 1020 l14 -12 l8 12 Z"/><path d="M690 990 l10 -14 l6 10 Z"/>
+  </g>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="rotate(-7 420 1020)">
+    <!-- jambes -->
+    <path d="M272 860 L346 864 L326 950 L312 1010 L246 1008 L258 940 Z" fill="#8a8578" stroke-width="10"/>
+    <path d="M206 996 Q262 980 318 996 L320 1038 L196 1038 Z" fill="#2a2622" stroke-width="8"/>
+    <path d="M420 862 L508 856 L548 940 L566 1010 L498 1016 L476 944 Z" fill="#8a8578" stroke-width="10"/>
+    <path d="M478 1002 Q544 984 600 1006 L604 1042 L474 1042 Z" fill="#2a2622" stroke-width="8"/>
+    <path d="M300 880 L294 990 M470 880 L520 990" fill="none" stroke="#6f6b60" stroke-width="7"/>
+    <!-- blouse -->
+    <path d="M276 500 Q398 470 520 492 Q566 640 572 800 L590 908 Q480 930 410 900 Q330 930 214 900 L236 790 Q236 640 276 500 Z" fill="#d8d2c4" stroke-width="11"/>
+    <path d="M520 492 Q566 640 572 800 L590 908 Q560 914 538 914 Q548 760 526 620 Q514 540 490 494 Z" fill="#a9a395" stroke="none"/>
+    <path d="M236 790 L214 900 Q236 906 258 908 Q250 820 262 720 Z" fill="#b5afa1" stroke="none"/>
+    <path d="M350 492 L398 600 L410 900" fill="none" stroke-width="7"/>
+    <path d="M440 488 L398 600" fill="none" stroke-width="7"/>
+    <path d="M350 492 L398 600 L440 488 Q398 478 350 492 Z" fill="#5c584f" stroke-width="6"/>
+    <path d="M374 500 L398 520 L422 498 L428 528 L398 518 L370 530 Z" fill="#c94f3d" stroke-width="5"/>
+    <!-- poche et stylos -->
+    <path d="M296 600 L352 596 L354 652 L300 656 Z" fill="#c9c3b4" stroke-width="5"/>
+    <path d="M308 598 L306 566 M324 596 L328 560 M338 596 L336 572" stroke="#05060c" stroke-width="9"/>
+    <path d="M308 598 L306 566" stroke="#c94f3d" stroke-width="4"/>
+    <path d="M324 596 L328 560" stroke="#22d3ee" stroke-width="4"/>
+    <path d="M338 596 L336 572" stroke="#84cc16" stroke-width="4"/>
+    <!-- taches et brûlures sur la blouse -->
+    <path d="M450 720 q14 -10 26 2 q8 14 -6 20 q-16 6 -22 -6 Z" fill="#84cc16" opacity="0.7" stroke-width="4"/>
+    <path d="M276 800 q10 -8 20 0 q4 10 -8 14 q-12 0 -12 -14 Z" fill="#6f6b60" stroke-width="4"/>
+    <path d="M232 880 l18 -14 l14 18 l16 -12 l14 16" fill="none" stroke-width="5"/>
+    <!-- bras gauche (vers nous, griffe) -->
+    <path d="M286 516 Q220 548 196 610 L250 640 Q264 596 300 572 Z" fill="#d8d2c4" stroke-width="9"/>
+    <path d="M190 596 L254 628 L246 650 L184 620 Z" fill="#c9c3b4" stroke-width="6"/>
+    <path d="M196 618 Q170 650 150 690 L198 712 Q216 676 240 646 Z" fill="#8a8578" stroke-width="9"/>
+    <path d="M118 690 Q130 660 176 676 Q222 694 214 734 Q200 770 160 760 Q118 748 118 690 Z" fill="#8a8578" stroke-width="8"/>
+    <path d="M130 690 L88 664 M126 712 L76 708 M136 736 L92 756 M168 758 L156 800 M196 746 L210 784" stroke="#05060c" stroke-width="16"/>
+    <path d="M130 690 L88 664 M126 712 L76 708 M136 736 L92 756 M168 758 L156 800 M196 746 L210 784" stroke="#8a8578" stroke-width="8"/>
+    <!-- bras droit (fiole brandie) -->
+    <path d="M508 506 Q572 520 600 580 L560 618 Q540 576 496 556 Z" fill="#d8d2c4" stroke-width="9"/>
+    <path d="M552 600 L606 568 L618 590 L564 624 Z" fill="#c9c3b4" stroke-width="6"/>
+    <path d="M590 588 Q632 548 640 490 L600 480 Q596 530 566 568 Z" fill="#8a8578" stroke-width="9"/>
+    <!-- erlenmeyer vert fumant -->
+    <path d="M598 352 L636 352 L636 400 L690 486 Q694 500 680 502 L556 502 Q542 500 546 486 L598 400 Z" fill="#e6f4ea" fill-opacity="0.85" stroke-width="8"/>
+    <path d="M574 442 L662 442 L690 486 Q694 500 680 502 L556 502 Q542 500 546 486 Z" fill="#84cc16" stroke-width="5"/>
+    <path d="M590 340 h54 v16 h-54 Z" fill="#e6f4ea" stroke-width="6"/>
+    <path d="M606 410 L604 432 M592 470 l12 10" fill="none" stroke="#ffffff" stroke-width="5" opacity="0.7"/>
+    <g fill="#d9f99d" stroke-width="3"><circle cx="600" cy="470" r="7"/><circle cx="640" cy="458" r="5"/><circle cx="662" cy="482" r="6"/></g>
+    <path d="M576 488 Q578 470 596 472 Q606 462 620 470 Q632 460 646 470 Q662 468 662 486 L654 516 Q616 530 584 516 Z" fill="#8a8578" stroke-width="8"/>
+    <path d="M598 474 L600 500 M620 472 L620 500 M644 472 L640 500" fill="none" stroke-width="4"/>
+    <path d="M568 500 Q552 488 560 470 Q570 462 580 476" fill="#8a8578" stroke-width="6"/>
+    <!-- cou et tête -->
+    <rect x="352" y="436" width="62" height="64" fill="#c7c0ad" stroke-width="8"/>
+    <path d="M286 316 C284 246 318 202 386 202 C456 202 488 246 488 318 C488 392 472 438 442 462 C426 476 408 482 386 482 C364 482 346 476 330 462 C300 438 286 392 286 316 Z" fill="#c7c0ad" stroke-width="11"/>
+    <path d="M460 260 C480 312 478 384 450 442 C468 400 470 340 462 296 Z" fill="#a49d8b" stroke="none"/>
+    <path d="M286 326 q-30 -8 -28 26 q4 26 34 22 Z" fill="#c7c0ad" stroke-width="6"/>
+    <path d="M488 326 q28 -8 26 24 q-4 26 -30 22 Z" fill="#c7c0ad" stroke-width="6"/>
+    <!-- touffe de cheveux blancs ébouriffés -->
+    <path d="M292 270 L236 252 L278 226 L222 190 L290 192 L264 136 L328 170 L336 108 L378 158 L410 96 L428 160 L478 112 L476 176 L536 150 L504 208 L560 222 L498 252 L492 286 Q470 240 430 226 Q380 214 336 230 Q306 244 292 270 Z" fill="#e8e4d8" stroke-width="9"/>
+    <path d="M258 300 L218 296 L250 330 L222 356 L270 352" fill="#e8e4d8" stroke-width="7"/>
+    <path d="M512 296 L548 290 L520 324 L548 352 L506 348" fill="#e8e4d8" stroke-width="7"/>
+    <!-- sourcils furieux -->
+    <path d="M310 290 L370 314" stroke-width="16"/>
+    <path d="M310 290 L370 314" stroke="#e8e4d8" stroke-width="7"/>
+    <path d="M466 286 L408 312" stroke-width="16"/>
+    <path d="M466 286 L408 312" stroke="#e8e4d8" stroke-width="7"/>
+    <!-- lunettes rondes, verre gauche fendu, yeux rouges -->
+    <circle cx="340" cy="350" r="36" fill="#e0f2fe" fill-opacity="0.75" stroke-width="9"/>
+    <circle cx="438" cy="348" r="40" fill="#e0f2fe" fill-opacity="0.75" stroke-width="9"/>
+    <path d="M376 350 h22" stroke-width="8"/>
+    <path d="M306 340 L288 334 M476 340 L494 334" stroke-width="7"/>
+    <circle cx="342" cy="354" r="14" fill="#c94f3d" stroke-width="5"/>
+    <circle cx="344" cy="354" r="5" fill="#05060c" stroke="none"/>
+    <circle cx="436" cy="352" r="17" fill="#c94f3d" stroke-width="5"/>
+    <circle cx="434" cy="352" r="6" fill="#05060c" stroke="none"/>
+    <path d="M314 324 L336 346 L326 362 L344 378 M336 346 L356 336" fill="none" stroke-width="4"/>
+    <path d="M420 324 q10 -6 18 -4" fill="none" stroke="#ffffff" stroke-width="5" opacity="0.8"/>
+    <!-- nez et bouche hurlante -->
+    <path d="M388 368 L398 400 L382 404" fill="none" stroke-width="5"/>
+    <path d="M336 420 Q388 404 446 418 Q448 452 422 464 Q388 474 356 462 Q334 448 336 420 Z" fill="#2b1a12" stroke-width="7"/>
+    <path d="M350 422 l8 14 l8 -14 l8 14 l8 -14 M404 420 l8 14 l8 -14 l8 14 l8 -14" fill="#e8e0c8" stroke-width="4"/>
+    <path d="M372 458 Q390 446 410 458" fill="#b04a4a" stroke-width="4"/>
+    <path d="M300 410 l16 6 M470 404 l-14 8" stroke-width="4"/>
+  </g>
+  <!-- vapeurs de la fiole -->
+  <g fill="#cbd5e1" stroke="#05060c" stroke-width="4" opacity="0.8" transform="rotate(-7 420 1020)">
+    <circle cx="612" cy="318" r="18"/><circle cx="636" cy="282" r="24"/><circle cx="604" cy="246" r="20"/><circle cx="640" cy="206" r="28"/><circle cx="600" cy="170" r="16"/>
+  </g>
+  <g fill="#84cc16" stroke="#05060c" stroke-width="4">
+    <circle cx="700" cy="420" r="9"/><circle cx="530" cy="400" r="7"/><circle cx="676" cy="560" r="8"/><circle cx="718" cy="470" r="6"/>
+  </g>
+  <!-- lignes de mouvement -->
+  <g fill="none" stroke="#05060c" stroke-width="5" stroke-linecap="round" opacity="0.75">
+    <path d="M60 600 l-30 -10 M56 640 l-36 2 M70 820 l-28 16"/>
+    <path d="M700 380 q22 -20 18 -50 M720 600 l20 14"/>
+    <path d="M250 1036 l-30 -16 M560 1040 l34 -14 M520 1024 l20 -24"/>
+  </g>
+  <path d="M260 1334 L750 1334 L750 1250 Q520 1220 260 1290 Z" fill="#05060c" opacity="0.3"/>
+</svg>

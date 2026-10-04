@@ -85,6 +85,7 @@ function resetTransientState() {
     gameState.pendingStairsChoice = null;
     if (ui.safehouseChoiceZone) ui.safehouseChoiceZone.classList.add('hidden');
     gameState.stealthChoicePending = false;
+    gameState.encounterIntroPending = false;
     gameState.pendingStealthEncounter = null;
     gameState.pendingSneakAttack = false; // Même repéré par le test méta que xp/xpToNextLevel ci-dessus
     gameState.companionChoicePending = false;
@@ -145,4 +146,12 @@ function withPlotArmor(fn) {
     try { return fn(); } finally { config.earlyGame.plotArmor.enabled = false; }
 }
 
-module.exports = { assert, resetTransientState, counts, withTrial, withPlotArmor, EARLY_GAME_TRIAL_DEFAULTS };
+// Écran plein écran d'entrée en combat (chantier 16) : neutralisé par défaut (les tests de combat avec une interface simulée — requestAnimationFrame factice —
+// ne doivent pas s'arrêter sur lui) ; réactivé par `withEncounterIntro()`.
+config.encounterIntro.enabled = false;
+function withEncounterIntro(fn) {
+    config.encounterIntro.enabled = true;
+    try { return fn(); } finally { config.encounterIntro.enabled = false; }
+}
+
+module.exports = { assert, resetTransientState, counts, withTrial, withPlotArmor, withEncounterIntro, EARLY_GAME_TRIAL_DEFAULTS };

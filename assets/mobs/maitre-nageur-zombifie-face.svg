@@ -1,0 +1,186 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Maître-Nageur Zombifié, mob de la Piscine Municipale Désaffectée, cadrage « face » : coup de sifflet strident. Aucun texte. -->
+  <defs>
+    <pattern id="maitre-nageur-zombifie-f-tiles" width="80" height="42" patternUnits="userSpaceOnUse">
+      <rect width="80" height="42" fill="#18303d"/>
+      <rect x="1.5" y="1.5" width="37" height="18" rx="2" fill="#203f4f"/>
+      <rect x="41.5" y="1.5" width="37" height="18" rx="2" fill="#234455"/>
+      <rect x="-18" y="22.5" width="37" height="18" rx="2" fill="#234455"/>
+      <rect x="22.5" y="22.5" width="37" height="18" rx="2" fill="#203f4f"/>
+      <rect x="61.5" y="22.5" width="37" height="18" rx="2" fill="#22424f"/>
+    </pattern>
+    <pattern id="maitre-nageur-zombifie-f-floor" width="90" height="46" patternUnits="userSpaceOnUse">
+      <rect width="90" height="46" fill="#162a34"/>
+      <rect x="2" y="2" width="86" height="42" rx="3" fill="#1d3743"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#maitre-nageur-zombifie-f-tiles)"/>
+  <rect x="0" y="0" width="750" height="72" fill="#121c24"/>
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M0 72 H750 M90 0 V72 M300 0 V72 M520 0 V72" fill="none" stroke="#1d2a33" stroke-width="10"/>
+    <rect x="470" y="84" width="200" height="22" rx="6" fill="#1a2a34"/>
+  </g>
+  <rect x="478" y="89" width="184" height="12" rx="6" fill="#bae6fd" opacity="0.7"/>
+  <ellipse cx="570" cy="200" rx="200" ry="110" fill="#bae6fd" opacity="0.06"/>
+  <!-- Reflets d'eau (caustiques) sur le carrelage -->
+  <g fill="none" stroke="#7dd3fc" stroke-width="5" stroke-linecap="round" opacity="0.13">
+    <path d="M20 170 q40 -18 80 0 t80 0 M260 150 q30 -14 60 0 t60 0 M560 250 q40 -18 80 0 t80 0"/>
+    <path d="M40 300 q30 16 60 0 t60 6 M600 360 q26 14 52 0 t52 0 M150 240 q24 -10 48 0"/>
+  </g>
+  <!-- Panneau de profondeur illisible -->
+  <g stroke="#05060c" stroke-width="5">
+    <rect x="40" y="410" width="128" height="54" rx="8" fill="#1d3b4a"/>
+    <path d="M58 430 h88 M58 446 h56" stroke="#6f8f9c" stroke-width="8"/>
+  </g>
+  <!-- Bouée murale délavée -->
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M640 470 v26" fill="none"/>
+    <circle cx="640" cy="560" r="62" fill="#8c4a50"/>
+    <circle cx="640" cy="560" r="30" fill="#18303d"/>
+    <path d="M598 516 l18 18 M682 516 l-18 18 M598 604 l18 -18 M682 604 l-18 -18" stroke="#b8b2a4" stroke-width="16"/>
+  </g>
+  <!-- Plongeoir au fond -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="600" y="760" width="26" height="280" fill="#2a3a45"/>
+    <rect x="520" y="738" width="230" height="26" rx="8" fill="#3a5560"/>
+    <path d="M556 764 L600 800" fill="none" stroke-width="8"/>
+  </g>
+  <!-- Échelle de bassin -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M52 1040 V770 Q52 720 100 720 Q140 720 140 760" stroke="#05060c" stroke-width="18"/>
+    <path d="M52 1040 V770 Q52 720 100 720 Q140 720 140 760" stroke="#5f7680" stroke-width="9"/>
+    <path d="M122 1040 V800 Q122 760 160 760 Q196 760 196 800" stroke="#05060c" stroke-width="18"/>
+    <path d="M122 1040 V800 Q122 760 160 760 Q196 760 196 800" stroke="#5f7680" stroke-width="9"/>
+    <path d="M52 870 H122 M52 950 H122" stroke="#05060c" stroke-width="12"/>
+  </g>
+  <rect x="0" y="880" width="750" height="160" fill="#05060c" opacity="0.18"/>
+  <rect x="0" y="1040" width="750" height="294" fill="url(#maitre-nageur-zombifie-f-floor)"/>
+  <rect x="0" y="1040" width="750" height="24" fill="#2a4652" stroke="#05060c" stroke-width="5"/>
+  <path d="M0 1064 H750" stroke="#05060c" stroke-width="4"/>
+  <g fill="#0e1a20"><rect x="90" y="1048" width="20" height="8" rx="2"/><rect x="250" y="1048" width="20" height="8" rx="2"/><rect x="410" y="1048" width="20" height="8" rx="2"/><rect x="570" y="1048" width="20" height="8" rx="2"/></g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <!-- Aura de chlore : aplats irréguliers + bulles -->
+  <path d="M200 300 Q230 150 390 140 Q560 150 600 300 Q680 470 610 660 Q640 860 520 980 Q380 1040 250 970 Q130 860 170 660 Q110 470 200 300 Z" fill="#22d3ee" opacity="0.06"/>
+  <path d="M250 340 Q280 210 390 205 Q520 215 550 340 Q600 500 545 690 Q560 860 470 930 Q370 970 290 920 Q210 820 230 660 Q190 500 250 340 Z" fill="#22d3ee" opacity="0.07"/>
+  <g fill="#22d3ee" stroke="#05060c" stroke-width="3" opacity="0.55">
+    <circle cx="190" cy="420" r="9"/><circle cx="168" cy="500" r="5"/><circle cx="604" cy="760" r="7"/><circle cx="222" cy="860" r="6"/><circle cx="560" cy="250" r="5"/>
+  </g>
+  <ellipse cx="400" cy="1042" rx="250" ry="28" fill="#05060c" opacity="0.45"/>
+  <g fill="#3a5560" opacity="0.8" stroke="none">
+    <ellipse cx="240" cy="1030" rx="46" ry="13"/><ellipse cx="196" cy="1012" rx="24" ry="9"/><ellipse cx="584" cy="1022" rx="38" ry="12"/>
+  </g>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="rotate(4 400 1010)">
+    <g transform="translate(16 -28)">
+    <!-- Jambe arrière (pantalon rouge) + tong -->
+    <path d="M300 760 L380 764 L360 880 L340 990 L276 988 L290 880 Z" fill="#c94f5a" stroke-width="10"/>
+    <path d="M336 800 L350 880 L334 980" fill="none" stroke="#9e3a45" stroke-width="9"/>
+    <path d="M262 984 Q300 970 348 984 L352 1014 L254 1016 Z" fill="#9cb06e" stroke-width="7"/>
+    <path d="M246 1010 L360 1008 L362 1026 L242 1028 Z" fill="#1e7a8c" stroke-width="6"/>
+    <path d="M300 990 L304 1010" stroke-width="5"/>
+    </g>
+    <!-- Jambe avant -->
+    <path d="M400 760 L480 752 L560 870 L566 984 L496 990 L490 890 L418 832 Z" fill="#c94f5a" stroke-width="11"/>
+    <path d="M478 790 L540 880 L540 976" fill="none" stroke="#9e3a45" stroke-width="10"/>
+    <path d="M482 980 Q540 962 598 984 L602 1018 L478 1020 Z" fill="#9cb06e" stroke-width="8"/>
+    <path d="M470 1014 L612 1012 L614 1034 L466 1036 Z" fill="#1e7a8c" stroke-width="7"/>
+    <path d="M520 988 L528 1014 M556 986 L548 1014" stroke-width="6"/>
+    <path d="M500 990 l-4 -10 M520 984 l0 -10 M576 986 l6 -8" stroke-width="5"/>
+    <!-- Frite : bout arrière (derrière le corps) -->
+    <path d="M300 600 L120 470" fill="none" stroke-width="66"/>
+    <path d="M300 600 L120 470" fill="none" stroke="#fbbf24" stroke-width="50"/>
+    <path d="M200 528 l-20 26 M156 496 l-20 26" stroke="#c94f5a" stroke-width="10"/>
+    <circle cx="120" cy="470" r="22" fill="#e09f12" stroke-width="7"/>
+    <circle cx="120" cy="470" r="8" fill="#05060c" stroke="none"/>
+    <!-- Torse vert, ventre mou -->
+    <path d="M268 488 Q380 448 500 474 Q548 620 504 772 Q400 800 300 776 Q240 640 268 488 Z" fill="#9cb06e" stroke-width="11"/>
+    <path d="M500 474 Q548 620 504 772 L470 778 Q514 630 474 478 Z" fill="#7a8c52" stroke="none"/>
+    <path d="M330 620 Q390 650 460 618 M350 690 Q392 704 440 688" fill="none" stroke="#6f8150" stroke-width="7"/>
+    <path d="M410 560 l14 14 M424 560 l-14 14" stroke="#6f8150" stroke-width="5"/>
+    <circle cx="398" cy="728" r="7" fill="#6f8150" stroke-width="4"/>
+    <!-- Ceinture du pantalon + cordon -->
+    <path d="M296 744 Q400 768 508 742 L512 780 Q400 804 294 782 Z" fill="#c94f5a" stroke-width="8"/>
+    <path d="M396 770 l-12 40 M408 770 l14 38" fill="none" stroke="#e8e4d8" stroke-width="6"/>
+    <!-- Cordon du sifflet -->
+    <path d="M340 470 Q330 560 390 590 Q450 560 446 470" fill="none" stroke="#05060c" stroke-width="10"/>
+    <path d="M340 470 Q330 560 390 590 Q450 560 446 470" fill="none" stroke="#fbbf24" stroke-width="4"/>
+    <!-- Bras droit (à gauche) qui coince la frite : manche rouge -->
+    <path d="M268 492 Q226 560 230 650 L284 660 Q286 590 312 530 Z" fill="#c94f5a" stroke-width="10"/>
+    <path d="M232 640 Q236 700 268 734 L304 712 Q284 680 284 648 Z" fill="#9cb06e" stroke-width="9"/>
+    <path d="M262 724 q-8 22 6 30 M280 728 q0 24 14 26 M296 714 q12 16 24 12" fill="none" stroke="#05060c" stroke-width="15"/>
+    <path d="M262 724 q-8 22 6 30 M280 728 q0 24 14 26 M296 714 q12 16 24 12" fill="none" stroke="#9cb06e" stroke-width="7"/>
+    <!-- Frite : bout avant (sous le bras, vers nous) -->
+    <path d="M250 600 L470 742" fill="none" stroke-width="62"/>
+    <path d="M250 600 L470 742" fill="none" stroke="#fbbf24" stroke-width="46"/>
+    <path d="M250 600 L470 742" fill="none" stroke="#fde68a" stroke-width="12" opacity="0.7" transform="translate(6 -16)"/>
+    <path d="M360 640 l-28 40 M412 676 l-28 40" stroke="#c94f5a" stroke-width="12"/>
+    <ellipse cx="474" cy="745" rx="30" ry="34" fill="#e09f12" stroke-width="8" transform="rotate(-30 474 745)"/>
+    <circle cx="474" cy="745" r="10" fill="#05060c" stroke="none"/>
+    <path d="M226 560 Q246 610 274 640" fill="none" stroke="#c94f5a" stroke-width="30" opacity="0.98"/>
+    <!-- Bras gauche tendu vers nous, doigt accusateur -->
+    <path d="M470 486 Q560 470 618 516 L588 580 Q540 548 484 552 Z" fill="#c94f5a" stroke-width="10"/>
+    <path d="M498 488 Q540 480 568 498" fill="none" stroke="#e8e4d8" stroke-width="7"/>
+    <path d="M578 520 Q630 506 664 540 Q684 580 660 610 Q626 636 596 612 Q570 584 578 520 Z" fill="#9cb06e" stroke-width="9"/>
+    <path d="M630 526 L640 430 Q644 410 662 414 Q676 420 672 440 L664 534 Z" fill="#9cb06e" stroke-width="8"/>
+    <path d="M598 590 Q628 604 656 588 M600 566 Q628 580 658 564" fill="none" stroke="#05060c" stroke-width="5"/>
+    <path d="M586 530 Q568 560 580 594 Q600 598 610 578 Z" fill="#9cb06e" stroke-width="6"/>
+    <path d="M650 424 l14 0" stroke="#e8e4d8" stroke-width="5"/>
+    <path d="M610 420 Q620 380 650 372 M696 404 Q700 380 686 362" fill="none" stroke="#05060c" stroke-width="7"/>
+    <!-- Cou -->
+    <rect x="352" y="420" width="76" height="70" fill="#9cb06e" stroke-width="9"/>
+    <!-- Tête -->
+    <path d="M268 320 Q262 210 384 202 Q504 206 508 322 Q510 418 460 456 Q422 478 384 478 Q346 478 314 456 Q270 420 268 320 Z" fill="#9cb06e" stroke-width="12"/>
+    <path d="M478 270 Q512 340 484 430 Q500 360 494 300 Z" fill="#7a8c52" stroke="none"/>
+    <path d="M272 334 q-32 2 -32 32 q4 26 34 20 Z" fill="#9cb06e" stroke-width="7"/>
+    <path d="M504 330 q30 0 30 30 q-2 26 -32 22 Z" fill="#9cb06e" stroke-width="7"/>
+    <path d="M300 400 l16 -8 l-2 18 M470 300 l-14 10" fill="none" stroke="#6f8150" stroke-width="5"/>
+    <!-- Yeux : un vitreux, un cyan furieux -->
+    <ellipse cx="328" cy="336" rx="34" ry="30" fill="#d9e4d0" stroke-width="6"/>
+    <circle cx="334" cy="342" r="10" fill="#9fb2a8" stroke="#05060c" stroke-width="3"/>
+    <circle cx="334" cy="342" r="4" fill="#05060c" stroke="none"/>
+    <circle cx="440" cy="334" r="40" fill="#22d3ee" opacity="0.25" stroke="none"/>
+    <ellipse cx="436" cy="336" rx="34" ry="32" fill="#e8f6f8" stroke-width="6"/>
+    <circle cx="432" cy="342" r="17" fill="#22d3ee" stroke-width="5"/>
+    <circle cx="432" cy="342" r="7" fill="#05060c" stroke="none"/>
+    <circle cx="438" cy="336" r="3" fill="#ffffff" stroke="none"/>
+    <path d="M288 302 L362 324" fill="none" stroke-width="13"/>
+    <path d="M478 296 L400 322" fill="none" stroke-width="13"/>
+    <path d="M374 370 q10 16 22 2" fill="#7a8c52" stroke-width="5"/>
+    <!-- Joues gonflées : il souffle de toutes ses forces -->
+    <circle cx="336" cy="410" r="30" fill="#a9be7a" stroke-width="6"/>
+    <circle cx="446" cy="408" r="30" fill="#a9be7a" stroke-width="6"/>
+    <path d="M326 404 l10 6 M446 400 l10 6" stroke="#c94f5a" stroke-width="4" opacity="0.7"/>
+    <!-- Sifflet jaune -->
+    <path d="M382 402 Q400 392 418 404 Q412 424 398 428 Q384 424 382 402 Z" fill="#6f4a3a" stroke-width="6"/>
+    <g transform="rotate(-14 420 410)">
+      <rect x="396" y="392" width="80" height="34" rx="10" fill="#fbbf24" stroke-width="7"/>
+      <circle cx="448" cy="430" r="22" fill="#fbbf24" stroke-width="7"/>
+      <circle cx="448" cy="430" r="8" fill="#e09f12" stroke-width="4"/>
+      <rect x="456" y="396" width="14" height="10" rx="2" fill="#05060c" stroke="none"/>
+      <path d="M404 400 h46" stroke="#fde68a" stroke-width="5"/>
+    </g>
+    <!-- Bonnet de bain rouge à bande blanche -->
+    <g transform="rotate(-5 388 240)">
+      <path d="M262 300 Q252 180 388 168 Q522 176 512 300 Q470 270 388 268 Q306 270 262 300 Z" fill="#c94f5a" stroke-width="11"/>
+      <path d="M270 252 Q388 214 506 250 L510 276 Q388 240 266 280 Z" fill="#e8e4d8" stroke-width="6"/>
+      <path d="M470 196 Q500 230 506 270 L484 266 Q482 230 460 202 Z" fill="#9e3a45" stroke="none"/>
+      <path d="M320 196 q24 -12 50 -10" fill="none" stroke="#e98a92" stroke-width="7"/>
+    </g>
+  </g>
+  <!-- Coup de sifflet : ondes et postillons -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M500 352 Q540 400 504 452 M534 330 Q590 404 540 480 M570 306 Q640 404 578 508" stroke="#05060c" stroke-width="14"/>
+    <path d="M500 352 Q540 400 504 452 M534 330 Q590 404 540 480 M570 306 Q640 404 578 508" stroke="#a5f3fc" stroke-width="6"/>
+    <path d="M612 300 l26 -20 M622 404 h34 M612 500 l26 20" stroke="#05060c" stroke-width="7"/>
+  </g>
+  <g fill="#e0f7ff" stroke="#05060c" stroke-width="3">
+    <circle cx="520" cy="300" r="7"/><circle cx="660" cy="350" r="6"/><circle cx="684" cy="450" r="5"/><circle cx="640" cy="260" r="4"/>
+  </g>
+  <!-- Mouvement et poussière -->
+  <g fill="none" stroke="#05060c" stroke-width="6" stroke-linecap="round" opacity="0.7">
+    <path d="M120 640 q-26 -6 -40 10 M110 720 q-28 2 -36 22 M200 860 q-30 0 -44 18"/>
+  </g>
+  <g fill="#3a5560" stroke="#05060c" stroke-width="3">
+    <rect x="640" y="980" width="16" height="12" transform="rotate(20 648 986)"/><rect x="180" y="990" width="14" height="10" transform="rotate(-25 187 995)"/><circle cx="626" cy="1004" r="6"/>
+  </g>
+</svg>

@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <defs>
+    <pattern id="encre-vivante-b-shelf" width="150" height="140" patternUnits="userSpaceOnUse" patternTransform="scale(0.62)">
+      <rect width="150" height="140" fill="#21180f"/>
+      <g stroke="#150f0a" stroke-width="2">
+        <rect x="10" y="30" width="16" height="96" fill="#33202b"/>
+        <rect x="28" y="40" width="12" height="86" fill="#1d2833"/>
+        <rect x="42" y="26" width="18" height="100" fill="#3a2c1f"/>
+        <rect x="62" y="44" width="11" height="82" fill="#33202b"/>
+        <rect x="75" y="34" width="15" height="92" fill="#2a2f2a"/>
+        <path d="M94 126 L104 48 L118 50 L108 126 Z" fill="#1d2833"/>
+        <rect x="114" y="38" width="14" height="88" fill="#3a2c1f"/>
+        <rect x="130" y="46" width="12" height="80" fill="#33202b"/>
+      </g>
+      <rect x="0" y="126" width="150" height="14" fill="#33261a"/>
+      <rect x="0" y="126" width="150" height="3" fill="#47362a"/>
+      <rect x="0" y="0" width="5" height="140" fill="#150f0a"/>
+    </pattern>
+    <radialGradient id="encre-vivante-b-candle">
+      <stop offset="0" stop-color="#ffb84a" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#ffb84a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur de rayonnages et plafond -->
+  <rect x="0" y="0" width="750" height="620" fill="url(#encre-vivante-b-shelf)"/>
+  <rect x="0" y="0" width="750" height="56" fill="#1a120c"/>
+  <path d="M0 56 H750" stroke="#05060c" stroke-width="5"/>
+  <g fill="#120c08"><rect x="250" y="0" width="26" height="56"/><rect x="520" y="0" width="26" height="56"/></g>
+  <!-- Lustre au-dessus du bureau -->
+  <circle cx="440" cy="300" r="260" fill="url(#encre-vivante-b-candle)"/>
+  <g stroke="#05060c" stroke-width="3" stroke-linejoin="round">
+    <path d="M440 56 V120" stroke="#3a2c1f" stroke-width="4"/>
+    <ellipse cx="440" cy="136" rx="50" ry="10" fill="none" stroke="#5a4528" stroke-width="6"/>
+    <g fill="#d9cba6"><rect x="392" y="108" width="9" height="24"/><rect x="436" y="102" width="9" height="30"/><rect x="480" y="110" width="9" height="22"/></g>
+    <g fill="#ffb84a"><path d="M396 106 q-6 -10 0 -20 q6 10 0 20 Z"/><path d="M440 100 q-6 -10 0 -22 q6 12 0 22 Z"/><path d="M484 108 q-6 -9 0 -18 q6 9 0 18 Z"/></g>
+  </g>
+  <!-- Livre volant -->
+  <g stroke="#05060c" stroke-width="3" stroke-linejoin="round" transform="translate(-330 120)">
+    <path d="M610 220 L644 202 L648 236 L614 248 Z" fill="#2f3d4a"/>
+    <path d="M644 202 L682 210 L676 242 L648 236 Z" fill="#4a2a2a"/>
+    <path d="M618 224 L642 212 L644 232 L620 240 Z" fill="#8c8068"/>
+  </g>
+  <!-- Plancher en perspective -->
+  <rect x="0" y="620" width="750" height="714" fill="#2b2118"/>
+  <path d="M0 620 H750" stroke="#05060c" stroke-width="5"/>
+  <g stroke="#140e0a" stroke-width="4">
+    <path d="M0 660 H750 M0 715 H750 M0 790 H750 M0 890 H750 M0 1020 H750 M0 1180 H750"/>
+    <path d="M300 620 v40 M560 620 v40 M220 660 v55 M480 660 v55 M380 715 v75 M660 715 v75 M260 790 v100 M560 790 v100 M420 890 v130 M700 890 v130 M320 1020 v160 M600 1020 v160"/>
+  </g>
+  <!-- Pages déjà noircies, en boule et par terre -->
+  <g stroke="#05060c" stroke-width="3" stroke-linejoin="round">
+    <path d="M610 680 L650 672 L656 700 L614 708 Z" fill="#1b2650"/>
+    <path d="M260 700 L298 690 L306 716 L266 726 Z" fill="#cfc4a6"/>
+    <path d="M268 702 q10 -8 18 2 q8 10 16 -2" fill="none" stroke="#1b2650" stroke-width="5"/>
+    <circle cx="660" cy="760" r="14" fill="#1b2650"/>
+    <circle cx="300" cy="650" r="10" fill="#1b2650"/>
+    <path d="M520 744 C540 734 580 738 590 752 C576 764 536 764 520 744 Z" fill="#1b2650"/>
+  </g>
+  <!-- Le bureau, son grand livre ouvert et l'encrier -->
+  <ellipse cx="460" cy="640" rx="230" ry="16" fill="#05060c" opacity="0.45"/>
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <path d="M232 556 L690 556 L690 640 L232 640 Z" fill="#3a2a1c"/>
+    <path d="M220 540 L702 540 L702 560 L220 560 Z" fill="#4a3826"/>
+    <path d="M238 538 L268 486 L350 480 L352 534 Z" fill="#e2d6b4"/>
+    <path d="M352 534 L350 480 L432 484 L458 536 Z" fill="#e2d6b4"/>
+    <path d="M256 522 l80 -6 M262 508 l74 -6 M268 496 l66 -5" stroke="#8c8068" stroke-width="3"/>
+    <path d="M352 534 L350 480 L404 482 L420 535 Z" fill="#1b2650"/>
+    <path d="M362 494 l30 0 M364 512 l36 2" stroke="#4a5a9a" stroke-width="3"/>
+    <path d="M410 492 l20 2 M414 506 l24 2 M418 520 l26 2" stroke="#8c8068" stroke-width="3"/>
+    <path d="M372 540 C380 552 384 570 380 600 C378 612 392 612 392 600 C392 580 396 560 410 540 Z" fill="#1b2650" stroke-width="3"/>
+  </g>
+  <!-- ENCRE VIVANTE, de dos, penchée sur le livre qu'elle repeint en noir -->
+  <ellipse cx="580" cy="680" rx="130" ry="18" fill="#1b2650" stroke="#05060c" stroke-width="4"/>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <!-- bras gauche : étale l'encre sur la page de droite -->
+    <path d="M514 536 C484 516 452 502 426 498 C410 496 404 512 414 520 C428 532 448 534 468 550 C482 562 496 578 508 592 Z" fill="#4a5a9a" stroke-width="5"/>
+    <path d="M418 502 q8 -4 16 0" fill="none" stroke="#9fb0e8" stroke-width="3"/>
+    <!-- bras droit : brandit la page finie, prête à partir par-dessus l'épaule -->
+    <path d="M684 330 L726 322 L734 368 L690 376 Z" fill="#1b2650" stroke-width="3" transform="rotate(-10 708 348)"/>
+    <path d="M690 356 l30 -6" stroke="#4a5a9a" stroke-width="3" transform="rotate(-10 708 348)"/>
+    <path d="M644 520 C670 480 686 430 694 392 C698 374 718 376 716 392 C712 444 694 500 664 558 Z" fill="#4a5a9a" stroke-width="5"/>
+    <g transform="translate(70 0) rotate(-6 500 690)">
+      <!-- corps vu de derrière -->
+      <path d="M418 676 C404 600 412 520 428 460 C440 400 450 340 500 326 C556 316 588 360 592 420 C596 480 618 560 616 640 C620 668 606 686 592 680 C580 696 568 676 556 690 C544 704 530 690 520 694 C506 708 492 686 480 694 C466 704 452 686 440 692 C428 698 420 690 418 676 Z" fill="#4a5a9a" stroke-width="6"/>
+      <path d="M592 420 C596 480 618 560 616 640 C620 668 606 686 592 680 C586 600 580 520 560 460 C550 420 570 390 592 420 Z" fill="#2a3a6b" stroke="none"/>
+      <path d="M450 380 C460 350 480 336 502 332" fill="none" stroke="#9fb0e8" stroke-width="7"/>
+      <path d="M436 470 C430 520 428 570 432 620" fill="none" stroke="#6b7cc0" stroke-width="7"/>
+      <!-- gouttes dans le dos -->
+      <path d="M490 470 q-6 24 0 34 q10 4 10 -6 q-2 -14 -10 -28 Z" fill="#2a3a6b" stroke-width="3"/>
+      <path d="M540 560 q-6 20 0 30 q10 4 10 -6 q-2 -12 -10 -24 Z" fill="#2a3a6b" stroke-width="3"/>
+      <!-- plume-stiletto plantée sur le dessus, vue de derrière -->
+      <path d="M528 330 C534 296 558 262 596 238 C588 282 576 312 566 338 Z" fill="#5f70b4" stroke-width="5"/>
+      <path d="M540 316 C550 290 568 268 588 252" fill="none" stroke="#c9d4f5" stroke-width="4"/>
+      <path d="M526 336 q20 10 44 2" fill="none" stroke="#2a3a6b" stroke-width="8"/>
+    </g>
+  </g>
+  <!-- Pages déjà noircies, jetées par-dessus l'épaule -->
+  <g stroke="#05060c" stroke-width="3" stroke-linejoin="round">
+    <path d="M630 360 L672 350 L680 388 L638 398 Z" fill="#1b2650" transform="translate(-185 -164) rotate(14 655 374)"/>
+    <path d="M676 268 L708 256 L716 286 L684 298 Z" fill="#1b2650" transform="translate(-336 -107) rotate(-20 696 277)"/>
+    <path d="M640 368 l30 -6" stroke="#4a5a9a" stroke-width="3" transform="translate(-185 -164) rotate(14 655 374)"/>
+  </g>
+  <g stroke="#cfc4a6" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.5">
+    <path d="M676 300 q-60 -90 -170 -84 M440 196 q-30 -26 -60 -22"/>
+  </g>
+  <!-- traits de gribouillage frénétique -->
+  <g stroke="#cfc4a6" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.55">
+    <path d="M396 462 l-10 -16 M414 458 l2 -18 M376 476 l-18 -6"/>
+  </g>
+  <g fill="#1b2650" stroke="#05060c" stroke-width="2"><circle cx="380" cy="462" r="5"/><circle cx="430" cy="452" r="4"/><circle cx="700" cy="482" r="4"/></g>
+  <!-- Poussière -->
+  <g fill="#d8c49a" opacity="0.3"><circle cx="360" cy="240" r="3"/><circle cx="560" cy="200" r="3"/><circle cx="620" cy="400" r="3"/><circle cx="300" cy="380" r="2"/></g>
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.1"/>
+  <!-- CACHETTE : fin de rayonnage sombre au premier plan -->
+  <g stroke="#05060c" stroke-width="7" stroke-linejoin="round">
+    <path d="M-10 -10 L196 -10 L210 1334 L-10 1334 Z" fill="#1a130c"/>
+    <path d="M150 -10 L196 -10 L210 1334 L164 1334 Z" fill="#241a10"/>
+    <path d="M-10 300 L150 300 M-10 620 L156 620 M-10 960 L160 960" stroke="#0e0a06" stroke-width="16" fill="none"/>
+    <g fill="#1d1620" stroke-width="4">
+      <rect x="20" y="190" width="30" height="110"/><rect x="56" y="210" width="26" height="90"/><path d="M90 300 L104 200 L128 204 L116 300 Z"/>
+      <rect x="24" y="520" width="34" height="100"/><rect x="66" y="500" width="28" height="120"/><rect x="100" y="530" width="30" height="90"/>
+    </g>
+  </g>
+  <path d="M-10 800 L170 780 L180 1334 L-10 1334 Z" fill="#05060c" opacity="0.35"/>
+  <rect x="690" y="0" width="60" height="1334" fill="#05060c" opacity="0.3"/>
+  <ellipse cx="420" cy="1180" rx="400" ry="90" fill="#05060c" opacity="0.3"/>
+</svg>

@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Le Grand Requin Gonflable, boss de la Piscine Municipale Désaffectée, cadrage « face ». Aucun texte. -->
+  <defs>
+    <pattern id="piscine-carrelage" width="80" height="42" patternUnits="userSpaceOnUse">
+      <rect width="80" height="42" fill="#1e3a4a"/>
+      <rect x="1.5" y="1.5" width="37" height="18" rx="2" fill="#274b5e"/>
+      <rect x="41.5" y="1.5" width="37" height="18" rx="2" fill="#2a5062"/>
+      <rect x="-18" y="22.5" width="37" height="18" rx="2" fill="#2a5062"/>
+      <rect x="22.5" y="22.5" width="37" height="18" rx="2" fill="#274b5e"/>
+      <rect x="61.5" y="22.5" width="37" height="18" rx="2" fill="#294e60"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#piscine-carrelage)"/>
+  <rect x="0" y="0" width="750" height="70" fill="#18303d"/>
+  <g stroke="#05060c" stroke-width="7">
+    <path d="M60 1040 L90 760 H250" fill="none"/>
+    <rect x="90" y="720" width="180" height="44" rx="10" fill="#3a5f66"/>
+    <path d="M90 720 q-40 20 -60 60" fill="none"/>
+  </g>
+  <g stroke="#05060c" stroke-width="6">
+    <circle cx="650" cy="930" r="52" fill="#c94f3d" opacity="0.8"/>
+    <circle cx="650" cy="930" r="26" fill="#274b5e"/>
+    <path d="M560 860 q20 -60 60 -80 M600 780 l20 20" fill="none"/>
+    <!-- Panneau de profondeur, illisible (formes, aucune lettre) -->
+    <path d="M60 640 v-60" stroke-width="8"/>
+    <rect x="20" y="540" width="120" height="52" rx="8" fill="#274b5e"/>
+    <path d="M36 560 h88 M36 576 h64" stroke="#7dd3fc" stroke-width="8"/>
+    <!-- Ligne de flotteurs de course, ternes -->
+    <path d="M620 620 h100" stroke="#3a5f66" stroke-width="7"/>
+    <circle cx="640" cy="620" r="10" fill="#c94f3d" opacity="0.5"/>
+    <circle cx="680" cy="620" r="10" fill="#e8e4d8" opacity="0.4"/>
+    <circle cx="710" cy="620" r="10" fill="#c94f3d" opacity="0.5"/>
+  </g>
+  <ellipse cx="375" cy="720" rx="340" ry="270" fill="#2a5062" opacity="0.4"/>
+  <ellipse cx="140" cy="330" rx="120" ry="90" fill="#7dd3fc" opacity="0.06"/>
+  <ellipse cx="620" cy="380" rx="110" ry="80" fill="#7dd3fc" opacity="0.06"/>
+  <rect x="0" y="1040" width="750" height="294" fill="#24444f"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g fill="#2a5265" stroke="#05060c" stroke-width="4">
+    <ellipse cx="230" cy="1130" rx="110" ry="18"/>
+    <ellipse cx="560" cy="1220" rx="90" ry="15"/>
+  </g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+    <!-- ===== AURA BLEED vivante : halo irrégulier + gouttes modestes (#ef4444, jamais gore) ===== -->
+  <path d="M375 280 C555 300 655 465 638 655 C622 840 530 955 375 973 C220 955 128 840 112 655 C95 465 195 300 375 280 Z" fill="#ef4444" opacity="0.08"/>
+  <path d="M375 375 C505 395 575 520 562 645 C550 770 475 845 375 858 C275 845 200 770 188 645 C175 520 245 395 375 375 Z" fill="#ef4444" opacity="0.11"/>
+  <g fill="#ef4444" stroke="#05060c" stroke-width="4">
+    <path d="M190 440 q-9 26 0 33 q9 -7 0 -33 z" opacity="0.7"/>
+    <path d="M555 500 q-9 26 0 33 q9 -7 0 -33 z" opacity="0.65"/>
+    <path d="M242 850 q-8 22 0 28 q8 -6 0 -28 z" opacity="0.6"/>
+    <path d="M510 380 q-7 20 0 25 q7 -5 0 -25 z" opacity="0.5"/>
+  </g>
+  <g fill="#ef4444" stroke="none" opacity="0.3">
+    <circle cx="230" cy="560" r="10"/><circle cx="530" cy="600" r="8"/><circle cx="260" cy="800" r="7"/>
+  </g>
+
+  <ellipse cx="375" cy="1050" rx="240" ry="28" fill="#05060c" opacity="0.45"/>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-width="12">
+    <path d="M375 1000 C300 980 260 920 280 860 C295 815 340 800 370 825" fill="none" stroke-width="46"/>
+    <path d="M375 1000 C300 980 260 920 280 860 C295 815 340 800 370 825" fill="none" stroke="#7cc4f5" stroke-width="30"/>
+    <path d="M300 900 q-50 -10 -60 -60 q40 -10 70 30 Z" fill="#3a6b9a" stroke-width="9"/>
+    <path d="M255 880 C225 800 235 700 285 630 C330 480 420 480 465 630 C515 700 525 800 495 880 C450 930 300 930 255 880 Z" fill="#7cc4f5"/>
+    <path d="M300 880 C280 810 290 720 330 660 C360 620 390 620 420 660 C460 720 470 810 450 880 C410 910 340 910 300 880 Z" fill="#e8f4ff" opacity="0.9"/>
+    <path d="M300 560 q75 40 150 0 M270 720 q105 40 210 0" fill="none" stroke-dasharray="10 12" stroke-width="6"/>
+    <rect x="320" y="770" width="60" height="48" rx="8" fill="#3a6b9a" transform="rotate(-8 350 794)" stroke-width="7"/>
+    <path d="M332 780 h36 M334 802 h32" stroke="#e8f4ff" stroke-width="4"/>
+    <circle cx="440" cy="850" r="14" fill="#3a6b9a" stroke-width="7"/>
+    <path d="M440 836 v-14" stroke-width="6"/>
+    <path d="M255 800 q-60 30 -90 90 q50 10 100 -40 Z" fill="#3a6b9a" stroke-width="9"/>
+    <path d="M495 800 q60 30 90 90 q-50 10 -100 -40 Z" fill="#3a6b9a" stroke-width="9"/>
+    <path d="M375 520 L420 420 L440 530 Z" fill="#3a6b9a" stroke-width="10"/>
+    <path d="M265 470 C260 400 300 340 375 340 C450 340 490 400 485 470 C490 520 455 555 375 555 C295 555 260 520 265 470 Z" fill="#7cc4f5"/>
+    <path d="M280 520 C285 555 330 575 375 575 C420 575 465 555 470 520 Z" fill="#e8f4ff" opacity="0.9"/>
+    <circle cx="320" cy="440" r="26" fill="#e8f4ff" stroke-width="8"/>
+    <circle cx="316" cy="444" r="11" fill="#05060c"/>
+    <path d="M288 410 L348 428" stroke-width="12" stroke-linecap="round"/>
+    <path d="M440 490 q20 8 24 -8" fill="none" stroke-dasharray="8 10" stroke-width="6"/>
+    <path d="M290 510 Q375 495 460 505 Q470 545 430 565 Q375 580 320 565 Q280 545 290 510 Z" fill="#1a2430" stroke-width="10"/>
+    <path d="M305 512 l12 26 l12 -24 l12 26 l12 -24 l12 26 l12 -24 l12 24 l12 -26 l10 22" fill="#e8e4d8" stroke-width="5"/>
+    <path d="M312 566 l10 -20 l10 18 l10 -20 l10 18 l10 -20 l10 18 l10 -20 l10 16 l10 -18" fill="#e8e4d8" stroke-width="5"/>
+    <path d="M420 500 q30 -6 40 14" fill="none" stroke-width="7"/>
+    <g stroke-width="9">
+      <rect x="530" y="480" width="16" height="150" rx="6" fill="#6b7280" transform="rotate(14 538 555)"/>
+      <path d="M470 470 Q545 380 620 470 Q545 560 470 470 Z" fill="#60a5fa"/>
+      <path d="M495 470 l18 -28 l16 28 l16 -28 l16 28 l16 -28 l16 28" fill="#f5f5f4" stroke-width="5"/>
+      <circle cx="585" cy="428" r="8" fill="#05060c" stroke-width="5"/>
+    </g>
+    <path d="M310 332 L320 262 L350 302 L375 242 L400 302 L430 262 L440 332 Z" fill="#caa23a" stroke-width="8"/>
+  </g>
+</svg>

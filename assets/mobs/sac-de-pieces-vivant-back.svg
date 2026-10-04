@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Sac de Pièces Vivant, Marché Noir du Donjon, cadrage « dos » : il compte sa fortune sous une lanterne. Aucun texte. -->
+  <defs>
+    <pattern id="sac-de-pieces-vivant-b-wall" width="100" height="66" patternUnits="userSpaceOnUse" patternTransform="scale(0.7)">
+      <rect width="100" height="66" fill="#1f1b26"/>
+      <rect x="4" y="4" width="92" height="58" rx="4" fill="#28222f"/>
+      <rect x="4" y="4" width="92" height="10" fill="#2f2838"/>
+      <circle cx="24" cy="34" r="4" fill="#2f2838"/>
+      <circle cx="72" cy="46" r="5" fill="#2f2838"/>
+    </pattern>
+    <pattern id="sac-de-pieces-vivant-b-cobbles" width="80" height="44" patternUnits="userSpaceOnUse" patternTransform="scale(0.75)">
+      <rect width="80" height="44" fill="#141118"/>
+      <rect x="3" y="3" width="34" height="17" rx="7" fill="#25202a"/>
+      <rect x="42" y="3" width="35" height="17" rx="7" fill="#221d27"/>
+      <rect x="-17" y="24" width="34" height="17" rx="7" fill="#221d27"/>
+      <rect x="22" y="24" width="35" height="17" rx="7" fill="#25202a"/>
+      <rect x="62" y="24" width="34" height="17" rx="7" fill="#221d27"/>
+    </pattern>
+    <radialGradient id="sac-de-pieces-vivant-b-glow">
+      <stop offset="0" stop-color="#d97706" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#d97706" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="0" y="0" width="750" height="720" fill="url(#sac-de-pieces-vivant-b-wall)"/>
+  <path d="M0 0 H750 V60 Q560 100 375 64 Q190 100 0 60 Z" fill="#2a1f22" stroke="#05060c" stroke-width="5"/>
+  <path d="M300 0 V74 M470 0 V76 M640 0 V88" stroke="#1e1719" stroke-width="9"/>
+  <!-- Guirlande et lanterne -->
+  <path d="M200 120 Q400 190 750 120" fill="none" stroke="#05060c" stroke-width="4"/>
+  <g stroke="#05060c" stroke-width="4">
+    <path d="M560 160 v12" />
+    <rect x="546" y="172" width="28" height="36" rx="10" fill="#b45f0a"/>
+    <rect x="384" y="150" width="22" height="30" rx="8" fill="#8a2020"/>
+    <path d="M552 188 h16" stroke="#f0b060" stroke-width="3" opacity="0.7"/>
+  </g>
+  <!-- Enseigne illisible -->
+  <g stroke="#05060c" stroke-width="4">
+    <rect x="270" y="250" width="120" height="44" rx="6" fill="#3b2f1d"/>
+    <g fill="#8a7448" stroke="none" opacity="0.6">
+      <rect x="284" y="262" width="26" height="8" rx="2"/><rect x="316" y="262" width="18" height="8" rx="2"/><rect x="340" y="262" width="36" height="8" rx="2"/>
+      <rect x="292" y="278" width="48" height="7" rx="2"/><circle cx="360" cy="281" r="5"/>
+    </g>
+  </g>
+  <!-- Étal rayé du fond -->
+  <g stroke="#05060c" stroke-width="4" stroke-linejoin="round">
+    <path d="M300 380 L700 380 L720 430 L282 430 Z" fill="#3e2826"/>
+    <path d="M340 380 L332 430 M410 380 L408 430 M480 380 L484 430 M550 380 L560 430 M620 380 L636 430" stroke="#26303b" stroke-width="22"/>
+    <path d="M300 380 L700 380 L720 430 L282 430 Z" fill="none"/>
+    <path d="M282 430 q20 14 40 0 q20 14 40 0 q20 14 40 0 q20 14 40 0 q20 14 40 0 q20 14 40 0 q20 14 40 0 q20 14 40 0 q20 14 40 0 q20 14 40 0 q20 14 38 0" fill="#3e2826"/>
+    <path d="M314 440 V720 M700 440 V720" stroke="#241b16" stroke-width="10"/>
+    <rect x="296" y="560" width="420" height="32" rx="3" fill="#33251c"/>
+    <rect x="296" y="592" width="420" height="128" fill="#291e17"/>
+    <path d="M296 640 h420" stroke="#1e1610" stroke-width="6"/>
+    <g fill="#45352a" stroke-width="3"><rect x="620" y="530" width="30" height="30" rx="3" fill="#3a2f40"/><ellipse cx="672" cy="550" rx="22" ry="10"/></g>
+    <!-- Bol renversé d'où tombent les pièces -->
+    <path d="M300 552 C300 530 350 522 370 540 L362 560 L306 560 Z" fill="#5b4b2c"/>
+  </g>
+  <ellipse cx="560" cy="300" rx="190" ry="170" fill="url(#sac-de-pieces-vivant-b-glow)"/>
+  <!-- Sol -->
+  <rect x="0" y="720" width="750" height="614" fill="url(#sac-de-pieces-vivant-b-cobbles)"/>
+  <path d="M0 720 H750" stroke="#05060c" stroke-width="5"/>
+  <rect x="0" y="0" width="750" height="1334" fill="#05060c" opacity="0.12"/>
+  <!-- ===== LE SAC, de dos, petit, absorbé par ses comptes ===== -->
+  <ellipse cx="470" cy="742" rx="150" ry="18" fill="#05060c" opacity="0.5"/>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Piles de pièces bien rangées -->
+    <g fill="#e8e4d8" stroke-width="3">
+      <rect x="318" y="712" width="30" height="10" rx="4"/><rect x="318" y="702" width="30" height="10" rx="4"/><rect x="320" y="692" width="30" height="10" rx="4"/>
+      <rect x="290" y="716" width="26" height="9" rx="4"/>
+      <rect x="610" y="712" width="30" height="10" rx="4"/><rect x="612" y="702" width="30" height="10" rx="4"/><rect x="610" y="692" width="30" height="10" rx="4"/><rect x="613" y="682" width="30" height="10" rx="4"/><rect x="611" y="672" width="30" height="10" rx="4"/>
+      <ellipse cx="660" cy="726" rx="12" ry="5"/>
+    </g>
+    <!-- Pseudopode levé, pièce brandie vers la lanterne -->
+    <path d="M540 560 C566 520 574 470 560 420 L584 412 C604 470 594 530 562 584 Z" fill="#caa23a" stroke-width="6"/>
+    <circle cx="572" cy="400" r="18" fill="#e8e4d8" stroke-width="5"/>
+    <circle cx="572" cy="400" r="8" fill="none" stroke="#a8a294" stroke-width="3"/>
+    <g stroke="#ffd76a" stroke-width="4" fill="none" opacity="0.9">
+      <path d="M572 368 v-14 M600 380 l10 -10 M604 404 h14 M544 380 l-10 -10"/>
+    </g>
+    <!-- Corps vu de dos -->
+    <path d="M360 736 C340 640 372 540 434 486 C448 474 454 462 456 448 L494 446 C498 462 506 474 520 486 C586 540 610 640 590 736 C530 750 420 750 360 736 Z" fill="#caa23a" stroke-width="7"/>
+    <path d="M530 494 C590 550 606 650 588 730 C572 736 556 738 544 738 C566 650 560 560 506 490 Z" fill="#8a6b2a" stroke="none" opacity="0.6"/>
+    <path d="M384 640 C392 580 410 540 436 506" fill="none" stroke="#e7c665" stroke-width="9"/>
+    <!-- Couture qui fait le tour du sac -->
+    <path d="M366 650 C430 664 520 664 590 648" fill="none" stroke="#8a6b2a" stroke-width="4"/>
+    <path d="M384 646 l4 12 M410 652 l4 12 M436 656 l4 12 M462 658 l4 12 M488 658 l4 12 M514 656 l4 12 M540 654 l4 12 M566 650 l4 12" fill="none" stroke="#8a6b2a" stroke-width="3"/>
+    <!-- Grosse rustine dans le dos -->
+    <path d="M430 560 L494 552 L500 612 L436 620 Z" fill="#8a6b2a" stroke-width="5"/>
+    <path d="M440 566 l20 20 M460 566 l-20 20 M476 556 l18 18 M494 558 l-18 18 M444 602 l14 10 M486 594 l10 12" fill="none" stroke="#e8e4d8" stroke-width="3"/>
+    <circle cx="398" cy="700" r="8" fill="#8a6b2a" stroke="none"/>
+    <!-- Col froncé et cordon, nœud dans la nuque -->
+    <path d="M456 448 C436 432 424 410 432 384 L446 398 L452 372 L466 392 L476 366 L486 390 L500 372 L504 398 L518 386 C516 412 506 434 494 446 Z" fill="#caa23a" stroke-width="6"/>
+    <path d="M450 444 Q476 456 500 442" fill="none" stroke-width="15"/>
+    <path d="M450 444 Q476 456 500 442" fill="none" stroke="#8a6b2a" stroke-width="9"/>
+    <circle cx="474" cy="452" r="9" fill="#8a6b2a" stroke-width="4"/>
+    <path d="M470 460 C462 480 470 496 460 512 M478 460 C486 478 480 498 490 514" fill="none" stroke-width="8"/>
+    <path d="M470 460 C462 480 470 496 460 512 M478 460 C486 478 480 498 490 514" fill="none" stroke="#4a4436" stroke-width="4"/>
+  </g>
+  <!-- Pièces qui tombent du bol de l'étal -->
+  <g fill="#e8e4d8" stroke="#05060c" stroke-width="3">
+    <ellipse cx="350" cy="590" rx="9" ry="4"/>
+    <ellipse cx="342" cy="628" rx="4" ry="9"/>
+    <ellipse cx="336" cy="668" rx="9" ry="4"/>
+  </g>
+  <g stroke="#e8e4d8" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.4">
+    <path d="M354 576 v-10 M346 614 v-12 M338 654 v-12"/>
+  </g>
+  <!-- Cachette : pile de caisses au premier plan, à gauche -->
+  <g stroke="#05060c" stroke-width="7" stroke-linejoin="round">
+    <rect x="-20" y="560" width="250" height="250" rx="6" fill="#1a1410"/>
+    <path d="M-20 560 L230 810 M230 560 L-20 810" stroke="#120e0a" stroke-width="16"/>
+    <rect x="-20" y="560" width="250" height="250" rx="6" fill="none"/>
+    <rect x="-20" y="810" width="290" height="300" rx="6" fill="#16110d"/>
+    <path d="M-20 900 h290 M-20 1000 h290" stroke="#0f0b08" stroke-width="12"/>
+    <rect x="-20" y="810" width="290" height="300" rx="6" fill="none"/>
+    <path d="M60 560 C40 520 90 500 120 520 C140 500 190 510 180 560 Z" fill="#221a20"/>
+  </g>
+  <g fill="#1a1410" stroke="#05060c" stroke-width="4">
+    <ellipse cx="200" cy="1120" rx="40" ry="12"/>
+  </g>
+  <path d="M0 0 H130 V120 Q60 150 0 130 Z" fill="#120d0f" stroke="#05060c" stroke-width="6"/>
+  <rect x="0" y="0" width="270" height="1334" fill="#05060c" opacity="0.25"/>
+  <rect x="680" y="0" width="70" height="1334" fill="#05060c" opacity="0.3"/>
+  <path d="M0 1040 H750 V1334 H0 Z" fill="#05060c" opacity="0.2"/>
+</svg>

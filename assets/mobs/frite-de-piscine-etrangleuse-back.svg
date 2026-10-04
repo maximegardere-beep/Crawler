@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Frite de Piscine Etrangleuse, cadrage dos : au fond du bassin vide, elle s'entraine a etrangler une bouee canard. Aucun texte. -->
+  <defs>
+    <pattern id="frite-de-piscine-etrangleuse-b-mur" width="80" height="42" patternUnits="userSpaceOnUse" patternTransform="scale(0.7)">
+      <rect width="80" height="42" fill="#11202a"/>
+      <rect x="1.5" y="1.5" width="37" height="18" rx="2" fill="#1f3441"/>
+      <rect x="41.5" y="1.5" width="37" height="18" rx="2" fill="#1b2e3a"/>
+      <rect x="-18" y="22.5" width="37" height="18" rx="2" fill="#1b2e3a"/>
+      <rect x="22.5" y="22.5" width="37" height="18" rx="2" fill="#1f3441"/>
+      <rect x="61.5" y="22.5" width="37" height="18" rx="2" fill="#1d3240"/>
+    </pattern>
+    <pattern id="frite-de-piscine-etrangleuse-b-sol" width="120" height="60" patternUnits="userSpaceOnUse" patternTransform="scale(0.8)">
+      <rect width="120" height="60" fill="#122029"/>
+      <rect x="2" y="2" width="56" height="26" rx="2" fill="#223440"/>
+      <rect x="62" y="2" width="56" height="26" rx="2" fill="#1e2f3a"/>
+      <rect x="-28" y="32" width="56" height="26" rx="2" fill="#1e2f3a"/>
+      <rect x="32" y="32" width="56" height="26" rx="2" fill="#223440"/>
+      <rect x="92" y="32" width="56" height="26" rx="2" fill="#203240"/>
+    </pattern>
+    <pattern id="frite-de-piscine-etrangleuse-b-pilier" width="80" height="42" patternUnits="userSpaceOnUse">
+      <rect width="80" height="42" fill="#070d12"/>
+      <rect x="1.5" y="1.5" width="37" height="18" rx="2" fill="#0e1a22"/>
+      <rect x="41.5" y="1.5" width="37" height="18" rx="2" fill="#0c171e"/>
+      <rect x="-18" y="22.5" width="37" height="18" rx="2" fill="#0c171e"/>
+      <rect x="22.5" y="22.5" width="37" height="18" rx="2" fill="#0e1a22"/>
+      <rect x="61.5" y="22.5" width="37" height="18" rx="2" fill="#0d1820"/>
+    </pattern>
+    <radialGradient id="frite-de-piscine-etrangleuse-b-halo">
+      <stop offset="0" stop-color="#bae6fd" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#bae6fd" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Mur carrele et plafond -->
+  <rect x="0" y="0" width="750" height="660" fill="url(#frite-de-piscine-etrangleuse-b-mur)"/>
+  <rect x="0" y="0" width="750" height="60" fill="#121c24"/>
+  <g fill="none" stroke-width="5">
+    <path d="M0 60 H750 M0 22 H750" stroke="#05060c"/>
+    <path d="M30 22 L65 60 L100 22 L135 60 L170 22 L205 60 L240 22 L275 60 L310 22 L345 60 L380 22 L415 60 L450 22 L485 60 L520 22 L555 60 L590 22 L625 60 L660 22 L695 60 L730 22" stroke="#1c2832"/>
+  </g>
+  <rect x="400" y="70" width="150" height="16" rx="8" fill="#bae6fd" stroke="#05060c" stroke-width="4" opacity="0.9"/>
+  <ellipse cx="475" cy="130" rx="240" ry="150" fill="url(#frite-de-piscine-etrangleuse-b-halo)"/>
+  <g fill="none" stroke="#bae6fd" stroke-width="4" stroke-linecap="round" opacity="0.08">
+    <path d="M260 150 q22 -14 44 0 t44 0 t44 0 M560 190 q22 -14 44 0 t44 0"/>
+    <path d="M300 210 q20 -12 40 0 t40 0 M600 250 q20 -12 40 0 t40 0"/>
+  </g>
+  <!-- Panneau de profondeur illisible -->
+  <g stroke="#05060c" stroke-width="4">
+    <rect x="590" y="110" width="110" height="42" rx="6" fill="#1d3b4a"/>
+    <path d="M604 125 h50 M604 139 h78" stroke="#9fb8c4" stroke-width="6" opacity="0.6"/>
+  </g>
+  <!-- Ligne de flotteurs ternes -->
+  <path d="M220 470 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#05060c" stroke-width="4">
+    <circle cx="250" cy="470" r="9" fill="#7a3a40"/>
+    <circle cx="290" cy="470" r="9" fill="#5a6b72"/>
+    <circle cx="330" cy="470" r="9" fill="#7a3a40"/>
+    <circle cx="660" cy="470" r="9" fill="#5a6b72"/>
+    <circle cx="700" cy="470" r="9" fill="#7a3a40"/>
+  </g>
+  <!-- Echelle de bassin au mur du fond -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M640 660 V420 q0 -40 36 -40 q30 0 30 34 M700 660 V430 q0 -34 28 -34" stroke="#05060c" stroke-width="13"/>
+    <path d="M640 660 V420 q0 -40 36 -40 q30 0 30 34 M700 660 V430 q0 -34 28 -34" stroke="#55707a" stroke-width="6"/>
+    <path d="M640 520 H700 M640 590 H700" stroke="#05060c" stroke-width="10"/>
+    <path d="M640 520 H700 M640 590 H700" stroke="#3e535c" stroke-width="5"/>
+  </g>
+  <!-- Fond du bassin vide -->
+  <rect x="0" y="650" width="750" height="684" fill="url(#frite-de-piscine-etrangleuse-b-sol)"/>
+  <path d="M0 650 H750" stroke="#05060c" stroke-width="5"/>
+  <path d="M120 760 H750" stroke="#1a2b36" stroke-width="10" opacity="0.7"/>
+  <ellipse cx="560" cy="700" rx="110" ry="12" fill="#2a5265" opacity="0.7"/>
+  <ellipse cx="300" cy="900" rx="80" ry="10" fill="#2a5265" opacity="0.5"/>
+
+  <!-- Ombre -->
+  <ellipse cx="450" cy="656" rx="120" ry="14" fill="#05060c" opacity="0.55"/>
+
+  <!-- LA FRITE, de dos, au loin -->
+  <g transform="translate(440 652) scale(0.54)" stroke="#05060c" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Bouee canard (devant elle, donc en partie cachee par son corps) -->
+    <g stroke-width="9">
+      <circle cx="250" cy="-430" r="120" fill="#d9d3bf"/>
+      <circle cx="250" cy="-430" r="52" fill="#1b2e3a"/>
+      <path d="M150 -470 q100 -50 200 0" fill="none" stroke="#b3ad98" stroke-width="12"/>
+      <path d="M300 -520 C300 -580 300 -610 290 -640" fill="none" stroke-width="66"/>
+      <path d="M300 -520 C300 -580 300 -610 290 -640" fill="none" stroke="#d9d3bf" stroke-width="50"/>
+      <circle cx="292" cy="-680" r="56" fill="#d9d3bf"/>
+      <path d="M340 -690 q52 4 58 22 q-30 18 -62 4 Z" fill="#e08a3a" stroke-width="7"/>
+      <!-- yeux exorbites du canard (comique) -->
+      <circle cx="290" cy="-704" r="18" fill="#f5f5f4" stroke-width="6"/>
+      <circle cx="322" cy="-708" r="16" fill="#f5f5f4" stroke-width="6"/>
+      <circle cx="294" cy="-702" r="6" fill="#05060c"/>
+      <circle cx="326" cy="-706" r="5" fill="#05060c"/>
+    </g>
+    <!-- Racines -->
+    <path d="M-10 0 q-60 8 -100 -6 M10 4 q50 10 90 -2" fill="none" stroke-width="20"/>
+    <path d="M-10 0 q-60 8 -100 -6 M10 4 q50 10 90 -2" fill="none" stroke="#9e3a44" stroke-width="10"/>
+    <!-- Tige rouge -->
+    <path d="M0 0 C-70 -110 -40 -230 20 -320 C60 -390 40 -440 20 -480" fill="none" stroke-width="76"/>
+    <path d="M0 0 C-70 -110 -40 -230 20 -320 C60 -390 40 -440 20 -480" fill="none" stroke="#c94f5a" stroke-width="62"/>
+    <path d="M-22 -20 C-80 -120 -56 -230 2 -316" fill="none" stroke="#e27a84" stroke-width="12"/>
+    <path d="M-50 -100 q30 8 52 -8 M-40 -200 q30 10 56 -6" fill="none" stroke="#9e3a44" stroke-width="8"/>
+    <!-- Feuille gauche : bras plie, poing serre de l'effort -->
+    <path d="M-20 -260 C-110 -260 -170 -300 -190 -380" fill="none" stroke-width="26"/>
+    <path d="M-20 -260 C-110 -260 -170 -300 -190 -380" fill="none" stroke="#9e3a44" stroke-width="14"/>
+    <path d="M-190 -380 C-250 -420 -250 -500 -200 -530 C-150 -500 -150 -420 -190 -380 Z" fill="#a8434e" stroke-width="7"/>
+    <path d="M-192 -392 C-200 -440 -202 -480 -200 -520" fill="none" stroke="#6e2a32" stroke-width="5"/>
+    <!-- Feuille droite : enroulee autour du cou du canard -->
+    <path d="M40 -380 C120 -400 200 -520 250 -600" fill="none" stroke-width="40"/>
+    <path d="M40 -380 C120 -400 200 -520 250 -600" fill="none" stroke="#c94f5a" stroke-width="26"/>
+    <path d="M250 -580 C270 -630 350 -630 350 -600 C350 -570 260 -560 250 -590" fill="none" stroke-width="40"/>
+    <path d="M250 -580 C270 -630 350 -630 350 -600 C350 -570 260 -560 250 -590" fill="none" stroke="#c94f5a" stroke-width="26"/>
+    <path d="M246 -620 C276 -660 346 -656 352 -630" fill="none" stroke-width="36"/>
+    <path d="M246 -620 C276 -660 346 -656 352 -630" fill="none" stroke="#c94f5a" stroke-width="22"/>
+    <!-- Tete vue de dos : boule de mousse jaune, rayures qui font le tour -->
+    <path d="M-150 -610 C-160 -720 -70 -790 30 -790 C140 -790 200 -710 190 -610 C180 -510 110 -460 20 -460 C-70 -460 -140 -510 -150 -610 Z" fill="#fbbf24" stroke-width="10"/>
+    <path d="M-120 -680 Q-80 -760 0 -768" fill="none" stroke="#fde68a" stroke-width="16"/>
+    <path d="M-120 -520 Q20 -440 160 -530" fill="none" stroke="#d99a12" stroke-width="20" opacity="0.7"/>
+    <path d="M-100 -750 q90 20 130 100 M0 -788 q110 24 160 120 M-148 -640 q90 16 130 110" fill="none" stroke="#05060c" stroke-width="26"/>
+    <path d="M-100 -750 q90 20 130 100 M0 -788 q110 24 160 120 M-148 -640 q90 16 130 110" fill="none" stroke="#c94f5a" stroke-width="15"/>
+  </g>
+  <!-- Gouttes et lignes d'effort -->
+  <g fill="#22d3ee" stroke="#05060c" stroke-width="3">
+    <path d="M640 250 q-7 18 0 22 q7 -4 0 -22 Z"/>
+    <path d="M664 300 q-6 15 0 19 q6 -4 0 -19 Z"/>
+    <path d="M340 290 q-6 15 0 19 q6 -4 0 -19 Z"/>
+  </g>
+  <g fill="none" stroke="#e8e4d8" stroke-width="4" stroke-linecap="round" opacity="0.5">
+    <path d="M660 280 l24 -10 M668 320 l26 0 M650 240 l18 -18"/>
+    <path d="M560 260 l-6 -22 M590 252 l4 -24"/>
+  </g>
+  <rect x="0" y="0" width="40" height="1334" fill="#05060c" opacity="0.25"/>
+  <rect x="710" y="0" width="40" height="1334" fill="#05060c" opacity="0.25"/>
+
+  <!-- CACHETTE : pilier carrele sombre et chariot de planches de natation -->
+  <g stroke="#05060c" stroke-width="6" stroke-linejoin="round">
+    <rect x="-10" y="-10" width="190" height="1360" fill="url(#frite-de-piscine-etrangleuse-b-pilier)"/>
+    <path d="M180 -10 V1350" fill="none" stroke-width="10"/>
+    <path d="M150 -10 V1350" fill="none" stroke="#14232c" stroke-width="6"/>
+    <path d="M-20 1010 H330 V1060 H-20 Z" fill="#0f1a22"/>
+    <rect x="120" y="760" width="200" height="56" rx="20" fill="#16303c" transform="rotate(-6 220 788)"/>
+    <rect x="100" y="820" width="220" height="56" rx="20" fill="#1a2f3a" transform="rotate(4 210 848)"/>
+    <rect x="110" y="880" width="210" height="56" rx="20" fill="#152a35" transform="rotate(-3 215 908)"/>
+    <rect x="96" y="940" width="230" height="64" rx="22" fill="#18303b"/>
+    <circle cx="140" cy="1080" r="24" fill="#0c151b"/>
+    <circle cx="290" cy="1080" r="24" fill="#0c151b"/>
+  </g>
+  <rect x="0" y="1040" width="750" height="294" fill="#05060c" opacity="0.35"/>
+</svg>

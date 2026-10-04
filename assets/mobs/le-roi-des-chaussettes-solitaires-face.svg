@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Le Roi des Chaussettes Solitaires, boss des Catacombes des Chaussettes Perdues, cadrage « face ». Aucun texte. -->
+  <defs>
+    <pattern id="catac-pierre" width="96" height="56" patternUnits="userSpaceOnUse">
+      <rect width="96" height="56" fill="#2a2622"/>
+      <rect x="1.5" y="1.5" width="44" height="25" rx="3" fill="#38332c"/>
+      <rect x="49.5" y="1.5" width="44" height="25" rx="3" fill="#3e382f"/>
+      <rect x="-21" y="29.5" width="44" height="25" rx="3" fill="#3e382f"/>
+      <rect x="27" y="29.5" width="44" height="25" rx="3" fill="#38332c"/>
+      <rect x="73" y="29.5" width="44" height="25" rx="3" fill="#3a342b"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#catac-pierre)"/>
+  <rect x="0" y="0" width="750" height="66" fill="#221f1b"/>
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="60" y="330" width="130" height="110" rx="10" fill="#262219"/>
+    <rect x="80" y="360" width="90" height="60" rx="8" fill="#443c2c"/>
+    <rect x="560" y="420" width="130" height="110" rx="10" fill="#262219"/>
+    <rect x="580" y="450" width="90" height="60" rx="8" fill="#443c2c"/>
+    <rect x="90" y="620" width="110" height="100" rx="10" fill="#262219"/>
+    <rect x="105" y="645" width="80" height="52" rx="8" fill="#40382a"/>
+  </g>
+  <g stroke="#05060c" stroke-width="5">
+    <path d="M200 800 q-10 -50 24 -60 q20 -4 26 22 q4 30 -16 46 Z" fill="#4a4458"/>
+    <path d="M580 760 q-8 -44 20 -52 q18 -4 22 20 q2 26 -14 40 Z" fill="#585044"/>
+    <path d="M480 880 q-6 -36 18 -42 q14 -2 18 16 q2 22 -12 34 Z" fill="#44503f"/>
+  </g>
+  <ellipse cx="375" cy="700" rx="340" ry="280" fill="#3a342a" opacity="0.45"/>
+  <ellipse cx="130" cy="380" rx="110" ry="80" fill="#ffd76a" opacity="0.06"/>
+  <ellipse cx="620" cy="440" rx="110" ry="80" fill="#ffd76a" opacity="0.06"/>
+  <rect x="0" y="1040" width="750" height="294" fill="#2b2723"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g fill="#332e28" stroke="#05060c" stroke-width="4">
+    <ellipse cx="180" cy="1130" rx="60" ry="12"/>
+    <ellipse cx="520" cy="1200" rx="70" ry="13"/>
+  </g>
+  <g stroke="#3a342c" stroke-width="6" fill="none">
+    <path d="M300 1120 q8 -28 -4 -44 M330 1130 q10 -24 0 -40 M600 1150 q8 -26 -2 -42"/>
+  </g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.22"/>
+  <ellipse cx="375" cy="650" rx="320" ry="420" fill="#7dd3fc" opacity="0.09"/>
+  <ellipse cx="375" cy="650" rx="240" ry="330" fill="#7dd3fc" opacity="0.12"/>
+  <ellipse cx="375" cy="650" rx="160" ry="220" fill="#7dd3fc" opacity="0.15"/>
+  <g fill="none" stroke="#7dd3fc" stroke-width="6" opacity="0.7">
+    <path d="M195 440 a15 15 0 1 1 15 15 a10 10 0 1 0 -15 -15"/>
+    <path d="M555 500 a15 15 0 1 1 15 15"/>
+  </g>
+  <ellipse cx="375" cy="1048" rx="205" ry="26" fill="#05060c" opacity="0.45"/>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-width="11">
+    <path d="M240 530 C200 580 182 670 175 790 C168 900 166 980 163 1050 L587 1050 C584 980 582 900 575 790 C568 670 550 580 510 530 C472 502 435 494 375 494 C315 494 278 502 240 530 Z" fill="#d9cbb0"/>
+    <path d="M538 570 C560 680 570 880 576 1030 L587 1050 C580 900 574 800 566 700 C558 618 548 585 538 570 Z" fill="#8a7c62" stroke="none" opacity="0.35"/>
+    <path d="M330 505 L375 570 L420 505" fill="#8a7c62" stroke-width="7"/>
+    <g fill="#8a7c62" stroke-width="4">
+      <circle cx="290" cy="620" r="7"/><circle cx="290" cy="700" r="7"/><circle cx="290" cy="780" r="7"/><circle cx="290" cy="860" r="7"/>
+      <circle cx="460" cy="620" r="7"/><circle cx="460" cy="700" r="7"/><circle cx="460" cy="780" r="7"/><circle cx="460" cy="860" r="7"/>
+    </g>
+    <g fill="#8a7c62" stroke-width="6">
+      <circle cx="375" cy="700" r="12"/>
+      <circle cx="375" cy="830" r="12"/>
+    </g>
+    <path d="M375 570 V1040" stroke="#8a7c62" stroke-width="8"/>
+    <path d="M258 545 C210 580 190 650 200 710 L258 708 C250 656 264 600 288 572 Z" fill="#d9cbb0" stroke-width="9"/>
+    <circle cx="222" cy="722" r="30" fill="#8a7c62" stroke-width="8"/>
+    <path d="M222 700 v28 M212 714 l20 -8" stroke-width="5"/>
+    <path d="M492 545 C540 580 560 650 550 710 L492 708 C500 656 486 600 462 572 Z" fill="#d9cbb0" stroke-width="9"/>
+    <circle cx="528" cy="722" r="30" fill="#8a7c62" stroke-width="8"/>
+    <path d="M528 700 v28 M538 714 l-20 -8" stroke-width="5"/>
+    <g stroke-width="8">
+      <path d="M440 660 L560 520 L600 545 L500 690 Z" fill="#7c3aed"/>
+      <path d="M458 652 L560 535 M478 668 L572 552" stroke="#facc15" stroke-width="7"/>
+      <path d="M560 520 Q610 530 596 570 Q570 585 552 560 Z" fill="#7c3aed"/>
+      <path d="M540 500 l6 -10 l6 8 l6 -10 l4 10 l8 -8 v12 Z" fill="#facc15" stroke-width="5"/>
+    </g>
+    <rect x="345" y="450" width="60" height="62" fill="#d9cbb0" stroke-width="8"/>
+    <path d="M292 400 C282 310 300 240 375 232 C450 240 468 310 458 400 C462 455 445 495 415 512 C400 520 388 522 375 522 C362 522 350 520 335 512 C305 495 288 455 292 400 Z" fill="#d9cbb0" stroke-width="12"/>
+    <path d="M296 340 q79 -30 158 0 M294 362 q81 -32 162 0" fill="none" stroke-width="7"/>
+    <g>
+      <circle cx="330" cy="408" r="17" fill="#8a7c62" stroke-width="6"/>
+      <path d="M323 401 l14 14 M337 401 l-14 14" stroke-width="4"/>
+      <circle cx="418" cy="404" r="17" fill="#8a7c62" stroke-width="6"/>
+      <path d="M411 397 l14 14 M425 397 l-14 14" stroke-width="4"/>
+    </g>
+    <path d="M298 372 L356 386" stroke-width="10" stroke-linecap="round"/>
+    <path d="M452 368 L390 384" stroke-width="10" stroke-linecap="round"/>
+    <path d="M336 462 Q375 476 412 458" fill="none" stroke-width="8"/>
+    <path d="M348 466 l4 12 M368 470 l4 12 M388 468 l4 12" stroke-width="5"/>
+    <path d="M452 480 q22 10 14 34" fill="none" stroke="#facc15" stroke-width="5"/>
+    <path d="M310 240 L320 172 L350 210 L375 152 L400 210 L430 172 L440 240 Z" fill="#caa23a" stroke-width="8"/>
+  </g>
+</svg>

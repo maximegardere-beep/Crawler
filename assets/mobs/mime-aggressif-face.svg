@@ -1,0 +1,168 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Mime Aggressif (Rue des Illusions), cadrage « face ». Mannequin de couture sur pied (archétype
+       mannequin) : tête ovale beige #d9cbb0 fardée de blanc, béret noir #2a2f3a, marinière à rayures
+       #2a2f3a, gants blancs #e8e4d8, accent rouge #c23b3b (lèvres, foulard). Il bondit sur son pied
+       vers nous : poing ganté en avant, l'autre main tire une corde imaginaire. Aucun texte. -->
+  <defs>
+    <pattern id="mime-aggressif-f-bricks" width="84" height="44" patternUnits="userSpaceOnUse">
+      <rect width="84" height="44" fill="#110e15"/>
+      <rect x="2" y="2" width="38" height="18" rx="2" fill="#221c2a"/>
+      <rect x="44" y="2" width="38" height="18" rx="2" fill="#1d1824"/>
+      <rect x="-19" y="24" width="38" height="18" rx="2" fill="#1d1824"/>
+      <rect x="23" y="24" width="38" height="18" rx="2" fill="#221c2a"/>
+      <rect x="65" y="24" width="38" height="18" rx="2" fill="#201a27"/>
+    </pattern>
+    <pattern id="mime-aggressif-f-cobbles" width="70" height="36" patternUnits="userSpaceOnUse">
+      <rect width="70" height="36" fill="#141218"/>
+      <rect x="3" y="3" width="30" height="13" rx="6" fill="#27242d"/>
+      <rect x="37" y="3" width="30" height="13" rx="6" fill="#222029"/>
+      <rect x="-14" y="20" width="30" height="13" rx="6" fill="#222029"/>
+      <rect x="20" y="20" width="30" height="13" rx="6" fill="#27242d"/>
+      <rect x="54" y="20" width="30" height="13" rx="6" fill="#25222b"/>
+    </pattern>
+    <radialGradient id="mime-aggressif-f-glow">
+      <stop offset="0" stop-color="#ffd76a" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#ffd76a" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="mime-aggressif-f-torso">
+      <path d="M232 478 Q228 468 246 466 L490 462 Q508 464 506 480 Q520 600 470 770 L300 776 Q236 620 232 478 Z"/>
+    </clipPath>
+  </defs>
+  <!-- Mur de briques, ciel de nuit -->
+  <rect x="0" y="0" width="750" height="900" fill="url(#mime-aggressif-f-bricks)"/>
+  <rect x="0" y="0" width="750" height="120" fill="#07080f"/>
+  <g fill="#3a3450"><circle cx="90" cy="40" r="3"/><circle cx="300" cy="26" r="2"/><circle cx="520" cy="58" r="3"/><circle cx="690" cy="30" r="2"/></g>
+  <!-- Façades de travers -->
+  <g stroke="#05060c" stroke-width="6" stroke-linejoin="round">
+    <path d="M-10 170 L215 140 L225 880 L-10 880 Z" fill="#2b2336"/>
+    <path d="M540 150 L760 176 L760 880 L530 880 Z" fill="#262032"/>
+    <g stroke-width="4">
+      <rect x="30" y="220" width="52" height="70" fill="#14111a"/>
+      <rect x="120" y="210" width="52" height="70" fill="#5a4c34"/>
+      <rect x="30" y="360" width="52" height="70" fill="#4a3f2c"/>
+      <rect x="120" y="350" width="52" height="70" fill="#14111a"/>
+      <rect x="580" y="230" width="50" height="66" fill="#14111a"/>
+      <rect x="670" y="240" width="50" height="66" fill="#544630"/>
+      <rect x="580" y="370" width="50" height="66" fill="#4a3f2c"/>
+      <rect x="670" y="380" width="50" height="66" fill="#14111a"/>
+    </g>
+  </g>
+  <!-- Affiche de spectacle de mime, illisible -->
+  <g stroke="#05060c" stroke-width="5">
+    <rect x="410" y="170" width="96" height="128" rx="6" fill="#2f2840" transform="rotate(5 458 234)"/>
+    <ellipse cx="458" cy="222" rx="24" ry="30" fill="#8d8698" transform="rotate(5 458 234)"/>
+    <path d="M436 272 h44 M442 286 h30" stroke="#4d4462" stroke-width="6" transform="rotate(5 458 234)"/>
+  </g>
+  <!-- Réverbères -->
+  <ellipse cx="96" cy="300" rx="150" ry="130" fill="url(#mime-aggressif-f-glow)"/>
+  <ellipse cx="660" cy="320" rx="150" ry="130" fill="url(#mime-aggressif-f-glow)"/>
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <rect x="44" y="250" width="14" height="650" fill="#1a1620"/>
+    <path d="M51 256 q20 -50 60 -30" fill="none" stroke="#1a1620" stroke-width="10"/>
+    <path d="M90 230 h44 l-8 36 h-28 Z" fill="#1a1620"/>
+    <rect x="100" y="266" width="24" height="16" fill="#e8c46a"/>
+    <rect x="692" y="270" width="14" height="630" fill="#1a1620"/>
+    <path d="M699 276 q-20 -50 -60 -30" fill="none" stroke="#1a1620" stroke-width="10"/>
+    <path d="M660 250 h-44 l8 36 h28 Z" fill="#1a1620"/>
+    <rect x="626" y="286" width="24" height="16" fill="#e8c46a"/>
+  </g>
+  <!-- Pavés + brume -->
+  <rect x="0" y="880" width="750" height="454" fill="url(#mime-aggressif-f-cobbles)"/>
+  <path d="M0 880 H750" stroke="#05060c" stroke-width="6"/>
+  <path d="M0 820 Q180 790 360 830 T750 812 L750 910 L0 910 Z" fill="#8b84a0" opacity="0.08"/>
+  <path d="M0 860 Q200 840 420 870 T750 858 L750 930 L0 930 Z" fill="#8b84a0" opacity="0.07"/>
+  <!-- Chapeau de quête retourné, quelques pièces -->
+  <g stroke="#05060c" stroke-width="5">
+    <ellipse cx="626" cy="984" rx="62" ry="17" fill="#1d1a24"/>
+    <path d="M582 984 Q584 946 626 944 Q668 946 670 984 Z" fill="#25212e"/>
+    <ellipse cx="626" cy="952" rx="38" ry="9" fill="#0d0b11"/>
+    <circle cx="560" cy="1004" r="9" fill="#9a8342"/>
+    <circle cx="690" cy="1000" r="8" fill="#9a8342"/>
+  </g>
+  <rect x="0" y="0" width="50" height="1334" fill="#05060c" opacity="0.25"/>
+  <rect x="700" y="0" width="50" height="1334" fill="#05060c" opacity="0.25"/>
+
+  <!-- ===== LE MIME ===== -->
+  <ellipse cx="400" cy="1060" rx="150" ry="22" fill="#05060c" opacity="0.45"/>
+  <!-- traînées du bond -->
+  <g fill="none" stroke="#a49cba" stroke-linecap="round" opacity="0.5" stroke-width="7">
+    <path d="M250 940 h-110"/><path d="M262 978 h-150"/><path d="M244 1012 h-90"/>
+  </g>
+  <g fill="#6b6478" opacity="0.6" stroke="none">
+    <ellipse cx="300" cy="1040" rx="38" ry="14"/><ellipse cx="486" cy="1036" rx="30" ry="12"/>
+    <circle cx="258" cy="1024" r="10"/><circle cx="530" cy="1022" r="8"/>
+  </g>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-linecap="round" transform="rotate(4 392 1010)">
+    <!-- socle de travers (il saute) -->
+    <g transform="rotate(-9 392 1008)">
+      <rect x="298" y="992" width="188" height="32" rx="9" fill="#2a2f3a" stroke-width="7"/>
+      <path d="M312 1000 h160" stroke="#3c4352" stroke-width="5"/>
+    </g>
+    <!-- pied -->
+    <path d="M362 826 L386 826 L404 998 L380 998 Z" fill="#2a2f3a" stroke-width="6"/>
+    <rect x="352" y="822" width="46" height="18" rx="4" fill="#2a2f3a" stroke-width="5"/>
+    <!-- bras arrière : tire une corde imaginaire -->
+    <path d="M240 498 L168 420 L190 318" fill="none" stroke-width="40"/>
+    <path d="M240 498 L168 420 L190 318" fill="none" stroke="#d9cbb0" stroke-width="27"/>
+    <circle cx="168" cy="420" r="19" fill="#c9bb9f" stroke-width="6"/>
+    <path d="M190 90 V440" stroke="#e8e4d8" stroke-width="5" stroke-dasharray="4 20" opacity="0.4"/>
+    <path d="M168 326 L212 338 L216 302 L172 294 Z" fill="#e8e4d8" stroke-width="6"/>
+    <path d="M150 300 C146 256 166 238 194 240 C226 242 238 266 234 300 C230 318 212 324 192 322 C170 322 154 318 150 300 Z" fill="#e8e4d8" stroke-width="7"/>
+    <path d="M160 264 h66 M156 282 h72 M160 300 h66" fill="none" stroke="#a9a293" stroke-width="4"/>
+    <path d="M128 250 l-18 -8 M126 280 h-22 M244 250 l18 -8 M248 280 h22" fill="none" stroke="#e8e4d8" stroke-width="5" opacity="0.6"/>
+    <!-- hanches -->
+    <rect x="312" y="768" width="130" height="62" rx="18" fill="#d9cbb0" stroke-width="8"/>
+    <!-- buste de mannequin en marinière -->
+    <path d="M232 478 Q228 468 246 466 L490 462 Q508 464 506 480 Q520 600 470 770 L300 776 Q236 620 232 478 Z" fill="#d9cbb0" stroke-width="9"/>
+    <g clip-path="url(#mime-aggressif-f-torso)" fill="#2a2f3a">
+      <rect x="200" y="512" width="340" height="22"/>
+      <rect x="200" y="566" width="340" height="22"/>
+      <rect x="200" y="620" width="340" height="22"/>
+      <rect x="200" y="674" width="340" height="22"/>
+      <rect x="200" y="728" width="340" height="22"/>
+      <path d="M440 470 Q480 610 452 780 L540 780 L540 460 Z" fill="#05060c" opacity="0.18"/>
+    </g>
+    <path d="M232 478 Q228 468 246 466 L490 462 Q508 464 506 480 Q520 600 470 770 L300 776 Q236 620 232 478 Z" fill="none" stroke-width="9"/>
+    <!-- cou + foulard rouge -->
+    <rect x="336" y="420" width="52" height="56" fill="#d9cbb0" stroke-width="7"/>
+    <path d="M314 466 L410 464 L366 528 Z" fill="#c23b3b" stroke-width="6"/>
+    <circle cx="362" cy="468" r="13" fill="#c23b3b" stroke-width="5"/>
+    <!-- bras avant : le poing ganté fonce vers nous -->
+    <circle cx="496" cy="494" r="24" fill="#c9bb9f" stroke-width="6"/>
+    <path d="M496 494 L566 560 L548 640" fill="none" stroke-width="44"/>
+    <path d="M496 494 L566 560 L548 640" fill="none" stroke="#d9cbb0" stroke-width="30"/>
+    <circle cx="566" cy="560" r="21" fill="#c9bb9f" stroke-width="6"/>
+    <g fill="none" stroke="#e8e4d8" stroke-width="7" opacity="0.7">
+      <path d="M408 610 l-44 -26"/><path d="M400 700 h-56"/><path d="M420 790 l-40 30"/>
+      <path d="M560 832 l12 52"/><path d="M660 790 l40 32"/><path d="M684 690 h52"/><path d="M664 594 l40 -30"/>
+    </g>
+    <path d="M500 610 L600 606 L612 646 L490 652 Z" fill="#e8e4d8" stroke-width="7"/>
+    <path d="M448 692 C444 640 476 622 510 626 C522 610 552 608 568 624 C590 610 622 618 630 642 C656 650 666 684 652 716 C646 768 606 790 548 790 C490 790 452 760 448 692 Z" fill="#e8e4d8" stroke-width="9"/>
+    <path d="M510 628 C504 650 506 664 514 676 M568 626 C562 648 564 664 572 676 M630 644 C620 660 622 676 630 688" fill="none" stroke-width="5"/>
+    <path d="M462 716 C500 700 548 700 590 722 C566 744 520 748 476 738" fill="#d4cebf" stroke-width="6"/>
+    <path d="M470 760 C520 784 600 780 640 740 C626 776 590 790 548 790 C510 790 484 780 470 760 Z" fill="#c9c3b4" stroke="none"/>
+    <!-- tête de mannequin fardée -->
+    <g transform="rotate(-8 360 330)">
+      <ellipse cx="360" cy="330" rx="90" ry="110" fill="#d9cbb0" stroke-width="10"/>
+      <path d="M290 300 C290 250 320 238 362 238 C404 238 434 252 434 300 C440 360 428 418 362 432 C300 420 284 360 290 300 Z" fill="#f3efe4" stroke="none"/>
+      <path d="M298 284 L350 312" stroke-width="13"/>
+      <path d="M424 284 L374 312" stroke-width="13"/>
+      <ellipse cx="326" cy="332" rx="19" ry="15" fill="#ffffff" stroke-width="5"/>
+      <ellipse cx="398" cy="332" rx="19" ry="15" fill="#ffffff" stroke-width="5"/>
+      <circle cx="332" cy="335" r="8" fill="#05060c" stroke="none"/>
+      <circle cx="392" cy="335" r="8" fill="#05060c" stroke="none"/>
+      <path d="M326 352 l-6 18 l6 11 l6 -11 Z" fill="#05060c" stroke-width="2"/>
+      <path d="M398 352 l-6 18 l6 11 l6 -11 Z" fill="#05060c" stroke-width="2"/>
+      <path d="M316 398 Q362 380 410 396 Q406 430 362 434 Q320 432 316 398 Z" fill="#c23b3b" stroke-width="6"/>
+      <path d="M330 402 Q362 392 396 400 L394 416 Q362 422 332 418 Z" fill="#ffffff" stroke-width="4"/>
+      <path d="M346 398 v22 M362 395 v26 M378 397 v23" stroke-width="3"/>
+      <path d="M438 280 q-10 -8 -2 -18 M452 292 q8 -10 18 -4 M444 312 q12 4 8 16 M428 302 q-10 6 -18 0" fill="none" stroke="#c23b3b" stroke-width="5"/>
+      <!-- béret -->
+      <path d="M252 232 Q270 176 360 172 Q452 174 466 228 Z" fill="#2a2f3a" stroke-width="8"/>
+      <ellipse cx="358" cy="232" rx="112" ry="30" fill="#2a2f3a" stroke-width="8"/>
+      <path d="M290 222 Q330 206 390 210" fill="none" stroke="#3c4352" stroke-width="6"/>
+      <path d="M362 172 l4 -22" stroke-width="10"/>
+      <path d="M362 172 l4 -22" stroke="#2a2f3a" stroke-width="5"/>
+    </g>
+  </g>
+</svg>

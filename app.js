@@ -83,6 +83,7 @@ const gameState = {
     pendingSafehouseRoomId: null, // Room id de la salle sécurisée dont le choix est actuellement affiché
     lastAttackKind: null, // 'weapon' | 'ranged' | 'magic' | 'unarmed' : dernière attaque utilisée, fixe la posture du crawler dans les scènes (voir crawlerPosture() dans scene.js)
     stealthChoicePending: false, // Un ennemi non repéré attend une décision (esquiver/attaque furtive)
+    encounterIntroPending: false, // Écran plein écran de rencontre ouvert (chantier 16) : attend un tap, le callback vit hors gameState (jamais sauvegardé)
     pendingStealthEncounter: null, // L'ennemi généré, en attente de cette décision
     pendingSneakAttack: false, // Consommé par le tout premier coup porté (bonus x2)
     pendingBossEncounter: null, // { roomId, guardsStairs } pendant que bossChoicePending est vrai
@@ -525,6 +526,13 @@ const config = {
     // Rééquilibrage du début de partie (chantier 15, voir NOTES_DEBUT_DE_PARTIE.md) : l'émission protège ses débutants. Valeurs validées
     // par l'utilisateur (rounds 1 et 2), calibrées par `npm run sim:early`. `enabled: false` rend le jeu tel qu'avant le chantier (sert
     // aussi au « avant » de l'outil de calibrage). Rien ne lit encore ce bloc au lot 0 : les lots 1 à 4 branchent un mécanisme chacun.
+    // Écran plein écran d'entrée en combat (chantier 16) : interrupteur global (un futur réglage joueur pourra le couper) ;
+    // neutralisé par défaut dans les tests (_helpers.js), réactivé par withEncounterIntro().
+    encounterIntro: { enabled: true },
+    // Attaque furtive (chantier 16, lot 3) : deux départs au choix. Corps à corps = écart 0, premier coup ×2 ; de loin = écart 6,
+    // premier coup ×1,5 (arme à distance ou sort offensif à distance requis) ; surgir au contact d'un mob À DISTANCE lui fait perdre son
+    // premier tour. Valeurs validées par l'utilisateur.
+    sneakAttack: { meleeMult: 2, rangedMult: 1.5, rangedStartDistance: 6, rangedMobSurprised: true },
     earlyGame: {
         enabled: true,
         maxFloor: 3,                                        // « tutoriel » : Période d'essai, Armure de scénario et boss intérimaires s'éteignent à l'étage 4
@@ -777,8 +785,22 @@ const ui = {
     btnSleepSafehouse: document.getElementById('btn-sleep-safehouse'),
     btnLeaveSafehouse: document.getElementById('btn-leave-safehouse'),
     stealthChoiceZone: document.getElementById('stealth-choice-zone'),
+    encounterOverlay: document.getElementById('encounter-overlay'),
+    encounterModeSelect: document.getElementById('encounter-mode-select'),
+    btnSoundToggle: document.getElementById('btn-sound-toggle'),
+    btnOpenSoundLab: document.getElementById('btn-open-sound-lab'),
+    soundLabOverlay: document.getElementById('sound-lab-overlay'),
+    soundLabList: document.getElementById('sound-lab-list'),
+    btnCloseSoundLab: document.getElementById('btn-close-sound-lab'),
+    encounterArt: document.getElementById('encounter-art'),
+    encounterImg: document.getElementById('encounter-img'),
+    encounterTitle: document.getElementById('encounter-title'),
+    encounterLine: document.getElementById('encounter-line'),
+    encounterHint: document.getElementById('encounter-hint'),
+    encounterBanner: document.getElementById('encounter-banner'),
     btnStealthEvade: document.getElementById('btn-stealth-evade'),
     btnStealthAttack: document.getElementById('btn-stealth-attack'),
+    btnStealthRanged: document.getElementById('btn-stealth-ranged'),
     gameOverOverlay: document.getElementById('game-over-overlay'),
     gameOverReason: document.getElementById('game-over-reason'),
     gameOverFloor: document.getElementById('game-over-floor'),
@@ -1120,6 +1142,7 @@ function restoreSaveForName(name) {
     gameState.bossChoicePending = false;
     gameState.pendingBossEncounter = null;
     gameState.stealthChoicePending = false;
+    gameState.encounterIntroPending = false; // écran de rencontre (chantier 16) : jamais restauré
     gameState.pendingStealthEncounter = null;
     gameState.pendingSneakAttack = false;
     gameState.companionChoicePending = false;
@@ -1737,6 +1760,7 @@ function screenImpactFlash() {
 // no-op visuel (animation désactivée en CSS) mais screenImpactFlash() continue de jouer, comme demandé
 // explicitement par la consigne.
 function triggerHeavyImpact() {
+    if (typeof playSfx === 'function') playSfx('heavyImpact');
     screenShake();
     screenImpactFlash();
 }
@@ -2395,6 +2419,7 @@ function useConsumable(index) {
     const manaAmount = item.mana || 0;
     const actualHeal = applyPlayerHeal(healAmount);
     gameState.mana = Math.min(gameState.maxMana, gameState.mana + manaAmount);
+    playSfx('potionDrink');
     const parts = [];
     if (actualHeal > 0) parts.push(`${actualHeal} PV`);
     if (manaAmount > 0) parts.push(`${manaAmount} Mana`);
@@ -2431,6 +2456,7 @@ function sellItem(index) {
     const price = getSellPrice(item);
     gameState.gold += price;
     gameState.inventory.splice(index, 1);
+    playSfx('goldPickup');
     logEvent(`Vous vendez [${formatItemDisplayName(item)}] pour ${price} PO.`, "success");
     updateUI();
     updateInventoryUI();
@@ -2447,6 +2473,7 @@ function sellSpell(index) {
     const price = getSellPrice(spell);
     gameState.gold += price;
     gameState.spellbook.splice(index, 1);
+    playSfx('goldPickup');
     logEvent(`Vous vendez [${formatItemDisplayName(spell)}] pour ${price} PO.`, "success");
     updateUI();
     updateSpellbookUI();
@@ -2515,6 +2542,7 @@ function rollGoldAmount() {
 function springTrap(trap) {
     const dmg = applyTrialToDamage(applyStarterBuffToDamage(applyRaceDamageMods(Math.floor(Math.random() * (trap.dmgMax - trap.dmgMin + 1)) + trap.dmgMin, 'trap')));
     applyPlayerDamage(dmg);
+    playSfx('trapSpring');
     setSceneHeader('⚠️', 'Piège', 'Danger', 'trap');
     logEvent(`${trap.text} (-${dmg} PV)`, "danger");
     recordRunEvent('trap');
@@ -2652,6 +2680,7 @@ function resolveCardEvent() {
     if (d100 < cumulative) {
         const gold = rollGoldAmount();
         gameState.gold += gold;
+        playSfx('goldPickup');
         setSceneHeader('💰', 'Pièces d\'Or', 'Butin', 'gold');
         logEvent(`${pick(flavorText.goldFind)} (+${gold} PO)`, "success");
         return;
@@ -2762,8 +2791,12 @@ function handleStealthEncounter() {
     setSceneHeader('🥷', enemy ? enemy.name : 'Ombre', 'Non Repéré', { key: 'stealthUnseen', enemy });
     logEvent(`Vous repérez ${enemy ? `[${enemy.name}]` : "une présence"} avant qu'il ne vous voie.`, "info");
     logEvent("Tenter de l'esquiver en silence, ou frapper en traître ?", "info");
-    ui.stealthChoiceZone.classList.remove('hidden');
-    updateUI();
+    // Écran « tu l'as vu » (chantier 16) avant les boutons ; sans interface, les boutons s'affichent tout de suite.
+    showEncounterIntro('unseen', enemy, () => {
+        updateStealthChoiceButtons();
+        ui.stealthChoiceZone.classList.remove('hidden');
+        updateUI();
+    });
 }
 
 // Bouton "Esquiver" : succès -> aucun combat + XP de Furtivité ; échec -> repéré, combat classique
@@ -2791,8 +2824,40 @@ function attemptStealthEvasion() {
     }
 }
 
-// Bouton "Attaque Furtive" : le combat démarre avec un bonus x2 garanti sur le tout premier coup
-function attemptStealthAttack() {
+// Multiplicateur du premier coup d'une attaque furtive : `pendingSneakAttack` vaut 'ranged' (tir de loin), sinon corps à corps
+// (`true` des anciens appelants compris).
+function sneakAttackMult() {
+    return gameState.pendingSneakAttack === 'ranged' ? config.sneakAttack.rangedMult : config.sneakAttack.meleeMult;
+}
+
+// « Tirer de loin » : une arme à distance équipée, OU un sort offensif à distance équipé avec assez de mana (jamais un sort
+// utilitaire « partout », ni de mêlée). « Surgir au corps à corps » reste toujours possible, mains nues comprises.
+function canStealthShootFromAfar() {
+    if (gameState.equipment.ranged) return true;
+    const spell = gameState.equipment.spell;
+    return !!(spell && spell.spellCategory === 'ranged' && gameState.mana >= getSpellManaCost(spell));
+}
+
+// Libellés et état des deux boutons d'attaque furtive (chiffres lus dans config.sneakAttack).
+function updateStealthChoiceButtons() {
+    const fmt = (n) => String(n).replace('.', ',');
+    const cfg = config.sneakAttack;
+    const canShoot = canStealthShootFromAfar();
+    ui.btnStealthAttack.innerText = `🗡️ Surgir au corps à corps (×${fmt(cfg.meleeMult)})`;
+    ui.btnStealthAttack.title = `Écart nul, premier coup ×${fmt(cfg.meleeMult)}.${cfg.rangedMobSurprised ? " Un tireur surpris perd son premier tour." : ""}`;
+    ui.btnStealthRanged.innerText = `🏹 Tirer de loin (×${fmt(cfg.rangedMult)})`;
+    ui.btnStealthRanged.disabled = !canShoot;
+    ui.btnStealthRanged.title = canShoot ? `Écart ${cfg.rangedStartDistance}, premier coup ×${fmt(cfg.rangedMult)}.` : "Il faut une arme à distance équipée, ou un sort offensif à distance (avec assez de mana).";
+}
+
+// Boutons « Attaque furtive » (chantier 16, lot 3) : `mode` 'melee' (écart 0, premier coup ×2) ou 'ranged' (écart de départ
+// config.sneakAttack.rangedStartDistance, premier coup ×1,5). Le mode 'ranged' est refusé sans arme ni sort à distance.
+function attemptStealthAttack(mode) {
+    const ranged = mode === 'ranged';
+    if (ranged && gameState.pendingStealthEncounter && !canStealthShootFromAfar()) {
+        logEvent("Il vous faut une arme à distance, ou un sort offensif à distance, pour tirer de loin.", "danger");
+        return;
+    }
     const enemy = gameState.pendingStealthEncounter;
     gameState.stealthChoicePending = false;
     ui.stealthChoiceZone.classList.add('hidden');
@@ -2800,9 +2865,20 @@ function attemptStealthAttack() {
     if (!enemy) { updateUI(); return; }
 
     // L'en-tête de la scène (icône/nom/type) est posé par initiateCombat() lui-même.
-    logEvent(`Vous surgissez de l'ombre et frappez [${enemy.name}] par surprise !`, "success");
-    gameState.pendingSneakAttack = true;
-    initiateCombat(enemy);
+    logEvent(ranged ? `Vous épaulez dans l'ombre et visez [${enemy.name}] de loin !` : `Vous surgissez de l'ombre et frappez [${enemy.name}] par surprise !`, "success");
+    gameState.pendingSneakAttack = ranged ? 'ranged' : 'melee';
+    // Surgir au contact d'un tireur : il est pris au dépourvu et perd son premier tour (voir consumeSurprise()).
+    if (!ranged && mobWantsFar(enemy) && config.sneakAttack.rangedMobSurprised) enemy.surprised = true;
+    initiateCombat(enemy, { intro: false, startDistance: ranged ? config.sneakAttack.rangedStartDistance : 0 }); // l'écran « tu l'as vu » a déjà été montré avant le choix
+}
+
+// Un mob pris au dépourvu (attaque furtive au contact d'un tireur) rate sa première riposte, une seule fois.
+function consumeSurprise(enemy) {
+    if (!enemy || !enemy.surprised) return false;
+    enemy.surprised = false;
+    logEvent(`[${enemy.name}] est pris au dépourvu : le tireur rate son premier tour !`, "info");
+    showDie(ui.combatEnemyDie, "😲");
+    return true;
 }
 
 // ==========================================
@@ -2812,7 +2888,7 @@ function attemptStealthAttack() {
 // Vrai si une action de type "explorer" ou "voyager vers un lieu connu" doit être bloquée
 // (combat en cours, ou décision de boss en attente).
 function isActionBlocked() {
-    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.raceChoicePending || gameState.classChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending || !!gameState.pendingMinigame;
+    return gameState.inCombat || gameState.bossChoicePending || gameState.companionChoicePending || gameState.stealthChoicePending || gameState.encounterIntroPending || gameState.shopChoicePending || gameState.lairChoicePending || gameState.floorTransitionPending || gameState.pactChoicePending || gameState.raceChoicePending || gameState.classChoicePending || gameState.safehouseChoicePending || gameState.stairsChoicePending || gameState.showChoicePending || !!gameState.pendingMinigame;
 }
 
 // ---------- Voyage sur carte (chantier 5, M1 + P1 — remplace les anciens « Lieux connus ») ----------
@@ -2978,7 +3054,7 @@ function triggerNextAmbushOrArrive() {
         travel.ambushesRemaining -= 1;
         logEvent("Une présence hostile vous barre la route !", "danger");
         gameState.pendingStairAfterCombat = false; // Ce n'est pas encore l'arrivée
-        initiateCombat(maybeSpawnBountyHunter()); // Mob générique du quartier (ou chasseur de primes), pas le boss : simple embuscade de trajet
+        initiateCombat(maybeSpawnBountyHunter(), { intro: 'ambush' }); // Mob générique du quartier (ou chasseur de primes), pas le boss : simple embuscade de trajet
         return;
     }
 
@@ -3082,7 +3158,7 @@ function recruitCompanion() {
         // Un crawler pacifique qui refuse ne devient hostile que dans de très rares cas (5%)
         if (Math.random() * 100 < 5) {
             logEvent(`${candidate.name} se braque brusquement et vous attaque !`, "danger");
-            initiateCombat(companionCandidateToMob(candidate));
+            initiateCombat(companionCandidateToMob(candidate), { intro: false });
         } else {
             logEvent(`${candidate.name} décline poliment et s'éloigne.`, "info");
             updateUI();
@@ -3090,7 +3166,7 @@ function recruitCompanion() {
     } else {
         // Un crawler déjà hostile qui refuse passe directement à l'attaque
         logEvent(`${candidate.name} refuse et se jette sur vous !`, "danger");
-        initiateCombat(companionCandidateToMob(candidate));
+        initiateCombat(companionCandidateToMob(candidate), { intro: false });
     }
 }
 
@@ -3122,7 +3198,7 @@ function attackCompanionEncounter() {
     gameState.companionChoicePending = false;
     gameState.pendingCompanionCandidate = null;
     logEvent(`Vous attaquez ${candidate ? candidate.name : "le crawler hostile"} !`, "danger");
-    initiateCombat(companionCandidateToMob(candidate));
+    initiateCombat(companionCandidateToMob(candidate), { intro: false });
 }
 
 // --- Loyauté ---
@@ -3692,6 +3768,7 @@ function openAchievementBox(tierKey) {
 let achievementToastTimer = null;
 function showAchievementToast(unlocked) {
     if (!ui.achievementToast || !unlocked.length) return;
+    playSfx('achievementUnlock');
     const last = unlocked[unlocked.length - 1];
     ui.achievementToast.innerHTML = unlocked.length > 1
         ? `🏆 ${unlocked.length} succès débloqués ! <span class="opacity-80">${unlocked.map(d => d.icon).join(' ')}</span>`
@@ -3984,7 +4061,8 @@ function answerShow(toneKey) {
     const s = gameState.runStats;
 
     if (toneKey === 'refuse') {
-        logEvent(`Vous : ${pickShowLine(SHOW_REFUSALS)} — ${pickShowLine(SHOW_REACTIONS.refuse)}`, "info");
+        const reaction = pickShowLine(SHOW_REACTIONS.refuse);
+        logEvent(`Vous : ${pickShowLine(SHOW_REFUSALS)} — ${reaction}`, "info");
         s.showRefusals = (s.showRefusals || 0) + 1;
         recordRunEvent('show', { tone: 'refuse' });
         updateUI();
@@ -3998,7 +4076,8 @@ function answerShow(toneKey) {
     if (toneKey === 'polite') {
         const gold = rollAchievementGold(a.goldMult);
         gameState.gold += gold;
-        logEvent(`${pickShowLine(SHOW_REACTIONS.polite)} (+${gold} PO)`, "success");
+        const reaction = pickShowLine(SHOW_REACTIONS.polite);
+        logEvent(`${reaction} (+${gold} PO)`, "success");
         recordRunEvent('show', { tone: 'polite', success: true });
         updateUI();
         return { tone: 'polite', success: true };
@@ -4011,7 +4090,8 @@ function answerShow(toneKey) {
     logEvent(`🎲 d${config.show.dieSides} : ${roll}${popularity ? ` + ${popularity} (popularité)` : ''} = ${total} — ${a.dc} requis : ${success ? 'RÉUSSITE' : 'ÉCHEC'} !`, success ? "success" : "danger");
 
     if (success) {
-        logEvent(pickShowLine(SHOW_REACTIONS.success[toneKey]), "success");
+        const reaction = pickShowLine(SHOW_REACTIONS.success[toneKey]);
+        logEvent(reaction, "success");
         if (toneKey === 'insult') s.showInsultWins = (s.showInsultWins || 0) + 1;
         recordRunEvent('show', { tone: toneKey, success: true });
         openAchievementBox(a.box);
@@ -4019,7 +4099,8 @@ function answerShow(toneKey) {
         return { tone: toneKey, roll, total, success };
     }
 
-    logEvent(pickShowLine(SHOW_REACTIONS.failure[toneKey]), "danger");
+    const reaction = pickShowLine(SHOW_REACTIONS.failure[toneKey]);
+    logEvent(reaction, "danger");
     recordRunEvent('show', { tone: toneKey, success: false });
     if (a.fail === 'time') {
         // Jamais mortel : l'audience s'ennuie, elle ne tue pas (au moins 1 H reste toujours).
@@ -4152,6 +4233,7 @@ function triggerFloorTransition() {
     const stats = gameState.floorStats;
     gameState.floorTransitionPending = true;
     ui.combatZone.classList.add('hidden');
+    playSfx('stairsDescend');
 
     if (ui.floorTransitionTitle) {
         ui.floorTransitionTitle.innerText = pick(FLOOR_TRANSITION_TITLES).replace('{{floor}}', completedFloor);
@@ -4643,6 +4725,7 @@ function storeLootItem(item, prefix = "") {
     if (item.category === 'scrolls') {
         gameState.spellbook.push(item);
         gameState.floorStats.itemsFound += 1;
+        playSfx('itemPickup');
         logEvent(`${prefix}Sort appris : [${formatItemDisplayName(item)}] !`, "loot");
         updateSpellbookUI();
         recordRunEvent('spellLearned', { item });
@@ -4653,6 +4736,7 @@ function storeLootItem(item, prefix = "") {
     if (isConsumable || equipmentCount < gameState.maxInventory) {
         gameState.inventory.push(item);
         gameState.floorStats.itemsFound += 1;
+        playSfx('itemPickup');
         logEvent(`${prefix}Objet obtenu : [${formatItemDisplayName(item)}] !`, "loot");
         updateInventoryUI();
         recordRunEvent('itemStored', { item });
@@ -4663,6 +4747,7 @@ function storeLootItem(item, prefix = "") {
     // objet signature, boîte de succès), donc la règle s'applique partout sans rien dupliquer.
     const price = getOverflowSellPrice(item);
     gameState.gold += price;
+    playSfx('goldPickup');
     logEvent(`${prefix}Réserve pleine : [${formatItemDisplayName(item)}] est revendu d'office pour ${price} PO (moitié du prix marchand).`, "info");
     recordRunEvent('overflowSold', { item, price });
     return false;
@@ -4748,6 +4833,7 @@ function gainXp(amount) {
 
     // On utilise une boucle "while" pour gérer le cas (rare) d'un gain d'XP
     // suffisant pour franchir plusieurs niveaux d'un coup.
+    if (gameState.xp >= gameState.xpToNextLevel) playSfx('levelUp'); // un seul arpège, même pour plusieurs niveaux
     while (gameState.xp >= gameState.xpToNextLevel) {
         gameState.xp -= gameState.xpToNextLevel;
         gameState.level += 1;
@@ -4781,6 +4867,7 @@ function gainSkillXp(skillKey, amount) {
     amount += gameState.anomalyEffects.skillXpPerActionBonus || 0; // TEMPO_CREE (anomalies.js)
 
     skill.xp += amount;
+    if (skill.xp >= skill.xpToNext) playSfx('skillUp');
     while (skill.xp >= skill.xpToNext) {
         skill.xp -= skill.xpToNext;
         skill.level += 1;
@@ -5235,6 +5322,7 @@ function buyShopItem(stockIndex) {
         logEvent(`Vous achetez [${formatItemDisplayName(item)}] pour ${item.price} PO.`, "success");
         updateInventoryUI();
     }
+    playSfx('shopBuy');
     recordRunEvent('purchase', { item });
     updateUI();
     updateShopUI();
@@ -5254,6 +5342,7 @@ function trainSkill() {
     }
 
     gameState.gold -= cost;
+    playSfx('shopBuy');
     const xpNeeded = skill.xpToNext - skill.xp;
     logEvent(`Vous payez ${cost} PO pour une formation intensive en ${skillLabel(city.specialty)}.`, "success");
     gainSkillXp(city.specialty, xpNeeded);
@@ -5781,6 +5870,7 @@ function restAtSafehouse(kind = 'nap') {
     const costNote = freeMeals ? "repas offerts par la maison, aucun temps perdu" : `-${cost}H`;
     const intro = kind === 'sleep' ? "Vous dormez à poings fermés" : "Vous piquez un petit somme";
     logEvent(`${intro} (${costNote}, +${healed} PV${manaNote}).`, "success");
+    playSfx('restSleep');
 
     // Le compagnon se repose aussi : même part de ses PV perdus (et il se relève s'il était à terre),
     // et un repos partagé renforce sa loyauté.
@@ -5853,8 +5943,15 @@ function triggerBossEncounter(room) {
         "danger"
     );
     logEvent("Le combattre maintenant, ou repérer l'endroit pour y revenir plus tard ?", "info");
-    ui.bossChoiceZone.classList.remove('hidden');
-    updateUI();
+    // Arrivée du boss (chantier 16) : écran plein écran la PREMIÈRE fois seulement (le boss est en cache sur sa salle,
+    // les retours ne rejouent pas l'écran), avant l'affichage du choix Combattre / Repérer. Marqué vu seulement s'il a
+    // réellement été affiché (réglage « Jamais », interface absente : il reste à montrer au prochain passage).
+    const reveal = () => {
+        ui.bossChoiceZone.classList.remove('hidden');
+        updateUI();
+    };
+    if (boss._encounterShown) reveal();
+    else boss._encounterShown = showEncounterIntro('boss', boss, reveal) === true;
 }
 
 // Bouton "Combattre" de la zone de choix de boss (boss de quartier, gardien d'escalier ou de la Sortie).
@@ -5868,7 +5965,7 @@ function fightBossNow() {
     const room = gameState.floorMap.roomsById[encounter.roomId];
     gameState.pendingStairAfterCombat = !!encounter.guardsStairs;
     gameState.pendingBossRoomId = encounter.roomId;
-    initiateCombat(room.bossInstance);
+    initiateCombat(room.bossInstance, { intro: false }); // l'arrivée du boss a été montrée par triggerBossEncounter()
 }
 
 // Bouton "Repérer et partir" de la zone de choix de boss : l'antre reste marquée 👑 sur la carte,
@@ -6089,8 +6186,23 @@ function announceEliteConventionEnd(enemy) {
     logEvent(`📜 Fin de la Convention collective du Donjon : les élites ont repris le travail. Elles n'ont pas lu l'article 4 sur le plafonnement des dégâts.${detail}`, "info");
 }
 
-function initiateCombat(forcedEnemy = null) {
+// `options.intro` (chantier 16, lot 2) : écran plein écran d'entrée en combat — `false` = aucun (combat enchaîné, écran
+// déjà montré par l'appelant, compagnon hostile), 'ambush' (embuscade de trajet), sinon 'spotted' ; un boss garde
+// toujours 'boss' et un chasseur de primes 'hunter' (resolveEncounterKind()). L'écran bloque les actions
+// (`encounterIntroPending`) et ne démarre le combat qu'au tap ; sans interface (tests Node) le combat démarre tout de suite.
+function initiateCombat(forcedEnemy = null, options = {}) {
     const enemy = forcedEnemy || generateMob(gameState.currentDistrict);
+    const kind = (options && options.intro === false) ? null : resolveEncounterKind(enemy, options && options.intro);
+    if (kind && enemy) {
+        showEncounterIntro(kind, enemy, () => beginCombat(enemy, options));
+        return;
+    }
+    beginCombat(enemy, options);
+}
+
+// Corps du combat (ancienne initiateCombat()) : appelé tout de suite, ou au tap qui ferme l'écran de rencontre.
+// `options.startDistance` : écart de départ imposé (attaque furtive, lot 3) ; sinon celui de la nature du mob.
+function beginCombat(enemy, options = {}) {
     // Suivi du combat pour la chronique (chantier 2) : dégâts subis au départ, ouverture furtive, nombre
     // d'attaques portées (victoire en un coup) — voir recordRunEvent('win').
     if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, startTrialAvoided: gameState.runStats ? (gameState.runStats.trialAvoided || 0) : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
@@ -6135,7 +6247,7 @@ function initiateCombat(forcedEnemy = null) {
     // Distance de combat initiale : dépend uniquement de la nature du mob (aucune notion de
     // posture côté joueur). Un mob de mêlée démarre au contact ; un mob à distance démarre à
     // l'écart de départ, que le joueur devra combler (S'approcher) ou maintenir (S'éloigner).
-    gameState.combatDistance = (enemy && mobWantsFar(enemy)) ? config.rangedCombat.initialDistance : 0;
+    gameState.combatDistance = (options && Number.isFinite(options.startDistance)) ? options.startDistance : ((enemy && mobWantsFar(enemy)) ? config.rangedCombat.initialDistance : 0);
 
     // Les dés de dégâts repartent à zéro visuellement (aucune action encore jouée ce combat)
     ui.combatPlayerDie.innerText = "–";
@@ -6320,6 +6432,7 @@ function safeEnemyCounterAttack() {
 function resolveEnemyReaction() {
     const enemy = gameState.currentEnemy;
     if (!enemy) return;
+    if (consumeSurprise(enemy)) { updateUI(); return; } // tireur surpris : aucune réaction ce tour
     const ctx = getCombatRangeContext();
 
     if (ctx.playerAdvantaged) {
@@ -6577,8 +6690,9 @@ function performPlayerAttack(attackerAtk, options, label) {
     // Attaque furtive réussie : le tout premier coup de ce combat porte un bonus x2 garanti
     let sneakNote = "";
     if (gameState.pendingSneakAttack) {
-        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * 2 };
-        sneakNote = " (attaque furtive x2)";
+        const sneakMult = sneakAttackMult();
+        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * sneakMult };
+        sneakNote = ` (attaque furtive x${String(sneakMult).replace('.', ',')})`;
         gameState.pendingSneakAttack = false;
     }
 
@@ -7432,6 +7546,7 @@ function performBossCounterAttackInner(enemy, onDone) {
 function resolveEnemyCounterAttack(onDone) {
     const enemy = gameState.currentEnemy;
     if (!enemy) { if (onDone) onDone(); return; } // sécurité si le combat vient d'être résolu pendant la pause
+    if (consumeSurprise(enemy)) { if (onDone) onDone(); return; } // tireur surpris (attaque furtive au contact) : première riposte perdue
 
     // Saignement en cours sur l'ennemi (infligé par une arme du joueur) : tique avant son action.
     // Affichage immédiat (pas de beat dédié) : un tick de saignement est un petit événement annexe,
@@ -8492,6 +8607,7 @@ function attemptFlee() {
         gameState.fleesThisRun = (gameState.fleesThisRun || 0) + 1; // Voir generateEpitaph() : mention spéciale à 3+ fuites
         gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null, plotShield: false }; // Les statuts ne survivent pas au combat
         setSceneHeader('🏃', 'Fuite Réussie', 'Exploration', 'fled');
+        playSfx('fleeEscape');
         logEvent(`Vous parvenez à fuir [${enemy.name}] dans la confusion !${scoutNote}`, "info");
         changeCompanionLoyalty(config.companions.loyalty.flee); // Fuir n'inspire pas confiance à votre compagnon
         recordRunEvent('flee');
@@ -8528,6 +8644,7 @@ function winCombat() {
     gameState.pendingSneakAttack = false;
     gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null, plotShield: false }; // Les statuts ne survivent pas au combat
 
+    if (defeatedEnemy && typeof playSfx === 'function') playSfx(wasBoss ? 'bossDeath' : 'mobDeath');
     if (wasBoss) {
         setSceneHeader('👑', 'Victoire !', 'Boss Vaincu', { key: 'bossVictory', enemy: defeatedEnemy });
         logEvent(`👑 Vous avez triomphé de ${defeatedEnemy.name} !`, "success");
@@ -8585,7 +8702,7 @@ function winCombat() {
             dive.combatsLeft -= 1;
             if (dive.combatsLeft > 0) {
                 logEvent("Un autre adversaire surgit des décombres du repaire...", "danger");
-                initiateCombat();
+                initiateCombat(null, { intro: false });
                 return;
             }
             dive.stage = 'boss';
@@ -8834,6 +8951,157 @@ function giveTestKit() {
     updateSpellbookUI();
 }
 
+// ==========================================
+// ÉCRAN PLEIN ÉCRAN DE RENCONTRE (chantier 16, lot 1)
+// ==========================================
+// Overlay statique qui annonce une altercation (« il t'a vu », embuscade, « tu l'as vu », boss, chasseur) AVANT que
+// le combat ou le choix de furtivité n'apparaisse : image WebP du mob si elle existe (encounters.js), sinon son sprite
+// agrandi sur le décor (scene.js, renderScene('encounter')). Fermé par un tap (ou Espace/Entrée/Échap), toujours :
+// jamais de fermeture automatique. Par callback (jamais de Promise, comme runCombatBeats()/startMinigame()) : sans
+// interface (tests Node sans requestAnimationFrame) le callback est appelé tout de suite et rien ne s'affiche. Le
+// callback vit dans une variable de module, jamais dans gameState (non sauvegardable) ; `encounterIntroPending` bloque
+// les actions (isActionBlocked()). Branché (lot 2) par initiateCombat() (rencontre repérée, embuscade de trajet, boss de repaire, chasseur), handleStealthEncounter() (« tu l'as vu ») et triggerBossEncounter() (arrivée du boss, première fois seulement).
+const ENCOUNTER_INTRO_MIN_MS = 450; // garde-fou : le tap qui a déclenché la rencontre ne la referme jamais
+let encounterIntroCallback = null;
+let encounterIntroOpenedAt = 0;
+
+// Réglage joueur (chantier 16, lot 6), préférence d'affichage jamais sauvegardée avec le crawler : 'all' (toutes les rencontres, défaut),
+// 'important' (boss, chasseurs de primes, embuscades de trajet et élites 💀 seulement) ou 'off'.
+const ENCOUNTER_INTRO_MODE_KEY = 'crawler_encounter_intro_mode';
+const ENCOUNTER_INTRO_MODES = ['all', 'important', 'off'];
+let encounterIntroModeValue = null;
+
+function getEncounterIntroMode() {
+    if (encounterIntroModeValue) return encounterIntroModeValue;
+    let stored = null;
+    try { stored = localStorage.getItem(ENCOUNTER_INTRO_MODE_KEY); } catch (e) { /* stockage indisponible : réglage par défaut */ }
+    encounterIntroModeValue = ENCOUNTER_INTRO_MODES.includes(stored) ? stored : 'all';
+    return encounterIntroModeValue;
+}
+
+function setEncounterIntroMode(mode) {
+    if (!ENCOUNTER_INTRO_MODES.includes(mode)) return;
+    encounterIntroModeValue = mode;
+    try { localStorage.setItem(ENCOUNTER_INTRO_MODE_KEY, mode); } catch (e) { /* idem */ }
+    if (ui.encounterModeSelect) ui.encounterModeSelect.value = mode;
+}
+
+// =========================================================================
+// SONS : BOUTONS ET PAGE D'ÉCOUTE (chantier 8) — moteur et catalogue dans sounds.js.
+// 🔊 coupe tous les sons ; préférence d'écoute (localStorage), jamais sauvegardée avec le crawler.
+// =========================================================================
+function updateSoundToggleButtons() {
+    if (!ui.btnSoundToggle) return;
+    const soundOff = isSoundMuted();
+    ui.btnSoundToggle.innerText = soundOff ? '🔇' : '🔊';
+    ui.btnSoundToggle.setAttribute('aria-pressed', soundOff ? 'true' : 'false');
+    const label = soundOff ? 'Remettre les sons' : 'Couper les sons';
+    ui.btnSoundToggle.setAttribute('aria-label', label);
+    ui.btnSoundToggle.title = label;
+}
+
+function toggleSoundMuted() {
+    setSoundMuted(!isSoundMuted());
+    updateSoundToggleButtons();
+}
+
+function buildSoundLabHtml() {
+    return listSfxForLab().map(section => `<section class="flex flex-col gap-1.5">
+        <p class="text-[10px] text-sky-400 uppercase tracking-widest font-bold">${section.title}</p>
+        ${section.sounds.map(sound => `<button type="button" data-sfx="${sound.key}" class="text-left min-h-[44px] px-3 py-2 bg-gray-950 border border-gray-700 hover:border-sky-500 rounded-lg">
+            <span class="block text-xs text-gray-200 font-bold">▶ ${sound.label}</span>
+            <span class="block text-[10px] text-gray-500">${sound.use}</span>
+        </button>`).join('')}
+    </section>`).join('');
+}
+
+function openSoundLab() {
+    if (!ui.soundLabOverlay) return;
+    if (ui.soundLabList) ui.soundLabList.innerHTML = buildSoundLabHtml();
+    ui.soundLabOverlay.classList.remove('hidden');
+}
+
+function closeSoundLab() {
+    if (ui.soundLabOverlay) ui.soundLabOverlay.classList.add('hidden');
+}
+
+// Le réglage autorise-t-il l'écran de ce type de rencontre pour cet ennemi ?
+function encounterIntroWanted(kind, enemy) {
+    const mode = getEncounterIntroMode();
+    if (mode === 'off') return false;
+    if (mode === 'all') return true;
+    return kind === 'boss' || kind === 'hunter' || kind === 'ambush' || !!(enemy && isEliteMob(enemy));
+}
+
+function encounterIntroAvailable() {
+    return !!(config.encounterIntro && config.encounterIntro.enabled && ui.encounterOverlay && typeof requestAnimationFrame === 'function');
+}
+
+function showEncounterIntro(kind, enemy, onContinue) {
+    if (!enemy || !encounterIntroAvailable() || !encounterIntroWanted(kind, enemy)) {
+        if (onContinue) onContinue();
+        return false;
+    }
+    const text = pickEncounterText(kind, enemy.name);
+    const art = resolveEncounterArt(enemy, kind);
+    renderScene('encounter', { kind, enemy });
+    if (ui.encounterImg) {
+        ui.encounterImg.classList.add('hidden');
+        if (art.src) {
+            ui.encounterImg.onload = () => ui.encounterImg.classList.remove('hidden');
+            ui.encounterImg.onerror = () => ui.encounterImg.classList.add('hidden'); // le sprite agrandi reste dessous
+            ui.encounterImg.src = art.src;
+            // Même image que la fois précédente : déjà chargée, `load` peut ne pas se redéclencher.
+            if (ui.encounterImg.complete && ui.encounterImg.naturalWidth) ui.encounterImg.classList.remove('hidden');
+        } else {
+            ui.encounterImg.onload = ui.encounterImg.onerror = null;
+        }
+    }
+    ui.encounterTitle.innerText = text.title;
+    ui.encounterTitle.style.color = text.accent;
+    ui.encounterLine.innerText = text.line;
+    ui.encounterHint.innerText = text.hint;
+    ui.encounterBanner.style.borderColor = text.accent;
+    playSfx(kind === 'boss' || kind === 'hunter' ? 'bossSting' : 'encounterSting');
+    if (typeof document.activeElement !== 'undefined' && document.activeElement && document.activeElement.blur) document.activeElement.blur(); // Entrée ne doit pas réactiver le bouton qui a mené ici
+    closeInventorySheets();
+    gameState.encounterIntroPending = true;
+    encounterIntroCallback = onContinue || null;
+    encounterIntroOpenedAt = Date.now();
+    ui.encounterOverlay.classList.add('enc-enter');
+    ui.encounterOverlay.classList.remove('hidden');
+    ui.encounterArt.classList.remove('enc-play');
+    void ui.encounterOverlay.offsetWidth; // relance les animations à chaque ouverture
+    ui.encounterOverlay.classList.remove('enc-enter');
+    ui.encounterArt.classList.add('enc-play');
+    if (kind === 'boss' && typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(60);
+    return true;
+}
+
+// Ferme l'écran puis enchaîne sur le callback. Ignoré si rien n'est ouvert ou trop tôt (tap résiduel).
+function dismissEncounterIntro(force) {
+    if (!gameState.encounterIntroPending) return false;
+    if (!force && Date.now() - encounterIntroOpenedAt < ENCOUNTER_INTRO_MIN_MS) return false;
+    const cb = encounterIntroCallback;
+    encounterIntroCallback = null;
+    gameState.encounterIntroPending = false;
+    if (ui.encounterOverlay) ui.encounterOverlay.classList.add('hidden');
+    if (ui.encounterArt) ui.encounterArt.classList.remove('enc-play');
+    if (cb) cb();
+    return true;
+}
+
+// DEV : prévisualiser un écran sans déclencher de combat (console du navigateur). Exemple : devPreviewEncounter('unseen', 'Rat Goulot').
+function devPreviewEncounter(kind = 'spotted', mobName = null) {
+    let enemy = null;
+    if (mobName) {
+        const boss = Object.values(districtBosses).find(b => b.name === mobName);
+        const base = boss || findMobByName(mobName) || bountyHunters.find(h => h.name === mobName);
+        if (base) enemy = Object.assign({}, base, { baseName: base.name, hp: base.hp || 1, isBoss: !!boss });
+    }
+    return showEncounterIntro(kind, enemy || generateMob(gameState.currentDistrict), null);
+}
+
 // DEV uniquement (menu déroulant, voir index.html) : saute directement à l'étage 3 (premier étage
 // urbain), pour tester le réseau de villes sans traverser les étages précédents. Réinitialise tout
 // état bloquant en cours (combat/boss/furtivité/compagnon) avant le saut, comme resetTransientState()
@@ -8877,6 +9145,7 @@ function gameOver(timeout = false, killer = null) {
     gameState.inCombat = true; // Bloque toute action supplémentaire
     ui.combatZone.classList.add('hidden'); // Cache la zone de combat
     triggerHeavyImpact(); // Chantier 4 : la mort du joueur est l'un des 4 moments à hiérarchie forte
+    playSfx('gameOverDirge');
 
     const reason = timeout
         ? "Le temps est écoulé. Le donjon s'effondre sur vous..."
@@ -8929,6 +9198,7 @@ function winGame() {
     gameState.inCombat = true; // Bloque toute action supplémentaire, même logique que gameOver()
     gameState.hasWon = true;
     ui.combatZone.classList.add('hidden');
+    playSfx('victoryFanfare');
 
     logEvent("🎉 Vous franchissez la Sortie et quittez le Donjon, vivant !", "success");
     logEvent("--- VICTOIRE ---", "success");
@@ -9033,7 +9303,30 @@ if (ui.combatZone) {
         requestCombatSkip();
     });
 }
+// Sons (chantier 8) : boutons de coupure, page d'écoute, déverrouillage audio au premier geste.
+updateSoundToggleButtons();
+if (ui.btnSoundToggle) ui.btnSoundToggle.addEventListener('click', toggleSoundMuted);
+if (ui.btnOpenSoundLab) ui.btnOpenSoundLab.addEventListener('click', openSoundLab);
+if (ui.btnCloseSoundLab) ui.btnCloseSoundLab.addEventListener('click', closeSoundLab);
+if (ui.soundLabList) {
+    ui.soundLabList.addEventListener('click', (e) => {
+        const button = e.target && e.target.closest ? e.target.closest('[data-sfx]') : null;
+        if (button) playSfx(button.getAttribute('data-sfx'), { force: true });
+    });
+}
+['pointerdown', 'keydown'].forEach(type => document.addEventListener(type, () => unlockAudio(), { once: true, capture: true }));
+if (ui.encounterModeSelect) {
+    ui.encounterModeSelect.value = getEncounterIntroMode();
+    ui.encounterModeSelect.addEventListener('change', () => setEncounterIntroMode(ui.encounterModeSelect.value));
+}
+// Écran de rencontre : un tap n'importe où, ou Espace/Entrée/Échap, le ferme (jamais de fermeture automatique).
+if (ui.encounterOverlay) bindTap(ui.encounterOverlay, () => dismissEncounterIntro());
 document.addEventListener('keydown', (e) => {
+    if (gameState.encounterIntroPending && (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape')) {
+        if (e.preventDefault) e.preventDefault();
+        dismissEncounterIntro();
+        return;
+    }
     if (e.code !== 'Space' && e.code !== 'Enter') return;
     const activeTag = document.activeElement && document.activeElement.tagName;
     if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return; // ne gêne jamais la saisie (nom du crawler...)
@@ -9053,7 +9346,8 @@ ui.btnLeaveSafehouse.addEventListener('click', leaveSafehouse);
 
 // Clics sur les boutons de choix de furtivité (Esquiver / Attaque Furtive)
 ui.btnStealthEvade.addEventListener('click', attemptStealthEvasion);
-ui.btnStealthAttack.addEventListener('click', attemptStealthAttack);
+ui.btnStealthAttack.addEventListener('click', () => attemptStealthAttack('melee'));
+ui.btnStealthRanged.addEventListener('click', () => attemptStealthAttack('ranged'));
 
 // Clics sur les boutons de rencontre de compagnon
 ui.btnRecruitFriendly.addEventListener('click', recruitCompanion);

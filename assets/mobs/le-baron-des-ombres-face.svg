@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Le Baron des Ombres, boss du Marché Noir du Donjon, cadrage « face ». Aucun texte. -->
+  <defs>
+    <pattern id="marche-mur" width="100" height="66" patternUnits="userSpaceOnUse">
+      <rect width="100" height="66" fill="#211d2b"/>
+      <rect x="4" y="4" width="92" height="58" rx="4" fill="#2a2438"/>
+      <rect x="4" y="4" width="92" height="10" fill="#332c48"/>
+      <circle cx="24" cy="34" r="4" fill="#332c48"/>
+      <circle cx="72" cy="46" r="5" fill="#332c48"/>
+      <circle cx="55" cy="22" r="3" fill="#3a3352"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#marche-mur)"/>
+  <rect x="0" y="0" width="750" height="64" fill="#1a1722"/>
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="40" y="600" width="180" height="100" rx="8" fill="#2a2438"/>
+    <path d="M40 640 h180" stroke-width="4"/>
+    <rect x="60" y="655" width="140" height="30" rx="5" fill="#1f1a2c"/>
+    <rect x="530" y="650" width="180" height="100" rx="8" fill="#2a2438"/>
+    <path d="M530 690 h180" stroke-width="4"/>
+    <rect x="550" y="705" width="140" height="30" rx="5" fill="#1f1a2c"/>
+    <path d="M0 200 Q190 280 375 210 Q560 280 750 200" fill="none" stroke="#332c48" stroke-width="7"/>
+    <circle cx="190" cy="252" r="14" fill="#ffd76a" opacity="0.7"/>
+    <circle cx="560" cy="252" r="14" fill="#3a3352"/>
+  </g>
+  <ellipse cx="190" cy="300" rx="100" ry="75" fill="#ffd76a" opacity="0.07"/>
+  <ellipse cx="375" cy="680" rx="340" ry="280" fill="#2c2540" opacity="0.45"/>
+  <path d="M120 900 q-10 -90 40 -110 q50 18 40 110 Z" fill="#1c1826" stroke="#05060c" stroke-width="5"/>
+  <path d="M640 920 q-12 -80 36 -100 q46 16 38 100 Z" fill="#1c1826" stroke="#05060c" stroke-width="5"/>
+    <!-- Enseigne de boutique du marché noir, illisible (formes, aucune lettre) -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="300" y="240" width="140" height="58" rx="10" fill="#1f1a2c"/>
+    <rect x="316" y="258" width="108" height="22" rx="6" fill="#332c48"/>
+    <circle cx="330" cy="269" r="6" fill="#ffd76a" opacity="0.7"/>
+    <path d="M370 96 v26" stroke-width="5"/>
+  </g>
+  <!-- Caisse de contrebande entrouverte -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="90" y="880" width="120" height="90" rx="6" fill="#2a2438"/>
+    <path d="M90 880 l30 -30 h120 l-30 30 Z" fill="#332c48"/>
+    <path d="M210 850 v90" stroke-width="5"/>
+    <circle cx="150" cy="925" r="10" fill="#3a3352"/>
+  </g>
+  <rect x="0" y="1040" width="750" height="294" fill="#241f30"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g fill="none" stroke="#1e1a28" stroke-width="6">
+    <path d="M0 1115 h750 M0 1200 h750 M0 1280 h750 M160 1040 v75 M450 1040 v75 M660 1115 v85 M300 1115 v85 M120 1200 v80 M540 1200 v80"/>
+  </g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
+    <!-- ===== AURA STUN vivante : halo irrégulier + éclats et étincelles (#fde047) ===== -->
+  <path d="M375 260 C555 280 655 445 638 640 C622 830 530 945 375 963 C220 945 128 830 112 640 C95 445 195 280 375 260 Z" fill="#fde047" opacity="0.09"/>
+  <path d="M375 360 C505 380 575 505 562 635 C550 765 475 840 375 853 C275 840 200 765 188 635 C175 505 245 380 375 360 Z" fill="#fde047" opacity="0.12"/>
+  <g stroke="#fde047" stroke-linecap="round" fill="none">
+    <path d="M195 400 l-16 -22 l16 -8 l-14 -20" stroke-width="8" opacity="0.85"/>
+    <path d="M555 450 l16 -22 l-16 -8 l14 -20" stroke-width="8" opacity="0.85"/>
+    <path d="M175 770 l-20 -16 l14 -14" stroke-width="7" opacity="0.7"/>
+    <path d="M575 790 l20 -14 l-12 -14" stroke-width="7" opacity="0.7"/>
+  </g>
+  <g fill="#fde047" stroke="#05060c" stroke-width="3">
+    <circle cx="238" cy="540" r="9" opacity="0.8"/><circle cx="515" cy="580" r="7" opacity="0.75"/>
+  </g>
+
+  <ellipse cx="375" cy="1058" rx="160" ry="22" fill="#05060c" opacity="0.4"/>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-width="11">
+    <path d="M255 600 C220 710 230 860 265 935 C315 905 345 935 375 910 C405 935 435 905 485 935 C520 860 530 710 495 600 C460 565 425 555 375 555 C325 555 290 565 255 600 Z" fill="#4a4460" opacity="0.95"/>
+    <path d="M375 600 l-42 -22 v44 Z M375 600 l42 -22 v44 Z" fill="#d1d5db" stroke-width="7"/>
+    <circle cx="375" cy="600" r="10" fill="#2a2438" stroke-width="6"/>
+    <g fill="#d1d5db" stroke-width="5">
+      <circle cx="375" cy="700" r="9"/>
+      <circle cx="375" cy="810" r="9"/>
+      <circle cx="375" cy="910" r="9"/>
+    </g>
+    <path d="M265 935 C315 905 345 935 375 910 C405 935 435 905 485 935" fill="none" stroke="#2a2438" stroke-width="10"/>
+    <path d="M300 615 C245 640 205 700 198 760 L258 775 C270 715 305 668 340 652 Z" fill="#4a4460" stroke-width="9" opacity="0.95"/>
+    <circle cx="228" cy="785" r="26" fill="#d1d5db" stroke-width="7"/>
+    <g stroke-width="8">
+      <rect x="130" y="700" width="26" height="90" rx="12" fill="#111827" transform="rotate(-24 143 745)"/>
+      <path d="M150 745 L66 590" stroke="#d1d5db" stroke-width="12"/>
+      <path d="M150 745 L66 590 L74 588 Z" fill="#d1d5db" stroke-width="5"/>
+      <circle cx="154" cy="752" r="14" fill="#9ca3af"/>
+    </g>
+    <path d="M455 610 C505 630 530 680 520 725 L470 720 C474 682 455 648 425 635 Z" fill="#4a4460" stroke-width="9" opacity="0.95"/>
+    <circle cx="495" cy="730" r="24" fill="#d1d5db" stroke-width="7"/>
+    <rect x="347" y="492" width="56" height="56" fill="#3a3050" stroke-width="8"/>
+    <path d="M285 358 C285 292 313 248 375 248 C437 248 465 292 465 358 C465 424 449 476 421 497 C407 507 391 512 375 512 C359 512 343 507 329 497 C301 476 285 424 285 358 Z" fill="#3a3050" stroke-width="12"/>
+    <circle cx="336" cy="378" r="13" fill="#ffd76a" stroke-width="6"/>
+    <circle cx="336" cy="378" r="5" fill="#05060c"/>
+    <g>
+      <circle cx="415" cy="378" r="32" fill="#e8f4ff" fill-opacity="0.5" stroke="#caa23a" stroke-width="8"/>
+      <circle cx="415" cy="378" r="12" fill="#ffd76a" stroke-width="5"/>
+      <circle cx="415" cy="378" r="5" fill="#05060c"/>
+      <path d="M435 400 q12 14 6 26" fill="none" stroke="#caa23a" stroke-width="5"/>
+    </g>
+    <path d="M302 344 L356 358" stroke-width="10" stroke-linecap="round"/>
+    <path d="M448 342 L396 358" stroke-width="10" stroke-linecap="round"/>
+    <path d="M340 448 Q376 462 412 444" fill="none" stroke-width="8"/>
+    <path d="M336 444 q-16 6 -22 2 M414 440 q16 6 22 2" fill="none" stroke="#d1d5db" stroke-width="6"/>
+    <g>
+      <rect x="312" y="164" width="126" height="116" rx="13" fill="#2a2438"/>
+      <rect x="312" y="248" width="126" height="16" fill="#caa23a"/>
+      <rect x="288" y="264" width="174" height="24" rx="12" fill="#2a2438" stroke-width="8"/>
+    </g>
+    <path d="M322 170 L330 108 L352 144 L375 88 L398 144 L420 108 L428 170 Z" fill="#caa23a" stroke-width="8"/>
+  </g>
+</svg>

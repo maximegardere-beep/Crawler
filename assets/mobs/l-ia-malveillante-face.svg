@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- L'IA Malveillante, boss de la Salle des Machines Infernales, cadrage « face ». Aucun texte. -->
+  <defs>
+    <pattern id="machines-tole" width="110" height="70" patternUnits="userSpaceOnUse">
+      <rect width="110" height="70" fill="#2c3136"/>
+      <rect x="2" y="2" width="106" height="66" rx="5" fill="#373e45"/>
+      <circle cx="12" cy="12" r="3" fill="#252a30"/>
+      <circle cx="98" cy="12" r="3" fill="#252a30"/>
+      <circle cx="12" cy="58" r="3" fill="#252a30"/>
+      <circle cx="98" cy="58" r="3" fill="#252a30"/>
+      <path d="M0 35 h110" stroke="#252a30" stroke-width="5"/>
+      <rect x="20" y="16" width="26" height="12" rx="2" fill="#3f4750"/>
+      <rect x="64" y="44" width="26" height="12" rx="2" fill="#3f4750"/>
+    </pattern>
+  </defs>
+  <rect x="0" y="0" width="750" height="1040" fill="url(#machines-tole)"/>
+  <rect x="0" y="0" width="750" height="70" fill="#22262b"/>
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="55" y="480" width="150" height="380" rx="8" fill="#333b42"/>
+    <path d="M70 530 h120 M70 590 h120 M70 650 h120 M70 710 h120 M70 770 h120" stroke-width="4"/>
+    <circle cx="90" cy="530" r="6" fill="#4ade80"/>
+    <circle cx="90" cy="650" r="6" fill="#ef4444"/>
+    <circle cx="90" cy="710" r="6" fill="#fbbf24"/>
+    <rect x="545" y="440" width="150" height="420" rx="8" fill="#333b42"/>
+    <path d="M560 500 h120 M560 560 h120 M560 620 h120 M560 680 h120 M560 740 h120" stroke-width="4"/>
+    <circle cx="580" cy="560" r="6" fill="#ef4444"/>
+    <circle cx="580" cy="680" r="6" fill="#4ade80"/>
+  </g>
+  <ellipse cx="375" cy="700" rx="340" ry="280" fill="#37404a" opacity="0.4"/>
+  <path d="M0 250 L250 190 M750 250 L500 190" stroke="#ef4444" stroke-width="5" opacity="0.35"/>
+  <ellipse cx="130" cy="380" rx="120" ry="85" fill="#fde047" opacity="0.05"/>
+  <g fill="none" stroke="#22262b" stroke-width="16">
+    <path d="M340 70 q-30 90 10 160"/>
+    <path d="M410 70 q30 80 -6 150"/>
+  </g>
+    <!-- Manomètre surbaissé + tuyau de vapeur qui siffle -->
+  <g stroke="#05060c" stroke-width="6">
+    <circle cx="250" cy="250" r="26" fill="#333b42"/>
+    <path d="M250 250 l14 -12" stroke="#ef4444" stroke-width="5"/>
+    <circle cx="250" cy="250" r="4" fill="#05060c"/>
+    <path d="M276 250 h60" stroke-width="10"/>
+    <path d="M480 300 q-10 -30 8 -46 q-4 -18 10 -26" fill="none" stroke="#9ca3af" stroke-width="7" opacity="0.6"/>
+  </g>
+  <!-- Panneau d'avertissement illisible (formes, aucune lettre) -->
+  <g stroke="#05060c" stroke-width="6">
+    <path d="M460 480 l26 44 h-52 Z" fill="#3d4750"/>
+    <path d="M460 494 v16 M460 516 v4" stroke="#fbbf24" stroke-width="7"/>
+  </g>
+  <rect x="0" y="1040" width="750" height="294" fill="#282d33"/>
+  <path d="M0 1040 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#212529" stroke-width="6">
+    <path d="M50 1105 h650 M30 1180 h690 M50 1255 h650 M30 1310 h690"/>
+    <path d="M140 1045 v290 M380 1045 v290 M620 1045 v290"/>
+  </g>
+  <rect x="0" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
+  <rect x="695" y="0" width="55" height="1334" fill="#05060c" opacity="0.24"/>
+    <!-- ===== AURA STUN vivante : halo irrégulier + arcs électriques (#fde047) ===== -->
+  <path d="M375 260 C555 280 655 445 638 635 C622 820 530 935 375 953 C220 935 128 820 112 635 C95 445 195 280 375 260 Z" fill="#fde047" opacity="0.10"/>
+  <path d="M375 355 C505 375 575 500 562 630 C550 755 475 830 375 843 C275 830 200 755 188 630 C175 500 245 375 375 355 Z" fill="#fde047" opacity="0.13"/>
+  <g stroke="#fde047" stroke-linecap="round" fill="none">
+    <path d="M185 400 l-16 -24 l16 -8 l-14 -22" stroke-width="8" opacity="0.85"/>
+    <path d="M565 440 l16 -24 l-16 -8 l14 -22" stroke-width="8" opacity="0.85"/>
+    <path d="M665 560 l18 -14 l-8 -18 l20 -8" stroke-width="6" opacity="0.75"/>
+    <path d="M665 750 l22 10 l-10 16 l16 14" stroke-width="6" opacity="0.7"/>
+    <path d="M150 700 l-24 8 l10 20 l-22 12" stroke-width="6" opacity="0.65"/>
+  </g>
+  <g fill="#fde047" stroke="#05060c" stroke-width="3">
+    <circle cx="235" cy="540" r="9" opacity="0.8"/><circle cx="520" cy="580" r="7" opacity="0.75"/>
+    <circle cx="255" cy="820" r="8" opacity="0.7"/>
+  </g>
+
+  <ellipse cx="375" cy="1050" rx="250" ry="30" fill="#05060c" opacity="0.5"/>
+  <g stroke="#05060c" stroke-linejoin="round" stroke-width="11">
+    <g>
+      <rect x="145" y="920" width="460" height="90" rx="45" fill="#3a5f66"/>
+      <circle cx="220" cy="965" r="30" fill="#252a30" stroke-width="8"/>
+      <circle cx="375" cy="965" r="30" fill="#252a30" stroke-width="8"/>
+      <circle cx="530" cy="965" r="30" fill="#252a30" stroke-width="8"/>
+      <circle cx="220" cy="965" r="11" fill="#3a5f66" stroke-width="6"/>
+      <circle cx="375" cy="965" r="11" fill="#3a5f66" stroke-width="6"/>
+      <circle cx="530" cy="965" r="11" fill="#3a5f66" stroke-width="6"/>
+    </g>
+    <rect x="185" y="560" width="380" height="360" rx="18" fill="#59919a"/>
+    <path d="M210 620 h330 M210 655 h330 M210 690 h330 M210 725 h330 M210 760 h330" stroke="#3a5f66" stroke-width="9"/>
+    <g stroke-width="5">
+      <circle cx="215" cy="610" r="7" fill="#fbbf24"/>
+      <circle cx="215" cy="648" r="7" fill="#ef4444"/>
+      <circle cx="215" cy="686" r="7" fill="#4ade80"/>
+      <circle cx="215" cy="724" r="7" fill="#ef4444"/>
+    </g>
+    <path d="M500 820 q30 -20 44 -6" fill="none" stroke="#3a5f66" stroke-width="7"/>
+    <path d="M185 700 q-60 30 -70 90" fill="none" stroke-width="20"/>
+    <path d="M185 700 q-60 30 -70 90" fill="none" stroke="#3a5f66" stroke-width="11"/>
+    <path d="M565 700 q60 30 70 90" fill="none" stroke-width="20"/>
+    <path d="M565 700 q60 30 70 90" fill="none" stroke="#3a5f66" stroke-width="11"/>
+    <rect x="255" y="330" width="240" height="190" rx="20" fill="#0b1220" stroke-width="12"/>
+    <circle cx="322" cy="405" r="32" fill="#ef4444" stroke-width="8"/>
+    <circle cx="428" cy="405" r="32" fill="#ef4444" stroke-width="8"/>
+    <circle cx="322" cy="405" r="13" fill="#05060c"/>
+    <circle cx="428" cy="405" r="13" fill="#05060c"/>
+    <path d="M295 478 l16 -18 l16 18 l16 -18 l16 18 l16 -18 l16 18 l16 -18 l16 18" fill="none" stroke="#ef4444" stroke-width="9"/>
+    <path d="M282 355 L360 372 M468 353 L390 372" stroke="#ef4444" stroke-width="12" stroke-linecap="round"/>
+    <line x1="375" y1="330" x2="375" y2="240" stroke-width="12"/>
+    <circle cx="375" cy="228" r="20" fill="#fbbf24" stroke-width="8"/>
+    <path d="M345 228 a30 30 0 0 1 60 0" fill="none" stroke="#fbbf24" stroke-width="6" opacity="0.6"/>
+    <g stroke-width="9">
+      <path d="M330 620 H580 Q610 620 610 660 V710 H330 Z" fill="#e5e7eb"/>
+      <rect x="600" y="640" width="40" height="50" rx="8" fill="#6b7280"/>
+      <circle cx="430" cy="668" r="20" fill="#dc2626" stroke-width="7"/>
+      <path d="M375 625 v65 M425 625 v65 M475 625 v65 M525 625 v65" stroke="#9ca3af" stroke-width="6"/>
+    </g>
+    <ellipse cx="648" cy="665" rx="22" ry="34" fill="#fde047" opacity="0.8" stroke-width="6"/>
+    <ellipse cx="676" cy="665" rx="12" ry="22" fill="#fde047" opacity="0.5" stroke="none"/>
+    <path d="M310 172 L320 102 L350 142 L375 82 L400 142 L430 102 L440 172 Z" fill="#caa23a" stroke-width="8"/>
+  </g>
+</svg>

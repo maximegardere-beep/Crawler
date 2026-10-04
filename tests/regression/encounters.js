@@ -1,0 +1,474 @@
+// encounters.js — tests régression : chantier 16, lot 0 (catalogue pur des écrans de rencontre : types, textes,
+// manifeste des images, résolution, liste ordonnée des images à faire). Voir encounters.js et CHANTIERS.md (chantier 16).
+const fs = require('fs');
+const path = require('path');
+const { assert, resetTransientState, withEncounterIntro } = require('./_helpers.js');
+
+const seq = (values) => { let i = 0; return () => values[i++ % values.length]; };
+
+// --- Types de rencontre ---
+{
+    const kinds = Object.keys(ENCOUNTER_KINDS);
+    assert(['spotted', 'ambush', 'unseen', 'boss', 'hunter'].every(k => kinds.includes(k)) && kinds.length === 5, "Encounters : les 5 types de rencontre existent");
+    kinds.forEach(k => {
+        const d = ENCOUNTER_KINDS[k];
+        assert((d.view === 'face' || d.view === 'back') && /^#[0-9a-f]{6}$/i.test(d.accent) && d.hint, `Type ${k} : cadrage, couleur d'accent et invite de fermeture`);
+        assert(d.titles.length >= 3 && d.lines.length >= 3, `Type ${k} : au moins 3 titres et 3 répliques`);
+        assert(d.titles.every(t => t.includes('{mob}')) || k === 'boss', `Type ${k} : tous les titres citent le mob`);
+        assert([...d.titles, ...d.lines].every(t => typeof t === 'string' && t.length > 0), `Type ${k} : textes non vides`);
+    });
+    assert(ENCOUNTER_KINDS.unseen.view === 'back' && kinds.filter(k => k !== 'unseen').every(k => ENCOUNTER_KINDS[k].view === 'face'), "Seule « tu l'as vu » (unseen) est de dos");
+    assert(encounterKindView('unseen') === 'back' && encounterKindView('inconnu') === 'face', "encounterKindView() : cadrage du type, 'face' par défaut");
+}
+
+// --- Slugs et chemins ---
+{
+    assert(encounterArtSlug("Le Chef de Gare Nécrosé") === 'le-chef-de-gare-necrose', "Slug : minuscules, sans accents");
+    assert(encounterArtSlug("L'IA Malveillante") === 'l-ia-malveillante', "Slug : apostrophe -> tiret");
+    assert(encounterArtSlug("Le Directeur Général (Édition Cauchemar)") === 'le-directeur-general-edition-cauchemar', "Slug : parenthèses, tirets en double et extrémités supprimés");
+    assert(encounterArtSlug("Maître-Nageur Zombifié") === 'maitre-nageur-zombifie' && encounterArtSlug("Cône de Chantier Fou") === 'cone-de-chantier-fou', "Slug : tiret existant et accents");
+    assert(encounterArtSlug(null) === '' && encounterArtSlug(undefined) === '', "Slug : entrée vide -> chaîne vide");
+    assert(encounterArtPath("Mob de Test", 'back') === 'assets/mobs/mob-de-test-back.webp', "encounterArtPath() : dossier, slug, cadrage, extension");
+}
+
+// --- Cibles à produire ---
+{
+    const targets = encounterArtTargets();
+    const bosses = Object.values(districtBosses), mobs = baseMobs;
+    assert(targets.length === bosses.length + bountyHunters.length + mobs.length * 2, "Cibles : 1 plan par boss et chasseur, 2 par mob");
+    const slugs = [...new Set([...bosses.map(b => b.name), ...bountyHunters.map(h => h.name), ...mobs.map(m => m.name)].map(encounterArtSlug))];
+    assert(slugs.length === bosses.length + bountyHunters.length + mobs.length, "Aucun slug en double entre boss, chasseurs et mobs (sinon deux mobs écraseraient la même image)");
+    const paths = targets.map(t => t.path);
+    assert(new Set(paths).size === paths.length && paths.every(p => /^assets\/mobs\/[a-z0-9-]+-(face|back)\.(webp|svg)$/.test(p)), "Cibles : chemins uniques et bien formés");
+    assert(targets.slice(0, bosses.length).every(t => t.kind === 'boss' && t.view === 'face'), "Ordre : les 13 boss d'abord, en face");
+    assert(targets.slice(bosses.length, bosses.length + bountyHunters.length).every(t => t.kind === 'hunter'), "Ordre : puis les chasseurs de primes");
+    const mobTargets = targets.filter(t => t.kind === 'mob');
+    const power = (name) => { const m = mobs.find(x => x.name === name); return m.hp * m.atk * (1 + m.def / 20); };
+    const firstFaces = mobTargets.filter(t => t.view === 'face').map(t => power(t.name));
+    assert(firstFaces.every((p, i) => i === 0 || firstFaces[i - 1] >= p), "Ordre : mobs du plus puissant au plus faible");
+    assert(mobTargets.every((t, i) => i % 2 === 0 ? t.view === 'face' : (t.view === 'back' && t.name === mobTargets[i - 1].name)), "Chaque mob : face puis dos");
+    assert(targets.every(t => t.kind === 'boss' || t.kind === 'hunter' || t.kind === 'mob') && targets.every(t => typeof t.done === 'boolean'), "Cibles : type et état « fait » renseignés");
+}
+
+// --- Manifeste : cohérence avec les mobs et les fichiers ---
+{
+    const known = new Set([...Object.values(districtBosses).map(b => b.name), ...bountyHunters.map(h => h.name), ...baseMobs.map(m => m.name)]);
+    Object.entries(ENCOUNTER_ART).forEach(([name, views]) => {
+        assert(known.has(name), `Manifeste : « ${name} » est un vrai mob, boss ou chasseur`);
+        Object.entries(views).forEach(([view, ok]) => {
+            assert((view === 'face' || view === 'back') && (ok === true || ok === 'webp' || ok === 'svg'), `Manifeste : « ${name} » ${view} bien formé`);
+            assert(fs.existsSync(path.join(__dirname, '..', '..', encounterArtPath(name, view))), `Manifeste : le fichier ${encounterArtPath(name, view)} existe`);
+        });
+    });
+    // Tout fichier de assets/mobs/ doit être déclaré (sinon il serait livré sans jamais s'afficher).
+    const dir = path.join(__dirname, '..', '..', 'assets', 'mobs');
+    const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => f.endsWith('.webp') || f.endsWith('.svg')) : [];
+    const declared = new Set();
+    Object.entries(ENCOUNTER_ART).forEach(([name, views]) => Object.keys(views).forEach(v => declared.add(encounterArtPath(name, v).replace('assets/mobs/', ''))));
+    assert(files.every(f => declared.has(f)), "Chaque image de assets/mobs/ est déclarée dans ENCOUNTER_ART");
+}
+
+// --- Résolution de l'image ---
+{
+    const saved = ENCOUNTER_ART['Mob de Test'], savedBoss = ENCOUNTER_ART['Le Chef de Gare Nécrosé'];
+    try {
+        const none = resolveEncounterArt({ name: 'Mob de Test Enflammé', baseName: 'Mob de Test' }, 'spotted');
+        assert(none.fallback === true && none.src === null && none.name === 'Mob de Test' && none.view === 'face', "Sans image au manifeste : repli sur le sprite, nom de référence = baseName");
+        ENCOUNTER_ART['Mob de Test'] = { face: true };
+        const face = resolveEncounterArt({ name: 'Enragé Mob de Test Enflammé', baseName: 'Mob de Test' }, 'ambush');
+        assert(!face.fallback && face.src === 'assets/mobs/mob-de-test-face.webp', "Image face déclarée : chemin du WebP");
+        const back = resolveEncounterArt({ name: 'Mob de Test', baseName: 'Mob de Test' }, 'unseen');
+        assert(back.fallback === true && back.view === 'back' && back.src === null, "Cadrage dos non livré : repli, même si la face existe");
+        ENCOUNTER_ART['Mob de Test'] = { face: true, back: true };
+        assert(resolveEncounterArt({ baseName: 'Mob de Test' }, 'unseen').src === 'assets/mobs/mob-de-test-back.webp', "Dos livré : chemin du WebP de dos");
+        const old = resolveEncounterArt({ name: 'Mob de Test Enflammé' }, 'spotted');
+        assert(old.name === 'Mob de Test' && old.src === 'assets/mobs/mob-de-test-face.webp', "Ancienne sauvegarde sans baseName : plus long nom connu en préfixe");
+        ENCOUNTER_ART['Le Chef de Gare Nécrosé'] = { face: true };
+        assert(resolveEncounterArt({ name: 'Le Chef de Gare Nécrosé (intérimaire)', baseName: 'Le Chef de Gare Nécrosé' }, 'boss').src === 'assets/mobs/le-chef-de-gare-necrose-face.webp', "Boss intérimaire : image du boss d'origine");
+        assert(resolveEncounterArt(null, 'spotted').fallback === true && resolveEncounterArt({}, 'inconnu').fallback === true, "Ennemi absent ou type inconnu : repli, jamais d'exception");
+    } finally {
+        if (saved) ENCOUNTER_ART['Mob de Test'] = saved; else delete ENCOUNTER_ART['Mob de Test'];
+        if (savedBoss) ENCOUNTER_ART['Le Chef de Gare Nécrosé'] = savedBoss; else delete ENCOUNTER_ART['Le Chef de Gare Nécrosé'];
+    }
+}
+
+// --- Textes ---
+{
+    assert(fillEncounterTemplate("{mob} vous a vu, {mob} !", 'Rat') === "Rat vous a vu, Rat !" && fillEncounterTemplate("{mob}", '') === 'Quelque chose', "fillEncounterTemplate() : toutes les occurrences, repli sans nom");
+    const t = pickEncounterText('spotted', 'Rat Goulot', seq([0]));
+    assert(t.title === "Rat Goulot vous a repéré !" && t.line === ENCOUNTER_KINDS.spotted.lines[0] && t.view === 'face' && t.accent === ENCOUNTER_KINDS.spotted.accent, "pickEncounterText() : tirage 0 = premier titre et première réplique");
+    const last = pickEncounterText('hunter', 'Gobelin', seq([0.9999999]));
+    assert(last.title === ENCOUNTER_KINDS.hunter.titles[2].replace('{mob}', 'Gobelin') && last.line === ENCOUNTER_KINDS.hunter.lines[3], "pickEncounterText() : tirage proche de 1 = dernier élément, sans dépassement");
+    assert(pickEncounterText('inconnu', 'X', seq([0])).title === "X vous a repéré !" && pickEncounterText('unseen', 'X').view === 'back', "pickEncounterText() : type inconnu -> spotted, hasard par défaut");
+    const seen = new Set(); for (let i = 0; i < 50; i++) seen.add(pickEncounterText('boss', 'B', seq([i / 50])).line);
+    assert(seen.size === ENCOUNTER_KINDS.boss.lines.length, "pickEncounterText() : toutes les répliques sont atteignables");
+}
+
+// --- Lot 1 : scène de repli (sprite agrandi sur le décor), purement géométrique ---
+{
+    const enemies = [
+        ...baseMobs.map(m => ({ ...m, baseName: m.name })),
+        ...Object.values(districtBosses).map(b => ({ ...b, baseName: b.name, isBoss: true }))
+    ];
+    let ok = true, why = '';
+    for (const e of enemies) {
+        const sprite = resolveMobSprite(e, { aura: true });
+        for (const kind of Object.keys(ENCOUNTER_KINDS)) {
+            const spec = encounterSceneSpec(kind, sprite, !!e.isBoss);
+            const half = Math.max(MOB_EXTENT, sprite.bounds ? Math.max(Math.abs(sprite.bounds[0]), Math.abs(sprite.bounds[1])) : 0) * spec.scale;
+            const topY = spec.y - spec.height;
+            const maxH = spec.view === 'back' ? ENCOUNTER_MOB_HEIGHT.back : (e.isBoss ? ENCOUNTER_MOB_HEIGHT.boss : ENCOUNTER_MOB_HEIGHT.face);
+            if (!(spec.scale > 0 && isFinite(spec.scale))) { ok = false; why = `${e.name}/${kind} échelle`; }
+            else if (spec.x - half < -0.01 || spec.x + half > ENCOUNTER_VIEW.w + 0.01) { ok = false; why = `${e.name}/${kind} déborde en largeur`; }
+            else if (topY < 0) { ok = false; why = `${e.name}/${kind} déborde en haut`; }
+            else if (spec.height > maxH + 0.5) { ok = false; why = `${e.name}/${kind} trop grand`; }
+            else if (spec.y > ENCOUNTER_VIEW.h * 0.78) { ok = false; why = `${e.name}/${kind} sous le bandeau`; }
+            if (!ok) break;
+        }
+        if (!ok) break;
+    }
+    assert(ok, `Scène de rencontre : chaque mob et boss tient dans le cadre portrait, au-dessus du bandeau${why ? ' (' + why + ')' : ''}`);
+    const rat = { ...baseMobs[0], baseName: baseMobs[0].name }, sp = resolveMobSprite(rat, { aura: true });
+    const face = encounterSceneSpec('spotted', sp, false), back = encounterSceneSpec('unseen', sp, false), boss = encounterSceneSpec('boss', sp, true);
+    assert(face.view === 'face' && !face.flip && face.glow && face.y === ENCOUNTER_FACE_GROUND_Y, "Cadrage face : mob de face, halo d'accent, pieds au premier plan");
+    assert(back.view === 'back' && back.flip && !back.glow && back.y < face.y && back.height < face.height, "Cadrage dos : mob retourné, sans halo, plus loin et plus petit");
+    assert(boss.height > face.height - 0.5 || boss.scale <= face.scale + 1e-9, "Boss : au moins aussi imposant qu'un mob (sauf limite de largeur)");
+    assert(encounterSceneSpec('inconnu', sp, false).view === 'face' && encounterSceneSpec('spotted', null, false).scale > 0, "Type inconnu -> face ; sprite absent -> échelle valide");
+}
+
+{
+    const mob = { ...baseMobs[0], baseName: baseMobs[0].name, effect: 'burn' };
+    const boss = { ...Object.values(districtBosses)[0], baseName: Object.values(districtBosses)[0].name, isBoss: true };
+    const faceSvg = composeEncounterScene('spotted', mob, 'Tunnels de Métro Abandonnés', 'xbd');
+    const backSvg = composeEncounterScene('unseen', mob, 'Tunnels de Métro Abandonnés', 'xbd');
+    const bossSvg = composeEncounterScene('boss', boss, 'Jardins Carnivores', 'xbd');
+    assert(!/NaN|undefined/.test(faceSvg + backSvg + bossSvg), "Scène de rencontre : aucun NaN ni undefined dans le SVG");
+    assert(faceSvg.includes('class="enc-glow"') && !backSvg.includes('class="enc-glow"'), "Halo d'accent seulement de face");
+    assert(/scale\(-[\d.]+ [\d.]+\)/.test(backSvg) && !/scale\(-[\d.]+ [\d.]+\)/.test(faceSvg.replace(/scale\(-1 1\)/g, '')), "Mob retourné de dos uniquement");
+    assert(bossSvg.includes('translate(0 ' + (resolveMobSprite(boss, { aura: true }).top - 2) + ')'), "Boss : couronne posée au-dessus du sprite");
+    assert(faceSvg.includes('xbd-enc-vig') && faceSvg.includes('url(#xbd-'), "Identifiants préfixés par scène (jamais ceux du combat 'cbd' ni de l'exploration 'ebd')");
+    assert(composeEncounterScene('spotted', mob, 'Quartier inconnu', 'xbd').length > 500, "Quartier inconnu : décor par défaut");
+}
+
+// --- Lot 1 : ouverture / fermeture de l'overlay ---
+{
+    resetTransientState();
+    let calls = 0;
+    const enemy = { ...baseMobs[0], baseName: baseMobs[0].name };
+    // Sans interface (tests Node, pas de requestAnimationFrame) : callback immédiat, rien d'ouvert.
+    assert(typeof requestAnimationFrame !== 'function', "Prérequis : pas de requestAnimationFrame sous Node");
+    assert(showEncounterIntro('spotted', enemy, () => calls++) === false && calls === 1 && !gameState.encounterIntroPending, "Sans interface : callback appelé tout de suite, aucun blocage");
+    assert(showEncounterIntro('spotted', null, () => calls++) === false && calls === 2, "Ennemi absent : callback appelé, jamais d'exception");
+
+    const realNow = Date.now;
+    let now = 1000000;
+    Date.now = () => now;
+    global.requestAnimationFrame = (fn) => 0;
+    config.encounterIntro.enabled = true;
+    try {
+        assert(showEncounterIntro('spotted', enemy, () => calls++) === true && gameState.encounterIntroPending === true, "Avec interface : l'écran s'ouvre et bloque");
+        assert(isActionBlocked(), "L'écran ouvert bloque les actions (isActionBlocked)");
+        assert(!ui.encounterOverlay.classList.contains('hidden') && ui.encounterTitle.innerText.includes(enemy.name), "Overlay visible, titre au nom du mob");
+        assert(dismissEncounterIntro() === false && gameState.encounterIntroPending && calls === 2, "Tap trop tôt (résiduel) : ignoré");
+        now += ENCOUNTER_INTRO_MIN_MS + 1;
+        assert(dismissEncounterIntro() === true && !gameState.encounterIntroPending && calls === 3, "Tap après le délai : ferme et appelle le callback une fois");
+        assert(ui.encounterOverlay.classList.contains('hidden') && !isActionBlocked(), "Overlay masqué, actions débloquées");
+        assert(dismissEncounterIntro(true) === false && calls === 3, "Une seconde fermeture ne rappelle pas le callback");
+        showEncounterIntro('boss', Object.assign({}, Object.values(districtBosses)[0], { isBoss: true }), () => calls++);
+        assert(dismissEncounterIntro(true) === true && calls === 4, "Fermeture forcée (clavier/test) sans attendre le délai");
+        // Un reset des tests ne laisse jamais l'état bloqué.
+        showEncounterIntro('unseen', enemy, () => calls++);
+        resetTransientState();
+        assert(gameState.encounterIntroPending === false && !isActionBlocked(), "resetTransientState() lève le blocage");
+        dismissEncounterIntro(true);
+        assert(calls === 4, "Callback d'un écran abandonné par un reset jamais rappelé");
+        // Image déclarée : posée sur l'<img> ; non déclarée : cachée.
+        ENCOUNTER_ART['Mob de Test'] = { face: true };
+        showEncounterIntro('spotted', { ...enemy, name: 'Mob de Test', baseName: 'Mob de Test' }, null);
+        assert(ui.encounterImg.src === 'assets/mobs/mob-de-test-face.webp', "Image du manifeste chargée dans l'overlay");
+        dismissEncounterIntro(true);
+        delete ENCOUNTER_ART['Mob de Test'];
+        showEncounterIntro('spotted', { ...enemy, name: 'Mob de Test', baseName: 'Mob de Test' }, null);
+        assert(ui.encounterImg.classList.contains('hidden'), "Sans image au manifeste : <img> masquée, sprite de repli visible");
+        dismissEncounterIntro(true);
+    } finally {
+        Date.now = realNow;
+        config.encounterIntro.enabled = false;
+        delete global.requestAnimationFrame;
+        delete ENCOUNTER_ART['Mob de Test'];
+        resetTransientState();
+    }
+}
+
+// --- Images SVG livrées (format 'svg' du manifeste) ---
+{
+    const fsx = require('fs'), pathx = require('path');
+    const delivered = Object.entries(ENCOUNTER_ART).filter(([, v]) => v.face === 'svg').map(([n]) => n);
+    assert(Object.values(districtBosses).every(b => delivered.includes(b.name)), "Manifeste : les 13 boss sont livrés en SVG");
+    assert(encounterArtPath('Le Boucher Sans Visage', 'face') === 'assets/mobs/le-boucher-sans-visage-face.svg' && encounterArtExt('Mob de Test', 'face') === '.webp', "encounterArtPath() : extension .svg selon le manifeste, .webp par défaut");
+    const boss = { name: 'Le Boucher Sans Visage (intérimaire)', baseName: 'Le Boucher Sans Visage', isBoss: true };
+    const art = resolveEncounterArt(boss, 'boss');
+    assert(!art.fallback && art.src === 'assets/mobs/le-boucher-sans-visage-face.svg', "resolveEncounterArt() : chemin du SVG livré");
+    assert(resolveEncounterArt(boss, 'unseen').fallback === true, "Boss livré en face seulement : le dos retombe sur le sprite");
+    assert(encounterArtTargets().filter(t => t.done).length === Object.values(ENCOUNTER_ART).reduce((n, v) => n + Object.keys(v).length, 0) && encounterArtTargets().filter(t => t.kind === 'boss').every(t => t.done), "Cibles : les 13 boss sont marqués faits, une cible faite par image déclarée");
+    delivered.forEach(n => {
+        Object.keys(ENCOUNTER_ART[n]).forEach(view => {
+            const f = fsx.readFileSync(pathx.join(__dirname, '..', '..', encounterArtPath(n, view)), 'utf8');
+            assert(/<svg[^>]+width="750"[^>]+height="1334"[^>]+viewBox="0 0 750 1334"/.test(f), `SVG « ${n} » (${view}) : portrait 750 x 1334`);
+            assert(!/<text|<script|<image|href=|onload|onclick/i.test(f), `SVG « ${n} » (${view}) : aucun texte, script, image externe ni gestionnaire`);
+            assert(/^[\x00-\x7F]*$/.test((f.match(/\b(?:id|url\(#)[^"')]*/g) || []).join('')), `SVG « ${n} » (${view}) : identifiants ASCII`);
+            assert(f.length < 20000, `SVG « ${n} » (${view}) : léger (< 20 Ko)`);
+        });
+    });
+}
+
+// --- Lot 2 : branchement dans les entrées en combat ---
+{
+    const mob = { ...baseMobs[0], baseName: baseMobs[0].name, hp: 30, atk: 3, def: 1, xpReward: 1 };
+    const boss = { ...Object.values(districtBosses)[0], baseName: Object.values(districtBosses)[0].name, isBoss: true, hp: 99, atk: 5, def: 1, xpReward: 1 };
+    const hunter = { name: 'Gobelin Pisteur de Primes', baseName: 'Gobelin Pisteur de Primes', isBountyHunter: true, hp: 30, atk: 3, def: 1, xpReward: 1 };
+    assert(resolveEncounterKind(boss, 'ambush') === 'boss' && resolveEncounterKind(hunter, 'ambush') === 'hunter', "resolveEncounterKind() : un boss reste 'boss', un chasseur 'hunter', même en embuscade");
+    assert(resolveEncounterKind(mob, 'ambush') === 'ambush' && resolveEncounterKind(mob) === 'spotted' && resolveEncounterKind(mob, 'inconnu') === 'spotted' && resolveEncounterKind(mob, 'boss') === 'spotted', "resolveEncounterKind() : type demandé, 'spotted' par défaut, jamais 'boss'/'hunter' pour un mob ordinaire");
+
+    // Sans interface : le combat démarre tout de suite (comportement d'avant).
+    resetTransientState();
+    initiateCombat(mob);
+    assert(gameState.inCombat && gameState.currentEnemy === mob && !gameState.encounterIntroPending, "Sans interface : initiateCombat() démarre le combat immédiatement");
+
+    const realNow = Date.now; let now = 5000000; Date.now = () => now;
+    global.requestAnimationFrame = () => 0;
+    config.encounterIntro.enabled = true;
+    try {
+        // Rencontre repérée : l'écran s'ouvre d'abord, le combat ne démarre qu'au tap.
+        resetTransientState();
+        initiateCombat(mob);
+        assert(gameState.encounterIntroPending && !gameState.inCombat && gameState.currentEnemy === null, "Avec interface : l'écran précède le combat (rien ne démarre avant le tap)");
+        assert(isActionBlocked() && ui.encounterTitle.innerText.includes(mob.name) && ui.encounterHint.innerText === ENCOUNTER_KINDS.spotted.hint, "Écran « il t'a vu » : actions bloquées, titre au nom du mob");
+        now += ENCOUNTER_INTRO_MIN_MS + 1;
+        dismissEncounterIntro();
+        assert(!gameState.encounterIntroPending && gameState.inCombat && gameState.currentEnemy === mob, "Au tap : le combat démarre avec l'ennemi annoncé");
+        resetTransientState();
+
+        // Embuscade de trajet.
+        initiateCombat(mob, { intro: 'ambush' });
+        assert(ui.encounterTitle.innerText.includes('Embuscade') || ui.encounterTitle.innerText.includes('jaillit') || ui.encounterTitle.innerText.includes('Guet-apens'), "Embuscade : titre d'embuscade");
+        dismissEncounterIntro(true); resetTransientState();
+
+        // Boss et chasseur : leur type l'emporte.
+        initiateCombat(boss, { intro: 'ambush' });
+        assert(ui.encounterTitle.innerText.includes(boss.name) && ui.encounterHint.innerText.includes('affronter'), "Boss : écran d'arrivée de boss, même demandé en embuscade");
+        dismissEncounterIntro(true); resetTransientState();
+        initiateCombat(hunter);
+        assert(ui.encounterTitle.innerText.includes('RECHERCHÉ') || ui.encounterTitle.innerText.includes('prime') || ui.encounterTitle.innerText.includes('retrouvé'), "Chasseur de primes : écran dédié");
+        dismissEncounterIntro(true); resetTransientState();
+
+        // Aucun écran : combat enchaîné, compagnon hostile, attaque furtive.
+        initiateCombat(mob, { intro: false });
+        assert(gameState.inCombat && !gameState.encounterIntroPending, "{ intro: false } : combat immédiat, aucun écran");
+        resetTransientState();
+
+        // Rencontre furtive : l'écran « tu l'as vu » précède les boutons Esquiver / Attaque furtive.
+        const savedRandom = Math.random;
+        Math.random = () => 0.0; // détecté = faux : 0 < chance de furtivité
+        try {
+            handleStealthEncounter();
+        } finally { Math.random = savedRandom; }
+        if (gameState.stealthChoicePending) {
+            assert(gameState.encounterIntroPending && ui.stealthChoiceZone.classList.contains('hidden'), "Furtif non repéré : l'écran précède les boutons (zone encore masquée)");
+            assert(ui.encounterHint.innerText.length > 0 && ui.encounterTitle.innerText.length > 0, "Écran « tu l'as vu » renseigné");
+            dismissEncounterIntro(true);
+            assert(!ui.stealthChoiceZone.classList.contains('hidden') && gameState.stealthChoicePending, "Au tap : les boutons Esquiver / Attaque furtive apparaissent");
+            attemptStealthAttack();
+            assert(gameState.inCombat && !gameState.encounterIntroPending && ui.encounterOverlay.classList.contains('hidden'), "Attaque furtive : combat direct, sans second écran");
+        }
+        resetTransientState();
+
+        // Boss en cache : l'écran n'est montré que la première fois.
+        const room = { id: 'r-test', type: 'boss', bossInstance: boss, guardsStairs: false };
+        gameState.floorMap = gameState.floorMap || {};
+        delete boss._encounterShown;
+        triggerBossEncounter(room);
+        assert(gameState.encounterIntroPending && ui.bossChoiceZone.classList.contains('hidden'), "Arrivée d'un boss : écran d'abord, choix Combattre / Repérer ensuite");
+        dismissEncounterIntro(true);
+        assert(!ui.bossChoiceZone.classList.contains('hidden') && gameState.bossChoicePending, "Au tap : le choix de boss apparaît");
+        resetTransientState();
+        triggerBossEncounter(room);
+        assert(!gameState.encounterIntroPending && !ui.bossChoiceZone.classList.contains('hidden'), "Retour devant le même boss : pas de second écran");
+        resetTransientState();
+        delete boss._encounterShown;
+        setEncounterIntroMode('off');
+        triggerBossEncounter(room);
+        assert(!gameState.encounterIntroPending && !boss._encounterShown, "Réglage « Jamais » : le boss n'est pas marqué vu");
+        setEncounterIntroMode('all');
+        resetTransientState();
+        triggerBossEncounter(room);
+        assert(gameState.encounterIntroPending && boss._encounterShown === true, "Réglage réactivé : l'arrivée du boss est montrée au retour suivant");
+        dismissEncounterIntro(true);
+    } finally {
+        Date.now = realNow;
+        config.encounterIntro.enabled = false;
+        delete global.requestAnimationFrame;
+        resetTransientState();
+    }
+    // Interrupteur global : désactivé, l'écran n'apparaît jamais, même avec une interface.
+    global.requestAnimationFrame = () => 0;
+    try {
+        config.encounterIntro.enabled = false;
+        resetTransientState();
+        initiateCombat(mob);
+        assert(gameState.inCombat && !gameState.encounterIntroPending, "config.encounterIntro.enabled = false : aucun écran, même avec une interface");
+    } finally { delete global.requestAnimationFrame; resetTransientState(); }
+}
+
+// --- Lot 3 : attaque furtive, départ au corps à corps ou de loin ---
+{
+    const mk = (extra) => Object.assign({ name: "Cobaye Furtif", baseName: "Cobaye Furtif", hp: 5000, atk: 1, def: 0, xpReward: 1 }, extra);
+    const logs = [];
+    const realLog = logEvent;
+    const withLogs = (fn) => { logEvent = (m, t) => { logs.push(String(m)); return realLog(m, t); }; try { return fn(); } finally { logEvent = realLog; } };
+    const setup = (enemy) => {
+        resetTransientState();
+        logs.length = 0;
+        gameState.pendingStealthEncounter = enemy;
+        gameState.stealthChoicePending = true;
+        gameState.hp = gameState.maxHp;
+    };
+
+    // Valeurs validées
+    assert(config.sneakAttack.meleeMult === 2 && config.sneakAttack.rangedMult === 1.5 && config.sneakAttack.rangedStartDistance === 6 && config.sneakAttack.rangedMobSurprised === true, "Attaque furtive : ×2 au contact, ×1,5 de loin, écart 6, tireur surpris (valeurs validées)");
+
+    // Condition « Tirer de loin »
+    resetTransientState();
+    assert(canStealthShootFromAfar() === false, "Tirer de loin : impossible sans arme ni sort à distance");
+    gameState.equipment.ranged = { name: "Arc", category: 'ranged', baseDmg: 3 };
+    assert(canStealthShootFromAfar() === true, "Tirer de loin : possible avec une arme à distance équipée");
+    gameState.equipment.ranged = null;
+    const spellOf = (cat, cost) => ({ name: "Sort", spellName: "Sort", category: 'scrolls', spellCategory: cat, manaCost: cost, baseDmg: 5 });
+    gameState.equipment.spell = spellOf('ranged', 10); gameState.mana = 50;
+    assert(canStealthShootFromAfar() === true, "Tirer de loin : possible avec un sort offensif à distance et assez de mana");
+    gameState.mana = 0;
+    assert(canStealthShootFromAfar() === false, "Tirer de loin : refusé si le mana manque");
+    gameState.mana = 50; gameState.equipment.spell = spellOf('melee', 10);
+    assert(canStealthShootFromAfar() === false, "Tirer de loin : un sort de mêlée ne compte pas");
+    gameState.equipment.spell = spellOf('any', 10);
+    assert(canStealthShootFromAfar() === false, "Tirer de loin : un sort utilitaire « partout » ne compte pas");
+    gameState.equipment.spell = null;
+
+    // Boutons
+    updateStealthChoiceButtons();
+    assert(ui.btnStealthRanged.disabled === true && ui.btnStealthAttack.innerText.includes('×2') && ui.btnStealthRanged.innerText.includes('×1,5'), "Boutons : « de loin » grisé sans arme, chiffres ×2 / ×1,5 affichés");
+    gameState.equipment.ranged = { name: "Arc", category: 'ranged', baseDmg: 3 };
+    updateStealthChoiceButtons();
+    assert(ui.btnStealthRanged.disabled === false, "Boutons : « de loin » actif avec une arme à distance");
+
+    // Refus sans arme à distance : l'état ne change pas
+    gameState.equipment.ranged = null;
+    setup(mk());
+    withLogs(() => attemptStealthAttack('ranged'));
+    assert(gameState.stealthChoicePending && gameState.pendingStealthEncounter && !gameState.inCombat && !gameState.pendingSneakAttack, "« Tirer de loin » sans arme à distance : refusé, le choix reste ouvert");
+
+    // Corps à corps contre un mob de mêlée : écart 0, ×2, pas de surprise
+    const melee = mk();
+    setup(melee);
+    withLogs(() => attemptStealthAttack('melee'));
+    assert(gameState.inCombat && gameState.combatDistance === 0 && gameState.pendingSneakAttack === 'melee' && !melee.surprised, "Surgir au contact d'un mob de mêlée : écart 0, drapeau 'melee', pas de surprise");
+    withLogs(() => attackUnarmed());
+    assert(logs.some(l => l.includes('attaque furtive x2')) && !gameState.pendingSneakAttack, "Premier coup au contact : ×2, bonus consommé");
+    resetTransientState();
+
+    // Corps à corps par défaut (anciens appelants sans argument)
+    const legacy = mk();
+    setup(legacy);
+    withLogs(() => attemptStealthAttack());
+    assert(gameState.combatDistance === 0 && gameState.pendingSneakAttack === 'melee', "attemptStealthAttack() sans argument : corps à corps");
+    resetTransientState();
+
+    // De loin : écart 6, ×1,5
+    gameState.equipment.ranged = { name: "Arc", category: 'ranged', baseDmg: 3, itemLevel: 1 };
+    const far = mk();
+    setup(far);
+    gameState.equipment.ranged = { name: "Arc", category: 'ranged', baseDmg: 3, itemLevel: 1 };
+    withLogs(() => attemptStealthAttack('ranged'));
+    assert(gameState.inCombat && gameState.combatDistance === 6 && gameState.pendingSneakAttack === 'ranged' && !far.surprised, "Tirer de loin : écart de départ 6, drapeau 'ranged'");
+    withLogs(() => attackRanged());
+    assert(logs.some(l => l.includes('attaque furtive x1,5')) && !gameState.pendingSneakAttack, "Premier tir : ×1,5, bonus consommé");
+    resetTransientState();
+
+    // De loin contre un tireur : écart 6 aussi (au lieu de 4)
+    gameState.equipment.ranged = null;
+    const archer = mk({ ranged: true });
+    setup(archer);
+    gameState.equipment.ranged = { name: "Arc", category: 'ranged', baseDmg: 3, itemLevel: 1 };
+    withLogs(() => attemptStealthAttack('ranged'));
+    assert(gameState.combatDistance === 6 && !archer.surprised, "De loin contre un tireur : écart 6, pas de surprise");
+    resetTransientState();
+
+    // Au contact d'un tireur : écart 0, il est surpris et perd son premier tour, une seule fois
+    const shooter = mk({ ranged: true, atk: 40 });
+    setup(shooter);
+    withLogs(() => attemptStealthAttack('melee'));
+    assert(gameState.combatDistance === 0 && shooter.surprised === true, "Surgir au contact d'un tireur : écart 0 (au lieu de 4), tireur surpris");
+    const hpBefore = gameState.hp;
+    withLogs(() => attackUnarmed());
+    assert(gameState.hp === hpBefore && shooter.surprised === false && logs.some(l => l.includes('pris au dépourvu')), "Tireur surpris : aucune riposte au premier tour, drapeau consommé");
+    resetTransientState();
+
+    // Le drapeau de surprise peut être désactivé par la configuration
+    const savedFlag = config.sneakAttack.rangedMobSurprised;
+    config.sneakAttack.rangedMobSurprised = false;
+    const shooter2 = mk({ ranged: true });
+    setup(shooter2);
+    withLogs(() => attemptStealthAttack('melee'));
+    assert(!shooter2.surprised, "rangedMobSurprised = false : aucun tireur surpris");
+    config.sneakAttack.rangedMobSurprised = savedFlag;
+    resetTransientState();
+
+    // `pendingSneakAttack = true` (anciens tests/sauvegardes) reste un ×2
+    gameState.pendingSneakAttack = true;
+    assert(sneakAttackMult() === 2, "pendingSneakAttack = true : multiplicateur ×2 (compatibilité)");
+    gameState.pendingSneakAttack = 'ranged';
+    assert(sneakAttackMult() === 1.5, "pendingSneakAttack = 'ranged' : multiplicateur ×1,5");
+    resetTransientState();
+}
+
+// --- Lot 6 : réglage joueur des écrans de rencontre ---
+{
+    const mob = { ...baseMobs[0], baseName: baseMobs[0].name, hp: 30, atk: 3, def: 1, xpReward: 1 };
+    const elite = { ...mob, name: 'Élite', threatMultiplier: 99 };
+    const boss = { ...Object.values(districtBosses)[0], isBoss: true, hp: 99, atk: 5, def: 1, xpReward: 1 };
+    const before = getEncounterIntroMode();
+    try {
+        assert(ENCOUNTER_INTRO_MODES.join() === 'all,important,off', "Réglage : trois modes (toujours, importants, jamais)");
+        setEncounterIntroMode('all');
+        assert(encounterIntroWanted('spotted', mob) && encounterIntroWanted('unseen', mob), "Mode « toujours » : tous les écrans");
+        setEncounterIntroMode('important');
+        assert(!encounterIntroWanted('spotted', mob) && !encounterIntroWanted('unseen', mob), "Mode « importants » : pas d'écran pour un mob ordinaire repéré ou aperçu");
+        assert(encounterIntroWanted('boss', boss) && encounterIntroWanted('hunter', mob) && encounterIntroWanted('ambush', mob), "Mode « importants » : boss, chasseur et embuscade gardent leur écran");
+        assert(isEliteMob(elite) ? encounterIntroWanted('spotted', elite) : true, "Mode « importants » : une élite garde son écran");
+        setEncounterIntroMode('off');
+        assert(!encounterIntroWanted('boss', boss) && !encounterIntroWanted('hunter', mob), "Mode « jamais » : aucun écran, boss compris");
+        setEncounterIntroMode('inconnu');
+        assert(getEncounterIntroMode() === 'off', "Un mode inconnu est ignoré");
+
+        // Intégration : avec interface, le mode « jamais » démarre le combat tout de suite
+        resetTransientState();
+        global.requestAnimationFrame = () => 0;
+        config.encounterIntro.enabled = true;
+        setEncounterIntroMode('off');
+        initiateCombat(mob);
+        assert(gameState.inCombat && !gameState.encounterIntroPending, "Mode « jamais » : le combat démarre sans écran");
+        resetTransientState();
+        setEncounterIntroMode('important');
+        initiateCombat(mob);
+        assert(gameState.inCombat && !gameState.encounterIntroPending, "Mode « importants » : mob ordinaire sans écran");
+        resetTransientState();
+        initiateCombat(mob, { intro: 'ambush' });
+        assert(gameState.encounterIntroPending && !gameState.inCombat, "Mode « importants » : l'embuscade garde son écran");
+        dismissEncounterIntro(true);
+    } finally {
+        config.encounterIntro.enabled = false;
+        delete global.requestAnimationFrame;
+        setEncounterIntroMode(before);
+        resetTransientState();
+    }
+}

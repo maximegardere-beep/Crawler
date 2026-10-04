@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <!-- Horodateur Vengeur, Parking Souterrain Maudit, cadrage « face » : il crache ses contraventions sur toi. Aucun texte. -->
+  <defs>
+    <pattern id="horodateur-vengeur-f-beton" width="150" height="76" patternUnits="userSpaceOnUse">
+      <rect width="150" height="76" fill="#2c2e30"/>
+      <rect x="75" y="38" width="75" height="38" fill="#292b2d"/>
+      <rect x="0" y="0" width="75" height="38" fill="#2a2c2e"/>
+      <path d="M0 37 H150 M75 0 V37 M0 38 V76 M150 38 V76" stroke="#17181a" stroke-width="3"/>
+      <circle cx="30" cy="20" r="2.5" fill="#1f2022"/>
+      <circle cx="112" cy="56" r="3" fill="#1f2022"/>
+      <circle cx="96" cy="14" r="2" fill="#34363a"/>
+    </pattern>
+    <radialGradient id="horodateur-vengeur-f-glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fbbf24" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#fbbf24" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Décor : mur de béton, poutrelles, néon qui grésille, piliers rayés, numéros de place -->
+  <rect x="0" y="0" width="750" height="990" fill="url(#horodateur-vengeur-f-beton)"/>
+  <rect x="0" y="0" width="750" height="100" fill="#18191b"/>
+  <g stroke="#05060c" stroke-width="5">
+    <rect x="-10" y="96" width="770" height="26" fill="#202124"/>
+    <path d="M90 0 V96 M330 0 V96 M560 0 V96" stroke="#202124" stroke-width="22"/>
+  </g>
+  <path d="M0 122 H750" stroke="#141516" stroke-width="10"/>
+  <g stroke="#05060c" stroke-width="4">
+    <rect x="440" y="142" width="210" height="18" rx="8" fill="#c9d6e6"/>
+    <rect x="90" y="142" width="160" height="18" rx="8" fill="#55606c"/>
+    <path d="M470 122 v20 M620 122 v20 M120 122 v20 M220 122 v20" stroke-width="5"/>
+  </g>
+  <ellipse cx="545" cy="190" rx="220" ry="80" fill="#dbeafe" opacity="0.07"/>
+  <!-- Numéros de place peints, écaillés (illisibles) -->
+  <g fill="#a3a3a3" opacity="0.17">
+    <path d="M176 250 h54 l-6 22 h-40 Z M240 252 h22 v40 h-22 Z M184 284 h38 l4 30 h-46 Z M272 258 l30 -6 l8 26 l-34 10 Z M246 300 h56 l-8 22 h-44 Z"/>
+    <path d="M516 254 h50 l-4 20 h-42 Z M576 250 h26 v46 h-26 Z M522 286 h40 l2 32 h-46 Z M612 256 l34 4 l-4 28 l-32 -4 Z M580 306 h64 l-10 18 h-50 Z"/>
+    <rect x="176" y="340" width="140" height="8"/><rect x="516" y="340" width="140" height="8"/>
+  </g>
+  <!-- Piliers rayés -->
+  <g stroke="#05060c" stroke-width="6">
+    <rect x="18" y="122" width="96" height="868" fill="#303236"/>
+    <rect x="18" y="760" width="96" height="190" fill="#141414"/>
+    <rect x="648" y="122" width="96" height="868" fill="#303236"/>
+    <rect x="648" y="760" width="96" height="190" fill="#141414"/>
+  </g>
+  <g fill="#8a7424" opacity="0.85">
+    <rect x="21" y="776" width="90" height="16"/><rect x="21" y="816" width="90" height="16"/><rect x="21" y="856" width="90" height="16"/><rect x="21" y="896" width="90" height="16"/>
+    <rect x="651" y="776" width="90" height="16"/><rect x="651" y="816" width="90" height="16"/><rect x="651" y="856" width="90" height="16"/><rect x="651" y="896" width="90" height="16"/>
+  </g>
+  <!-- Sol : béton, marquages de place, flèche peinte -->
+  <rect x="0" y="990" width="750" height="344" fill="#27292b"/>
+  <path d="M0 990 H750" stroke="#05060c" stroke-width="6"/>
+  <g stroke="#8a7424" stroke-width="12" opacity="0.4">
+    <path d="M150 990 L40 1334 M600 990 L720 1334"/>
+  </g>
+  <path d="M250 1230 H450 V1206 L520 1250 L450 1294 V1270 H250 Z" fill="#d4d4d4" opacity="0.12"/>
+  <rect x="0" y="0" width="60" height="1334" fill="#05060c" opacity="0.25"/>
+  <rect x="690" y="0" width="60" height="1334" fill="#05060c" opacity="0.25"/>
+  <!-- Aura ambre irrégulière + pièces en suspension -->
+  <path d="M130 600 C100 430 200 250 330 230 C440 200 600 260 640 400 C690 560 650 800 600 940 C560 1020 420 1040 300 1020 C180 1000 150 820 130 600 Z" fill="#fbbf24" opacity="0.07"/>
+  <path d="M190 620 C170 470 250 330 360 310 C470 300 560 360 580 480 C600 620 580 820 540 920 C500 980 400 990 320 970 C230 950 200 790 190 620 Z" fill="#fbbf24" opacity="0.08"/>
+  <!-- Lignes de mouvement (il arrive de la droite) -->
+  <g stroke="#9aa3ad" stroke-width="6" stroke-linecap="round" opacity="0.5">
+    <path d="M640 430 h80 M660 540 h60 M630 700 h90 M664 820 h50"/>
+  </g>
+  <!-- Ombre au sol + poussière -->
+  <ellipse cx="380" cy="1036" rx="260" ry="26" fill="#05060c" opacity="0.55"/>
+  <g fill="#3c3f42" stroke="#05060c" stroke-width="3">
+    <path d="M540 1040 q16 -34 48 -22 q28 -22 50 4 q28 8 10 32 Z"/>
+    <path d="M120 1046 q8 -26 34 -18 q20 -14 36 6 q14 10 -4 22 Z"/>
+  </g>
+  <!-- L'HORODATEUR : de biais, il sautille vers toi, pied droit levé -->
+  <g transform="rotate(-7 380 1030)" stroke="#05060c" stroke-linejoin="round" stroke-width="6">
+    <!-- Pieds -->
+    <path d="M206 960 L326 964 L330 1028 L202 1024 Z" fill="#4a553a" stroke-width="7"/>
+    <path d="M418 974 L534 952 L552 1010 L438 1034 Z" fill="#4a553a" stroke-width="7"/>
+    <!-- Antenne + voyant ambré -->
+    <path d="M300 330 L286 236 L262 196" fill="none" stroke-width="9"/>
+    <circle cx="258" cy="186" r="52" fill="url(#horodateur-vengeur-f-glow)" stroke="none"/>
+    <circle cx="258" cy="186" r="22" fill="#fbbf24" stroke-width="6"/>
+    <circle cx="251" cy="179" r="6" fill="#fff6d0" stroke="none"/>
+    <path d="M222 150 l-14 -14 M258 140 v-20 M296 152 l14 -14" stroke="#fbbf24" stroke-width="6" stroke-linecap="round"/>
+    <!-- Chapeau à fente à pièces -->
+    <rect x="328" y="290" width="116" height="40" rx="8" fill="#4a553a"/>
+    <rect x="356" y="302" width="60" height="11" rx="3" fill="#05060c" stroke="none"/>
+    <!-- Flanc droit (sombre) -->
+    <path d="M530 318 L600 356 L624 946 L556 978 Z" fill="#4a553a"/>
+    <path d="M552 420 L604 446 M556 520 L608 546 M560 860 L614 884" stroke="#3a4330" stroke-width="7"/>
+    <!-- Façade -->
+    <path d="M208 336 Q206 318 226 316 L512 304 Q532 304 532 322 L558 958 Q558 978 538 978 L192 966 Q172 966 172 946 Z" fill="#7c8a5a" stroke-width="9"/>
+    <path d="M216 340 L240 338 L214 950 L192 948 Z" fill="#94a26e" stroke="none" opacity="0.8"/>
+    <!-- Cadran : aiguille rouge plantée dans la zone rouge -->
+    <circle cx="330" cy="440" r="74" fill="#4a553a"/>
+    <circle cx="330" cy="440" r="60" fill="#e2e0cc" stroke-width="5"/>
+    <path d="M330 440 L372 398 A60 60 0 0 1 390 440 Z" fill="#c23b3b" stroke="none"/>
+    <path d="M330 386 v12 M282 412 l10 6 M378 412 l-10 6 M276 452 h12 M384 452 h-12" stroke-width="5"/>
+    <path d="M330 440 L378 396" stroke="#c23b3b" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="330" cy="440" r="10" fill="#05060c" stroke="none"/>
+    <path d="M392 380 q10 4 12 14 M398 368 q16 6 18 22" fill="none" stroke="#c23b3b" stroke-width="4" stroke-linecap="round"/>
+    <!-- Afficheur ambré furieux : il te fixe -->
+    <rect x="410" y="388" width="116" height="96" rx="10" fill="#4a553a" stroke-width="7"/>
+    <rect x="420" y="398" width="96" height="76" rx="6" fill="#fbbf24" stroke-width="5"/>
+    <path d="M426 410 L462 428 M510 410 L474 428" stroke-width="9" stroke-linecap="round"/>
+    <rect x="438" y="434" width="16" height="18" fill="#05060c" stroke="none"/>
+    <rect x="480" y="434" width="16" height="18" fill="#05060c" stroke="none"/>
+    <path d="M432 466 l10 -7 l10 7 l10 -7 l10 7 l10 -7 l10 7 l10 -7 l10 7" fill="none" stroke-width="4"/>
+    <rect x="424" y="402" width="20" height="8" fill="#fff6d0" stroke="none" opacity="0.7"/>
+    <!-- Clavier -->
+    <g fill="#4a553a" stroke-width="4">
+      <rect x="420" y="504" width="26" height="20" rx="4"/><rect x="456" y="504" width="26" height="20" rx="4"/><rect x="492" y="504" width="26" height="20" rx="4"/>
+      <rect x="420" y="532" width="26" height="20" rx="4"/><rect x="456" y="532" width="26" height="20" rx="4"/><rect x="492" y="532" width="26" height="20" rx="4" fill="#c23b3b"/>
+    </g>
+    <!-- Deux boutons ronds -->
+    <circle cx="272" cy="630" r="30" fill="#4a553a"/>
+    <circle cx="378" cy="630" r="30" fill="#4a553a"/>
+    <circle cx="266" cy="622" r="8" fill="#6b7850" stroke="none"/>
+    <circle cx="372" cy="622" r="8" fill="#6b7850" stroke="none"/>
+    <!-- Fente à tickets + ticket qui jaillit -->
+    <rect x="436" y="622" width="104" height="18" rx="4" fill="#05060c" stroke="none"/>
+    <g transform="rotate(14 470 632)">
+      <rect x="470" y="618" width="210" height="58" rx="5" fill="#e8e4d8" stroke-width="6"/>
+      <path d="M492 636 h90 M492 656 h60 M600 634 v28 M612 634 v28 M620 634 v28 M634 634 v28 M644 634 v28" stroke-width="5"/>
+    </g>
+    <!-- Trappe à monnaie -->
+    <rect x="236" y="720" width="276" height="200" rx="12" fill="none" stroke="#4a553a" stroke-width="7"/>
+    <circle cx="482" cy="820" r="9" fill="#05060c" stroke="none"/>
+    <path d="M250 900 q40 -16 70 6" fill="none" stroke="#5f6c46" stroke-width="6"/>
+  </g>
+  <!-- Projectiles : tickets et pièces crachés vers toi -->
+  <g stroke="#05060c" stroke-linejoin="round">
+    <g transform="rotate(-22 150 560)">
+      <rect x="66" y="526" width="170" height="66" rx="6" fill="#e8e4d8" stroke-width="6"/>
+      <path d="M88 548 h76 M88 570 h50 M184 546 v32 M196 546 v32 M206 546 v32 M220 546 v32" stroke-width="5"/>
+    </g>
+    <g transform="rotate(18 640 290)">
+      <rect x="580" y="266" width="120" height="46" rx="5" fill="#d8d4c6" stroke-width="5"/>
+      <path d="M594 282 h52 M594 298 h34 M664 280 v22 M674 280 v22" stroke-width="4"/>
+    </g>
+    <circle cx="640" cy="620" r="38" fill="#fbbf24" stroke-width="6"/>
+    <circle cx="640" cy="620" r="22" fill="none" stroke="#b7861a" stroke-width="5"/>
+    <circle cx="160" cy="330" r="26" fill="#fbbf24" stroke-width="5"/>
+    <circle cx="160" cy="330" r="14" fill="none" stroke="#b7861a" stroke-width="4"/>
+    <ellipse cx="104" cy="800" rx="10" ry="26" fill="#fbbf24" stroke-width="5" transform="rotate(30 104 800)"/>
+    <ellipse cx="610" cy="170" rx="8" ry="20" fill="#fbbf24" stroke-width="4" transform="rotate(-30 610 170)"/>
+  </g>
+  <g fill="none" stroke="#e8e4d8" stroke-width="5" stroke-linecap="round" opacity="0.55">
+    <path d="M248 540 l60 20 M250 586 l50 10"/>
+    <path d="M592 600 l-50 14 M594 640 l-40 4"/>
+    <path d="M190 344 l46 18"/>
+  </g>
+</svg>
