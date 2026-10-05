@@ -930,3 +930,65 @@ function isRedHex(hex) {
         "showFloatingDamage : taille et grossissement calculés sur les PV max de l'ennemi");
     gameState.currentEnemy = null;
 }
+
+// ===================================================================
+// Gorgoth le Concierge (chantier 17, lot 6) : décor de l'antre (fiche séparée DEMON_LAIR_BACKDROP), accessoires
+// de la porte colossale / du trône / du râtelier / des crevasses de lave, et 4 vignettes d'exploration.
+// ===================================================================
+{
+    const problems = backdropProblems('antre', DEMON_LAIR_BACKDROP);
+    assert(problems.length === 0, `Décor de l'antre valide (${problems.join(' ; ')})`);
+    assert(!Object.prototype.hasOwnProperty.call(SCENE_BACKDROPS, DEMON_LAIR_BACKDROP.label), "Antre : fiche séparée, jamais une clé de SCENE_BACKDROPS");
+    const all = [...DEMON_LAIR_BACKDROP.props, ...(DEMON_LAIR_BACKDROP.floorProps || [])];
+    const types = new Set(all.map(p => p.type));
+    assert(types.size >= 3 && all.some(p => BACKDROP_PROPS[p.type].light(p)), "Antre : au moins 3 types d'accessoires et une source de lumière");
+    assert(['colossalGate', 'demonThrone', 'armoryRack', 'lavaCracks'].every(t => types.has(t)), "Antre : porte colossale, trône, râtelier et crevasses de lave");
+    assert(DEMON_LAIR_BACKDROP.floorProps.some(p => p.type === 'lavaCracks'), "Antre : les crevasses de lave sont au sol");
+
+    // Porte colossale : serrures allumées selon les clés, ouverte sans chaînes, sceau à la demande.
+    const gate = (o) => BACKDROP_PROPS.colossalGate.markup(Object.assign({ type: 'colossalGate' }, o), null);
+    const lit = (m) => (m.match(/demon-lock-lit/g) || []).length;
+    const unlit = (m) => (m.match(/class="demon-lock"/g) || []).length;
+    assert([0, 1, 2, 3, 4].every(n => lit(gate({ locks: n })) === n && unlit(gate({ locks: n })) === 4 - n), "Porte colossale : 4 serrures, une allumée par clé");
+    assert(lit(gate({ locks: 9 })) === 4 && lit(gate({ locks: -2 })) === 0, "Porte colossale : clés bornées de 0 à 4");
+    assert(gate({ open: true }).indexOf('demon-lock') === -1 && !/<ellipse cx="[-\d.]+" cy="[-\d.]+" rx="4.6"/.test(gate({ open: true })), "Porte entrouverte : ni serrures ni chaînes");
+    assert(/rx="4.6"/.test(gate({})) && gate({ seal: true }).length > gate({}).length, "Porte fermée : chaînes en croix ; sceau sur demande");
+    const rack = BACKDROP_PROPS.armoryRack.markup({ type: 'armoryRack', taken: ['overalls'] }, null);
+    assert(rack.length < BACKDROP_PROPS.armoryRack.markup({ type: 'armoryRack' }, null).length && !/undefined|NaN/.test(rack), "Râtelier : l'objet emporté laisse son crochet vide");
+
+    // Vignettes.
+    const names = ['demonGateLocked', 'demonGateOpen', 'demonKnockout', 'demonExpelled'];
+    assert(names.every(n => typeof EXPLORE_VIGNETTES[n] === 'function'), "Les 4 vignettes de Gorgoth existent");
+    assert(names.every(n => { const m = composeExploreVignette(n, {}); return m.length > 200 && !/undefined|NaN/.test(m); }), "Vignettes de Gorgoth : rendu sans valeur manquante");
+    assert(lit(composeExploreVignette('demonGateLocked', { keys: 3 })) === 3 && lit(composeExploreVignette('demonGateLocked', { keys: 0 })) === 0, "Porte verrouillée : serrures allumées selon ctx.keys");
+    const hadFn = typeof global.demonKeysCount === 'function', savedFn = global.demonKeysCount;
+    try {
+        delete global.demonKeysCount;
+        assert(typeof demonKeysCount === 'undefined' ? demonGateKeys({}) === 0 : true, "Sans demonKeysCount() : 0 serrure allumée");
+        global.demonKeysCount = () => 2;
+        assert(demonGateKeys({}) === 2 && lit(composeExploreVignette('demonGateLocked', {})) === 2, "Avec demonKeysCount() : les serrures suivent le nombre de clés");
+        global.demonKeysCount = () => { throw new Error('boom'); };
+        assert(demonGateKeys({}) === 0, "demonKeysCount() qui échoue : 0, jamais d'exception");
+    } finally {
+        if (hadFn) global.demonKeysCount = savedFn; else delete global.demonKeysCount;
+    }
+    const ko = composeExploreVignette('demonKnockout', {});
+    assert(!/<text/.test(ko) && ko.includes('bd-spin') && ko.includes('bd-float'), "Mise au tapis : étoiles qui tournent, « Zzz » dessiné (aucun texte SVG)");
+    assert(composeExploreVignette('demonGateOpen', {}).includes('scale(0.55)'), "Porte ouverte : crawler minuscule devant");
+    assert(!names.some(n => /balrog/i.test(composeExploreVignette(n, {}))), "Vignettes : aucun nom protégé");
+
+    // Cache : la porte verrouillée est redessinée quand le nombre de clés change.
+    resetTransientState();
+    delete lastBackdropKeys.ebd; delete vignetteKeys.ebd;
+    const vignette = document.getElementById('explore-scene-vignette');
+    setSceneHeader('🔒', 'Porte', 'Porte', { key: 'demonGateLocked', keys: 1 });
+    assert(lit(vignette.innerHTML) === 1, "setSceneHeader() : porte verrouillée affichée (1 clé)");
+    setSceneHeader('🔒', 'Porte', 'Porte', { key: 'demonGateLocked', keys: 4 });
+    assert(lit(vignette.innerHTML) === 4, "Porte verrouillée : redessinée quand le nombre de clés change");
+    delete lastBackdropKeys.ebd; delete vignetteKeys.ebd;
+
+    // Aide console : liste des 4 vignettes, affichées dans l'ordre.
+    assert(JSON.stringify(devPreviewDemonVignettes(0)) === JSON.stringify(names), "devPreviewDemonVignettes() : les 4 vignettes, dans l'ordre");
+    delete lastBackdropKeys.ebd; delete vignetteKeys.ebd;
+    resetTransientState();
+}

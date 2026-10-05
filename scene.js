@@ -846,6 +846,76 @@ function npcCrawlerAt(x, disposition) {
 
 const SHADOW_OVERLAY = '<rect x="0" y="0" width="360" height="150" fill="#05060c" opacity="0.45"/>';
 
+// --- Gorgoth le Concierge (chantier 17, lot 6) : porte colossale, mise au tapis, expulsion ------------------
+// Serrures allumées de la porte : `ctx.keys` s'il est fourni, sinon demonKeysCount() (lot 1) si la fonction
+// existe, sinon 0 ; toujours un entier de 0 à 4.
+function demonGateKeys(ctx) {
+    let n = ctx && ctx.keys != null ? ctx.keys : null;
+    if (n == null && typeof demonKeysCount === 'function') {
+        try { n = demonKeysCount(); } catch (e) { n = 0; }
+    }
+    n = Math.floor(Number(n) || 0);
+    return Math.max(0, Math.min(4, n));
+}
+
+// Crawler réduit (posé au sol, mis à l'échelle depuis ses pieds) : « minuscule » devant la porte.
+function crawlerScaledAt(x, scale, opacity) {
+    const fade = opacity != null ? ` opacity="${opacity}"` : '';
+    return `<g transform="translate(${x} ${SCENE_GROUND_Y}) scale(${scale})"${fade}>${currentCrawler().markup}</g>`;
+}
+
+// Braises qui montent (positions fixes, jamais Math.random()).
+function demonEmbers(points) {
+    return points.map(([x, y, r], i) => `<circle class="bd-float" style="animation-delay:-${(i * 0.7).toFixed(1)}s" cx="${x}" cy="${y}" r="${r}" fill="${i % 2 ? '#fdba74' : '#f97316'}" opacity="0.85"/>`).join('');
+}
+
+// Lettre « Z » dessinée (aucun texte SVG) : origine en haut à gauche, taille `s`.
+function demonSnoreZ(x, y, s, delay) {
+    return `<path class="bd-float" style="animation-delay:-${delay}s" d="M${x} ${y} h${s} l${-s} ${s * 1.1} h${s}" fill="none" stroke="#e5e7eb" stroke-width="${Math.max(1.2, s / 4).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+
+// Gorgoth assommé, étendu au sol (silhouette simplifiée : le grand sprite détaillé est celui du combat).
+// Repère local : origine au sol, sous le ventre ; tête à gauche (x ≈ -86), sabots à droite.
+const DEMON_KNOCKOUT_BODY = `
+    <path d="M-60 -16 Q-52 -62 -6 -72 Q36 -78 58 -52 Q80 -34 92 -4 L84 0 H-50 Z" fill="#231c20" opacity="0.85"/>
+    <path d="M-30 -30 Q-12 -58 18 -60 M6 -40 Q28 -66 50 -50" fill="none" stroke="#3a3034" stroke-width="3" opacity="0.8"/>
+    <path d="M-70 0 Q-66 -34 -20 -38 Q40 -44 76 -20 Q94 -8 92 0 Z" fill="#2a1717" stroke="#05060c" stroke-width="2"/>
+    <path d="M-40 -32 L-28 -8 L-6 -36 L10 -4 L34 -34 L50 -6 L66 -24 L72 0 H-46 Z" fill="#1e3a8a" stroke="#05060c" stroke-width="1.2" opacity="0.9"/>
+    <path d="M-36 -26 l8 6 l-2 8 M6 -30 l6 8 l8 -2 M48 -18 l4 8" fill="none" stroke="#f97316" stroke-width="1.6" stroke-linecap="round"/>
+    <path class="bd-halo-flicker" d="M-18 -36 l6 10 l10 -4 l6 12 M24 -40 l4 12 l12 2" fill="none" stroke="#fb923c" stroke-width="1.1" opacity="0.8"/>
+    <path d="M76 -18 Q96 -24 104 -10 L106 0 H86 Z" fill="#2a1717" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M100 -2 l8 -6 l2 8 Z" fill="#05060c"/>
+    <path d="M-30 -34 Q-44 -46 -58 -40 Q-52 -24 -34 -26" fill="#2a1717" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M-60 -40 l-6 -5 M-58 -36 l-8 -1 M-58 -42 l-3 -7" stroke="#05060c" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="-86" cy="-18" r="18" fill="#2a1717" stroke="#05060c" stroke-width="2"/>
+    <path d="M-98 -30 Q-116 -44 -126 -30 Q-114 -36 -102 -22 Z" fill="#3a2e30" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M-76 -32 Q-70 -50 -54 -50 Q-66 -44 -70 -28 Z" fill="#3a2e30" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M-96 -24 l6 6 M-90 -24 l-6 6 M-82 -24 l6 6 M-76 -24 l-6 6" stroke="#fb923c" stroke-width="2" stroke-linecap="round"/>
+    <path d="M-94 -10 Q-86 -4 -78 -10 Q-86 -14 -94 -10 Z" fill="#05060c"/>
+    <path d="M-88 -8 q3 6 6 0" fill="#e11d48"/>`;
+
+// Casquette de concierge calcinée, tombée à côté (insigne : clé dorée). Origine : au sol.
+const DEMON_FALLEN_CAP = `
+    <path d="M-14 0 Q-14 -14 0 -14 Q14 -14 14 0 Z" fill="#3b4252" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M-20 0 Q-6 4 14 0" fill="none" stroke="#05060c" stroke-width="3"/>
+    <path d="M-20 0 Q-6 3 14 0" fill="none" stroke="#1f2430" stroke-width="2"/>
+    <path d="M-14 -4 H14" stroke="#1f2430" stroke-width="2"/>
+    <circle cx="0" cy="-9" r="2.4" fill="none" stroke="#facc15" stroke-width="1.2"/><path d="M2 -9 h5 M5 -9 v2" stroke="#facc15" stroke-width="1.2"/>
+    <path d="M-8 -12 l3 3 M6 -12 l-2 4" stroke="#05060c" stroke-width="1" opacity="0.6"/>`;
+
+// Étoiles et oiseaux de dessin animé qui tournent au-dessus de la tête (rotation CSS, coupée sous reduced motion).
+function demonDizzyRing(cx, cy) {
+    const star = (x, y, c) => `<path d="M${x} ${y - 4.5} L${x + 1.3} ${y - 1.3} L${x + 4.5} ${y - 1.3} L${x + 2} ${y + 0.8} L${x + 3} ${y + 4.2} L${x} ${y + 2.2} L${x - 3} ${y + 4.2} L${x - 2} ${y + 0.8} L${x - 4.5} ${y - 1.3} L${x - 1.3} ${y - 1.3} Z" fill="${c}" stroke="#05060c" stroke-width="0.7"/>`;
+    const bird = (x, y) => `<circle cx="${x}" cy="${y}" r="2.6" fill="#fde68a" stroke="#05060c" stroke-width="0.7"/><path d="M${x - 5} ${y - 4} q2.5 2 5 3 q2.5 -1 5 -3" fill="none" stroke="#05060c" stroke-width="1"/><path d="M${x + 2.4} ${y} l2 0.8 l-2 0.8 Z" fill="#f97316"/>`;
+    return `<ellipse cx="${cx}" cy="${cy}" rx="22" ry="6" fill="none" stroke="#fde68a" stroke-width="0.8" stroke-dasharray="2 3" opacity="0.6"/>
+        <g class="bd-spin">${star(cx - 20, cy, '#facc15')}${star(cx + 18, cy + 2, '#fde047')}${bird(cx, cy - 6)}${bird(cx + 4, cy + 6)}${star(cx - 4, cy + 6, '#fef08a')}</g>`;
+}
+
+// Bouffées de fumée (expulsion). Positions fixes.
+function demonSmoke(points) {
+    return points.map(([x, y, r], i) => `<g class="bd-steam" style="animation-delay:-${(i * 0.6).toFixed(1)}s"><circle cx="${x}" cy="${y}" r="${r}" fill="#4b4548" opacity="0.55"/><circle cx="${x + r * 0.7}" cy="${y - r * 0.4}" r="${(r * 0.7).toFixed(1)}" fill="#5f585b" opacity="0.5"/></g>`).join('');
+}
+
 // Une entrée par vignette : ctx = { enemy, disposition } selon l'événement. Pures (chaîne SVG).
 const EXPLORE_VIGNETTES = {
     silence: () => crawlerAt(CRAWLER_X),
@@ -881,12 +951,48 @@ const EXPLORE_VIGNETTES = {
         + `<g transform="translate(200 124)">${SCENE_HOST_SVG}</g>` + crawlerAt(CRAWLER_X),
     // Chasseurs de primes (chantier 3) : l'avis de recherche placardé, montant de la prime courante.
     wantedPoster: (ctx) => propAt('wantedPoster', 200, 124, { value: ctx.value }) + crawlerAt(CRAWLER_X),
-    stairs: () => propAt('stairsDown', 214, 124) + crawlerAt(CRAWLER_X)
+    stairs: () => propAt('stairsDown', 214, 124) + crawlerAt(CRAWLER_X),
+    // Gorgoth le Concierge (chantier 17, lot 6). Porte colossale fermée, qui déborde du cadre : 4 serrures
+    // (une allumée par clé de boss de quartier), chaînes en croix, rouge qui filtre par les jointures.
+    demonGateLocked: (ctx) => propAt('colossalGate', 168, 124, { w: 172, h: 178, locks: demonGateKeys(ctx) })
+        + demonEmbers([[96, 112, 1.4], [232, 96, 1.2], [150, 70, 1], [204, 40, 1.3]]) + crawlerAt(CRAWLER_X),
+    // Battants entrouverts : lueur rouge intense, deux yeux au fond, crawler minuscule dans la lumière.
+    demonGateOpen: () => propAt('colossalGate', 170, 124, { w: 200, h: 196, open: true })
+        + '<path d="M146 124 L194 124 L262 150 L78 150 Z" fill="#f97316" opacity="0.28"/>'
+        + '<g class="bd-halo-flicker"><ellipse cx="158" cy="44" rx="5" ry="2.2" fill="#fef08a"/><ellipse cx="182" cy="44" rx="5" ry="2.2" fill="#fef08a"/></g>'
+        + demonEmbers([[120, 96, 1.4], [214, 80, 1.2], [168, 30, 1.1], [240, 110, 1.3], [98, 60, 1]])
+        + crawlerScaledAt(206, 0.55, 0.92),
+    // Mise au tapis : Gorgoth étendu, étoiles et oiseaux qui tournent, casquette tombée, ronflement « Zzz » dessiné.
+    demonKnockout: () => `<g transform="translate(150 124)">${DEMON_KNOCKOUT_BODY}</g>`
+        + `<g transform="translate(40 124) rotate(-18)">${DEMON_FALLEN_CAP}</g>`
+        + demonDizzyRing(64, 70)
+        + demonSnoreZ(78, 92, 5, 0) + demonSnoreZ(88, 76, 7, 1.2) + demonSnoreZ(102, 56, 9, 2.4)
+        + crawlerAt(CRAWLER_X),
+    // Expulsion : la porte s'est refermée (chaînes, sceau rouge, écriteau « FERMÉ »), le crawler est éjecté
+    // dans un nuage de fumée.
+    demonExpelled: () => propAt('colossalGate', 132, 124, { w: 150, h: 160, seal: true })
+        + '<g transform="translate(132 104)"><path d="M-14 -10 L0 -22 L14 -10" fill="none" stroke="#8a8086" stroke-width="1.2"/><rect x="-18" y="-10" width="36" height="13" rx="1.5" fill="#d8c9a3" stroke="#05060c" stroke-width="1"/><text x="0" y="0" text-anchor="middle" font-size="7.5" font-weight="bold" letter-spacing="0.5" fill="#7f1d1d">FERMÉ</text></g>'
+        + demonSmoke([[214, 116, 9], [236, 108, 7], [200, 100, 6], [256, 120, 8]])
+        + '<path d="M218 92 H252 M224 104 H262 M214 80 H244" stroke="#e5e7eb" stroke-width="1.4" stroke-linecap="round" opacity="0.55"/>'
+        + `<g transform="translate(292 108) rotate(28)"><g class="scene-recoil">${currentCrawler().markup}</g></g>`
 };
 
 function composeExploreVignette(key, ctx) {
     const vignette = EXPLORE_VIGNETTES[key];
     return vignette ? vignette(ctx || {}) : '';
+}
+
+// DEV uniquement (console) : affiche successivement les 4 vignettes de Gorgoth le Concierge dans la scène
+// d'exploration, `delayMs` entre chacune. Renvoie la liste des vignettes montrées.
+const DEMON_VIGNETTE_PREVIEW = [
+    ['🔒', 'Porte colossale', 'Porte', 'demonGateLocked'],
+    ['🚪', "L'antre s'ouvre", 'Porte', 'demonGateOpen'],
+    ['💫', 'Gorgoth est K.O.', 'Victoire', 'demonKnockout'],
+    ['💨', 'Expulsé', 'Défaite', 'demonExpelled']
+];
+function devPreviewDemonVignettes(delayMs = 2500) {
+    DEMON_VIGNETTE_PREVIEW.forEach((args, i) => setTimeout(() => setSceneHeader(...args), i * delayMs));
+    return DEMON_VIGNETTE_PREVIEW.map(args => args[3]);
 }
 
 // Dessine une vignette dans une cible { wrap, svg, backdrop, vignette, icon?, prefix, view } : décor du
@@ -906,7 +1012,7 @@ function renderVignetteScene(target, scene) {
     if (!known) return;
     renderSceneBackdrop(target.backdrop, target.prefix, resolveBackdropKey(gameState.currentDistrict));
     const enemy = spec.enemy;
-    const key = [spec.key, enemy ? `${enemy.visualArchetype}:${enemy.effect}:${enemy.isBoss ? 1 : 0}` : '', spec.cityName || '', spec.isExit ? 1 : 0, spec.value ?? '', currentCrawler().key].join('|');
+    const key = [spec.key, enemy ? `${enemy.visualArchetype}:${enemy.effect}:${enemy.isBoss ? 1 : 0}` : '', spec.cityName || '', spec.isExit ? 1 : 0, spec.value ?? '', spec.key === 'demonGateLocked' ? demonGateKeys(spec) : '', currentCrawler().key].join('|');
     if (vignetteKeys[target.prefix] === key) return;
     target.vignette.innerHTML = composeExploreVignette(spec.key, spec);
     vignetteKeys[target.prefix] = key;
