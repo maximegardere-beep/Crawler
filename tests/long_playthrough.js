@@ -98,6 +98,9 @@ try {
                 trainSkill();
             }
             leaveShop();
+        } else if (gameState.demonArmoryChoicePending) {
+            // Armurerie de Gorgoth (chantier 17, lot 4) : garde son objet démoniaque, sinon prend le premier du râtelier.
+            if (gameState.demonArmory && gameState.demonArmory.heldKey) keepDemonicItem(); else takeDemonicItem(DEMONIC_ITEM_KEYS[0]);
         } else if (gameState.lairChoicePending) {
             // Repaire (voir triggerLairChoice()) : alterne plonger/ressortir pour exercer les
             // deux issues ; une plongée s'enchaîne ensuite via la branche inCombat ci-dessous, exactement
@@ -279,6 +282,9 @@ try {
             if (candidate && candidate.disposition === 'friendly') recruitCompanion(); else attackCompanionEncounter();
         } else if (gameState.shopChoicePending) {
             leaveShop(); // Étage final : on ne s'attarde pas en boutique, priorité à la Sortie
+        } else if (gameState.demonArmoryChoicePending) {
+            // Armurerie de Gorgoth (chantier 17, lot 4) : garde son objet démoniaque, sinon prend le premier du râtelier.
+            if (gameState.demonArmory && gameState.demonArmory.heldKey) keepDemonicItem(); else takeDemonicItem(DEMONIC_ITEM_KEYS[0]);
         } else if (gameState.lairChoicePending) {
             declineLair(); // Idem : on ne dévie jamais vers un repaire quand la Sortie est en vue
         } else if (gameState.floorTransitionPending) {

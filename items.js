@@ -195,7 +195,29 @@ const itemQualifiers = {
         weapon: { bonus: [-10], text: v => `${v.bonus} points de chance de passer inaperçu.` },
         armor: { bonus: [-10], text: v => `${v.bonus} points de chance de passer inaperçu.` } },
     stutter: { name: "Bredouillant", icon: "🤐", tier: 1, kind: 'malus',
-        spell: { bonus: [8], text: v => `Risque d'échec du sort +${v.bonus} points.` } }
+        spell: { bonus: [8], text: v => `Risque d'échec du sort +${v.bonus} points.` } },
+
+    // --- Objets démoniaques (chantier 17, lot 4 — voir demon-items.js) -----------------------------
+    // Effets uniques (`demonic: true`) et malédictions (`curse: true`) de l'armurerie de Gorgoth : JAMAIS tirés au
+    // hasard (exclus de rollQualifiers(), rollJunkMalus() et du bonus de forge de buildSignatureItem()), seulement posés
+    // par buildDemonicItem(). Un objet démoniaque est toujours au rang III : les valeurs sont identiques à chaque rang.
+    // Les effets n'agissent que sur l'objet ÉQUIPÉ ; les malédictions tant qu'on le POSSÈDE (équipé ou en réserve).
+    demon_lifesteal: { name: "Ardent", icon: "🔥", tier: 3, kind: 'passive', demonic: true,
+        weapon: { pct: [15, 15, 15], text: v => `Chaque coup vous soigne de ${v.pct} % des dégâts infligés.` } },
+    demon_last_breath: { name: "Ignifugé", icon: "🧯", tier: 3, kind: 'passive', demonic: true,
+        armor: { hp: [1, 1, 1], text: v => `Le premier coup mortel de chaque combat est annulé : il vous reste ${v.hp} PV.` } },
+    demon_souls: { name: "Faucheur d'âmes", icon: "👻", tier: 3, kind: 'passive', demonic: true,
+        weapon: { max: [3, 3, 3], pct: [100, 100, 100], text: v => `Chaque victoire charge une âme (${v.max} au plus) ; le tir suivant les consomme toutes : +${v.pct} % de dégâts par âme.` } },
+    demon_decree: { name: "Réglementaire", icon: "📜", tier: 3, kind: 'passive', demonic: true,
+        spell: { mult: [1.6, 1.6, 1.6], text: v => `Dégâts de base ×${String(v.mult).replace('.', ',')} par rapport au meilleur sort ordinaire (déjà comptés dans ses stats).` } },
+    curse_potions: { name: "Gosier brûlé", icon: "🥵", tier: 1, kind: 'malus', curse: true,
+        weapon: { pct: [50], text: v => `Malédiction (tant que vous le possédez) : vos potions soignent ${v.pct} % de moins.` } },
+    curse_no_regen: { name: "Étouffant", icon: "🫁", tier: 1, kind: 'malus', curse: true,
+        armor: { pct: [100], text: v => `Malédiction (tant que vous le possédez) : votre régénération passive de PV est réduite de ${v.pct} % (nulle).` } },
+    curse_soul_hunger: { name: "Affamé", icon: "🕳️", tier: 1, kind: 'malus', curse: true,
+        weapon: { pct: [3], text: v => `Malédiction : un tir sans âme vous coûte ${v.pct} % de vos PV max (jamais mortel : il vous reste au moins 1 PV).` } },
+    curse_blood_price: { name: "Prix du sang", icon: "🩸", tier: 1, kind: 'malus', curse: true,
+        spell: { pct: [8], text: v => `Malédiction : coûte ${v.pct} % de vos PV max au lieu du mana (jamais mortel : impossible à lancer si vos PV n'y suffisent pas).` } }
 };
 
 // `jokeItem: true` marque un objet volontairement dérisoire (blague DCC) : il ne tombe JAMAIS qu'au

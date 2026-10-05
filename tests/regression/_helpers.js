@@ -116,6 +116,9 @@ function resetTransientState() {
     gameState.pendingArcadeCityId = null; // Salle de jeux (V4)
     gameState.arcadeSession = null;
     gameState.lairChoicePending = false;
+    gameState.demonArmory = { heldKey: null }; // Objets démoniaques (chantier 17, lot 4)
+    gameState.demonArmoryChoicePending = false;
+    if (typeof hideDemonArmoryZone === 'function') hideDemonArmoryZone();
     gameState.pendingLairId = null;
     gameState.pendingLairDive = null;
     gameState.floorTransitionPending = false;
