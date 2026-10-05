@@ -110,6 +110,7 @@ function resetTransientState() {
     hideOriginOverlays();
     gameState.raceLastStandFloor = 0;
     gameState.plotArmorFloor = 0;
+    gameState.demonGateSealedFloor = 0;
     gameState.eliteConventionEnded = true; // le message de fin de la Convention n'est testé que par early-game.js
     gameState.maxMana = 100;
     gameState.maxInventory = config.inventory.maxEquipment;
