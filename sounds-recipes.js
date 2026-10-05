@@ -384,5 +384,102 @@ const SFX_RECIPES = {
         lp.connect(g); g.connect(d);
         sfxTone(c, d, s, 'sine', 110, 45, .45, 1);
         sfxBurst(c, d, s, .3, 'lowpass', 300, .5);
+    },
+    // --- Gorgoth le Concierge (chantier 17, lot 8) ---
+    // Rugissement : deux voix à formants très graves et rauques (« a » puis sous-octave « o »), grondement de poitrine,
+    // flammes qui grésillent tout du long.
+    demonRoar(c, d, t) {
+        sfxCreature(c, d, t, [[0, 68], [.25, 96], [.8, 84], [1.3, 52]], 'a', .9, { rough: .55, vib: 4, vibRate: 5, a: .12 });
+        sfxCreature(c, d, t + .03, [[0, 36], [.3, 48], [1.25, 28]], 'o', .7, { rough: .4, a: .18 });
+        sfxBurst(c, d, t, 1.15, 'lowpass', 180, .6, { a: .15, f1: 90 });
+        sfxBurst(c, d, t + .05, .95, 'bandpass', 1400, .12, { a: .3, q: 1 });
+        sfxGrains(c, d, t + .1, 1.2, 34, 'highpass', 3200, .22);
+    },
+    // Fouet : sifflement, claquement sec, puis un trousseau de clés métalliques qui cliquette.
+    demonWhip(c, d, t) {
+        sfxWhoosh(c, d, t, .18, 400, 3200, 1.6, .4);
+        sfxBurst(c, d, t + .17, .03, 'highpass', 2500, .55);
+        sfxTone(c, d, t + .17, 'sine', 1200, 300, .03, .35);
+        for (let i = 0; i < 5; i++) {
+            sfxMetal(c, d, t + .2 + i * .075 + sfxRand(0, .015), sfxRand(2400, 3600), .25, .17 - i * .025, [1, 2.4, 4.1]);
+        }
+    },
+    // Brasier : bruit filtré qui s'ouvre en montant, grondement de foyer, crépitement.
+    demonBlaze(c, d, t) {
+        sfxBurst(c, d, t, .6, 'lowpass', 300, .85, { a: .35, f1: 2500, q: 1 });
+        sfxBurst(c, d, t + .05, .7, 'bandpass', 160, .45, { a: .2, q: .8 });
+        sfxGrains(c, d, t + .1, .85, 30, 'highpass', 2600, .4);
+    },
+    // Changement d'acte : coup sourd, puis cloche funèbre grave (partiels d'une cloche d'église).
+    demonAct(c, d, t) {
+        sfxTone(c, d, t, 'sine', 80, 30, .5, 1);
+        sfxBurst(c, d, t, .4, 'lowpass', 400, .7);
+        sfxMetal(c, d, t + .05, 98, 1.35, .45, [1, 2, 2.38, 3, 4, 5.32]);
+        sfxBell(c, d, t + .05, 196, .25, 1.3);
+    },
+    // Chaîne brisée : métal qui claque sec, puis les maillons qui tombent et rebondissent.
+    demonChainBreak(c, d, t) {
+        sfxBurst(c, d, t, .02, 'highpass', 2000, 1);
+        sfxMetal(c, d, t, 1400, .35, .5, [1, 2.76, 5.4]);
+        sfxTone(c, d, t, 'sine', 300, 120, .06, .5);
+        [.15, .27, .36, .43].forEach((o, i) => {
+            sfxMetal(c, d, t + o, sfxRand(2000, 3200), .15, .3 - i * .05, [1, 2.76, 5.4]);
+            sfxBurst(c, d, t + o, .015, 'bandpass', 2500, .25 - i * .04, { q: 2 });
+        });
+    },
+    // Possession : chœur dissonant (seconde mineure, triton) qui tremble, et une voix « à l'envers » qui enfle puis
+    // se coupe net, avec un souffle aspiré.
+    demonPossession(c, d, t) {
+        [[220, 'a'], [233, 'o'], [311, 'u'], [110, 'o']].forEach(([f, v], i) => {
+            sfxCreature(c, d, t + i * .04, [[0, f], [.6, f * 1.03], [1.2, f * .94]], v, .32, { vib: f * .03, vibRate: 5 + i, a: .25 });
+        });
+        sfxCreature(c, d, t, [[0, 170], [1.2, 135]], 'e', .5, { a: 1.05, rough: .3 });
+        sfxBurst(c, d, t, .15, 'bandpass', 900, .3, { a: 1.05, f1: 2600, q: 2 });
+    },
+    // Battement de cœur : un seul « lub-dub » grave et sourd.
+    demonHeartbeat(c, d, t) {
+        sfxTone(c, d, t, 'sine', 62, 40, .12, 1, .01);
+        sfxBurst(c, d, t, .1, 'lowpass', 160, .6, { a: .01 });
+        sfxTone(c, d, t + .22, 'sine', 56, 36, .14, .8, .01);
+        sfxBurst(c, d, t + .22, .12, 'lowpass', 140, .5, { a: .01 });
+    },
+    // Cataclysme : déflagration, chute d'infrasons, grondement qui s'éteint, gravats.
+    demonCataclysm(c, d, t) {
+        sfxBurst(c, d, t, .1, 'highpass', 1500, 1);
+        sfxTone(c, d, t, 'sine', 70, 22, 1, 1);
+        sfxBurst(c, d, t, 1.35, 'lowpass', 600, 1, { a: .02, f1: 60 });
+        sfxBurst(c, d, t + .02, .5, 'bandpass', 300, .5, { q: .7 });
+        sfxGrains(c, d, t + .2, 1.1, 26, 'lowpass', 800, .4, { q: 1 });
+    },
+    // Gorgoth au tapis (ton DCC) : chute lourde, « boing » de ressort ridicule, sifflet à coulisse qui descend.
+    demonKnockout(c, d, t) {
+        sfxTone(c, d, t, 'sine', 90, 30, .35, 1);
+        sfxBurst(c, d, t, .3, 'lowpass', 500, .8);
+        const boing = sfxTone(c, d, t + .4, 'sine', 330, 220, .3, .45, .005);
+        sfxLfo(c, t + .4, .3, 11, 60, boing.frequency);
+        sfxTone(c, d, t + .75, 'sine', 1800, 400, .45, .3, .01);
+    },
+    // Porte colossale : gonds énormes qui grincent longtemps, puis quatre verrous qui claquent un à un.
+    demonGateOpen(c, d, t) {
+        const o = c.createOscillator(), bp = c.createBiquadFilter();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(42, t);
+        o.frequency.exponentialRampToValueAtTime(68, t + .9);
+        bp.type = 'bandpass'; bp.frequency.value = 380; bp.Q.value = 5;
+        const g = sfxEnv(c, t, .2, .7, .7);
+        o.connect(bp); bp.connect(g); g.connect(d);
+        o.start(t); o.stop(t + .92);
+        sfxGrains(c, d, t, .85, 60, 'bandpass', 520, .4, { q: 6, accel: true });
+        [.95, 1.05, 1.15, 1.25].forEach(o2 => {
+            sfxBurst(c, d, t + o2, .03, 'bandpass', 1200, .7, { q: 1.5 });
+            sfxTone(c, d, t + o2, 'sine', 200, 80, .06, .7);
+            sfxMetal(c, d, t + o2, 900, .12, .25, [1, 2.76, 5.4]);
+        });
+    },
+    // Clé obtenue : tintement brillant et court.
+    demonKeyGet(c, d, t) {
+        sfxBell(c, d, t, 2637, .4, .4);
+        sfxBell(c, d, t + .06, 3520, .3, .4);
+        sfxMetal(c, d, t + .06, 4200, .3, .12, [1, 2.76]);
     }
 };

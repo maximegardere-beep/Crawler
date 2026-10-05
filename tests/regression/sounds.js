@@ -325,3 +325,24 @@ withFakeAudio(stats => {
         resetTransientState();
     }
 }
+
+// --- Chantier 17, lot 8 : les 11 sons de Gorgoth le Concierge (contrat partagé) ---
+{
+    const expected = ['demonRoar', 'demonWhip', 'demonBlaze', 'demonAct', 'demonChainBreak', 'demonPossession',
+        'demonHeartbeat', 'demonCataclysm', 'demonKnockout', 'demonGateOpen', 'demonKeyGet'];
+    assert(Array.isArray(DEMON_SFX_KEYS) && DEMON_SFX_KEYS.length === 11 && expected.every(k => DEMON_SFX_KEYS.includes(k)), "Gorgoth : DEMON_SFX_KEYS liste les 11 clés du contrat");
+    assert(DEMON_SFX_KEYS.every(k => SFX_CATALOG[k] && SFX_CATALOG[k].recipe && typeof SFX_RECIPES[k] === 'function'), "Gorgoth : chaque son est au catalogue, en recette Web Audio");
+    const groups = { demonRoar: 'mob', demonWhip: 'mob', demonBlaze: 'mob', demonAct: 'event', demonChainBreak: 'impact', demonPossession: 'event',
+        demonHeartbeat: 'world', demonCataclysm: 'impact', demonKnockout: 'event', demonGateOpen: 'world', demonKeyGet: 'event' };
+    assert(DEMON_SFX_KEYS.every(k => SFX_CATALOG[k].group === groups[k]), "Gorgoth : chaque son dans le groupe du contrat (file d'attente des événements respectée)");
+    assert(SFX_CATALOG.demonHeartbeat.duration <= 1, "Gorgoth : un battement de cœur dure au plus 1 s");
+    const lab = listSfxForLab();
+    const section = lab.find(s => s.group === 'gorgoth');
+    assert(section && section.title === SFX_LAB_SECTIONS.gorgoth && section.sounds.map(s => s.key).join(',') === DEMON_SFX_KEYS.join(','), "Page d'écoute : les sons de Gorgoth regroupés dans leur section, dans l'ordre du contrat");
+    assert(lab.filter(s => s.group !== 'gorgoth').every(s => s.sounds.every(e => !DEMON_SFX_KEYS.includes(e.key))), "Page d'écoute : un son de Gorgoth n'apparaît pas aussi dans son groupe");
+    assert(playSfx('demonInconnu') === false, "playSfx() : une clé démoniaque inconnue est un no-op silencieux");
+    withFakeAudio(stats => {
+        assert(DEMON_SFX_KEYS.every(k => playSfx(k, { force: true }) === true) && stats.badRamps === 0, "Gorgoth : les 11 sons se jouent avec Web Audio, sans rampe vers 0");
+        assert(playSfx('demonInconnu', { force: true }) === false, "playSfx() : clé inconnue, rien même forcé");
+    });
+}
