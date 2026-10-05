@@ -259,10 +259,10 @@ function startDummyFight(extra = {}) {
     openDemonArmory(null);
     leaveDemonArmory();
     assert(!gameState.demonArmoryChoicePending && listHeldDemonicItems().length === 0, "Partir les mains vides");
-    // Type d'événement inconnu de la chronique : sans effet.
-    const before = JSON.stringify(gameState.runStats);
+    // Chronique (lot 9) : un objet emporté du râtelier est compté.
+    const before = gameState.runStats.demonArmoryPicks || 0;
     recordRunEvent('demonArmory', { itemKey: 'blade', kept: true });
-    assert(JSON.stringify(gameState.runStats) === before, "recordRunEvent('demonArmory') : sans effet tant que la chronique ne l'exploite pas");
+    assert(gameState.runStats.demonArmoryPicks === before + 1, "recordRunEvent('demonArmory') : compté par la chronique");
     assert(typeof devOpenDemonArmory === 'function', "devOpenDemonArmory() exposé");
     resetTransientState();
 }

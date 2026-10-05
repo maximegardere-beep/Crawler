@@ -166,6 +166,11 @@ function defeatBosses(fm, n) {
 {
     const fm = freshClassicFloor();
     const gate = demonGateRoom();
+    // Le départ peut tomber sur une avenue voisine de la porte : on repart d'une carte où seule une salle de bloc est visitée.
+    Object.values(fm.roomsById).forEach(r => { r.visited = false; });
+    const blockRoom = Object.values(fm.roomsById).find(r => r.zone === 'block' && r.type === 'normal');
+    blockRoom.visited = true;
+    fm.currentRoomId = blockRoom.id;
     assert(!listFloorLandmarks().some(m => m.roomId === gate.id), "Porte inconnue : aucun repère");
     fm.roomsById['av_h1_0'].visited = true;
     let mark = listFloorLandmarks().find(m => m.roomId === gate.id);

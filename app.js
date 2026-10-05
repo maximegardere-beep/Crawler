@@ -3797,10 +3797,10 @@ function recordRunEvent(type, data = {}) {
 }
 
 // Mise au tapis de Gorgoth (chantier 17, lot 9) : `final` = victoire définitive de l'étage 18 (aucune Cicatrice) ;
-// sinon +1 mise au tapis et un cran de Cicatrice pour le style qui l'a battu (plafonné à DEMON_SCAR_MAX_RANK).
+// sinon +1 mise au tapis et un cran de Cicatrice pour le style qui l'a battu (plafonné à DEMON_RUN_SCAR_MAX_RANK).
 // demonScarMax garde le cran le plus haut atteint pendant le run, en lisant aussi gameState.demon.scars s'il existe (lot 2).
-const DEMON_SCAR_STYLES = ['melee', 'ranged', 'magic', 'unarmed'];
-const DEMON_SCAR_MAX_RANK = 3;
+const DEMON_RUN_SCAR_STYLES = ['melee', 'ranged', 'magic', 'unarmed'];
+const DEMON_RUN_SCAR_MAX_RANK = 3;
 function recordDemonKnockout(s, data = {}) {
     if (data.final) {
         s.demonFinalSlain = (s.demonFinalSlain || 0) + 1;
@@ -3809,11 +3809,11 @@ function recordDemonKnockout(s, data = {}) {
     s.demonKnockouts = (s.demonKnockouts || 0) + 1;
     s.demonLastKnockoutFloor = gameState.currentFloor;
     if (!s.demonScarsByStyle || typeof s.demonScarsByStyle !== 'object') s.demonScarsByStyle = { melee: 0, ranged: 0, magic: 0, unarmed: 0 };
-    if (DEMON_SCAR_STYLES.includes(data.scarStyle)) {
-        s.demonScarsByStyle[data.scarStyle] = Math.min(DEMON_SCAR_MAX_RANK, (s.demonScarsByStyle[data.scarStyle] || 0) + 1);
+    if (DEMON_RUN_SCAR_STYLES.includes(data.scarStyle)) {
+        s.demonScarsByStyle[data.scarStyle] = Math.min(DEMON_RUN_SCAR_MAX_RANK, (s.demonScarsByStyle[data.scarStyle] || 0) + 1);
     }
     const persisted = (gameState.demon && gameState.demon.scars) || {};
-    const ranks = DEMON_SCAR_STYLES.map(k => Math.max(s.demonScarsByStyle[k] || 0, Math.min(DEMON_SCAR_MAX_RANK, persisted[k] || 0)));
+    const ranks = DEMON_RUN_SCAR_STYLES.map(k => Math.max(s.demonScarsByStyle[k] || 0, Math.min(DEMON_RUN_SCAR_MAX_RANK, persisted[k] || 0)));
     s.demonScarMax = Math.max(s.demonScarMax || 0, ...ranks);
 }
 
@@ -8062,10 +8062,7 @@ function resolveNonBossCounterAttack(enemy) {
 let demonFightCallbacks = null; // { onVictory, onDefeat } du combat en cours (fonctions : jamais dans gameState)
 let demonFightJustEnded = false; // le coup fatal a déjà conclu le combat (un second appel de winCombat() est ignoré)
 
-// Vignette du lot 6, seulement si elle existe (sinon l'emoji de setSceneHeader() recouvre la scène).
-function demonVignette(name) {
-    return (typeof EXPLORE_VIGNETTES !== 'undefined' && EXPLORE_VIGNETTES[name]) ? name : undefined;
-}
+// Vignettes du lot 6 : demonVignette() (section porte colossale).
 
 // Son du lot 8, seulement s'il est déclaré (playSfx() ignore déjà une clé absente : double garde inoffensive).
 function demonSfx(key) {
@@ -10535,18 +10532,20 @@ function renderDemonArmory() {
         const label = mine ? `Garder le mien (+${DEMONIC_ARMORY.keepLevelBonus} niveaux)` : (held ? 'Échanger' : 'Prendre');
         const run = () => (mine ? keepDemonicItem() : takeDemonicItem(item.demonKey));
         const stat = item.category === 'armors' ? `🛡️ DEF +${item.baseArmor}` : `⚔️ ATK +${item.baseDmg}`;
+        // Icône : dessin de l'objet ; le Règlement Intérieur (sort, sans sprite d'équipement) a sa propre icône (lot 5).
+        const icon = (item.category === 'scrolls' && typeof demonicRulebookIconSvg === 'function') ? demonicRulebookIconSvg(40) : itemIconSvg(item, 40);
         const card = document.createElement('div');
         card.className = "mini-card rounded-lg p-2 flex flex-col gap-1 text-center relative cursor-pointer";
         card.style.borderColor = item.rarityColor;
         card.style.borderWidth = "2px";
         card.innerHTML = `
             ${mine ? '<span class="absolute top-1 left-1 px-1 rounded bg-fuchsia-500 text-[7px] font-black uppercase text-gray-900">Le vôtre</span>' : ''}
-            <div class="flex justify-center leading-none">${itemIconSvg(item, 40) || `<span class="text-xl">${item.icon || '😈'}</span>`}</div>
+            <div class="flex justify-center leading-none">${icon || `<span class="text-xl">${item.icon || '😈'}</span>`}</div>
             <div class="text-[10px] font-bold leading-tight">${item.name}</div>
             <div class="text-[8px] font-bold uppercase tracking-wider" style="color:${item.rarityColor}">${item.rarity} · niv. ${item.itemLevel}</div>
             <div class="text-[9px] text-stone-600">${stat}</div>
             <div class="flex gap-1 flex-wrap justify-center text-[8px]">${buildQualifierBadgesHtml(item)}</div>
-            <button data-action="take" class="mt-1 min-h-[36px] text-[9px] uppercase tracking-wider rounded px-2 py-1 border ${mine ? 'bg-fuchsia-900 border-fuchsia-500 text-fuchsia-100' : 'bg-stone-800 border-stone-600 text-stone-100'} hover:brightness-125">${label}</button>
+            <button data-action="take" class="mt-1 min-h-[44px] text-[9px] uppercase tracking-wider rounded px-2 py-1 border ${mine ? 'bg-fuchsia-900 border-fuchsia-500 text-fuchsia-100' : 'bg-stone-800 border-stone-600 text-stone-100'} hover:brightness-125">${label}</button>
         `;
         const btn = card.querySelector('[data-action="take"]');
         if (btn) btn.addEventListener('click', (e) => { if (e && e.stopPropagation) e.stopPropagation(); run(); });
