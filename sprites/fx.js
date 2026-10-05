@@ -46,7 +46,9 @@ const MELEE_SWING_STYLES = {
     'Canne-Épée du Baron des Ombres': 'thrust',
     'Barre de Péage Maudite': 'smash',
     'Dents du Grand Requin Gonflable': 'slash',
-    'Micro Électrifié de l\'Animateur Vedette': 'smash'
+    'Micro Électrifié de l\'Animateur Vedette': 'smash',
+    // Chantier 17 : armurerie de Gorgoth le Concierge (sprites/items-demonic.js) — le fouet de clés claque en arc fin.
+    'Trousseau Ardent de Gorgoth': 'slash'
 };
 
 // Éclat d'impact propre à certaines armes de mêlée (sinon celui de leur style).
@@ -60,7 +62,8 @@ const MELEE_IMPACTS = {
     'Tronçon de Liane Toxique': 'splash',
     'Tronçonneuse': 'slash',
     'Marteau de Guerre': 'pow',
-    'Nouille de Piscine': 'foam'
+    'Nouille de Piscine': 'foam',
+    'Trousseau Ardent de Gorgoth': 'brand'
 };
 
 // Projectile de chaque arme à distance.
@@ -80,7 +83,8 @@ const RANGED_PROJECTILES = {
     'Fusil à Pompe': 'pellets',
     'Pistolet à Bulles': 'water',
     'Tampon Encreur du Directeur': 'stamp',
-    'Canon à Impulsions de l\'IA Malveillante': 'pulse'
+    'Canon à Impulsions de l\'IA Malveillante': 'pulse',
+    'Lance-Clés Infernal': 'emberKey'
 };
 
 // Projectiles : `art` (pointe à gauche), `speed` (unités de scène par ms), `arc` (hauteur de la cloche,
@@ -107,6 +111,12 @@ const FX_PROJECTILES = {
     stamp: { speed: 0.9, arc: 10, spin: true, color: '#fca5a5', impact: 'stamp',
         art: '<rect x="-4" y="-2" width="8" height="4" rx="1" fill="#b91c1c" stroke="#05060c" stroke-width="0.9"/><rect x="-1.5" y="-7" width="3" height="5" fill="#4b3621" stroke="#05060c" stroke-width="0.8"/>' },
     pulse: { speed: 2.2, beam: 4.2, flash: '#67e8f9', color: '#22d3ee', impact: 'shock', art: '' },
+    // Chantier 17 : clé ardente du Lance-Clés Infernal — tourne sur elle-même dans un halo, traînée de braises.
+    emberKey: { speed: 1.3, arc: 4, spin: true, flash: '#fdba74', color: '#f97316', impact: 'brand',
+        art: '<circle r="6.5" fill="#f97316" opacity="0.28"/><path d="M-6 0 H2.2 M-5 0 v2.3 M-3.4 0 v1.7" fill="none" stroke="#05060c" stroke-width="2.6" stroke-linecap="round"/><path d="M-6 0 H2.2 M-5 0 v2.3 M-3.4 0 v1.7" fill="none" stroke="#fb923c" stroke-width="1.3" stroke-linecap="round"/><circle cx="4.2" r="2.2" fill="none" stroke="#05060c" stroke-width="2.4"/><circle cx="4.2" r="2.2" fill="none" stroke="#fde68a" stroke-width="1.1"/><circle cx="7.6" cy="-2.6" r="0.8" fill="#fbbf24"/><circle cx="8.2" cy="2.3" r="0.6" fill="#f97316"/><circle cx="-7.6" cy="2" r="0.6" fill="#fbbf24"/>' },
+    // Chantier 17 : pages-sceaux enflammées du Règlement Intérieur (trois feuillets qui volent en cloche inversée).
+    sealPage: { speed: 1, arc: -8, count: 3, spread: 9, color: '#f97316', impact: 'infernalSeal',
+        art: '<g transform="rotate(-12)"><rect x="-4" y="-5" width="8" height="10" rx="0.6" fill="#fde68a" stroke="#05060c" stroke-width="0.8"/><path d="M-2.6 -2.8 H2.4 M-2.6 -0.8 H1.6" stroke="#78350f" stroke-width="0.6"/><path d="M4 -5 V5" stroke="#f97316" stroke-width="1.2"/><circle cx="0.4" cy="2.2" r="1.9" fill="#7e22ce" stroke="#05060c" stroke-width="0.6"/><path d="M3 -5 Q5.6 -7.4 4.6 -9.6 Q7.6 -6.6 5.4 -4.2 Z" fill="#f97316" stroke="#05060c" stroke-width="0.4"/></g>' },
     // Tirs de mobs (et de sorts) : couleur = celle de l'effet du mob, posée par fx.js.
     spit: { speed: 0.85, arc: 14, color: '#84cc16', impact: 'splash',
         art: '<ellipse rx="4" ry="2.8" fill="currentColor" stroke="#05060c" stroke-width="0.9"/><circle cx="3.5" cy="-1" r="1.3" fill="currentColor"/>' },
@@ -149,7 +159,9 @@ const FX_SPELLS = {
     // Sorts utilitaires (catégorie `any`) : l'effet se joue sur le crawler lui-même (style 'self').
     '💚': { style: 'self', color: '#4ade80', impact: 'foam' },
     '🔰': { style: 'self', color: '#60a5fa', impact: 'frost' },
-    '🌑': { style: 'self', color: '#6b7280', impact: 'foam' }
+    '🌑': { style: 'self', color: '#6b7280', impact: 'foam' },
+    // Chantier 17 : Règlement Intérieur (armurerie de Gorgoth, DEMONIC_SPELL_ICON de sprites/items-demonic.js).
+    '📜': { style: 'bolt', projectile: 'sealPage', color: '#f97316', impact: 'infernalSeal' }
 };
 
 // Attaque au contact de chaque archétype de mob (sprites/mobs.js) : 'smash', 'slash' (arc au bout du
@@ -218,6 +230,10 @@ const FX_IMPACTS = {
     // V3 (boss) : parade (étincelles croisées sur le bouclier) et garde brisée (fissure qui éclate).
     parry: c => `<path d="M-13 -13 L13 13 M13 -13 L-13 13" stroke="#05060c" stroke-width="4.4" stroke-linecap="round"/><path d="M-13 -13 L13 13 M13 -13 L-13 13" stroke="${c || '#e5e7eb'}" stroke-width="2.2" stroke-linecap="round"/><circle r="9" fill="none" stroke="${c || '#e5e7eb'}" stroke-width="1.6"/><circle r="3.4" fill="#fff"/><path d="M-15 0 H-9 M9 0 H15 M0 -15 V-9 M0 9 V15" stroke="#fbbf24" stroke-width="1.4" stroke-linecap="round"/>`,
     guardBreak: c => `<path d="M0 -15 L-4 -5 L3 -2 L-5 8 L1 15" fill="none" stroke="#05060c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M0 -15 L-4 -5 L3 -2 L-5 8 L1 15" fill="none" stroke="${c || '#fdba74'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M-14 -4 L-8 -2 M12 4 L7 2 M10 -10 L6 -7" stroke="${c || '#fdba74'}" stroke-width="1.6" stroke-linecap="round"/><circle r="2.6" fill="#fff"/>`,
+    // Chantier 17 (objets démoniaques) : serrure marquée au fer rouge (fouet de clés, clé ardente) et sceau de cire
+    // pourpre qui s'embrase (Règlement Intérieur).
+    brand: c => `<circle r="12" fill="${c || '#f97316'}" opacity="0.32"/><circle r="8" fill="none" stroke="#05060c" stroke-width="3.6"/><circle r="8" fill="none" stroke="${c || '#f97316'}" stroke-width="2"/><path d="M0 -5 A2.6 2.6 0 0 1 1.6 -0.4 L3 5 H-3 L-1.6 -0.4 A2.6 2.6 0 0 1 0 -5 Z" fill="#fde68a" stroke="#05060c" stroke-width="0.8"/><path d="M-14 -6 L-10 -4 M13 -8 L9.5 -5 M-12 9 L-9 6.5 M12 9 L9 6.5 M0 -15 V-11" stroke="#fbbf24" stroke-width="1.4" stroke-linecap="round"/>`,
+    infernalSeal: c => `<circle r="14" fill="${c || '#f97316'}" opacity="0.3"/><path d="${fxStarPath(9, 12, 10)}" fill="#7e22ce" stroke="#05060c" stroke-width="1"/><circle r="7.4" fill="none" stroke="#fbbf24" stroke-width="1"/><path d="${fxStarPath(5, 5.6, 2.3)}" fill="#fbbf24" stroke="#78350f" stroke-width="0.6"/><path d="M-9 -9 Q-11 -14 -8 -17 Q-7 -13 -5 -12 Z M9 -9 Q11 -14 8 -17 Q7 -13 5 -12 Z M0 -12 Q-2 -17 0 -20 Q2 -17 0 -12 Z" fill="#f97316" stroke="#05060c" stroke-width="0.6"/>`,
     bite: c => `<path d="M-11 -4 Q0 -14 11 -4" fill="none" stroke="#05060c" stroke-width="3"/><path d="M-11 4 Q0 14 11 4" fill="none" stroke="#05060c" stroke-width="3"/>${[-7, -2.5, 2.5, 7].map(x => `<path d="M${x - 1.8} ${-7 + Math.abs(x) * 0.35} L${x} ${-2 + Math.abs(x) * 0.35} L${x + 1.8} ${-7 + Math.abs(x) * 0.35} Z M${x - 1.8} ${7 - Math.abs(x) * 0.35} L${x} ${2 - Math.abs(x) * 0.35} L${x + 1.8} ${7 - Math.abs(x) * 0.35} Z" fill="#f8fafc" stroke="#05060c" stroke-width="0.6"/>`).join('')}<circle r="2" fill="${c || FX_COLORS.claw}"/>`
 };
 
