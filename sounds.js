@@ -33,6 +33,10 @@ const SFX_QUEUE_MAX_GAP = .35; // secondes au plus entre deux sons de la file
 const sfx = (group, label, use, params) => ({ group, label, use, params });
 const layered = (group, label, use, layers) => ({ group, label, use, layers });
 const recipe = (group, label, use, duration, level = 1) => ({ group, label, use, recipe: true, duration, level });
+// Sections supplémentaires de la page d'écoute : un son garde son groupe (file d'attente, contrat de jeu) mais peut être
+// rangé à part dans la page d'écoute par `lab` (ex. tous les sons de Gorgoth ensemble).
+const SFX_LAB_SECTIONS = { gorgoth: 'Gorgoth le Concierge' };
+const inLab = (section, def) => Object.assign(def, { lab: section });
 
 const SFX_CATALOG = {
     // Armes de mêlée : un son par style de coup (MELEE_SWING_STYLES, sprites/fx.js) + mains nues.
@@ -96,8 +100,25 @@ const SFX_CATALOG = {
     bossSting:    sfx('world', 'Arrivée du boss', 'Accord grave et menaçant (boss, chasseur de primes).', [2, 0, 70, .02, .3, .6, 2, 1, -.3, 0, 35, .15, 0, .5, 2, .15, .15, .8, 0]),
     stairsDescend: sfx('world', 'Escalier', 'Pas qui descendent vers l\'étage suivant.', [1.3, 0, 600, 0, .5, .1, 1, 1, 0, 0, -90, .09, .1, 0, 0, 0, 0, .6, 0]),
     gameOverDirge: sfx('world', 'Game Over', 'Lamento qui s\'éteint.', [1.6, 0, 220, .05, .5, .7, 2, 1, -1.5, 0, 0, 0, 0, 0, 3, 0, .15, .7, 0, .2]),
-    victoryFanfare: sfx('world', 'Victoire', 'Fanfare de sortie du Donjon.', [1.8, 0, 392, .02, .5, .5, 1, 1, 0, 0, 196, .12, .25, 0, 0, 0, .1, .7, 0])
+    victoryFanfare: sfx('world', 'Victoire', 'Fanfare de sortie du Donjon.', [1.8, 0, 392, .02, .5, .5, 1, 1, 0, 0, 196, .12, .25, 0, 0, 0, .1, .7, 0]),
+    // Gorgoth le Concierge (chantier 17, lot 8) : boss de niveau, démon d'ombre et de flammes. Clés figées par le contrat
+    // du chantier (DEMON_SFX_KEYS) ; les autres lots les jouent par playSfx(clé). Recettes dans sounds-recipes.js.
+    demonRoar:       inLab('gorgoth', recipe('mob', 'Rugissement de Gorgoth', 'Entrée en combat : rugissement colossal, flammes qui grésillent.', 1.4, 2.6)),
+    demonWhip:       inLab('gorgoth', recipe('mob', 'Trousseau de Gorgoth', 'Le trousseau de clés en fusion claque comme un fouet.', 0.85, 1.5)),
+    demonBlaze:      inLab('gorgoth', recipe('mob', 'Brasier de Gorgoth', 'Souffle de brasier qui monte et crépite.', 1, 1.8)),
+    demonAct:        inLab('gorgoth', recipe('event', "Gorgoth : changement d'acte", 'Impact sourd et cloche funèbre.', 1.5, 1)),
+    demonChainBreak: inLab('gorgoth', recipe('impact', 'Chaîne brisée', 'Une chaîne de Gorgoth claque, les maillons tombent.', 0.7, 1.55)),
+    demonPossession: inLab('gorgoth', recipe('event', 'Possession', "L'Emprise est totale : chœur dissonant, voix à l'envers.", 1.4, 1.85)),
+    demonHeartbeat:  inLab('gorgoth', recipe('world', 'Battement de cœur', "Emprise haute : un battement « lub-dub » grave (un par tour au plus).", 0.6, 0.7)),
+    demonCataclysm:  inLab('gorgoth', recipe('impact', 'Cataclysme', 'Le compte à rebours tombe à zéro : explosion et grondement.', 1.5, 1.25)),
+    demonKnockout:   inLab('gorgoth', recipe('event', 'Gorgoth au tapis', 'Chute colossale, « boing » et sifflet qui descend.', 1.3, 1.05)),
+    demonGateOpen:   inLab('gorgoth', recipe('world', 'Porte colossale', 'Gonds énormes qui grincent, quatre verrous qui claquent.', 1.5, 1.1)),
+    demonKeyGet:     inLab('gorgoth', recipe('event', 'Clé obtenue', "Une clé de la porte colossale : tintement brillant.", 0.6, 1.3))
 };
+
+// Les 11 sons de Gorgoth (contrat du chantier 17) : toujours joués par playSfx(clé), un appel gardé côté jeu.
+const DEMON_SFX_KEYS = ['demonRoar', 'demonWhip', 'demonBlaze', 'demonAct', 'demonChainBreak', 'demonPossession',
+    'demonHeartbeat', 'demonCataclysm', 'demonKnockout', 'demonGateOpen', 'demonKeyGet'];
 
 // Son d'issue d'un mini-jeu (perfect / success / fail) — pure.
 const SFX_MINIGAME_OUTCOMES = { perfect: 'minigamePerfect', success: 'minigameSuccess', fail: 'minigameFail' };
@@ -268,12 +289,21 @@ function playSfx(key, { force = false } = {}) {
     }
 }
 
-// Liste ordonnée par groupe pour la page d'écoute (pure).
+// Liste ordonnée par groupe pour la page d'écoute (pure) ; les sons rangés à part (`lab`, SFX_LAB_SECTIONS) suivent,
+// une section chacun.
 function listSfxForLab() {
-    return Object.keys(SFX_GROUPS).map(group => ({
+    const entry = key => ({ key, label: SFX_CATALOG[key].label, use: SFX_CATALOG[key].use });
+    const keys = Object.keys(SFX_CATALOG);
+    const sectionOf = key => (SFX_LAB_SECTIONS[SFX_CATALOG[key].lab] ? SFX_CATALOG[key].lab : null);
+    const byGroup = Object.keys(SFX_GROUPS).map(group => ({
         group,
         title: SFX_GROUPS[group],
-        sounds: Object.keys(SFX_CATALOG).filter(key => SFX_CATALOG[key].group === group)
-            .map(key => ({ key, label: SFX_CATALOG[key].label, use: SFX_CATALOG[key].use }))
-    })).filter(entry => entry.sounds.length > 0);
+        sounds: keys.filter(key => !sectionOf(key) && SFX_CATALOG[key].group === group).map(entry)
+    }));
+    const bySection = Object.keys(SFX_LAB_SECTIONS).map(section => ({
+        group: section,
+        title: SFX_LAB_SECTIONS[section],
+        sounds: keys.filter(key => sectionOf(key) === section).map(entry)
+    }));
+    return byGroup.concat(bySection).filter(e => e.sounds.length > 0);
 }
