@@ -48,6 +48,7 @@ require('./regression/encounters.js');
 require('./regression/sounds.js');
 require('./regression/demon-combat.js');
 require('./regression/demon-access.js');
+require('./regression/demon-items.js');
 
 console.log(`${counts.passed} test(s) OK, ${counts.failures} échec(s).`);
 process.exit(counts.failures === 0 ? 0 : 1);

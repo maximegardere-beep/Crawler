@@ -57,7 +57,10 @@ const ENCHANT_COLORS = {
     adrenaline: '#facc15', shock: '#38bdf8', keen: '#e2e8f0', precise: '#f97316', pierce: '#cbd5e1',
     swift: '#2dd4bf', lucky: '#22c55e', thorns: '#65a30d', sturdy: '#b45309', tenacious: '#0ea5e9',
     amplified: '#d946ef', thrifty: '#3b82f6', channeled: '#a5b4fc',
-    rusty: '#92400e', cracked: '#78716c', wobbly: '#a3a3a3', squeaky: '#d6d3d1', stutter: '#737373'
+    rusty: '#92400e', cracked: '#78716c', wobbly: '#a3a3a3', squeaky: '#d6d3d1', stutter: '#737373',
+    // Objets démoniaques (chantier 17) : effets en feu/braise, malédictions en pourpre sombre.
+    demon_lifesteal: '#f97316', demon_last_breath: '#fb7185', demon_souls: '#a3e635', demon_decree: '#fbbf24',
+    curse_potions: '#86198f', curse_no_regen: '#701a75', curse_soul_hunger: '#581c87', curse_blood_price: '#9f1239'
 };
 const ENCHANT_DEFAULT_COLOR = '#f5f0e0';
 

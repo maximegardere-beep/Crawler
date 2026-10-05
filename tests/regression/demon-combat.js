@@ -216,9 +216,14 @@ function startFight(opts = {}, keepDemon = false) {
         gameState.hp = gameState.maxHp; // on mesure le moteur, pas la survie
         if (gameState.combatDistance > 0) attemptEngage(); else attackWeapon();
     }
+    // Armurerie (lot 4) : onVictory n'est appelé qu'après le choix au râtelier.
+    if (typeof openDemonArmory === 'function') {
+        assert(gameState.demonArmoryChoicePending === true && res.victory === 0, "Mise au tapis : l'armurerie s'ouvre avant onVictory");
+        leaveDemonArmory();
+    }
     assert(!gameState.inCombat && !gameState.demonFight && gameState.currentEnemy === null, `Mise au tapis atteinte (${turns} tours), combat terminé`);
     assert(gameState.demon.knockouts === 1 && gameState.demon.scars.melee === 1 && gameState.demon.lastFloorFought === 5, "Mise au tapis : +1, Cicatrice du style dominant (mêlée), étage noté");
-    assert(res.victory === 1 && res.defeat === 0, "onVictory appelé après la mise au tapis (sans armurerie)");
+    assert(res.victory === 1 && res.defeat === 0, "onVictory appelé après la mise au tapis (et le choix à l'armurerie)");
     assert(!gameState.hasWon, "Une mise au tapis n'est jamais la victoire finale");
     // Le démon revient plus fort.
     startFight({}, true);

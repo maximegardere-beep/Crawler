@@ -98,6 +98,9 @@ try {
                 trainSkill();
             }
             leaveShop();
+        } else if (gameState.demonArmoryChoicePending) {
+            // Armurerie de Gorgoth (chantier 17, lot 4) : garde son objet démoniaque, sinon prend le premier du râtelier.
+            if (gameState.demonArmory && gameState.demonArmory.heldKey) keepDemonicItem(); else takeDemonicItem(DEMONIC_ITEM_KEYS[0]);
         } else if (gameState.lairChoicePending) {
             // Repaire (voir triggerLairChoice()) : alterne plonger/ressortir pour exercer les
             // deux issues ; une plongée s'enchaîne ensuite via la branche inCombat ci-dessous, exactement
@@ -270,6 +273,7 @@ try {
         else attackWeapon();
     }
     if (gameState.inCombat && gameState.currentEnemy && gameState.currentEnemy.isDemon) { gameState.currentEnemy.hp = -1; winCombat(); }
+    if (gameState.demonArmoryChoicePending) takeDemonicItem(DEMONIC_ITEM_KEYS[0]); // armurerie après une mise au tapis (lot 4)
     demonOutcome = gameState.demon.knockouts > knockoutsBefore ? 'knockout' : (gameState.demon.expulsions > expulsionsBefore ? 'expelled' : 'none');
     assert(!gameState.inCombat && gameState.demonFight === null && gameState.hp > 0, `Le combat démoniaque se conclut proprement (${demonTurns} tours, ${demonOutcome})`);
     assert(demonOutcome !== 'none', "Le combat démoniaque finit en mise au tapis ou en expulsion");
@@ -301,6 +305,7 @@ try {
         while (isActionBlocked() && guard++ < 50 && gameState.hp > 0 && !gameState.hasWon) {
             if (gameState.encounterIntroPending) dismissEncounterIntro(true);
             else if (gameState.pendingMinigame) skipMinigame();
+            else if (gameState.demonArmoryChoicePending) leaveDemonArmory();
             else if (gameState.inCombat && gameState.currentEnemy) { gameState.currentEnemy.hp = -9999; winCombat(); }
             else if (gameState.inCombat) gameState.inCombat = false;
             else break;
@@ -346,6 +351,9 @@ try {
             if (candidate && candidate.disposition === 'friendly') recruitCompanion(); else attackCompanionEncounter();
         } else if (gameState.shopChoicePending) {
             leaveShop(); // Étage final : on ne s'attarde pas en boutique, priorité à la Sortie
+        } else if (gameState.demonArmoryChoicePending) {
+            // Armurerie de Gorgoth (chantier 17, lot 4) : garde son objet démoniaque, sinon prend le premier du râtelier.
+            if (gameState.demonArmory && gameState.demonArmory.heldKey) keepDemonicItem(); else takeDemonicItem(DEMONIC_ITEM_KEYS[0]);
         } else if (gameState.lairChoicePending) {
             declineLair(); // Idem : on ne dévie jamais vers un repaire quand la Sortie est en vue
         } else if (gameState.floorTransitionPending) {
