@@ -98,6 +98,9 @@ try {
                 trainSkill();
             }
             leaveShop();
+        } else if (gameState.demonArmoryChoicePending) {
+            // Armurerie de Gorgoth (chantier 17, lot 4) : garde son objet démoniaque, sinon prend le premier du râtelier.
+            if (gameState.demonArmory && gameState.demonArmory.heldKey) keepDemonicItem(); else takeDemonicItem(DEMONIC_ITEM_KEYS[0]);
         } else if (gameState.lairChoicePending) {
             // Repaire (voir triggerLairChoice()) : alterne plonger/ressortir pour exercer les
             // deux issues ; une plongée s'enchaîne ensuite via la branche inCombat ci-dessous, exactement
@@ -247,6 +250,75 @@ try {
     seenErrors.push(err);
 }
 
+// Intégration Gorgoth le Concierge (chantier 17, lot 2) : un combat démoniaque joué avec de VRAIES actions (attaques,
+// déplacements, charge), sans jamais rester bloqué ; il se conclut par une mise au tapis ou une expulsion, jamais un Game Over.
+let demonOutcome = null;
+try {
+    gameState.inCombat = false;
+    gameState.currentEnemy = null;
+    gameState.hp = gameState.maxHp;
+    const knockoutsBefore = gameState.demon.knockouts, expulsionsBefore = gameState.demon.expulsions;
+    startDemonFight({});
+    assert(gameState.inCombat && gameState.currentEnemy && gameState.currentEnemy.isDemon, "startDemonFight() lance bien le combat démoniaque");
+    let demonTurns = 0;
+    while (gameState.inCombat && gameState.demonFight && demonTurns < 400) {
+        demonTurns++;
+        if (gameState.encounterIntroPending) { dismissEncounterIntro(true); continue; }
+        if (gameState.pendingMinigame) { skipMinigame(); continue; }
+        if (gameState.hp > gameState.maxHp * 0.3) gameState.hp = Math.min(gameState.maxHp, gameState.hp + Math.round(gameState.maxHp * 0.05));
+        const d = gameState.combatDistance;
+        const roll = demonTurns % 5;
+        if (roll === 0 && d < combatMaxDistance()) attemptRetreat();
+        else if (d > 0) { if (roll % 2 === 0) attackRanged(); else attemptEngage(); }
+        else attackWeapon();
+    }
+    if (gameState.inCombat && gameState.currentEnemy && gameState.currentEnemy.isDemon) { gameState.currentEnemy.hp = -1; winCombat(); }
+    if (gameState.demonArmoryChoicePending) takeDemonicItem(DEMONIC_ITEM_KEYS[0]); // armurerie après une mise au tapis (lot 4)
+    demonOutcome = gameState.demon.knockouts > knockoutsBefore ? 'knockout' : (gameState.demon.expulsions > expulsionsBefore ? 'expelled' : 'none');
+    assert(!gameState.inCombat && gameState.demonFight === null && gameState.hp > 0, `Le combat démoniaque se conclut proprement (${demonTurns} tours, ${demonOutcome})`);
+    assert(demonOutcome !== 'none', "Le combat démoniaque finit en mise au tapis ou en expulsion");
+} catch (err) {
+    seenErrors.push(err);
+}
+
+// Intégration porte colossale (chantier 17, lot 1) : sur un étage classique, la porte du carrefour central ne bloque
+// jamais la simulation — fermée (moins de 4 clés), elle ne fait qu'un message ; ouverte (4 clés), elle lance le combat
+// de Gorgoth s'il existe (lot 2), résolu comme tout combat, et la simulation repart.
+let gateVisits = 0;
+try {
+    const floorBefore = gameState.currentFloor;
+    gameState.inCombat = false;
+    gameState.currentEnemy = null;
+    gameState.currentFloor = 1;
+    advanceToNextFloor(); // étage 2, classique
+    if (gameState.showChoicePending) answerShow('polite'); // émission DeathWatch d'arrivée : hors sujet ici
+    if (gameState.pactChoicePending) choosePactBlessing('hp');
+    const gate = Object.values(gameState.floorMap.roomsById).find(r => r.type === 'gate');
+    assert(!!gate, "Étage classique : une porte colossale au carrefour central");
+    [0, 4].forEach(keys => {
+        gameState.floorMap.quadrants.slice(0, keys).forEach(q => { gameState.floorMap.roomsById[q.bossRoomId].defeated = true; });
+        gameState.hp = gameState.maxHp;
+        moveToFloorRoom(gate);
+        enterRoom(gate);
+        gateVisits++;
+        let guard = 0;
+        while (isActionBlocked() && guard++ < 50 && gameState.hp > 0 && !gameState.hasWon) {
+            if (gameState.encounterIntroPending) dismissEncounterIntro(true);
+            else if (gameState.pendingMinigame) skipMinigame();
+            else if (gameState.demonArmoryChoicePending) leaveDemonArmory();
+            else if (gameState.inCombat && gameState.currentEnemy) { gameState.currentEnemy.hp = -9999; winCombat(); }
+            else if (gameState.inCombat) gameState.inCombat = false;
+            else break;
+        }
+        assert(!isActionBlocked() || typeof startDemonFight === 'function', `Porte colossale (${keys} clés) : la simulation repart (rien de bloquant)`);
+        gameState.inCombat = false;
+        gameState.currentEnemy = null;
+    });
+    gameState.currentFloor = floorBefore;
+} catch (err) {
+    seenErrors.push(err);
+}
+
 // Intégration étage final : force l'arrivée à l'étage 18 (urbain, final) et vérifie que la victoire
 // se déclenche bien en atteignant sa Sortie, gardée ou non, sans jamais générer d'étage 19.
 let reachedFinalWin = false;
@@ -279,6 +351,9 @@ try {
             if (candidate && candidate.disposition === 'friendly') recruitCompanion(); else attackCompanionEncounter();
         } else if (gameState.shopChoicePending) {
             leaveShop(); // Étage final : on ne s'attarde pas en boutique, priorité à la Sortie
+        } else if (gameState.demonArmoryChoicePending) {
+            // Armurerie de Gorgoth (chantier 17, lot 4) : garde son objet démoniaque, sinon prend le premier du râtelier.
+            if (gameState.demonArmory && gameState.demonArmory.heldKey) keepDemonicItem(); else takeDemonicItem(DEMONIC_ITEM_KEYS[0]);
         } else if (gameState.lairChoicePending) {
             declineLair(); // Idem : on ne dévie jamais vers un repaire quand la Sortie est en vue
         } else if (gameState.floorTransitionPending) {
@@ -313,7 +388,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${mapTravels} voyages sur carte, ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), ${showsSeen} émissions DeathWatch, ${originChoicesSeen} choix de race/classe, ${classAbilitiesUsed} capacités de classe, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${mapTravels} voyages sur carte, ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), ${showsSeen} émissions DeathWatch, ${originChoicesSeen} choix de race/classe, ${classAbilitiesUsed} capacités de classe, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}, Gorgoth=${demonOutcome}, ${gateVisits} passages à la porte colossale.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");
@@ -322,6 +397,7 @@ assert(floorsCleared >= 2, "Au moins l'étage 2 doit être atteint");
 assert(combatsWon > 0, "Au moins un combat normal gagné");
 assert(bossesEncountered > 0, "Au moins un boss rencontré");
 assert(urbanFloorsSeen > 0, "Au moins un étage urbain (étage 3, 6...) doit avoir été traversé sur 6 étages");
+assert(gateVisits === 2, "Deux passages forcés à la porte colossale (fermée puis ouverte)");
 assert(floorTransitionsSeen > 0, "Au moins un écran d'escalier doit avoir été traversé (la simulation ne doit jamais s'y bloquer)");
 
 console.log(failures === 0 ? "OK — tous les invariants tiennent." : `${failures} échec(s) d'invariant.`);

@@ -358,7 +358,18 @@ function currentFloorForLoot() {
 }
 
 function getRarityByKey(key) {
-    return itemRarities.find(r => r.key === key) || null;
+    const found = itemRarities.find(r => r.key === key);
+    if (found) return found;
+    // Rareté Démoniaque (chantier 17, demon-items.js) : HORS de itemRarities (jamais tirée, jamais atteinte par une montée de
+    // palier — shiftRarity() avance par index dans itemRarities), mais résolue ici pour les badges, l'inspection et la valeur.
+    if (typeof DEMONIC_RARITY !== 'undefined' && DEMONIC_RARITY && DEMONIC_RARITY.key === key) return DEMONIC_RARITY;
+    return null;
+}
+
+// Qualificatif réservé aux objets démoniaques (effet unique `demonic` ou malédiction `curse`) : jamais tiré au hasard.
+function isReservedQualifier(key) {
+    const q = itemQualifiers[key];
+    return !!(q && (q.demonic || q.curse));
 }
 
 // Palier `steps` crans plus haut (ou plus bas si négatif), borné aux paliers existants.
@@ -528,7 +539,7 @@ function rollQualifiers(rarity, target) {
     for (let slotIndex = 0; slotIndex < rarity.slots; slotIndex++) {
         const pool = Object.keys(itemQualifiers).filter(key => {
             const q = itemQualifiers[key];
-            return q[target] && q.kind !== 'malus' && q.tier <= slotIndex + 1 && !picked.some(p => p.key === key);
+            return q[target] && q.kind !== 'malus' && !isReservedQualifier(key) && q.tier <= slotIndex + 1 && !picked.some(p => p.key === key);
         });
         if (pool.length === 0) continue;
         picked.push({ key: pool[Math.floor(Math.random() * pool.length)], rank: rarity.maxRank });
@@ -539,7 +550,7 @@ function rollQualifiers(rarity, target) {
 // Camelote : itemBalance.junkMalusChance % de chance de porter UN défaut (itemQualifiers kind 'malus').
 function rollJunkMalus(target) {
     if (Math.random() * 100 >= itemBalance.junkMalusChance) return [];
-    const pool = Object.keys(itemQualifiers).filter(key => itemQualifiers[key].kind === 'malus' && itemQualifiers[key][target]);
+    const pool = Object.keys(itemQualifiers).filter(key => itemQualifiers[key].kind === 'malus' && itemQualifiers[key][target] && !isReservedQualifier(key));
     if (pool.length === 0) return [];
     return [{ key: pool[Math.floor(Math.random() * pool.length)], rank: 1 }];
 }
@@ -732,7 +743,7 @@ function buildSignatureItem(template, itemLevel, rarityKey = getSignatureRarity(
     // ceux que cette cible n'a pas déjà, au rang maximal de la rareté. Le nom de l'objet reste celui du boss.
     if (options.extraQualifier) {
         const target = qualifierTarget(item.category);
-        const pool = Object.keys(itemQualifiers).filter(key => target && itemQualifiers[key][target] && itemQualifiers[key].kind !== 'malus' && !item.qualifiers.some(q => q.key === key));
+        const pool = Object.keys(itemQualifiers).filter(key => target && itemQualifiers[key][target] && itemQualifiers[key].kind !== 'malus' && !isReservedQualifier(key) && !item.qualifiers.some(q => q.key === key));
         if (pool.length) {
             const key = pool[Math.floor(Math.random() * pool.length)];
             item.qualifiers.push({ key, rank });
@@ -741,6 +752,49 @@ function buildSignatureItem(template, itemLevel, rarityKey = getSignatureRarity(
         }
     }
     item.value = computeItemValue(template.baseValue, rarity.key, item.itemLevel, countValuableQualifiers(item.qualifiers));
+    return item;
+}
+
+/**
+ * Objet démoniaque de l'armurerie de Gorgoth (chantier 17, lot 4 — DEMONIC_ITEMS dans demon-items.js). `key` : 'blade' |
+ * 'overalls' | 'keyLauncher' | 'rulebook'. Même chemin que les autres constructeurs : rareté Démoniaque (DEMONIC_RARITY, stats
+ * ×2,2), mise à l'échelle par le niveau d'objet (getItemLevelMult()), sans aléa ; ses qualificatifs (effet unique + malédiction)
+ * sont FIXES, au rang III, et son nom ne change jamais. Invendable (`demonic: true`, voir isDemonicItem() dans app.js). null
+ * si la clé est inconnue ou si demon-items.js n'est pas chargé.
+ */
+function buildDemonicItem(key, itemLevel) {
+    if (typeof DEMONIC_ITEMS === 'undefined' || typeof DEMONIC_RARITY === 'undefined') return null;
+    const template = DEMONIC_ITEMS[key];
+    if (!template) return null;
+    const rarity = DEMONIC_RARITY;
+    const level = Math.max(1, Math.round(itemLevel || 1));
+    const levelMult = getItemLevelMult(level, 'equipment');
+    const rank = Math.max(1, rarity.maxRank);
+    const qualifiers = (template.qualifiers || []).map(q => ({ key: q, rank }));
+    let item;
+    if (template.category === 'scrolls') {
+        item = JSON.parse(JSON.stringify(template.spell));
+        item.category = 'scrolls';
+        item.spellCategory = template.spell.category;
+        item.spellName = template.spell.name;
+        item.name = template.spell.name;
+        item.flavor = template.flavor;
+        item.manaCost = 0; // payé en PV (malédiction Prix du sang, voir getSpellHpCost() dans app.js)
+    } else {
+        item = JSON.parse(JSON.stringify(template));
+        delete item.qualifiers;
+        item.baseName = template.name;
+    }
+    applyRarity(item, rarity);
+    item.itemLevel = level;
+    if (item.baseDmg !== undefined) item.baseDmg = Math.max(1, Math.round(item.baseDmg * rarity.statMult * levelMult));
+    if (item.baseArmor !== undefined) item.baseArmor = Math.round(item.baseArmor * rarity.statMult * levelMult);
+    item.qualifiers = qualifiers;
+    item.mechanics = qualifiers.map(q => q.key);
+    item.demonic = true;
+    item.demonKey = key;
+    item.canEnchant = false;
+    item.value = computeItemValue(template.baseValue || (template.spell && template.spell.baseValue) || 0, rarity.key, level, countValuableQualifiers(qualifiers));
     return item;
 }
 

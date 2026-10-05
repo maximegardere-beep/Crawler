@@ -24,7 +24,7 @@ const SHOW_TONES = [
 // Piques à trous. `when(ctx)` = déclencheur (absent = pique générique, de repli) ; `theme` = famille de
 // répliques du crawler (SHOW_REPLIES), pour que la réponse rebondisse sur la pique. Trous disponibles :
 // {{crawler}} {{etage}} {{fuites}} {{degats}} {{mobs}} {{pieges}} {{sortsRates}} {{objet}}
-// {{compagnon}} {{prime}} {{succes}} {{niveau}} {{or}} {{mainsNues}} {{race}} {{classe}} {{synergieTitre}} {{essaiPct}}.
+// {{compagnon}} {{prime}} {{succes}} {{niveau}} {{or}} {{mainsNues}} {{race}} {{classe}} {{synergieTitre}} {{essaiPct}} {{demonKO}} {{demonExpulsions}}.
 // `priority` (chantier 13) : à l'arrivée sur l'étage 3, les piques sur la race, la classe ou leur synergie passent avant toutes les autres
 // (la synergie avant la race et la classe, qui se partagent le tirage) ; absent = 0. Chantier 15 : les piques sur l'Armure de scénario, le Remplaçant intérimaire
 // et la fin de la Période d'essai (étage 4) sont rares et passent avant les piques ordinaires ; celle sur la Période d'essai, elle, reste de priorité 0 (sinon elle étoufferait toutes les autres aux étages 2-3).
@@ -76,6 +76,12 @@ const SHOW_TAUNTS = [
     { id: 'plot2', theme: 'plotArmor', priority: 1, when: c => c.scenario, text: "Vous auriez dû mourir à l'étage précédent. Le public a hurlé, les paris étaient pris, et la production a… glissé une clause. Ne le répétez à personne, {{crawler}}." },
     { id: 'interim1', theme: 'interim', priority: 1, when: c => c.interimKills >= 1 && c.etage <= 4, text: "Vous avez battu un remplaçant intérimaire, {{crawler}}. Le vrai boss, lui, était en RTT. Ce n'est pas très glorieux, mais nos stagiaires sont inconsolables." },
     { id: 'interim2', theme: 'interim', priority: 1, when: c => c.interimKills >= 1 && c.etage <= 4, text: "Le syndicat des boss dépose une plainte : vous avez licencié un intérimaire sans préavis, {{crawler}}. La production s'en lave les mains, elle l'avait recruté la veille." },
+    // Gorgoth le Concierge (chantier 17, lot 9) : mise au tapis (`demonFresh`) ou expulsion (`demonExpelledFresh`) sur l'étage qui vient de finir — rares, priorité 2.
+    { id: 'demon1', theme: 'demon', priority: 2, when: c => c.demonFresh, text: "Mesdames et messieurs, {{crawler}} a mis Gorgoth le Concierge au tapis ! Il n'est qu'assommé, bien sûr. Et il a noté votre numéro d'appartement." },
+    { id: 'demon2', theme: 'demon', priority: 2, when: c => c.demonFresh && c.demonKO >= 2, text: "{{demonKO}} mises au tapis du Concierge, {{crawler}}. À ce stade, ce n'est plus un combat de boss, c'est un litige de voisinage." },
+    { id: 'demon3', theme: 'demon', priority: 2, when: c => c.demonFresh && c.demonScarMax >= 3, text: "Gorgoth a une nouvelle cicatrice, {{crawler}}, et elle porte votre nom. Il ne craint plus votre petit style. Il s'entraîne. La nuit. En hurlant." },
+    { id: 'demon4', theme: 'demon', priority: 2, when: c => c.demonExpelledFresh, text: "Expulsé(e) par le Concierge ! {{crawler}} est ressorti(e) de l'antre à 1 PV, sans caution, sans dignité. Le replay est déjà la vidéo la plus vue de la saison." },
+    { id: 'demon5', theme: 'demon', priority: 2, when: c => c.demonExpelledFresh && c.demonExpulsions >= 2, text: "{{demonExpulsions}} expulsions, {{crawler}}. Gorgoth a fait imprimer votre visage sur un panneau « INTERDIT AUX CRAWLERS ». Il est plastifié." },
     // Origine (chantier 13) : seulement juste après le choix de race et de classe (`origineFraiche`), prioritaires sur tout le reste.
     { id: 'syn_troll_brawler', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'troll+brawler', text: "« {{synergieTitre}} » ! C'est écrit sur votre carte de visite, {{crawler}}. Et ça cogne aussi fort qu'une réunion qui aurait pu être un courriel." },
     { id: 'syn_elf_occultist', theme: 'originSynergy', priority: 3, when: c => c.origineFraiche && c.synergie === 'elf+occultist', text: "« {{synergieTitre}} » ! Les sorts sont gratuits, {{crawler}}, mais le fauteuil en velours reste en supplément." },
@@ -154,6 +160,12 @@ const SHOW_REPLIES = {
         retort: ["« Un scénariste qui m'aide ? Il doit manquer d'idées pour le final. »", "« 1 PV, c'est au moins 1 de plus que votre dignité. »"],
         provoke: ["« La prochaine fois, laissez-moi mourir. Le public aura un meilleur épisode. »", "« Dites à votre scénariste que j'ai tout vu. Et que j'attends la suite. »"],
         insult: ["« Si votre scénariste m'aime autant, pourquoi vous écrit-il, vous, Chip ? »", "« Un scénariste qui triche pour moi, un présentateur qui lit mal : c'est vous le maillon faible. »"]
+    },
+    demon: {
+        polite: ["« Je tiens à saluer Gorgoth, un professionnel. Il m'a même tenu la porte. Sur la figure. »", "« Je suis un(e) locataire modèle, Chip. Je paie mon loyer en coups d'épée. »"],
+        retort: ["« Un concierge qui garde la Sortie ? Vous avez des problèmes de recrutement, Chip. »", "« Lui, au moins, il fait son travail. On ne peut pas en dire autant de votre régie. »"],
+        provoke: ["« Dites au Concierge de changer les serrures. Je reviens avec un double. »", "« Qu'il garde ses clés au chaud. Je viendrai les chercher moi-même. »"],
+        insult: ["« Gorgoth a des cornes, des ailes et une casquette, et il reste plus présentable que vous, Chip. »", "« Même un démon de l'enfer a plus de charisme que votre brushing, Chip. »"]
     },
     interim: {
         polite: ["« Je ferai porter des fleurs à sa famille. Enfin, à son agence d'intérim. »", "« Il avait un joli badge, Chip. Je le garderai en souvenir. »"],

@@ -195,7 +195,7 @@ function freshFloor() {
 // --- Repères de la carte (anciens « Lieux connus ») ---
 {
     const fm = freshFloor();
-    assert(listFloorLandmarks().length === 0, "Aucun repère au départ");
+    assert(listFloorLandmarks().filter(m => roomZone(gameState.floorMap.roomsById[m.roomId]) !== 'gate').length === 0, "Aucun repère au départ (hors porte colossale, visible si le départ la jouxte)");
     const boss = Object.values(fm.roomsById).find(r => r.type === 'boss' && !r.guardsStairs);
     const stairs = Object.values(fm.roomsById).find(r => r.guardsStairs);
     const safe = Object.values(fm.roomsById).find(r => r.type === 'safe');

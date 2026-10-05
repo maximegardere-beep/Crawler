@@ -42,9 +42,9 @@ function openShow(lastFloor = {}) {
     assert(pickShowTaunt({ ...base, objet: 'Rideau de Douche' }, () => 0).id === 'joke1', "Objet ridicule porté : pique dédiée");
     assert(pickShowTaunt({ ...base, parfaits: 6 }, () => 0).theme === 'perfect' && pickShowTaunt({ ...base, mises: 120 }, () => 0).theme === 'gambler', "Mini-jeux : piques sur les gestes parfaits et les pertes à la salle de jeux");
     assert(pickShowTaunt({ ...base, parfaits: 4, mises: 99 }, () => 0).when === undefined, "Mini-jeux : sous les seuils, pique générique");
-    const everyTauntFills = SHOW_TAUNTS.every(t => !/\{\{/.test(fillShowTemplate(t.text, { ...base, crawler: 'Carl', race: 'Gobelin', classe: 'Filou', synergieTitre: 'Roi des caniveaux', essaiPct: 30, objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6, parfaits: 8, mises: 150 })));
+    const everyTauntFills = SHOW_TAUNTS.every(t => !/\{\{/.test(fillShowTemplate(t.text, { ...base, crawler: 'Carl', race: 'Gobelin', classe: 'Filou', synergieTitre: 'Roi des caniveaux', essaiPct: 30, objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6, parfaits: 8, mises: 150, demonKO: 3, demonExpulsions: 2 })));
     assert(everyTauntFills, "Chaque pique n'utilise que des trous fournis par le contexte");
-    const fullCtx = { ...base, crawler: 'Carl', race: 'Gobelin', classe: 'Filou', synergieTitre: 'Roi des caniveaux', essaiPct: 30, objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6, parfaits: 8, mises: 150 };
+    const fullCtx = { ...base, crawler: 'Carl', race: 'Gobelin', classe: 'Filou', synergieTitre: 'Roi des caniveaux', essaiPct: 30, objet: 'X', compagnon: 'Y', fuites: 7, degats: 150, pieges: 3, sortsRates: 4, prime: 70, or: 600, succes: 12, mainsNues: 6, parfaits: 8, mises: 150, demonKO: 3, demonExpulsions: 2 };
     const everyReplyFills = Object.values(SHOW_REPLIES).every(byTone => Object.values(byTone).every(lines => lines.every(l => !/\{\{/.test(fillShowTemplate(l, fullCtx)))));
     assert(everyReplyFills, "Chaque réplique n'utilise que des trous fournis par le contexte");
     // Un thème sans compagnon (parti) ne doit jamais citer {{compagnon}}, absent du contexte à ce moment-là.
@@ -180,4 +180,37 @@ function openShow(lastFloor = {}) {
     const studio = composeExploreVignette('showStudio', {});
     assert(studio.includes('EN DIRECT') && studio.includes('APPLAUDIMÈTRE'), "Vignette plateau TV : enseigne EN DIRECT et applaudimètre");
     assert(restoreSaveForName.toString().includes('gameState.showChoicePending = false'), "Restauration : une émission en cours est abandonnée");
+}
+
+// --- Gorgoth le Concierge (chantier 17, lot 9) : thème `demon` ---
+{
+    const demonTaunts = SHOW_TAUNTS.filter(t => t.theme === 'demon');
+    assert(demonTaunts.length >= 3 && demonTaunts.every(t => t.priority === 2 && typeof t.when === 'function'), "Gorgoth : au moins 3 piques du thème demon, priorité 2");
+    assert(SHOW_TONES.every(t => (SHOW_REPLIES.demon[t.key] || []).length >= 2), "Gorgoth : répliques du thème demon pour les 4 tons");
+    const base = { fuites: 0, degats: 0, maxHp: 100, pvPct: 100, mobs: 0, pieges: 0, sortsRates: 0, objet: null, compagnon: null, compagnonsPartis: 0, prime: 0, or: 50, etage: 6, succes: 0, niveau: 8, mainsNues: 0, parfaits: 0, mises: 0, demonKO: 0, demonExpulsions: 0, demonFresh: false, demonExpelledFresh: false, demonScarMax: 0 };
+    assert(pickShowTaunt(base, () => 0).theme !== 'demon', "Gorgoth : contexte vierge, aucune pique demon");
+    assert(pickShowTaunt({ ...base, demonKO: 1, demonFresh: true }, () => 0).id === 'demon1', "Gorgoth assommé sur l'étage précédent : pique dédiée");
+    assert(pickShowTaunt({ ...base, demonKO: 1, demonFresh: true, fuites: 9, mobs: 10, or: 900 }, () => 0.5).theme === 'demon', "Gorgoth assommé : passe avant les piques ordinaires");
+    assert(pickShowTaunt({ ...base, demonKO: 2, demonFresh: false }, () => 0).theme !== 'demon', "Mise au tapis ancienne (pas sur l'étage qui vient de finir) : pas de pique demon");
+    assert(pickShowTaunt({ ...base, demonExpulsions: 1, demonExpelledFresh: true }, () => 0).id === 'demon4', "Expulsé sur l'étage précédent : pique dédiée");
+    const expelledPool = SHOW_TAUNTS.filter(t => t.theme === 'demon' && t.when({ ...base, demonExpulsions: 2, demonExpelledFresh: true }));
+    assert(expelledPool.some(t => t.id === 'demon5') && !expelledPool.some(t => t.id === 'demon1'), "Deux expulsions : pique sur le récidiviste de l'expulsion, jamais celle de la mise au tapis");
+
+    resetTransientState();
+    gameState.currentFloor = 5;
+    gameState.runStats = createEmptyRunStats();
+    gameState.runStats.demonKnockouts = 2;
+    gameState.runStats.demonLastKnockoutFloor = 4;
+    gameState.runStats.demonScarMax = 2;
+    let ctx = buildShowContext({});
+    assert(ctx.demonKO === 2 && ctx.demonFresh === true && ctx.demonExpelledFresh === false && ctx.demonScarMax === 2 && ctx.demonExpulsions === 0, "buildShowContext() : champs Gorgoth (mise au tapis sur l'étage qui vient de finir)");
+    assert(pickShowTaunt(ctx, () => 0).theme === 'demon', "Contexte réel : la pique demon est choisie");
+    gameState.currentFloor = 6;
+    ctx = buildShowContext({});
+    assert(ctx.demonFresh === false, "buildShowContext() : mise au tapis plus ancienne, plus fraîche");
+    gameState.runStats.demonExpulsions = 1;
+    gameState.runStats.demonLastExpelledFloor = 5;
+    ctx = buildShowContext({});
+    assert(ctx.demonExpelledFresh === true && ctx.demonExpulsions === 1, "buildShowContext() : expulsion sur l'étage qui vient de finir");
+    resetTransientState();
 }

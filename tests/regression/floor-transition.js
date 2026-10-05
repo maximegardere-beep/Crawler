@@ -261,6 +261,7 @@ const { assert, resetTransientState } = require('./_helpers.js');
     const exitRoom = Object.values(gameState.floorMap.roomsById).find(r => r.type === 'stairs');
     assert(exitRoom.isExit === true && exitRoom.guarded === true, "Étage final : la Sortie est toujours gardée");
     exitRoom.guarded = false;
+    exitRoom.defeated = true; // chantier 17 : Gorgoth déjà vaincu, sinon il garde la Sortie
     gameState.hasWon = false;
     moveToFloorRoom(exitRoom);
     enterRoom(exitRoom);

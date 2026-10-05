@@ -66,8 +66,26 @@ const ENCOUNTER_KINDS = {
             "Les chasseurs de primes gobelins ne négocient pas. Ils invoicent.",
             "Votre popularité vient de vous rattraper."
         ]
+    },
+    // Gorgoth le Concierge (chantier 17) : Boss de Niveau derrière la porte colossale. Toujours joué (comme
+    // 'boss'), sauf réglage « Jamais ».
+    demon: {
+        view: 'face', accent: '#f97316', hint: 'Toucher pour entrer dans l\'antre',
+        titles: ["{mob}", "{mob} vous attendait", "Boss de Niveau : {mob}", "{mob} sort de sa loge"],
+        lines: [
+            "Le Concierge passe l'aspirateur… sur les crawlers.",
+            "« Vous avez rendez-vous ? Non ? Alors vous êtes en retard. »",
+            "Il a les clés de tout le Donjon. Y compris celles de votre cercueil.",
+            "« Les crawlers, je les ramasse à la pelle. J'ai même une pelle exprès. »",
+            "La production a coupé la climatisation. Lui, il n'en a jamais eu besoin.",
+            "Il essuie ses sabots sur le paillasson. Le paillasson prend feu."
+        ]
     }
 };
+
+// Nom exact du Boss de Niveau (chantier 17) : son image d'entrée est déclarée au manifeste bien qu'il ne
+// soit ni dans `districtBosses`, ni dans `bountyHunters`, ni dans `baseMobs`.
+const DEMON_ENCOUNTER_NAME = 'Gorgoth le Concierge';
 
 // Manifeste des images LIVRÉES : clé = nom exact du mob/boss/chasseur (`baseName`), valeur = cadrages disponibles
 // dans `assets/mobs/`, chacun avec son format : 'svg' (illustration vectorielle, ~8-12 Ko) ou 'webp'
@@ -143,6 +161,8 @@ const ENCOUNTER_ART = {
     'Gobelin Pisteur de Primes': { face: 'svg' },
     'Gobelin Cogneur de Primes': { face: 'svg' },
     "Chef d'Escouade Gobelin": { face: 'svg' },
+    // Boss de Niveau (chantier 17) : face seulement, il ne tourne jamais le dos (DEMON_ENCOUNTER_NAME).
+    'Gorgoth le Concierge': { face: 'svg' },
 };
 
 const ENCOUNTER_ART_DIR = 'assets/mobs/';
@@ -197,12 +217,13 @@ function resolveEncounterArt(enemy, kind) {
     return { name, view, src: null, fallback: true };
 }
 
-// Type de rencontre réel d'un ennemi : un boss garde 'boss' et un chasseur de primes 'hunter' quel que soit le type
+// Type de rencontre réel d'un ennemi : Gorgoth le Concierge (`isDemon`) garde 'demon', un boss garde 'boss' et un chasseur de primes 'hunter' quel que soit le type
 // demandé par l'appelant (embuscade, rencontre repérée…) ; sinon le type demandé s'il existe, 'spotted' par défaut.
 function resolveEncounterKind(enemy, requested) {
+    if (enemy && enemy.isDemon) return 'demon';
     if (enemy && enemy.isBoss) return 'boss';
     if (enemy && enemy.isBountyHunter) return 'hunter';
-    return ENCOUNTER_KINDS[requested] && requested !== 'boss' && requested !== 'hunter' ? requested : 'spotted';
+    return ENCOUNTER_KINDS[requested] && requested !== 'boss' && requested !== 'hunter' && requested !== 'demon' ? requested : 'spotted';
 }
 
 // Remplace {mob} par le nom du mob.
@@ -226,8 +247,8 @@ function pickEncounterText(kind, mobName, rng) {
 
 // Liste ORDONNÉE de toutes les images à faire (consigne de Vibe, lot 5) : d'abord les 13 boss (`face`), puis les 3
 // chasseurs de primes (`face`), puis les mobs de `baseMobs` du plus puissant au plus faible (puissance de base =
-// PV x ATQ, DEF en bonus), chacun en `face` puis `back`. `done` = déjà dans le manifeste. Lit les globales de
-// bestiary.js ; sans elles, liste vide.
+// PV x ATQ, DEF en bonus), chacun en `face` puis `back`, et enfin Gorgoth le Concierge (`face`, type 'demon',
+// chantier 17). `done` = déjà dans le manifeste. Lit les globales de bestiary.js (sans elles, seul Gorgoth reste).
 function encounterArtTargets() {
     const targets = [];
     const push = (name, kind, views) => {
@@ -240,9 +261,10 @@ function encounterArtTargets() {
         const power = (m) => m.hp * m.atk * (1 + m.def / 20);
         baseMobs.slice().sort((a, b) => power(b) - power(a) || a.name.localeCompare(b.name)).forEach(m => push(m.name, 'mob', ['face', 'back']));
     }
+    push(DEMON_ENCOUNTER_NAME, 'demon', ['face']); // Boss de Niveau (chantier 17), en dernier
     return targets;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { ENCOUNTER_KINDS, ENCOUNTER_ART, encounterArtSlug, encounterArtExt, encounterArtPath, encounterKindView, encounterArtName, resolveEncounterArt, resolveEncounterKind, fillEncounterTemplate, pickEncounterText, encounterArtTargets };
+    module.exports = { ENCOUNTER_KINDS, ENCOUNTER_ART, DEMON_ENCOUNTER_NAME, encounterArtSlug, encounterArtExt, encounterArtPath, encounterKindView, encounterArtName, resolveEncounterArt, resolveEncounterKind, fillEncounterTemplate, pickEncounterText, encounterArtTargets };
 }

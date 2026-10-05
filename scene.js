@@ -653,6 +653,10 @@ function renderLairProgress() {
 function renderCombatScene() {
     const enemy = gameState.currentEnemy;
     if (!gameState.inCombat || !enemy) return;
+    // Combat contre Gorgoth (chantier 17) : la scène haute #demon-scene remplace celle-ci ; un autre combat la
+    // referme d'abord (combattants, effets et ancres reviennent dans #combat-scene).
+    if (enemy.isDemon) { renderDemonScene(); return; }
+    if (demonSceneActive) deactivateDemonScene();
     ensureSceneBuilt();
     const backdrop = resolveCombatBackdrop();
     renderSceneBackdrop(sceneUi.backdrop, 'cbd', backdrop.key, backdrop.def);
@@ -842,6 +846,76 @@ function npcCrawlerAt(x, disposition) {
 
 const SHADOW_OVERLAY = '<rect x="0" y="0" width="360" height="150" fill="#05060c" opacity="0.45"/>';
 
+// --- Gorgoth le Concierge (chantier 17, lot 6) : porte colossale, mise au tapis, expulsion ------------------
+// Serrures allumées de la porte : `ctx.keys` s'il est fourni, sinon demonKeysCount() (lot 1) si la fonction
+// existe, sinon 0 ; toujours un entier de 0 à 4.
+function demonGateKeys(ctx) {
+    let n = ctx && ctx.keys != null ? ctx.keys : null;
+    if (n == null && typeof demonKeysCount === 'function') {
+        try { n = demonKeysCount(); } catch (e) { n = 0; }
+    }
+    n = Math.floor(Number(n) || 0);
+    return Math.max(0, Math.min(4, n));
+}
+
+// Crawler réduit (posé au sol, mis à l'échelle depuis ses pieds) : « minuscule » devant la porte.
+function crawlerScaledAt(x, scale, opacity) {
+    const fade = opacity != null ? ` opacity="${opacity}"` : '';
+    return `<g transform="translate(${x} ${SCENE_GROUND_Y}) scale(${scale})"${fade}>${currentCrawler().markup}</g>`;
+}
+
+// Braises qui montent (positions fixes, jamais Math.random()).
+function demonEmbers(points) {
+    return points.map(([x, y, r], i) => `<circle class="bd-float" style="animation-delay:-${(i * 0.7).toFixed(1)}s" cx="${x}" cy="${y}" r="${r}" fill="${i % 2 ? '#fdba74' : '#f97316'}" opacity="0.85"/>`).join('');
+}
+
+// Lettre « Z » dessinée (aucun texte SVG) : origine en haut à gauche, taille `s`.
+function demonSnoreZ(x, y, s, delay) {
+    return `<path class="bd-float" style="animation-delay:-${delay}s" d="M${x} ${y} h${s} l${-s} ${s * 1.1} h${s}" fill="none" stroke="#e5e7eb" stroke-width="${Math.max(1.2, s / 4).toFixed(1)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+
+// Gorgoth assommé, étendu au sol (silhouette simplifiée : le grand sprite détaillé est celui du combat).
+// Repère local : origine au sol, sous le ventre ; tête à gauche (x ≈ -86), sabots à droite.
+const DEMON_KNOCKOUT_BODY = `
+    <path d="M-60 -16 Q-52 -62 -6 -72 Q36 -78 58 -52 Q80 -34 92 -4 L84 0 H-50 Z" fill="#231c20" opacity="0.85"/>
+    <path d="M-30 -30 Q-12 -58 18 -60 M6 -40 Q28 -66 50 -50" fill="none" stroke="#3a3034" stroke-width="3" opacity="0.8"/>
+    <path d="M-70 0 Q-66 -34 -20 -38 Q40 -44 76 -20 Q94 -8 92 0 Z" fill="#2a1717" stroke="#05060c" stroke-width="2"/>
+    <path d="M-40 -32 L-28 -8 L-6 -36 L10 -4 L34 -34 L50 -6 L66 -24 L72 0 H-46 Z" fill="#1e3a8a" stroke="#05060c" stroke-width="1.2" opacity="0.9"/>
+    <path d="M-36 -26 l8 6 l-2 8 M6 -30 l6 8 l8 -2 M48 -18 l4 8" fill="none" stroke="#f97316" stroke-width="1.6" stroke-linecap="round"/>
+    <path class="bd-halo-flicker" d="M-18 -36 l6 10 l10 -4 l6 12 M24 -40 l4 12 l12 2" fill="none" stroke="#fb923c" stroke-width="1.1" opacity="0.8"/>
+    <path d="M76 -18 Q96 -24 104 -10 L106 0 H86 Z" fill="#2a1717" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M100 -2 l8 -6 l2 8 Z" fill="#05060c"/>
+    <path d="M-30 -34 Q-44 -46 -58 -40 Q-52 -24 -34 -26" fill="#2a1717" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M-60 -40 l-6 -5 M-58 -36 l-8 -1 M-58 -42 l-3 -7" stroke="#05060c" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="-86" cy="-18" r="18" fill="#2a1717" stroke="#05060c" stroke-width="2"/>
+    <path d="M-98 -30 Q-116 -44 -126 -30 Q-114 -36 -102 -22 Z" fill="#3a2e30" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M-76 -32 Q-70 -50 -54 -50 Q-66 -44 -70 -28 Z" fill="#3a2e30" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M-96 -24 l6 6 M-90 -24 l-6 6 M-82 -24 l6 6 M-76 -24 l-6 6" stroke="#fb923c" stroke-width="2" stroke-linecap="round"/>
+    <path d="M-94 -10 Q-86 -4 -78 -10 Q-86 -14 -94 -10 Z" fill="#05060c"/>
+    <path d="M-88 -8 q3 6 6 0" fill="#e11d48"/>`;
+
+// Casquette de concierge calcinée, tombée à côté (insigne : clé dorée). Origine : au sol.
+const DEMON_FALLEN_CAP = `
+    <path d="M-14 0 Q-14 -14 0 -14 Q14 -14 14 0 Z" fill="#3b4252" stroke="#05060c" stroke-width="1.5"/>
+    <path d="M-20 0 Q-6 4 14 0" fill="none" stroke="#05060c" stroke-width="3"/>
+    <path d="M-20 0 Q-6 3 14 0" fill="none" stroke="#1f2430" stroke-width="2"/>
+    <path d="M-14 -4 H14" stroke="#1f2430" stroke-width="2"/>
+    <circle cx="0" cy="-9" r="2.4" fill="none" stroke="#facc15" stroke-width="1.2"/><path d="M2 -9 h5 M5 -9 v2" stroke="#facc15" stroke-width="1.2"/>
+    <path d="M-8 -12 l3 3 M6 -12 l-2 4" stroke="#05060c" stroke-width="1" opacity="0.6"/>`;
+
+// Étoiles et oiseaux de dessin animé qui tournent au-dessus de la tête (rotation CSS, coupée sous reduced motion).
+function demonDizzyRing(cx, cy) {
+    const star = (x, y, c) => `<path d="M${x} ${y - 4.5} L${x + 1.3} ${y - 1.3} L${x + 4.5} ${y - 1.3} L${x + 2} ${y + 0.8} L${x + 3} ${y + 4.2} L${x} ${y + 2.2} L${x - 3} ${y + 4.2} L${x - 2} ${y + 0.8} L${x - 4.5} ${y - 1.3} L${x - 1.3} ${y - 1.3} Z" fill="${c}" stroke="#05060c" stroke-width="0.7"/>`;
+    const bird = (x, y) => `<circle cx="${x}" cy="${y}" r="2.6" fill="#fde68a" stroke="#05060c" stroke-width="0.7"/><path d="M${x - 5} ${y - 4} q2.5 2 5 3 q2.5 -1 5 -3" fill="none" stroke="#05060c" stroke-width="1"/><path d="M${x + 2.4} ${y} l2 0.8 l-2 0.8 Z" fill="#f97316"/>`;
+    return `<ellipse cx="${cx}" cy="${cy}" rx="22" ry="6" fill="none" stroke="#fde68a" stroke-width="0.8" stroke-dasharray="2 3" opacity="0.6"/>
+        <g class="bd-spin">${star(cx - 20, cy, '#facc15')}${star(cx + 18, cy + 2, '#fde047')}${bird(cx, cy - 6)}${bird(cx + 4, cy + 6)}${star(cx - 4, cy + 6, '#fef08a')}</g>`;
+}
+
+// Bouffées de fumée (expulsion). Positions fixes.
+function demonSmoke(points) {
+    return points.map(([x, y, r], i) => `<g class="bd-steam" style="animation-delay:-${(i * 0.6).toFixed(1)}s"><circle cx="${x}" cy="${y}" r="${r}" fill="#4b4548" opacity="0.55"/><circle cx="${x + r * 0.7}" cy="${y - r * 0.4}" r="${(r * 0.7).toFixed(1)}" fill="#5f585b" opacity="0.5"/></g>`).join('');
+}
+
 // Une entrée par vignette : ctx = { enemy, disposition } selon l'événement. Pures (chaîne SVG).
 const EXPLORE_VIGNETTES = {
     silence: () => crawlerAt(CRAWLER_X),
@@ -877,12 +951,48 @@ const EXPLORE_VIGNETTES = {
         + `<g transform="translate(200 124)">${SCENE_HOST_SVG}</g>` + crawlerAt(CRAWLER_X),
     // Chasseurs de primes (chantier 3) : l'avis de recherche placardé, montant de la prime courante.
     wantedPoster: (ctx) => propAt('wantedPoster', 200, 124, { value: ctx.value }) + crawlerAt(CRAWLER_X),
-    stairs: () => propAt('stairsDown', 214, 124) + crawlerAt(CRAWLER_X)
+    stairs: () => propAt('stairsDown', 214, 124) + crawlerAt(CRAWLER_X),
+    // Gorgoth le Concierge (chantier 17, lot 6). Porte colossale fermée, qui déborde du cadre : 4 serrures
+    // (une allumée par clé de boss de quartier), chaînes en croix, rouge qui filtre par les jointures.
+    demonGateLocked: (ctx) => propAt('colossalGate', 168, 124, { w: 172, h: 178, locks: demonGateKeys(ctx) })
+        + demonEmbers([[96, 112, 1.4], [232, 96, 1.2], [150, 70, 1], [204, 40, 1.3]]) + crawlerAt(CRAWLER_X),
+    // Battants entrouverts : lueur rouge intense, deux yeux au fond, crawler minuscule dans la lumière.
+    demonGateOpen: () => propAt('colossalGate', 170, 124, { w: 200, h: 196, open: true })
+        + '<path d="M146 124 L194 124 L262 150 L78 150 Z" fill="#f97316" opacity="0.28"/>'
+        + '<g class="bd-halo-flicker"><ellipse cx="158" cy="44" rx="5" ry="2.2" fill="#fef08a"/><ellipse cx="182" cy="44" rx="5" ry="2.2" fill="#fef08a"/></g>'
+        + demonEmbers([[120, 96, 1.4], [214, 80, 1.2], [168, 30, 1.1], [240, 110, 1.3], [98, 60, 1]])
+        + crawlerScaledAt(206, 0.55, 0.92),
+    // Mise au tapis : Gorgoth étendu, étoiles et oiseaux qui tournent, casquette tombée, ronflement « Zzz » dessiné.
+    demonKnockout: () => `<g transform="translate(150 124)">${DEMON_KNOCKOUT_BODY}</g>`
+        + `<g transform="translate(40 124) rotate(-18)">${DEMON_FALLEN_CAP}</g>`
+        + demonDizzyRing(64, 70)
+        + demonSnoreZ(78, 92, 5, 0) + demonSnoreZ(88, 76, 7, 1.2) + demonSnoreZ(102, 56, 9, 2.4)
+        + crawlerAt(CRAWLER_X),
+    // Expulsion : la porte s'est refermée (chaînes, sceau rouge, écriteau « FERMÉ »), le crawler est éjecté
+    // dans un nuage de fumée.
+    demonExpelled: () => propAt('colossalGate', 132, 124, { w: 150, h: 160, seal: true })
+        + '<g transform="translate(132 104)"><path d="M-14 -10 L0 -22 L14 -10" fill="none" stroke="#8a8086" stroke-width="1.2"/><rect x="-18" y="-10" width="36" height="13" rx="1.5" fill="#d8c9a3" stroke="#05060c" stroke-width="1"/><text x="0" y="0" text-anchor="middle" font-size="7.5" font-weight="bold" letter-spacing="0.5" fill="#7f1d1d">FERMÉ</text></g>'
+        + demonSmoke([[214, 116, 9], [236, 108, 7], [200, 100, 6], [256, 120, 8]])
+        + '<path d="M218 92 H252 M224 104 H262 M214 80 H244" stroke="#e5e7eb" stroke-width="1.4" stroke-linecap="round" opacity="0.55"/>'
+        + `<g transform="translate(292 108) rotate(28)"><g class="scene-recoil">${currentCrawler().markup}</g></g>`
 };
 
 function composeExploreVignette(key, ctx) {
     const vignette = EXPLORE_VIGNETTES[key];
     return vignette ? vignette(ctx || {}) : '';
+}
+
+// DEV uniquement (console) : affiche successivement les 4 vignettes de Gorgoth le Concierge dans la scène
+// d'exploration, `delayMs` entre chacune. Renvoie la liste des vignettes montrées.
+const DEMON_VIGNETTE_PREVIEW = [
+    ['🔒', 'Porte colossale', 'Porte', 'demonGateLocked'],
+    ['🚪', "L'antre s'ouvre", 'Porte', 'demonGateOpen'],
+    ['💫', 'Gorgoth est K.O.', 'Victoire', 'demonKnockout'],
+    ['💨', 'Expulsé', 'Défaite', 'demonExpelled']
+];
+function devPreviewDemonVignettes(delayMs = 2500) {
+    DEMON_VIGNETTE_PREVIEW.forEach((args, i) => setTimeout(() => setSceneHeader(...args), i * delayMs));
+    return DEMON_VIGNETTE_PREVIEW.map(args => args[3]);
 }
 
 // Dessine une vignette dans une cible { wrap, svg, backdrop, vignette, icon?, prefix, view } : décor du
@@ -902,7 +1012,7 @@ function renderVignetteScene(target, scene) {
     if (!known) return;
     renderSceneBackdrop(target.backdrop, target.prefix, resolveBackdropKey(gameState.currentDistrict));
     const enemy = spec.enemy;
-    const key = [spec.key, enemy ? `${enemy.visualArchetype}:${enemy.effect}:${enemy.isBoss ? 1 : 0}` : '', spec.cityName || '', spec.isExit ? 1 : 0, spec.value ?? '', currentCrawler().key].join('|');
+    const key = [spec.key, enemy ? `${enemy.visualArchetype}:${enemy.effect}:${enemy.isBoss ? 1 : 0}` : '', spec.cityName || '', spec.isExit ? 1 : 0, spec.value ?? '', spec.key === 'demonGateLocked' ? demonGateKeys(spec) : '', currentCrawler().key].join('|');
     if (vignetteKeys[target.prefix] === key) return;
     target.vignette.innerHTML = composeExploreVignette(spec.key, spec);
     vignetteKeys[target.prefix] = key;
@@ -1054,10 +1164,269 @@ function renderEncounterScene(opts) {
     encounterSceneUi.svg.innerHTML = composeEncounterScene(o.kind, o.enemy, gameState.currentDistrict, 'xbd');
 }
 
+// --- Scène haute du combat contre Gorgoth le Concierge (chantier 17, lot 7) ------------------------------
+// Gorgoth mesure ~250 unités : il ne tient pas dans la scène de combat (360 x 150, hauteur codée en dur à plusieurs
+// endroits). Pendant un combat contre un ennemi `isDemon`, #demon-scene (SVG SÉPARÉ, 360 x 300) remplace donc
+// #combat-scene. Voie retenue pour les effets (fx.js) et les chiffres de dégâts : les MÊMES nœuds sont déplacés
+// dans la scène haute — groupes #scene-mob/#scene-companion/#scene-crawler/#scene-fx dans #demon-stage (un groupe
+// décalé de DEMON_STAGE_DY : à l'intérieur, le repère est exactement celui de la scène de combat, sol en
+// SCENE_GROUND_Y), ancres #scene-mob-anchor/#scene-crawler-anchor dans #demon-scene — puis remis à leur place à la
+// sortie. Aucun identifiant n'est dupliqué, sceneUi/ui gardent leurs références, fx.js n'a qu'à connaître la
+// position de Gorgoth (demonFxGeometry()). Le crawler garde sa place (CRAWLER_X) et sa taille normale.
+const DEMON_VIEW = { w: 360, h: 300 };
+const DEMON_GROUND_Y = 280;
+const DEMON_STAGE_DY = DEMON_GROUND_Y - SCENE_GROUND_Y;
+// Gorgoth glisse entre ces deux centres selon l'écart (même rapport que distanceToX()) : au contact, l'avant de son
+// corps s'arrête à CONTACT_GAP du crawler ; au plus loin, son aile gauche reste dans le cadre.
+const DEMON_X_FAR = SCENE_MARGIN - GORGOTH_GEOMETRY.bounds[0];
+function demonSceneX(distance, maxDistance, frontExtent = CRAWLER_FRONT_EXTENT) {
+    const max = maxDistance > 0 ? maxDistance : 1;
+    const ratio = Math.max(0, Math.min(1, (Number(distance) || 0) / max));
+    const contact = CRAWLER_X - frontExtent - CONTACT_GAP - GORGOTH_GEOMETRY.frontExtent;
+    return Math.round((contact - ratio * (contact - DEMON_X_FAR)) * 10) / 10;
+}
+
+// Décor de l'antre : celui du lot 6 (`DEMON_LAIR_BACKDROP`, fiche 360 x 150 composée par composeBackdrop(def, 'dbd'),
+// agrandie et calée sur le sol de la scène haute) devant un ciel de caverne ; sinon un décor de repli dessiné ici
+// (obsidienne, veines de lave, stalactites, enseigne « LOGE DU CONCIERGE », paillasson). Pur.
+const DEMON_LAIR_SCALE = 1.7;
+function composeDemonBackdrop(lairDef, prefix) {
+    const p = prefix || 'dmn';
+    const W = DEMON_VIEW.w, H = DEMON_VIEW.h, G = DEMON_GROUND_Y;
+    const sky = `<defs>
+            <linearGradient id="${p}-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#040208"/><stop offset="0.65" stop-color="#140608"/><stop offset="1" stop-color="#2a0b04"/></linearGradient>
+            <radialGradient id="${p}-heat" cx="38%" cy="70%" r="55%"><stop offset="0" stop-color="#ff5a12" stop-opacity="0.38"/><stop offset="1" stop-color="#ff5a12" stop-opacity="0"/></radialGradient>
+            <linearGradient id="${p}-fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#040208" stop-opacity="1"/><stop offset="1" stop-color="#040208" stop-opacity="0"/></linearGradient>
+        </defs>
+        <rect x="0" y="0" width="${W}" height="${H}" fill="url(#${p}-sky)"/>`;
+    if (lairDef) {
+        const k = DEMON_LAIR_SCALE;
+        const bw = BACKDROP_WIDTH * k, bh = BACKDROP_HEIGHT * k;
+        const y = G - BACKDROP_GROUND_Y * k;
+        return `${sky}<svg x="${Math.round(-(bw - W) / 2)}" y="${Math.round(y)}" width="${Math.round(bw)}" height="${Math.round(bh)}" viewBox="0 0 ${BACKDROP_WIDTH} ${BACKDROP_HEIGHT}" overflow="hidden">${composeBackdrop(lairDef, 'dbd')}</svg>`
+            + `<rect x="0" y="${Math.round(y)}" width="${W}" height="36" fill="url(#${p}-fade)"/>`
+            + `<rect x="0" y="0" width="${W}" height="${H}" fill="url(#${p}-heat)"/>`;
+    }
+    const stalactites = [[18, 34], [52, 22], [86, 40], [128, 18], [170, 30], [214, 16], [252, 36], [296, 20], [334, 32]]
+        .map(([x, h]) => `<path d="M${x - 9} 0 L${x} ${h} L${x + 9} 0 Z" fill="#0b0810" stroke="#05060c" stroke-width="1"/>`).join('');
+    const rocks = `<path d="M0 150 L22 118 L40 132 L66 96 L92 124 L118 104 L150 126 L176 92 L206 120 L236 100 L262 128 L290 98 L318 122 L340 104 L360 116 L360 ${G} L0 ${G} Z" fill="#0e0a12" stroke="#05060c" stroke-width="1.5"/>`
+        + `<path d="M0 200 L30 176 L58 192 L90 170 L130 196 L170 178 L214 198 L250 174 L292 194 L330 172 L360 188 L360 ${G} L0 ${G} Z" fill="#150d12" stroke="#05060c" stroke-width="1.5"/>`;
+    const veinPath = 'M66 96 L72 130 L60 160 L70 196 M176 92 L170 128 L184 150 M290 98 L298 140 L286 176 M236 100 L240 120';
+    const veins = `<g class="dmn-glow"><path d="${veinPath}" fill="none" stroke="#ff5a12" stroke-width="4" opacity="0.25" stroke-linecap="round"/>`
+        + `<path d="${veinPath}" fill="none" stroke="#ff8c1a" stroke-width="1.4" stroke-linecap="round"/></g>`;
+    const pillars = `<path d="M330 ${G} L334 70 L352 60 L360 64 L360 ${G} Z" fill="#0a070c" stroke="#05060c" stroke-width="1.5"/><path d="M340 ${G - 10} L342 90" stroke="#ff6a1a" stroke-width="1" opacity="0.5"/>`;
+    const sign = `<g transform="translate(300 54)"><path d="M-30 -24 L-26 -40 M30 -24 L26 -40" stroke="#3a3f47" stroke-width="1.6"/>
+            <rect x="-40" y="-24" width="80" height="26" rx="3" fill="#1d1410" stroke="#05060c" stroke-width="1.8"/>
+            <rect x="-37" y="-21" width="74" height="20" rx="2" fill="none" stroke="#d4a72c" stroke-width="0.9" opacity="0.8"/>
+            <text x="0" y="-12" text-anchor="middle" font-size="7.2" font-weight="bold" font-family="sans-serif" fill="#ffb35c" letter-spacing="0.6">LOGE DU CONCIERGE</text>
+            <text x="0" y="-4" text-anchor="middle" font-size="5" font-family="sans-serif" fill="#c9b79a">sonnez fort · ne réveillez pas</text></g>`;
+    const floor = `<rect x="0" y="${G}" width="${W}" height="${H - G}" fill="#100a0c"/>`
+        + `<line x1="0" y1="${G}" x2="${W}" y2="${G}" stroke="#05060c" stroke-width="2"/>`
+        + `<g class="dmn-glow"><path d="M8 ${G + 6} L40 ${G + 12} L70 ${G + 8} M110 ${G + 14} L150 ${G + 7} L196 ${G + 15} M230 ${G + 9} L262 ${G + 16}" fill="none" stroke="#ff6a1a" stroke-width="1.4" stroke-linecap="round" opacity="0.85"/></g>`
+        + `<g transform="translate(306 ${G + 4})"><rect x="-30" y="-3" width="60" height="9" rx="2" fill="#5a3a22" stroke="#05060c" stroke-width="1.2"/><text x="0" y="3.6" text-anchor="middle" font-size="5" font-weight="bold" font-family="sans-serif" fill="#e8d5a8">ESSUYEZ VOS PIEDS</text></g>`;
+    return `${sky}${stalactites}${rocks}${veins}${pillars}${sign}<rect x="0" y="0" width="${W}" height="${H}" fill="url(#${p}-heat)"/>${floor}`;
+}
+
+// Avant-plan : braises qui montent (positions fixes, animations décalées) et vignette sombre.
+function composeDemonFront(prefix) {
+    const p = prefix || 'dmn';
+    const embers = [[24, 270, 0], [70, 252, 1], [118, 276, 2], [164, 262, 0], [204, 274, 1], [244, 258, 2], [280, 272, 0], [340, 262, 1], [96, 230, 2], [186, 238, 0]]
+        .map(([x, y, i]) => `<circle class="dmn-ember-rise dmn-ember-${i}" cx="${x}" cy="${y}" r="${1.2 + (i % 2) * 0.6}" fill="${i === 1 ? '#ffd27a' : '#ff7a1a'}"/>`).join('');
+    return `<defs><radialGradient id="${p}-vig" cx="50%" cy="55%" r="72%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity="0.65"/></radialGradient></defs>`
+        + `<g pointer-events="none">${embers}<rect x="0" y="0" width="${DEMON_VIEW.w}" height="${DEMON_VIEW.h}" fill="url(#${p}-vig)"/></g>`;
+}
+
+// État lu par la scène haute (seule fonction qui lit gameState ; tout le reste est pur). `gameState.demonFight` et
+// `gameState.demon` (lot 2) peuvent être absents : valeurs neutres (acte 1, 4 chaînes, aucune cicatrice).
+function readDemonSceneState() {
+    return {
+        enemy: gameState.currentEnemy || null,
+        fight: gameState.demonFight || null,
+        scars: gameState.demon && gameState.demon.scars ? gameState.demon.scars : null,
+        distance: gameState.combatDistance || 0,
+        maxDistance: config.rangedCombat.maxDistance,
+        frontExtent: crawlerFrontExtent()
+    };
+}
+
+// Composition PURE de la scène haute. `state` : { enemy, fight, scars, distance, maxDistance, frontExtent, ko } (tout
+// facultatif) ; `opts` : { prefix, lairDef (null = décor de repli, absent = DEMON_LAIR_BACKDROP s'il existe),
+// crawlerMarkup }. Renvoie la pose et les options du sprite, sa position et ses bornes DANS LA SCÈNE (0..360 x
+// 0..300), les couches (décor, Gorgoth, avant-plan) et `svg`, la scène complète autonome.
+function composeDemonScene(state, opts) {
+    const s = state || {};
+    const o = opts || {};
+    const enemy = s.enemy || {};
+    const fight = s.fight || {};
+    const intent = fight.intent || null;
+    const ko = !!(s.ko || enemy.knockedOut || fight.knockedOut || (enemy.maxHp > 0 && enemy.hp <= 0));
+    const veiled = !ko && !!(intent && intent.hidden && !intent.revealed);
+    const sprite = {
+        intent: intent && !veiled && GORGOTH_INTENTS.includes(intent.key) ? intent.key : null,
+        veiled,
+        act: Math.max(1, Math.min(4, Math.floor(Number(fight.act) || 1))),
+        final: !!(fight.final || enemy.demonFinal),
+        scars: gorgothScarRanks(s.scars),
+        chainsLeft: fight.chainsLeft == null ? 4 : Math.max(0, Math.min(4, Math.floor(Number(fight.chainsLeft) || 0))),
+        ko
+    };
+    const poseKey = gorgothPoseKey(sprite);
+    const markup = composeGorgothSprite(sprite);
+    const x = demonSceneX(s.distance, s.maxDistance, s.frontExtent);
+    const top = ko ? GORGOTH_GEOMETRY.koTop : GORGOTH_GEOMETRY.top;
+    const bounds = { x1: x + GORGOTH_GEOMETRY.bounds[0], x2: x + GORGOTH_GEOMETRY.bounds[1], y1: DEMON_GROUND_Y + top, y2: DEMON_GROUND_Y };
+    const lairDef = o.lairDef !== undefined ? o.lairDef : (typeof DEMON_LAIR_BACKDROP !== 'undefined' ? DEMON_LAIR_BACKDROP : null);
+    const prefix = o.prefix || 'dmn';
+    const backdrop = composeDemonBackdrop(lairDef, prefix);
+    const front = composeDemonFront(prefix);
+    const sc = sprite.scars;
+    const key = `${poseKey}|${sprite.veiled ? 1 : 0}|${sprite.act}|${sprite.final ? 1 : 0}|${sprite.chainsLeft}|${sc.melee}${sc.ranged}${sc.magic}${sc.unarmed}`;
+    const svg = backdrop
+        + `<g transform="translate(0 ${DEMON_STAGE_DY})"><g transform="translate(${x} ${SCENE_GROUND_Y})">${markup}</g>`
+        + (o.crawlerMarkup ? `<g transform="translate(${CRAWLER_X} ${SCENE_GROUND_Y})">${o.crawlerMarkup}</g>` : '') + `</g>`
+        + front;
+    return { key, poseKey, sprite, x, groundY: DEMON_GROUND_Y, top, bounds, backdropKey: lairDef ? 'lair' : 'fallback', backdrop, markup, front, svg };
+}
+
+const demonSceneUi = {
+    wrap: document.getElementById('demon-scene'),
+    svg: document.getElementById('demon-scene-svg'),
+    backdrop: document.getElementById('demon-scene-backdrop'),
+    stage: document.getElementById('demon-stage'),
+    front: document.getElementById('demon-scene-front'),
+    combatScene: document.getElementById('combat-scene'),
+    combatSvg: document.getElementById('combat-scene-svg')
+};
+let demonSceneActive = false;
+let demonSceneCurrentX = null;      // abscisse courante de Gorgoth (repère de #demon-stage), lue par fx.js
+let demonSceneTop = GORGOTH_GEOMETRY.top;
+let lastDemonSpriteKey = null;
+let lastDemonBackdropKey = null;
+let lastDemonEnemy = null;
+
+// Déplace un nœud dans `parent` (avant `before` si possible) ; le stub DOM des tests n'a ni insertBefore ni parentNode.
+function moveSceneNode(node, parent, before) {
+    if (!node || !parent) return;
+    if (before && typeof parent.insertBefore === 'function' && before.parentNode === parent) parent.insertBefore(node, before);
+    else parent.appendChild(node);
+}
+function placeDemonAnchor(el, x, y) {
+    if (!el) return;
+    el.style.left = `${(x / DEMON_VIEW.w) * 100}%`;
+    el.style.top = `${(y / DEMON_VIEW.h) * 100}%`;
+}
+
+function activateDemonScene() {
+    if (demonSceneActive) return;
+    // Ordre : Gorgoth derrière (il est immense), puis compagnon, crawler et effets par-dessus.
+    [sceneUi.mob, sceneUi.companion, sceneUi.crawler, document.getElementById('scene-fx')].forEach(n => moveSceneNode(n, demonSceneUi.stage));
+    moveSceneNode(sceneUi.mobAnchor, demonSceneUi.wrap);
+    moveSceneNode(sceneUi.crawlerAnchor, demonSceneUi.wrap);
+    demonSceneUi.wrap.classList.remove('hidden');
+    if (demonSceneUi.combatScene) demonSceneUi.combatScene.classList.add('hidden');
+    placeSceneGroup(sceneUi.crawler, CRAWLER_X, SCENE_GROUND_Y);
+    placeSceneGroup(sceneUi.companion, COMPANION_X, SCENE_GROUND_Y);
+    placeDemonAnchor(sceneUi.crawlerAnchor, CRAWLER_X, DEMON_GROUND_Y + CRAWLER_TOP + DAMAGE_ANCHOR_DROP);
+    lastDemonSpriteKey = null;
+    lastDemonEnemy = null;
+    demonSceneActive = true;
+}
+
+// Remet chaque nœud dans la scène de combat (avant la progression de repaire, comme dans index.html) et force la
+// scène classique à tout replacer au prochain rendu.
+function deactivateDemonScene() {
+    if (!demonSceneActive) return;
+    const before = sceneUi.lairProgress;
+    [sceneUi.companion, sceneUi.crawler, sceneUi.mob, document.getElementById('scene-fx')].forEach(n => moveSceneNode(n, demonSceneUi.combatSvg, before));
+    moveSceneNode(sceneUi.mobAnchor, demonSceneUi.combatScene);
+    moveSceneNode(sceneUi.crawlerAnchor, demonSceneUi.combatScene);
+    demonSceneUi.wrap.classList.add('hidden');
+    if (demonSceneUi.combatScene) demonSceneUi.combatScene.classList.remove('hidden');
+    sceneBuilt = false;
+    lastMobSpriteKey = null;
+    lastSceneEnemy = null;
+    demonSceneCurrentX = null;
+    demonSceneActive = false;
+}
+
+// renderScene('demon') : affiche la scène haute pendant un combat contre un ennemi `isDemon`, sinon la referme.
+// Gorgoth n'est redessiné que si sa pose, son acte, ses chaînes ou ses cicatrices changent ; sa position suit l'écart.
+function renderDemonScene() {
+    const enemy = gameState.currentEnemy;
+    if (!gameState.inCombat || !enemy || !enemy.isDemon || !demonSceneUi.wrap || !demonSceneUi.stage) {
+        deactivateDemonScene();
+        return;
+    }
+    activateDemonScene();
+    const scene = composeDemonScene(readDemonSceneState());
+    if (lastDemonBackdropKey !== scene.backdropKey) {
+        demonSceneUi.backdrop.innerHTML = scene.backdrop;
+        if (demonSceneUi.front) demonSceneUi.front.innerHTML = scene.front;
+        lastDemonBackdropKey = scene.backdropKey;
+    }
+    if (lastDemonSpriteKey !== scene.key) {
+        sceneUi.mob.innerHTML = wrapSceneBody(scene.markup);
+        lastDemonSpriteKey = scene.key;
+        if (demonSceneUi.svg) demonSceneUi.svg.setAttribute('aria-label', `Gorgoth le Concierge, colosse de magma, à gauche (${scene.poseKey === 'ko' ? 'assommé' : 'acte ' + scene.sprite.act}) ; vous à droite`);
+    }
+    const isNew = enemy !== lastDemonEnemy;
+    if (isNew) { sceneUi.mob.classList.add('scene-no-transition'); sceneUi.mobAnchor.classList.add('scene-no-transition'); }
+    placeSceneGroup(sceneUi.mob, scene.x, SCENE_GROUND_Y);
+    placeDemonAnchor(sceneUi.mobAnchor, scene.x + 10, DEMON_GROUND_Y + scene.top * 0.62);
+    if (isNew) {
+        forceStyleFlush(sceneUi.mob);
+        sceneUi.mob.classList.remove('scene-no-transition');
+        sceneUi.mobAnchor.classList.remove('scene-no-transition');
+        lastDemonEnemy = enemy;
+    }
+    demonSceneCurrentX = scene.x;
+    demonSceneTop = scene.top;
+    renderCrawlerInto(sceneUi.crawler);
+    renderSceneCompanion();
+    renderSceneVitals(enemy);
+    renderSceneDistance();
+}
+
+// Géométrie de Gorgoth pour fx.js (repère de #demon-stage = repère de la scène de combat) ; null hors scène haute.
+function demonFxGeometry() {
+    if (!demonSceneActive || demonSceneCurrentX == null) return null;
+    return { x: demonSceneCurrentX, top: demonSceneTop, front: [demonSceneCurrentX + 64, SCENE_GROUND_Y + GORGOTH_GEOMETRY.mouthY] };
+}
+
+// DEV (console) : pose un combat simulé contre Gorgoth et affiche la scène haute. `partial` : champs de
+// gameState.demonFight (act, maxActs, final, intent, chainsLeft...), plus `scars` (gameState.demon.scars), `ko`,
+// `distance` et `hp`/`maxHp` ; chaque appel repart d'un combat neuf (acte 1, 4 chaînes), les cicatrices restent. Ne lance
+// aucun combat réel : à utiliser pour regarder le dessin.
+function devPreviewDemonScene(partial) {
+    const p = partial || {};
+    const fightKeys = ['act', 'maxActs', 'final', 'emprise', 'countdown', 'chainsLeft', 'possessedThisTurn'];
+    const fight = Object.assign({ act: 1, maxActs: 3, final: false, emprise: 0, intent: { key: 'scythe', hidden: false, revealed: false }, countdown: 5, chainsLeft: 4, possessedThisTurn: false, dmgByStyle: { melee: 0, ranged: 0, magic: 0, unarmed: 0 } });
+    fightKeys.forEach(k => { if (p[k] !== undefined) fight[k] = p[k]; });
+    if (p.intent) fight.intent = Object.assign({ hidden: false, revealed: false }, p.intent);
+    gameState.demonFight = fight;
+    if (!gameState.demon) gameState.demon = { encounters: 0, knockouts: 0, expulsions: 0, scars: { melee: 0, ranged: 0, magic: 0, unarmed: 0 }, lastFloorFought: 0 };
+    if (p.scars) gameState.demon.scars = Object.assign({ melee: 0, ranged: 0, magic: 0, unarmed: 0 }, p.scars);
+    const maxHp = p.maxHp || 500;
+    const prevEnemy = gameState.currentEnemy && gameState.currentEnemy.isDemon ? gameState.currentEnemy : null;
+    const enemy = prevEnemy || { name: GORGOTH_SPRITE_NAME, baseName: GORGOTH_SPRITE_NAME, isDemon: true, isBoss: true, visualArchetype: 'brute', atk: 20, def: 10, status: {} };
+    enemy.maxHp = maxHp;
+    enemy.hp = p.hp !== undefined ? p.hp : maxHp;
+    enemy.demonFinal = !!fight.final;
+    enemy.knockedOut = !!p.ko;
+    gameState.currentEnemy = enemy;
+    gameState.inCombat = true;
+    if (p.distance !== undefined) gameState.combatDistance = p.distance;
+    const zone = document.getElementById('combat-zone');
+    if (zone) zone.classList.remove('hidden');
+    renderScene('demon');
+    return composeDemonScene(readDemonSceneState()).key;
+}
+
 // Point d'entrée unique du rendu des scènes : 'combat' (#combat-zone), 'explore' (scène d'exploration,
 // `opts` = nom de vignette ou { key, enemy, ... }), 'merchant' | 'trainer' | 'arcade' (#shop-zone), 'safehouse'
 // (#safehouse-choice-zone), 'stairs' (écran d'escalier), 'gameOver' (cadavre vu de dessus, `opts` =
-// { cause }), 'crawlers' (remet à jour le crawler des scènes affichées) ; tout mode inconnu ne fait rien.
+// { cause }), 'crawlers' (remet à jour le crawler des scènes affichées), 'demon' (scène haute du combat contre
+// Gorgoth, #demon-scene ; la referme hors d'un tel combat) ; tout mode inconnu ne fait rien.
 function renderScene(mode, opts) {
     if (mode === 'combat') renderCombatScene();
     else if (mode === 'explore') renderExploreScene(opts);
@@ -1067,4 +1436,5 @@ function renderScene(mode, opts) {
     else if (mode === 'gameOver') renderGameOverScene(opts);
     else if (mode === 'crawlers') refreshSceneCrawlers();
     else if (mode === 'encounter') renderEncounterScene(opts);
+    else if (mode === 'demon') renderDemonScene();
 }

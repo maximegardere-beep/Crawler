@@ -52,7 +52,10 @@ const ROOM_TYPES = {
     stairs: { key: 'stairs', label: 'Escalier', mapIcon: '🪜', mapStyle: 'boss', onEnter: 'stairs' },
     lair: { key: 'lair', label: 'Repaire', mapIcon: '💀', mapStyle: 'lair', onEnter: 'lair' },
     // Salle de jeux (chantier 6, V4) : mini-jeux d'argent dans certaines villes (hors départ).
-    arcade: { key: 'arcade', label: 'Salle de jeux', mapIcon: '🎰', mapStyle: 'shop', onEnter: 'arcade' }
+    arcade: { key: 'arcade', label: 'Salle de jeux', mapIcon: '🎰', mapStyle: 'shop', onEnter: 'arcade' },
+    // Porte colossale du Concierge (chantier 17, lot 1) : au carrefour central des avenues d'un étage classique,
+    // s'ouvre avec les 4 clés (boss de quartier vaincus) sur l'antre de Gorgoth (enterRoom(), app.js).
+    gate: { key: 'gate', label: 'Porte colossale', mapIcon: '🔒', mapStyle: 'gate', onEnter: 'gate' }
 };
 
 // Zones. `eventTable` : clé de config.eventTables (app.js) ; `travelMult` : multiplicateur du temps ET du
@@ -61,6 +64,9 @@ const ROOM_TYPES = {
 const ZONE_TYPES = {
     block: { key: 'block', label: 'Quartier', eventTable: 'room', travelMult: 1, hunterMult: 1 },
     avenue: { key: 'avenue', label: 'Avenue', eventTable: 'avenue', travelMult: 0.5, hunterMult: 2 },
+    // Porte colossale (chantier 17) : une seule salle, au carrefour central ; trajet aussi rapide qu'une avenue,
+    // table d'événements des avenues (calme), aucun chasseur de primes en plus.
+    gate: { key: 'gate', label: 'Porte colossale', eventTable: 'avenue', travelMult: 0.5, hunterMult: 1 },
     // Étages urbains (chantier 12) : ville calme (jamais de combat), routes dangereuses, repaire en impasse.
     city: { key: 'city', label: 'Ville', eventTable: 'city', travelMult: 1, hunterMult: 1 },
     road: { key: 'road', label: 'Route', eventTable: 'road', travelMult: 1, hunterMult: 1.5 },
@@ -217,6 +223,9 @@ function gapToBlockSide(room, block, side) {
     if (side === 'top') return room.y - block.y;
     return block.y + block.h - (room.y + room.h);
 }
+
+// Identifiant de la salle de la porte colossale (chantier 17), au carrefour central de la croix des avenues.
+const BOROUGH_GATE_ROOM_ID = 'gate_center';
 
 // ---------- Un bloc de quartier ----------
 // Renvoie { rooms: [{ localId, x, y, w, h, type }], edges: [[a, b]], doors: [{ room, side }], bossIndex }
@@ -379,6 +388,18 @@ function generateBorough(options = {}) {
         }
     }
 
+    // Porte colossale du Concierge (chantier 17) : le carrefour central (1, 1) de la croix devient une salle de la
+    // zone `gate`, reliée aux 4 tronçons qui s'y rejoignent. Aucun tirage : la graine donne toujours le même étage.
+    const gateInter = geometry.intersections.find(it => it.i === 1 && it.j === 1);
+    if (gateInter) {
+        roomsById[BOROUGH_GATE_ROOM_ID] = { id: BOROUGH_GATE_ROOM_ID, zone: 'gate', quadrant: null, x: gateInter.x, y: gateInter.y, w: gateInter.w, h: gateInter.h, size: 'gate', type: 'gate', visited: false, neighbors: [] };
+        const gc = rectCenter(gateInter);
+        geometry.segments.forEach(s => {
+            if (!s.ends.some(e => e[0] === 1 && e[1] === 1)) return;
+            link(BOROUGH_GATE_ROOM_ID, s.id, fgDistance(gc, rectCenter(s)), 'avenue', 'gate');
+        });
+    }
+
     // Blocs de quartier.
     let totalAttempts = 0;
     geometry.blocks.forEach((block, q) => {
@@ -413,7 +434,7 @@ function generateBorough(options = {}) {
     });
 
     const startRoomId = pickSafeStartRoom(roomsById, rng, layout);
-    return { geometry, quadrants, roomsById, startRoomId, attempts: totalAttempts };
+    return { geometry, quadrants, roomsById, startRoomId, gateRoomId: roomsById[BOROUGH_GATE_ROOM_ID] ? BOROUGH_GATE_ROOM_ID : null, attempts: totalAttempts };
 }
 
 // Liste d'adjacence { id: [voisins] } d'un roomsById.
@@ -424,7 +445,7 @@ function roomsAdjacency(roomsById) {
 }
 
 // Départ aléatoire HORS DE DANGER : une salle ordinaire ou un tronçon d'avenue, jamais une salle de boss ni
-// une salle sûre, et au moins à startMinBossHops salles de toute salle de boss.
+// une salle sûre ni la porte colossale (type `gate`, chantier 17), et au moins à startMinBossHops salles de toute salle de boss.
 function pickSafeStartRoom(roomsById, rng = Math.random, layout = FLOOR_LAYOUT) {
     const all = Object.values(roomsById);
     const fromBoss = hopDistances(roomsAdjacency(roomsById), all.filter(r => r.type === 'boss').map(r => r.id));
@@ -673,6 +694,7 @@ function measureMetropolis(floor) {
         overlaps,
         roadCrossings,
         connected: rooms.every(r => reach[r.id] !== undefined),
+        gateLinks: floor.roomsById[BOROUGH_GATE_ROOM_ID] ? floor.roomsById[BOROUGH_GATE_ROOM_ID].neighbors.length : 0,
         stairsCost: floor.stairsRoomId ? Math.round(dist[floor.stairsRoomId] * 10) / 10 : null,
         stairsHops: floor.stairsRoomId ? reach[floor.stairsRoomId] : null
     };
@@ -726,13 +748,14 @@ function measureBorough(floor) {
         duplicateEdges,
         overlaps,
         connected: rooms.every(r => reach[r.id] !== undefined),
+        gateLinks: floor.roomsById[BOROUGH_GATE_ROOM_ID] ? floor.roomsById[BOROUGH_GATE_ROOM_ID].neighbors.length : 0,
         startBossHops: Math.min(...floor.quadrants.map(q => hopDistances(adj, [q.bossRoomId])[floor.startRoomId]))
     };
 }
 
 if (typeof module !== 'undefined') {
     module.exports = {
-        FLOOR_LAYOUT, ROOM_TYPES, ZONE_TYPES, createFloorRng, generateBorough, computeBoroughGeometry,
+        FLOOR_LAYOUT, ROOM_TYPES, ZONE_TYPES, BOROUGH_GATE_ROOM_ID, createFloorRng, generateBorough, computeBoroughGeometry,
         measureBorough, pickSafeStartRoom, roomSizeClass, segmentsCross, rectsOverlap, hopDistances, roomsAdjacency,
         METRO_LAYOUT, generateMetropolis, measureMetropolis, generateCityGrid, cityGridRoads
     };

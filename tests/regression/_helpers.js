@@ -110,12 +110,16 @@ function resetTransientState() {
     hideOriginOverlays();
     gameState.raceLastStandFloor = 0;
     gameState.plotArmorFloor = 0;
+    gameState.demonGateSealedFloor = 0;
     gameState.eliteConventionEnded = true; // le message de fin de la Convention n'est testé que par early-game.js
     gameState.maxMana = 100;
     gameState.maxInventory = config.inventory.maxEquipment;
     gameState.pendingArcadeCityId = null; // Salle de jeux (V4)
     gameState.arcadeSession = null;
     gameState.lairChoicePending = false;
+    gameState.demonArmory = { heldKey: null }; // Objets démoniaques (chantier 17, lot 4)
+    gameState.demonArmoryChoicePending = false;
+    if (typeof hideDemonArmoryZone === 'function') hideDemonArmoryZone();
     gameState.pendingLairId = null;
     gameState.pendingLairDive = null;
     gameState.floorTransitionPending = false;
@@ -135,6 +139,8 @@ function resetTransientState() {
     if (ui.showZone) ui.showZone.classList.add('hidden');
     gameState.pendingMinigame = null; // Mini-jeu ouvert (chantier 6)
     gameState.occasion = createOccasionState(); // Occasions de combat (chantier 6, V2)
+    gameState.demon = createEmptyDemonState(); // Gorgoth le Concierge (chantier 17) : aucun antécédent
+    gameState.demonFight = null;
     abortMinigame();
     if (ui.gameOverOverlay) ui.gameOverOverlay.classList.add('hidden');
 }

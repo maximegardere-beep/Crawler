@@ -30,14 +30,14 @@ const KNOWN_GAMESTATE_KEYS = [
     'cardsDrawnThisFloor', 'combatDistance', 'companion', 'companionChoicePending',
     'currentDistrict', 'currentEnemy', 'encounterIntroPending', 'currentFloor', 'def', 'engageDefHalved', 'equipment', 'fleesThisRun', 'lastAttackKind',
     'floorMap', 'floorStats', 'floorTransitionPending', 'gold', 'hasWon', 'hp', 'inCombat',
-    'inventory', 'lairChoicePending', 'lastPlayerActionWasBackfire',
+    'inventory', 'lairChoicePending', 'demonArmory', 'demonArmoryChoicePending', 'lastPlayerActionWasBackfire',
     'lastSavedAt', 'level', 'runStats', 'achievements', 'bounty', 'pendingBountySquad', 'showChoicePending', 'pendingShow', 'pendingShowAfterPact', 'pendingMinigame', 'occasion', 'mana', 'maxHp', 'maxInventory', 'maxMana', 'maxTime', 'necrologie',
     'pactBlessingDelta', 'pactChoicePending', 'pendingBossEncounter', 'pendingBossRoomId',
     'pendingCompanionCandidate', 'pendingLairDive', 'pendingLairId', 'pendingNextFloorAnomalies',
-    'pendingSafehouseRoomId', 'pendingShopCityId', 'pendingArcadeCityId', 'arcadeSession', 'starterBuff', 'race', 'raceLastStandFloor', 'plotArmorFloor', 'eliteConventionEnded', 'crawlerClass', 'classAbilityUsed', 'raceChoicePending', 'classChoicePending', 'pendingOriginOffers', 'pendingPactAfterOrigin', 'pendingSneakAttack', 'pendingStairAfterCombat', 'pendingStairsChoice',
+    'pendingSafehouseRoomId', 'pendingShopCityId', 'pendingArcadeCityId', 'arcadeSession', 'starterBuff', 'race', 'raceLastStandFloor', 'plotArmorFloor', 'demonGateSealedFloor', 'eliteConventionEnded', 'crawlerClass', 'classAbilityUsed', 'raceChoicePending', 'classChoicePending', 'pendingOriginOffers', 'pendingPactAfterOrigin', 'pendingSneakAttack', 'pendingStairAfterCombat', 'pendingStairsChoice',
     'pendingStealthEncounter', 'pendingTravel', 'playerName', 'safehouseChoicePending', 'saveEnabled', 'stairsChoicePending',
     'shopChoicePending', 'signaturesAwarded', 'skills', 'spellbook', 'status', 'stealthChoicePending', 'timeLeft',
-    'xp', 'xpToNextLevel'
+    'xp', 'xpToNextLevel', 'demon', 'demonFight'
 ];
 
 // --- Complétude : gameState n'a ni plus ni moins de clés que la liste blanche ci-dessus ----------

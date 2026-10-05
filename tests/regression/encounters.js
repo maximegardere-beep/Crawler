@@ -9,12 +9,12 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
 // --- Types de rencontre ---
 {
     const kinds = Object.keys(ENCOUNTER_KINDS);
-    assert(['spotted', 'ambush', 'unseen', 'boss', 'hunter'].every(k => kinds.includes(k)) && kinds.length === 5, "Encounters : les 5 types de rencontre existent");
+    assert(['spotted', 'ambush', 'unseen', 'boss', 'hunter', 'demon'].every(k => kinds.includes(k)) && kinds.length === 6, "Encounters : les 6 types de rencontre existent (dont 'demon', chantier 17)");
     kinds.forEach(k => {
         const d = ENCOUNTER_KINDS[k];
         assert((d.view === 'face' || d.view === 'back') && /^#[0-9a-f]{6}$/i.test(d.accent) && d.hint, `Type ${k} : cadrage, couleur d'accent et invite de fermeture`);
         assert(d.titles.length >= 3 && d.lines.length >= 3, `Type ${k} : au moins 3 titres et 3 répliques`);
-        assert(d.titles.every(t => t.includes('{mob}')) || k === 'boss', `Type ${k} : tous les titres citent le mob`);
+        assert(d.titles.every(t => t.includes('{mob}')) || k === 'boss' || k === 'demon', `Type ${k} : tous les titres citent le mob`);
         assert([...d.titles, ...d.lines].every(t => typeof t === 'string' && t.length > 0), `Type ${k} : textes non vides`);
     });
     assert(ENCOUNTER_KINDS.unseen.view === 'back' && kinds.filter(k => k !== 'unseen').every(k => ENCOUNTER_KINDS[k].view === 'face'), "Seule « tu l'as vu » (unseen) est de dos");
@@ -35,7 +35,9 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
 {
     const targets = encounterArtTargets();
     const bosses = Object.values(districtBosses), mobs = baseMobs;
-    assert(targets.length === bosses.length + bountyHunters.length + mobs.length * 2, "Cibles : 1 plan par boss et chasseur, 2 par mob");
+    assert(targets.length === bosses.length + bountyHunters.length + mobs.length * 2 + 1, "Cibles : 1 plan par boss et chasseur, 2 par mob, 1 pour Gorgoth");
+    const last = targets[targets.length - 1];
+    assert(last.kind === 'demon' && last.name === DEMON_ENCOUNTER_NAME && last.view === 'face' && last.done === true, "Cibles : Gorgoth le Concierge en dernier, face, livré");
     const slugs = [...new Set([...bosses.map(b => b.name), ...bountyHunters.map(h => h.name), ...mobs.map(m => m.name)].map(encounterArtSlug))];
     assert(slugs.length === bosses.length + bountyHunters.length + mobs.length, "Aucun slug en double entre boss, chasseurs et mobs (sinon deux mobs écraseraient la même image)");
     const paths = targets.map(t => t.path);
@@ -47,14 +49,14 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
     const firstFaces = mobTargets.filter(t => t.view === 'face').map(t => power(t.name));
     assert(firstFaces.every((p, i) => i === 0 || firstFaces[i - 1] >= p), "Ordre : mobs du plus puissant au plus faible");
     assert(mobTargets.every((t, i) => i % 2 === 0 ? t.view === 'face' : (t.view === 'back' && t.name === mobTargets[i - 1].name)), "Chaque mob : face puis dos");
-    assert(targets.every(t => t.kind === 'boss' || t.kind === 'hunter' || t.kind === 'mob') && targets.every(t => typeof t.done === 'boolean'), "Cibles : type et état « fait » renseignés");
+    assert(targets.every(t => t.kind === 'boss' || t.kind === 'hunter' || t.kind === 'mob' || t.kind === 'demon') && targets.every(t => typeof t.done === 'boolean'), "Cibles : type et état « fait » renseignés");
 }
 
 // --- Manifeste : cohérence avec les mobs et les fichiers ---
 {
-    const known = new Set([...Object.values(districtBosses).map(b => b.name), ...bountyHunters.map(h => h.name), ...baseMobs.map(m => m.name)]);
+    const known = new Set([...Object.values(districtBosses).map(b => b.name), ...bountyHunters.map(h => h.name), ...baseMobs.map(m => m.name), DEMON_ENCOUNTER_NAME]);
     Object.entries(ENCOUNTER_ART).forEach(([name, views]) => {
-        assert(known.has(name), `Manifeste : « ${name} » est un vrai mob, boss ou chasseur`);
+        assert(known.has(name), `Manifeste : « ${name} » est un vrai mob, boss, chasseur ou Gorgoth`);
         Object.entries(views).forEach(([view, ok]) => {
             assert((view === 'face' || view === 'back') && (ok === true || ok === 'webp' || ok === 'svg'), `Manifeste : « ${name} » ${view} bien formé`);
             assert(fs.existsSync(path.join(__dirname, '..', '..', encounterArtPath(name, view))), `Manifeste : le fichier ${encounterArtPath(name, view)} existe`);
@@ -318,6 +320,43 @@ const seq = (values) => { let i = 0; return () => values[i++ % values.length]; }
         initiateCombat(mob);
         assert(gameState.inCombat && !gameState.encounterIntroPending, "config.encounterIntro.enabled = false : aucun écran, même avec une interface");
     } finally { delete global.requestAnimationFrame; resetTransientState(); }
+}
+
+// --- Chantier 17, lot 6 : Gorgoth le Concierge (type 'demon') ---
+{
+    assert(DEMON_ENCOUNTER_NAME === 'Gorgoth le Concierge' && ENCOUNTER_ART[DEMON_ENCOUNTER_NAME] && ENCOUNTER_ART[DEMON_ENCOUNTER_NAME].face === 'svg', "Gorgoth : image face SVG déclarée au manifeste");
+    assert(encounterArtPath(DEMON_ENCOUNTER_NAME, 'face') === 'assets/mobs/gorgoth-le-concierge-face.svg', "Gorgoth : chemin de son image");
+    const d = ENCOUNTER_KINDS.demon;
+    assert(d.view === 'face' && d.titles.length >= 3 && d.lines.length >= 3, "Type 'demon' : de face, au moins 3 titres et 3 répliques");
+    assert(![...d.titles, ...d.lines, d.hint].some(t => /balrog/i.test(t)), "Type 'demon' : aucun nom protégé");
+    const gorgoth = { name: DEMON_ENCOUNTER_NAME, baseName: DEMON_ENCOUNTER_NAME, isBoss: true, isDemon: true };
+    assert(resolveEncounterKind(gorgoth, 'ambush') === 'demon' && resolveEncounterKind(gorgoth) === 'demon', "resolveEncounterKind() : Gorgoth reste 'demon' (avant 'boss')");
+    assert(resolveEncounterKind({ name: 'Rat' }, 'demon') === 'spotted', "resolveEncounterKind() : jamais 'demon' pour un mob ordinaire");
+    const art = resolveEncounterArt(gorgoth, 'demon');
+    assert(!art.fallback && art.src === 'assets/mobs/gorgoth-le-concierge-face.svg', "resolveEncounterArt() : image de Gorgoth");
+    const svg = composeEncounterScene('demon', gorgoth, 'Jardins Carnivores', 'xbd');
+    assert(svg.length > 500 && !/NaN|undefined/.test(svg), "Scène de repli de Gorgoth : rendu sans valeur manquante");
+    const savedMode = getEncounterIntroMode();
+    try {
+        setEncounterIntroMode('important');
+        assert(encounterIntroWanted('demon', gorgoth) === true, "Réglage « Important » : l'écran de Gorgoth est joué");
+        setEncounterIntroMode('off');
+        assert(encounterIntroWanted('demon', gorgoth) === false, "Réglage « Jamais » : pas d'écran pour Gorgoth");
+    } finally { setEncounterIntroMode(savedMode); }
+    const realNow = Date.now; let now = 9000000; Date.now = () => now;
+    global.requestAnimationFrame = () => 0;
+    config.encounterIntro.enabled = true;
+    try {
+        resetTransientState();
+        assert(devPreviewEncounter('demon', DEMON_ENCOUNTER_NAME) === true && gameState.encounterIntroPending && ui.encounterTitle.innerText.includes('Gorgoth'),"devPreviewEncounter('demon', Gorgoth) : écran ouvert à son nom");
+        assert(ui.encounterImg.src === 'assets/mobs/gorgoth-le-concierge-face.svg' && ui.encounterHint.innerText === ENCOUNTER_KINDS.demon.hint, "devPreviewEncounter('demon', Gorgoth) : image et invite du type 'demon'");
+        dismissEncounterIntro(true);
+    } finally {
+        Date.now = realNow;
+        config.encounterIntro.enabled = false;
+        delete global.requestAnimationFrame;
+        resetTransientState();
+    }
 }
 
 // --- Lot 3 : attaque furtive, départ au corps à corps ou de loin ---

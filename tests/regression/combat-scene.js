@@ -497,6 +497,9 @@ function isRedHex(hex) {
     assert(content.innerHTML.includes('data-cause="trap"') && content.innerHTML.includes(GAME_OVER_CAUSE_PROPS.trap), "gameOver() sur un piège : scène du cadavre avec la plaque à pointes");
     gameOver(true);
     assert(content.innerHTML.includes('data-cause="timeout"'), "gameOver() par épuisement du temps : indice des gravats");
+    gameOver(false, { isDemon: true, name: 'Gorgoth le Concierge', baseName: 'Gorgoth le Concierge' });
+    assert(content.innerHTML.includes('data-cause="demon"') && content.innerHTML.includes(GAME_OVER_CAUSE_PROPS.demon), "gameOver() par Gorgoth (chantier 17) : empreintes de sabot, clé fondue et casquette de concierge");
+    assert(!/Math\.random/.test(GAME_OVER_CAUSE_PROPS.demon) && !(GAME_OVER_CAUSE_PROPS.demon.match(/#[0-9a-fA-F]{6}\b/g) || []).some(isRedHex), "Indice Gorgoth : SVG pur, sans rouge vif (les braises restent orange)");
     gameState.necrologie = savedNecro;
     document.getElementById('game-over-overlay').classList.add('hidden');
     resetTransientState();
@@ -658,7 +661,8 @@ function isRedHex(hex) {
     });
     assert(missing.length === 0, `Chaque objet du catalogue et chaque objet signature a son sprite (manquants : ${missing.join(', ')})`);
     assert(wrongKind.length === 0, `Le type de chaque sprite correspond à la catégorie de l'objet (${wrongKind.join(', ')})`);
-    const orphans = Object.keys(ITEM_SPRITES).filter(k => !k.startsWith('generic:') && !catalog.some(i => i.name === k));
+    // Les objets démoniaques de Gorgoth (chantier 17, sprites/items-demonic.js) sont dessinés par nom avant d'exister au catalogue.
+    const orphans = Object.keys(ITEM_SPRITES).filter(k => !k.startsWith('generic:') && !catalog.some(i => i.name === k) && !DEMONIC_ITEM_SPRITE_NAMES.includes(k));
     assert(orphans.length === 0, `Chaque sprite correspond à un objet existant (orphelins : ${orphans.join(', ')})`);
     const badTip = Object.keys(ITEM_SPRITES).filter(k => !Array.isArray(ITEM_SPRITES[k].tip) || ITEM_SPRITES[k].tip.length !== 2);
     assert(badTip.length === 0, `Chaque sprite a son point d'enchantement (tip) (${badTip.join(', ')})`);
@@ -701,6 +705,50 @@ function isRedHex(hex) {
     assert(!currentCrawler().markup.includes('ench-spark'), "Objet sans enchantement : aucune étincelle");
     gameState.equipment = savedEq;
     resetTransientState();
+}
+
+// ============================================================
+// Objets démoniaques de Gorgoth le Concierge (chantier 17, lot 5 : sprites/items-demonic.js + sprites/fx.js)
+// ============================================================
+{
+    const CONTRACT = ['Trousseau Ardent de Gorgoth', 'Bleu de Travail Ignifugé', 'Lance-Clés Infernal', 'Règlement Intérieur'];
+    const KIND = { 'Trousseau Ardent de Gorgoth': 'melee', 'Bleu de Travail Ignifugé': 'armor', 'Lance-Clés Infernal': 'ranged', 'Règlement Intérieur': 'spell' };
+    const clean = str => typeof str === 'string' && str.length > 0 && !/undefined|NaN|id=|<defs|Gradient|<filter|filter=/.test(str);
+    assert(CONTRACT.every(n => DEMONIC_ITEM_ART[n] && DEMONIC_ITEM_ART[n].kind === KIND[n]) && Object.keys(DEMONIC_ITEM_ART).length === 4, "Objets démoniaques : les 4 noms du contrat, chacun avec son type de dessin");
+    assert(DEMONIC_ITEM_SPRITE_NAMES.length === 3 && !DEMONIC_ITEM_SPRITE_NAMES.includes('Règlement Intérieur'), "Objets démoniaques : trois sprites d'équipement, le sort passe par son effet");
+    const bad = DEMONIC_ITEM_SPRITE_NAMES.filter(n => {
+        const sp = ITEM_SPRITES[n];
+        return !sp || sp.kind !== KIND[n] || !Array.isArray(sp.tip) || sp.tip.length !== 2 || !sp.tip.every(Number.isFinite) || !clean(sp.art);
+    });
+    assert(bad.length === 0, `Objets démoniaques : sprite du bon type, point d'enchantement, dessin sans valeur manquante, identifiant, dégradé ni filtre (${bad.join(', ')})`);
+    const icons = DEMONIC_ITEM_SPRITE_NAMES.map(n => itemIconSvg({ name: n, baseName: n, category: DEMONIC_ITEM_ART[n].category }, 24));
+    assert(icons.every(svg => svg.startsWith('<svg') && clean(svg)), "Objets démoniaques : icône d'inventaire valide (24 px)");
+    assert(DEMONIC_ITEM_SPRITE_NAMES.every(n => resolveItemSpriteKey({ name: `${n} +3`, category: DEMONIC_ITEM_ART[n].category }) === n), "Objets démoniaques : un nom suffixé retrouve son sprite");
+    const rule = demonicRulebookIconSvg(24);
+    assert(rule.startsWith('<svg') && clean(rule) && DEMONIC_ITEM_ART['Règlement Intérieur'].icon === DEMONIC_SPELL_ICON, "Règlement Intérieur : icône dessinée pour l'armurerie");
+    // Effets : style et éclat du fouet, clé ardente qui tourne, pages-sceaux du sort, lueur de paume
+    assert(MELEE_SWING_STYLES['Trousseau Ardent de Gorgoth'] === 'slash' && MELEE_IMPACTS['Trousseau Ardent de Gorgoth'] === 'brand', "Trousseau Ardent : claque en arc fin, marque au fer rouge");
+    assert(RANGED_PROJECTILES['Lance-Clés Infernal'] === 'emberKey' && FX_PROJECTILES.emberKey.spin && clean(FX_PROJECTILES.emberKey.art), "Lance-Clés Infernal : tire une clé ardente qui tourne sur elle-même");
+    const fx = FX_SPELLS[DEMONIC_SPELL_ICON];
+    assert(fx && fx.style === 'bolt' && fx.projectile === 'sealPage' && clean(FX_PROJECTILES.sealPage.art) && !spellCatalog.some(sp => sp.icon === DEMONIC_SPELL_ICON), "Règlement Intérieur : icône réservée, pages-sceaux enflammées");
+    assert(['brand', 'infernalSeal'].every(k => clean(FX_IMPACTS[k]()) && clean(FX_IMPACTS[k]('#ff0000'))), "Objets démoniaques : éclats d'impact propres");
+    assert(CRAWLER_SPELL_GLOWS[DEMONIC_SPELL_ICON] === '#f97316', "Règlement Intérieur : paume ardente en posture magie");
+    // Rendu sur le crawler (arme en main, lance-clés rangé, bleu de travail) et spécifications d'effet
+    resetTransientState();
+    const savedEq = gameState.equipment;
+    const fake = n => ({ name: n, baseName: n, category: DEMONIC_ITEM_ART[n].category });
+    gameState.equipment = Object.assign({}, savedEq, { weapon: fake('Trousseau Ardent de Gorgoth'), ranged: fake('Lance-Clés Infernal'), armor: fake('Bleu de Travail Ignifugé'), spell: { name: 'Règlement Intérieur', category: 'scrolls', spellCategory: 'ranged', icon: DEMONIC_SPELL_ICON } });
+    gameState.lastAttackKind = 'weapon';
+    const markup = currentCrawler().markup;
+    assert(DEMONIC_ITEM_SPRITE_NAMES.every(n => markup.includes(ITEM_SPRITES[n].art)) && clean(markup.replace(/id="[^"]*"/g, '')), "Crawler : porte les trois objets démoniaques sans valeur manquante");
+    const melee = playerAttackFxSpec('weapon');
+    const ranged = playerAttackFxSpec('ranged');
+    const magic = playerAttackFxSpec('magic');
+    assert(melee.style === 'slash' && melee.impact === 'brand' && ranged.projectile === 'emberKey' && ranged.impact === 'brand' && magic.projectile === 'sealPage' && magic.impact === 'infernalSeal', "Spécifications d'effet : fouet, clé ardente, pages-sceaux");
+    assert(playerAttackSfxKey(melee) === 'swordSlash' && playerAttackSfxKey(ranged) === 'emberKeyShot' && playerAttackSfxKey(magic) === 'spellBolt', "Sons : le fouet claque, la clé ardente a son propre son, le Règlement suit l'école projectile");
+    gameState.equipment = savedEq;
+    resetTransientState();
+    assert(typeof devPreviewDemonicItems === 'function', "Aide console : devPreviewDemonicItems()");
 }
 
 // ============================================================
@@ -929,4 +977,66 @@ function isRedHex(hex) {
     assert(anchor._children.length === before + 1 && shown.style.fontSize === `${floatingDamageScale(40, 100).fontPx}px` && shown.style.getPropertyValue('--fd-pop') === floatingDamageScale(40, 100).pop,
         "showFloatingDamage : taille et grossissement calculés sur les PV max de l'ennemi");
     gameState.currentEnemy = null;
+}
+
+// ===================================================================
+// Gorgoth le Concierge (chantier 17, lot 6) : décor de l'antre (fiche séparée DEMON_LAIR_BACKDROP), accessoires
+// de la porte colossale / du trône / du râtelier / des crevasses de lave, et 4 vignettes d'exploration.
+// ===================================================================
+{
+    const problems = backdropProblems('antre', DEMON_LAIR_BACKDROP);
+    assert(problems.length === 0, `Décor de l'antre valide (${problems.join(' ; ')})`);
+    assert(!Object.prototype.hasOwnProperty.call(SCENE_BACKDROPS, DEMON_LAIR_BACKDROP.label), "Antre : fiche séparée, jamais une clé de SCENE_BACKDROPS");
+    const all = [...DEMON_LAIR_BACKDROP.props, ...(DEMON_LAIR_BACKDROP.floorProps || [])];
+    const types = new Set(all.map(p => p.type));
+    assert(types.size >= 3 && all.some(p => BACKDROP_PROPS[p.type].light(p)), "Antre : au moins 3 types d'accessoires et une source de lumière");
+    assert(['colossalGate', 'demonThrone', 'armoryRack', 'lavaCracks'].every(t => types.has(t)), "Antre : porte colossale, trône, râtelier et crevasses de lave");
+    assert(DEMON_LAIR_BACKDROP.floorProps.some(p => p.type === 'lavaCracks'), "Antre : les crevasses de lave sont au sol");
+
+    // Porte colossale : serrures allumées selon les clés, ouverte sans chaînes, sceau à la demande.
+    const gate = (o) => BACKDROP_PROPS.colossalGate.markup(Object.assign({ type: 'colossalGate' }, o), null);
+    const lit = (m) => (m.match(/demon-lock-lit/g) || []).length;
+    const unlit = (m) => (m.match(/class="demon-lock"/g) || []).length;
+    assert([0, 1, 2, 3, 4].every(n => lit(gate({ locks: n })) === n && unlit(gate({ locks: n })) === 4 - n), "Porte colossale : 4 serrures, une allumée par clé");
+    assert(lit(gate({ locks: 9 })) === 4 && lit(gate({ locks: -2 })) === 0, "Porte colossale : clés bornées de 0 à 4");
+    assert(gate({ open: true }).indexOf('demon-lock') === -1 && !/<ellipse cx="[-\d.]+" cy="[-\d.]+" rx="4.6"/.test(gate({ open: true })), "Porte entrouverte : ni serrures ni chaînes");
+    assert(/rx="4.6"/.test(gate({})) && gate({ seal: true }).length > gate({}).length, "Porte fermée : chaînes en croix ; sceau sur demande");
+    const rack = BACKDROP_PROPS.armoryRack.markup({ type: 'armoryRack', taken: ['overalls'] }, null);
+    assert(rack.length < BACKDROP_PROPS.armoryRack.markup({ type: 'armoryRack' }, null).length && !/undefined|NaN/.test(rack), "Râtelier : l'objet emporté laisse son crochet vide");
+
+    // Vignettes.
+    const names = ['demonGateLocked', 'demonGateOpen', 'demonKnockout', 'demonExpelled'];
+    assert(names.every(n => typeof EXPLORE_VIGNETTES[n] === 'function'), "Les 4 vignettes de Gorgoth existent");
+    assert(names.every(n => { const m = composeExploreVignette(n, {}); return m.length > 200 && !/undefined|NaN/.test(m); }), "Vignettes de Gorgoth : rendu sans valeur manquante");
+    assert(lit(composeExploreVignette('demonGateLocked', { keys: 3 })) === 3 && lit(composeExploreVignette('demonGateLocked', { keys: 0 })) === 0, "Porte verrouillée : serrures allumées selon ctx.keys");
+    const hadFn = typeof global.demonKeysCount === 'function', savedFn = global.demonKeysCount;
+    try {
+        delete global.demonKeysCount;
+        assert(typeof demonKeysCount === 'undefined' ? demonGateKeys({}) === 0 : true, "Sans demonKeysCount() : 0 serrure allumée");
+        global.demonKeysCount = () => 2;
+        assert(demonGateKeys({}) === 2 && lit(composeExploreVignette('demonGateLocked', {})) === 2, "Avec demonKeysCount() : les serrures suivent le nombre de clés");
+        global.demonKeysCount = () => { throw new Error('boom'); };
+        assert(demonGateKeys({}) === 0, "demonKeysCount() qui échoue : 0, jamais d'exception");
+    } finally {
+        if (hadFn) global.demonKeysCount = savedFn; else delete global.demonKeysCount;
+    }
+    const ko = composeExploreVignette('demonKnockout', {});
+    assert(!/<text/.test(ko) && ko.includes('bd-spin') && ko.includes('bd-float'), "Mise au tapis : étoiles qui tournent, « Zzz » dessiné (aucun texte SVG)");
+    assert(composeExploreVignette('demonGateOpen', {}).includes('scale(0.55)'), "Porte ouverte : crawler minuscule devant");
+    assert(!names.some(n => /balrog/i.test(composeExploreVignette(n, {}))), "Vignettes : aucun nom protégé");
+
+    // Cache : la porte verrouillée est redessinée quand le nombre de clés change.
+    resetTransientState();
+    delete lastBackdropKeys.ebd; delete vignetteKeys.ebd;
+    const vignette = document.getElementById('explore-scene-vignette');
+    setSceneHeader('🔒', 'Porte', 'Porte', { key: 'demonGateLocked', keys: 1 });
+    assert(lit(vignette.innerHTML) === 1, "setSceneHeader() : porte verrouillée affichée (1 clé)");
+    setSceneHeader('🔒', 'Porte', 'Porte', { key: 'demonGateLocked', keys: 4 });
+    assert(lit(vignette.innerHTML) === 4, "Porte verrouillée : redessinée quand le nombre de clés change");
+    delete lastBackdropKeys.ebd; delete vignetteKeys.ebd;
+
+    // Aide console : liste des 4 vignettes, affichées dans l'ordre.
+    assert(JSON.stringify(devPreviewDemonVignettes(0)) === JSON.stringify(names), "devPreviewDemonVignettes() : les 4 vignettes, dans l'ordre");
+    delete lastBackdropKeys.ebd; delete vignetteKeys.ebd;
+    resetTransientState();
 }

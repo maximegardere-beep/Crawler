@@ -143,12 +143,12 @@ function withRandom(value, fn) {
     const exit = Object.values(gameState.floorMap.roomsById).find(r => r.type === 'stairs');
     moveToFloorRoom(exit);
     enterRoom(exit);
-    assert(gameState.bossChoicePending === true, "Sortie gardée : choix combattre / repérer");
-    fightBossNow();
+    // Chantier 17 : Gorgoth le Concierge, en forme finale, garde la Sortie à la place du gardien habituel.
+    assert(gameState.inCombat === true && gameState.currentEnemy && gameState.currentEnemy.isDemon && gameState.currentEnemy.demonFinal === true, "Sortie gardée : Gorgoth en forme finale");
     const floorBefore = gameState.currentFloor;
     gameState.currentEnemy.hp = -9999;
     winCombat();
-    assert(gameState.hasWon === true && gameState.currentFloor === floorBefore, "Victoire sur le gardien de la Sortie : winGame(), aucun étage de plus");
+    assert(gameState.hasWon === true && gameState.currentFloor === floorBefore, "Victoire sur Gorgoth à la Sortie : winGame(), aucun étage de plus");
     gameState.hasWon = false;
     gameState.inCombat = false;
     ui.winOverlay.classList.add('hidden');

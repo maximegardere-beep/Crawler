@@ -48,6 +48,13 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
 | 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié — lots 0 à 3 et 6 codés (catalogue `encounters.js`, overlay + repli sprite agrandi), toutes les images livrées en SVG : 13 boss (face, Vibe), 39 mobs (face + dos) et 3 chasseurs (face) dessinés par Claude | playtest de l'ensemble (lisibilité des écrans sur téléphone) |
+| 17 | Boss de Niveau : Gorgoth le Concierge (4 clés, armurerie démoniaque, combat en actes, Cicatrices, étage 18) | XL | Codé (9 lots fusionnés, PR #38 à #46 → branche `claude/chantier-17-demon`), à playtester | `NOTES_DEMON.md` — difficulté à vérifier en priorité |
+| 18 | Popularité : un vrai compteur de spectateurs | M | Idée | — |
+| 19 | Fiches du Système (examen des mobs) | S | Idée | — |
+| 20 | Titres décernés par le Système | S | Idée | — |
+| 21 | Cadavres de crawlers | S | Idée | — |
+| 22 | Quiz du Système | S | Idée | — |
+| 23 | Boîtes de fans | S | Idée | 18 |
 
 ### Codés (à playtester)
 
@@ -98,6 +105,7 @@ Leviers à regarder en premier ; le détail est dans la section « À surveiller
 - **Sons** (8) : écoute réelle de tous les sons (composés sans écoute), volume combat / événements, fatigue
   d'écoute, déblocage du son sur iOS.
 - **Sorts** (11) : combo Bouclier de Mana + Soin Express, Pas de l'Ombre et le kiting, étourdissement à 30 %.
+- **Gorgoth** (17) : difficulté (simulation toujours expulsée), temps d'un étage « 4 boss + Gorgoth », objets démoniaques trop forts ?
 - **Hérité du backlog** (`CLAUDE.md`) : table D100 des événements, furtivité, boss plus punitifs que les mobs
   en fin de run, économie urbaine.
 
@@ -554,3 +562,95 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 - [x] Piscine Municipale Désaffectée : Maître-Nageur Zombifié (siffle un canard en plastique qui « court » au fond du bassin vide), Frite de Piscine Étrangleuse (s'entraîne à étrangler une bouée canard), Nuage de Chlore Ambulant (trempe ses bras dans le pédiluve, décolore un bonnet oublié).
 - [x] Studio de Télé-Achat Abandonné : Mannequin Vitrine Possédé (essaie une perruque devant un écran éteint), Caméra de Surveillance Autonome (filme avec passion une plante en plastique), Présentateur Télé-Achat Hystérique (démonstration d'un éplucheur miracle devant des chaises vides).
 - [x] Chasseurs de primes (face seulement, décor de route de nuit, affiche RECHERCHÉ sans lettres) : Gobelin Pisteur de Primes (compare l'avis à ta tête, arbalète armée), Gobelin Cogneur de Primes (gourdin clouté levé, filet prêt), Chef d'Escouade Gobelin (hurle dans son porte-voix, sbires au loin).
+
+## 17. Boss de Niveau : Gorgoth le Concierge — XL — Codé (à playtester)
+
+**Demande** : un nouveau type de boss, hors du système actuel. Un démon, le MÊME d'un étage à l'autre : vaincu, il n'est qu'assommé.
+Pour l'affronter, vaincre les 4 boss de quartier d'un étage → 4 clés → porte colossale → antre du démon. Son armurerie contient une arme,
+une armure, une arme à distance et un sort « uniques », très puissants, à effets propres ; on ne peut en sortir qu'UN de l'antre (concentration
+de puissance démoniaque). Combat différent des mobs et des boss, qui intègre les stats du joueur, épique et stressant. Il garde la Sortie
+de l'étage 18. Il évolue selon les combats (tué au tir → devient impénétrable au tir, à garder faisable).
+
+**Exploré** : briques réutilisables — 4 boss par étage classique (un par quartier, `districtBosses`, cache 👑, repères dérivés des salles
+`listFloorLandmarks()`), stats calées sur le joueur (`getPlayerCombatProfile()` → `computeBountyHunterStats()`, chasseurs), séquenceur
+`runCombatBeats()` et épreuves interactives (Parade, Coup de grâce), écran plein écran `showEncounterIntro()` (chantier 16), constructeur
+`buildSignatureItem()`, recettes Web Audio, `runStats`/DeathWatch. Frictions : les étages urbains (3, 6, 9, 12, 15, 18) n'ont pas 4 boss → clés
+sur les 12 étages classiques seulement ; tuer les 4 boss coûte une grosse part du budget temps (130 H + 5/étage) — détour volontairement
+coûteux ; une immunité totale casserait un build déjà engagé.
+
+**Décidé (rounds 1-2)** :
+- **Clés par étage** : les 4 boss du même étage, porte sur cet étage, clés perdues en descendant (jusqu'à 12 rencontres possibles).
+- **Combat en 3 actes (C) + intentions annoncées (A) + jauge d'Emprise (B)** : acte 1 démon enchaîné (4 chaînes = 4 clés), acte 2 l'antre
+  s'embrase et l'écart maximal rétrécit (8 → 6 → 4), acte 3 compte à rebours avant son coup final (à abattre avant ou à parer par une épreuve) ;
+  chaque tour une intention visible (Fauche, Brasier, Emprise, Garde…) dont la bonne réponse neutralise et ouvre une fenêtre, stats du joueur en
+  jets (Furtivité lit une intention cachée, Magie contre l'Emprise) ; jauge d'Emprise 0-100 qui monte chaque tour (plus vite si on encaisse ou
+  DEF faible), à 100 Possession (tour perdu / frappe le compagnon), redescend sur Parfaits et gros coups. Stats calées sur le profil du joueur,
+  qui cible sa stat la plus faible. Victoire = « Mise au tapis » (assommé).
+- **Défaite = expulsé** : rejeté hors de l'antre à 1 PV, perte de temps, porte rescellée pour l'étage ; mort réelle seulement à l'étage 18.
+- **Adaptation = Cicatrices plafonnées + faiblesse** : style dominant de chaque victoire (mêlée / distance / magie / mains nues) → cran −20 / −40 /
+  −60 % (« Impénétrable », immunité à ses effets), jamais 100 % ; chaque Cicatrice ouvre une faiblesse visible ailleurs.
+- **Armurerie : 1 sur 4, échangeable** : chaque victoire, choisir 1 des 4 objets, les autres restent au râtelier ; victoire suivante : garder
+  (l'objet monte de niveau) ou échanger.
+- **Malédiction** : chaque objet démoniaque a un effet unique très puissant ET un prix (soins réduits, coût en PV, temps…).
+- **Étage 18 : forme finale** — toutes ses Cicatrices + un 4e acte, pas d'assommage, Fatigue −5 % PV par mise au tapis passée ; remplace le
+  gardien actuel de la Sortie.
+- **Graphisme** : **scène agrandie** pour le montrer en entier (format haut dédié au combat contre le démon), direction artistique **« style
+  Balrog »** (colosse d'ombre et de flammes, cornes, ailes de fumée, fouet et lame de feu) — inspiration seulement : nom et design propres au jeu.
+  Aussi : porte colossale (nouveau type de salle, sceau à 4 serrures, 🗝️ × 4 dans le header), antre (obsidienne, braises, trône, râtelier de
+  l'armurerie), barre de vie en chaînes qui cassent à chaque acte, Emprise en veines rouges sur les bords de l'écran + battement de cœur, écran
+  d'entrée « Il se souvient de toi : N rencontres », Mise au tapis cartoon commentée par DeathWatch.
+
+**Reste à proposer / valider** : nom du démon, chiffres en LISTE (stats calées sur le joueur, montée par rencontre, vitesse de l'Emprise,
+crans de Cicatrice, coût de l'expulsion, 4 objets et leurs malédictions), découpage en lots.
+
+**Décidé (round 3)** : nom **Gorgoth le Concierge** ; chiffres validés avec le plan (liste complète dans `NOTES_DEMON.md`) ; 9 lots codés en
+parallèle (PR #38 à #46) vers la branche d'intégration `claude/chantier-17-demon`, fusionnés et vérifiés (tests + parcours Chromium complet).
+
+**À playtester** : difficulté (la simulation longue est toujours expulsée), temps pour 4 boss + Gorgoth sur un étage, lisibilité de la scène
+haute + HUD sur téléphone, puissance des objets démoniaques face à leurs malédictions. Détail dans `NOTES_DEMON.md`.
+
+---
+
+## Idées « esprit du livre » (05/10/2026)
+
+Tour de suggestions pour se rapprocher de *Dungeon Crawler Carl*, à l'échelle du jeu actuel : chaque idée
+s'appuie sur un système existant (chronique `recordRunEvent()`, boîtes `openAchievementBox()`, DeathWatch,
+épitaphes, examen des mobs) plutôt que d'en créer un nouveau. Écartées à ce tour (trop lourdes) : voix et
+humeur de l'IA du Système, compagnon à personnalité façon Donut, sponsors, classement des crawlers,
+bricolage d'explosifs, failles du règlement, étages scénarisés, guide des salles sûres, rencontres graves.
+
+## 18. Popularité : un vrai compteur de spectateurs — M — Idée
+
+Aujourd'hui `getShowPopularity()` = succès débloqués ÷ 5 : invisible et indirect. Proposition : un compteur de
+**spectateurs** propre, alimenté par la chronique — monte sur le spectaculaire (Parfait, coup de grâce, victoire
+à peu de PV, réponse risquée réussie à DeathWatch, élite tuée), s'érode sur l'ennui (fuites, longs repos,
+étage sans combat). Badge dans la fiche du crawler, annonce des paliers. Effets : remplace la popularité dans
+les jets de DeathWatch, rend les cadeaux du public (`audienceGift`) plus fréquents, nourrit les piques.
+
+## 19. Fiches du Système (examen des mobs) — S — Idée
+
+Une fiche sarcastique par mob de `baseMobs` et par boss, écrite par l'IA du Système (description méprisante +
+anecdote absurde), affichée à l'examen du mob. Contenu seulement ; un test exige une fiche pour chaque mob.
+
+## 20. Titres décernés par le Système — S — Idée
+
+Un titre sous le nom du crawler, recalculé à chaque étage depuis `runStats` (« Le Fuyard », « Boucher de
+rats », « Ami des pièges », « Pyromane amateur »…). Repris par DeathWatch et l'épitaphe. Aucun effet de jeu.
+
+## 21. Cadavres de crawlers — S — Idée
+
+Nouvel événement d'exploration : le corps d'un autre crawler (nom tiré, race et classe au-delà de l'étage 3),
+sa propre épitaphe (`generateEpitaph()` réutilisé), un petit butin. Rappelle qu'on n'est pas seul dans le
+Donjon, sans système de rivaux.
+
+## 22. Quiz du Système — S — Idée
+
+Rare événement : le Système pose une question sur ta propre partie (« Combien de gobelins as-tu tués ? »,
+« Quel objet ridicule portes-tu ? »), lue dans `runStats`. Bonne réponse = petite boîte ; mauvaise = remarque
+humiliante et quelques spectateurs perdus (si 18 est fait).
+
+## 23. Boîtes de fans — S — Idée (dépend de 18)
+
+À chaque palier de spectateurs, une boîte de fans distincte des boîtes de succès (même `openAchievementBox()`,
+contenu plus bizarre et plus inégal : objets blagues, consommables, parfois un vrai bon objet).
+

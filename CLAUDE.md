@@ -12,6 +12,11 @@ Tailwind CDN, **aucun build step**.
 - `districts.js` — quartiers (référencent les monstres par nom)
 - `safehouses.js` — types de salles sécurisées (narratif seul pour l'instant)
 - `generator.js` — génération procédurale (mobs, objets, parchemins de sorts, boss, compagnons)
+- `demon.js` — Gorgoth le Concierge, Boss de Niveau (chantier 17, voir `NOTES_DEMON.md`) : calculs PURS du combat démoniaque (`DEMON_NAME`,
+  `DEMON_INTENTS`, `computeDemonStats()`, actes, chaînes, `pickDemonIntent(rng, …)`, `resolveIntentResponse()`, Emprise, Cicatrices, Fatigue,
+  `normalizeDemonState()`), réglages passés en paramètre (miroir de `config.demonBoss`) ; chargé juste après `encounters.js`
+- `demon-items.js` — objets démoniaques (chantier 17) : rareté `DEMONIC_RARITY` (HORS de `itemRarities`, résolue par `getRarityByKey('demoniaque')`),
+  `DEMONIC_ITEMS` (`blade`/`overalls`/`keyLauncher`/`rulebook`), réglages de l'armurerie `DEMONIC_ARMORY` ; chargé juste après `items.js`
 - `anomalies.js` — catalogue et résolution des anomalies d'étage (`ANOMALY_CATALOG`, tirage, hook `appliquerAnomalie()`)
 - `achievements.js` — chronique de run et succès (catalogue pur `ACHIEVEMENTS`, paliers, `createEmptyRunStats()`,
   indice de domination `computeDominance()`), chargé juste après `anomalies.js`
@@ -62,7 +67,7 @@ Tailwind CDN, **aucun build step**.
   `ITEM_SPRITES` des sprites d'équipement, dessins génériques de repli par catégorie, cadrages d'icône
   `ITEM_ICON_TRANSFORMS`, couleurs d'enchantement `ENCHANT_COLORS`), puis un dessin par objet, clé = nom
   exact, ajoutés au registre par `Object.assign` : `items-melee.js` (18 armes de mêlée), `items-ranged.js`
-  (13 armes à distance), `items-armor.js` (17 armures), `items-signature.js` (13 objets signature de boss),
+  (13 armes à distance), `items-armor.js` (17 armures), `items-signature.js` (13 objets signature de boss), `items-demonic.js` (les 3 objets démoniaques dessinés, icône `demonicRulebookIconSvg()` du sort, chantier 17), `demon.js` (Gorgoth en couches : `composeGorgothSprite()`, intentions, actes, Cicatrices, chaînes, K.O.),
   et `fx.js` (catalogue des effets d'attaque : style de coup par arme, projectiles, sorts, attaques de mob,
   éclats d'impact). Tous chargés avant `backdrops.js`/`scene.js`,
   même ordre dans `index.html` et `tests/load_game.js` (`GAME_FILES`) — un nouveau fichier doit être ajouté
@@ -73,7 +78,7 @@ Tailwind CDN, **aucun build step**.
 - `tests/` — voir plus bas
 - `CHANTIERS.md` — registre des chantiers (statut, décisions, point d'étape, voir « Chantiers »)
 - `NOTES_*.md` — notes détaillées d'un chantier (diagnostic, chiffres, tests, « À surveiller en playtest ») :
-  `COMPAGNONS`, `ORIGINES`, `DEBUT_DE_PARTIE`, `SONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
+  `COMPAGNONS`, `ORIGINES`, `DEBUT_DE_PARTIE`, `DEMON`, `SONS`, `SUCCES`, `CHASSEURS`, `DEATHWATCH`, `CARTE`, `INTERFACE`, `ITEMS`, `SORTS`, `VILLES`, `MINIJEUX`, et pour les
   chantiers antérieurs au registre `COMBAT`, `LISIBILITE_COMBAT`, `QOL_EQUILIBRAGE`
 
 ## Architecture (résumé)
@@ -441,6 +446,24 @@ Tailwind CDN, **aucun build step**.
   Parfait = un lot (`arcadeScore()`/`arcadePayout()`). **Chronique** : `settleMinigame()` → `recordRunEvent('minigame')` (épreuves jouées seulement), `finishArcadeGame()` → `recordRunEvent('arcade')` ; 7 succès et 2 familles de piques DeathWatch
   (`perfect`, `gambler`) y sont liés. Tout helper pur de `minigames.js` partage l'espace
   global avec `floorgen.js` : en préfixer le nom (une collision sur `pointSegmentDistance` avait supprimé les repaires).
+- **Boss de Niveau : Gorgoth le Concierge** (chantier 17, voir `NOTES_DEMON.md`, chiffres dans `config.demonBoss`) : démon persistant d'un étage
+  à l'autre, seulement assommé quand on le bat. **Accès** : chaque étage classique a une **porte colossale** au carrefour central (`ROOM_TYPES.gate`,
+  zone `gate`, salle `gate_center` — hors des 12 avenues, jamais un départ) ; `demonKeysCount()` = boss de quartier vaincus de l'étage (dérivé de
+  `floorMap.quadrants[*].bossRoomId`, 0 sur un étage urbain), badge `#keys-status` 🗝️ N/4, repère 🔒 / 🚪 / ⛓️ (rescellée : `sealDemonGate()`,
+  `gameState.demonGateSealedFloor`). `FLOOR_MAP_VERSION` 3. **Combat** : `startDemonFight({ final, onVictory, onDefeat })` (écran d'entrée kind
+  `'demon'`), ennemi `isDemon`/`isBoss`/`demonFinal`, stats calées sur `getPlayerCombatProfile()` ; la riposte bifurque sur `enemy.isDemon` AVANT la
+  branche boss : actes (écart maximal réduit, `combatMaxDistance()`), 4 chaînes, compte à rebours puis Cataclysme (Parade via `runBossTrial`),
+  intention annoncée chaque tour (`gameState.demonFight.intent`, 25 % masquées, révélées par jet de Furtivité) résolue selon l'action du joueur,
+  jauge d'Emprise et Possession ; Cicatrices (résistance au style dominant, faiblesse au style opposé) dans `performPlayerAttack()`. Fuite impossible,
+  pas de Coup de grâce. Victoire = mise au tapis (`gameState.demon` : `knockouts`, `scars`…) puis **armurerie** `openDemonArmory(onDone)`
+  (`#demon-armory-zone`, `gameState.demonArmoryChoicePending`, un seul objet démoniaque possédé, garder = +2 niveaux, échanger) ; défaite =
+  expulsion (1 PV, −10 H, porte rescellée), jamais un Game Over. **Étage 18** : la Sortie lance `startDemonFight({ final: true })` (4e acte,
+  Fatigue, mort réelle, cause `'demon'`). **Interface** : `#demon-hud` + voile `#demon-emprise-veil` (`updateDemonUI()`, modèle pur
+  `demonHudModel()`), **scène haute** `#demon-scene` 360 × 300 (`renderScene('demon')`, décor `DEMON_LAIR_BACKDROP`, les nœuds `#scene-mob`/
+  `#scene-crawler`/`#scene-fx` y sont déplacés le temps du combat). Objets : `buildDemonicItem(key, niveau)`, qualificatifs `demonic`/`curse`
+  exclus de tout tirage (`isReservedQualifier()`). Chronique : `recordRunEvent('demonEncounter'|'demonKnockout'|'demonExpelled'|'demonArmory')`,
+  5 succès, thème DeathWatch `demon`, épitaphes `EPITAPH_TEMPLATES.demon`. Sons `DEMON_SFX_KEYS`. Outils console : `devGiveDemonKeys()`,
+  `devStartDemonFight({ final })`, `devOpenDemonArmory()`, `devPreviewDemonHud()`, `devPreviewDemonScene()`, `devPreviewDemonVignettes()`.
 - **Buff de départ « Foutu pour foutu »** (chantier 14, voir `CHANTIERS.md`, chiffres dans `config.starterBuff`) : `gameState.starterBuff` (`null | 'desperate' | 'boxer'`,
   sauvegardé). `revealWelcomeGift()` pose `'desperate'` pour un cadeau Armure ou Rien (22 % des départs) : +5 % de dégâts subis (`applyStarterBuffToDamage()` :
   `companionInterceptHit()`, pièges, saignement) et dégâts ×2 à mains nues (`starterBuffUnarmedMult()` : attaque Mains nues, Étrangler, Charge sans arme). Il saute à
@@ -921,7 +944,7 @@ Tailwind CDN, **aucun build step**.
   par domaine (`meta-reset.js`, `combat.js`, `combat-scene.js`, `combat-scaling.js`, `combat-boss.js`,
   `combat-enrage.js`, `items.js`, `loot.js`, `misc.js`, `magic.js`, `saves.js`,
   `floor-transition.js`, `necrologie.js`, `anomalies.js`, `urban-floors.js`, `balance.js`,
-  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`, `origin-choice.js`, `classes.js`, `crawler-races.js`, `origins-flavor.js`, `early-game.js`, `encounters.js`, `sounds.js`), dans l'ordre où chacun apparaît en tête de
+  `urban-map.js`, `urban-shops.js`, `urban-lairs.js`, `safehouses.js`, `companions.js`, `achievements.js`, `bounty.js`, `deathwatch.js`, `floor-map.js`, `inventory-ui.js`, `minigames.js`, `starter-buff.js`, `origins.js`, `races.js`, `origin-choice.js`, `classes.js`, `crawler-races.js`, `origins-flavor.js`, `early-game.js`, `encounters.js`, `sounds.js`, `demon-combat.js`, `demon-access.js`, `demon-items.js`, `demon-ui.js`, `demon-scene.js`), dans l'ordre où chacun apparaît en tête de
   liste dans `regression.test.js` — cet
   ordre correspond à la position de la PREMIÈRE section de chaque module dans l'ancien fichier
   monolithique, pour rester aussi proche que possible de l'ordre d'exécution d'origine (les tests

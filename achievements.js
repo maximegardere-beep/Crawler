@@ -40,6 +40,12 @@ function createEmptyRunStats() {
         arcadeGames: 0, arcadePerfectGames: 0, arcadeNet: 0, arcadeLost: 0,
         // Origines (chantier 13) : capacités de classe jouées (dont face à un boss, dont avec une synergie) et « Increvable » du Cafard consommé.
         classAbilities: 0, classAbilityBossUses: 0, synergyAbilities: 0, lastStands: 0, plotArmorUses: 0, interimKills: 0, // plotArmorUses : « Armure de scénario » consommée (chantier 15)
+        // Gorgoth le Concierge (chantier 17, lot 9) : rencontres, mises au tapis, expulsions, Cicatrices (crans par style, le plus haut atteint),
+        // armurerie (objets démoniaques emportés), victoire finale de l'étage 18 ; étage de la dernière mise au tapis / expulsion (piques DeathWatch).
+        demonEncounters: 0, demonKnockouts: 0, demonExpulsions: 0,
+        demonScarsByStyle: { melee: 0, ranged: 0, magic: 0, unarmed: 0 }, demonScarMax: 0,
+        demonArmoryPicks: 0, demonFinalSlain: 0,
+        demonLastKnockoutFloor: 0, demonLastExpelledFloor: 0,
         maxFloor: 1,
         // Victoires récentes (au plus DOMINANCE_WINDOW), pour l'indice de domination (chantier 3) :
         // { ease } = 1 si aucun PV perdu, 0 si ≥ DOMINANCE_HARD_FIGHT des PV max perdus.
@@ -52,6 +58,7 @@ function normalizeRunStats(stats) {
     const merged = { ...base, ...(stats || {}) };
     if (!Array.isArray(merged.spellsLearned)) merged.spellsLearned = [];
     if (!Array.isArray(merged.recentWins)) merged.recentWins = [];
+    merged.demonScarsByStyle = { ...base.demonScarsByStyle, ...(merged.demonScarsByStyle && typeof merged.demonScarsByStyle === 'object' ? merged.demonScarsByStyle : {}) };
     return merged;
 }
 
@@ -267,7 +274,23 @@ const ACHIEVEMENTS = [
         check: (s) => (s.plotArmorUses || 0) >= 1 },
     { id: 'interim_slain', icon: '🏷️', tier: 'bronze', title: "Licenciement sans préavis",
         text: "Un remplaçant intérimaire de boss vaincu. Le syndicat des boss a été prévenu, la production aussi.",
-        check: (s) => (s.interimKills || 0) >= 1 }
+        check: (s) => (s.interimKills || 0) >= 1 },
+    // Gorgoth le Concierge (chantier 17, lot 9) : le Boss de Niveau. Vaincu, il n'est qu'assommé ; perdre contre lui = expulsion (pas la mort), sauf à l'étage 18.
+    { id: 'demon_ko1', icon: '🔑', tier: 'silver', title: "Copropriétaire",
+        text: "Gorgoth le Concierge, mis au tapis. Il n'est qu'assommé, mais le syndic vous considère désormais comme un ayant droit. Avec les charges.",
+        check: (s) => (s.demonKnockouts || 0) >= 1 },
+    { id: 'demon_ko3', icon: '🧹', tier: 'silver', title: "Récidiviste",
+        text: "Trois mises au tapis du Concierge. Il a fait poser un judas sur sa porte. Pour vous. Exclusivement.",
+        check: (s) => (s.demonKnockouts || 0) >= 3 },
+    { id: 'demon_expelled', icon: '🥾', tier: 'bronze', secret: true, title: "Rendez-vous manqué",
+        text: "Expulsé(e) de l'antre par Gorgoth. Pas de préavis, pas de caution rendue, mais vous êtes vivant(e). Le public, lui, avait parié l'inverse.",
+        check: (s) => (s.demonExpulsions || 0) >= 1 },
+    { id: 'demon_scar3', icon: '🩹', tier: 'silver', title: "Tu l'as vexé",
+        text: "Une Cicatrice de Gorgoth au troisième cran. Il ne craint plus votre style favori. Il vous en veut personnellement, et il a la rancune d'un démon.",
+        check: (s) => (s.demonScarMax || 0) >= 3 },
+    { id: 'demon_final', icon: '🔥', tier: 'gold', title: "Résiliation du bail",
+        text: "Gorgoth vaincu en forme finale à l'étage 18. Le bail est résilié, les clés sont rendues, et le Concierge ne se relèvera pas. Le Donjon cherche un remplaçant. Ne postulez pas.",
+        check: (s) => (s.demonFinalSlain || 0) >= 1 }
 ];
 
 function getAchievementById(id) {
