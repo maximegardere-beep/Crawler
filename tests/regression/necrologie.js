@@ -176,3 +176,40 @@ const { assert, resetTransientState } = require('./_helpers.js');
     Math.random = originalRandom;
     assert(gameState.fleesThisRun === 0, "attemptFlee() : n'incrémente pas fleesThisRun sur une fuite ratée");
 }
+
+// --- Gorgoth le Concierge (chantier 17, lot 9) : cause de mort 'demon' et son épitaphe ---
+{
+    resetTransientState();
+    gameState.currentFloor = 18;
+    gameState.level = 20;
+    gameState.playerName = "Carl";
+    assert(Array.isArray(EPITAPH_TEMPLATES.demon) && EPITAPH_TEMPLATES.demon.length >= 3 && DEATH_CAUSE_LABELS.demon, "Pool d'épitaphes dédié à Gorgoth + libellé de cause");
+    const originalRandom = Math.random;
+    const texts = EPITAPH_TEMPLATES.demon.map((_, i) => {
+        Math.random = () => (i + 0.5) / EPITAPH_TEMPLATES.demon.length;
+        try { return generateEpitaph({ cause: 'demon', enemyName: 'Gorgoth le Concierge' }); } finally { Math.random = originalRandom; }
+    });
+    assert(texts.every(t => !/\{\{.*?\}\}/.test(t)), "Épitaphe de Gorgoth : aucun placeholder résiduel");
+    assert(texts.every(t => t.includes('18')) && texts.some(t => t.includes('Carl')) && texts.some(t => t.includes('Gorgoth le Concierge')), "Épitaphe de Gorgoth : étage, crawler et nom du tueur remplis");
+    assert(new Set(texts).size === EPITAPH_TEMPLATES.demon.length, "Épitaphe de Gorgoth : chaque gabarit du pool est atteignable");
+    // Écart de niveau énorme (20 contre « niveau » 18 + seuil) : le pool reste celui du Concierge, jamais « mob faible ».
+    gameState.currentFloor = 2;
+    Math.random = () => 0;
+    const big = generateEpitaph({ cause: 'demon', enemyName: 'Gorgoth le Concierge' });
+    Math.random = originalRandom;
+    assert(big === EPITAPH_TEMPLATES.demon[0].replace(/\{\{crawler\}\}/g, 'Carl').replace(/\{\{etage\}\}/g, 2), "Gorgoth : jamais l'épitaphe du mob faible, même très en dessous du niveau du crawler");
+
+    // gameOver() : un tueur qui porte isDemon donne la cause 'demon', prioritaire même sur un backfire.
+    gameState.currentFloor = 18;
+    const savedNecro = gameState.necrologie.slice();
+    gameState.lastPlayerActionWasBackfire = true;
+    gameOver(false, { isDemon: true, isBoss: true, name: 'Gorgoth le Concierge', baseName: 'Gorgoth le Concierge' });
+    assert(gameState.necrologie[0].cause === 'demon', "gameOver() : tueur isDemon -> cause 'demon' (même après un backfire)");
+    assert(!/\{\{.*?\}\}/.test(gameState.necrologie[0].text), "gameOver() par Gorgoth : épitaphe sans placeholder");
+    gameState.lastPlayerActionWasBackfire = false;
+    gameOver(false, { name: 'Rat ordinaire' });
+    assert(gameState.necrologie[0].cause === 'combat', "gameOver() : un tueur ordinaire reste en cause 'combat'");
+    gameState.necrologie = savedNecro;
+    document.getElementById('game-over-overlay').classList.add('hidden');
+    resetTransientState();
+}

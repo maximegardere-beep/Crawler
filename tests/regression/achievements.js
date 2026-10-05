@@ -41,10 +41,10 @@ function fillReserve() {
 // --- Catalogue ---
 {
     const ids = new Set(ACHIEVEMENTS.map(a => a.id));
-    assert(ACHIEVEMENTS.length === 55 && ids.size === 55, "Catalogue : 55 succès (35 + 3 chasseurs de primes + 2 DeathWatch + 7 mini-jeux + 6 origines + 2 début de partie), identifiants uniques");
+    assert(ACHIEVEMENTS.length === 60 && ids.size === 60, "Catalogue : 60 succès (35 + 3 chasseurs de primes + 2 DeathWatch + 7 mini-jeux + 6 origines + 2 début de partie + 5 Gorgoth), identifiants uniques");
     assert(ACHIEVEMENTS.every(a => a.icon && a.title && a.text && typeof a.check === 'function' && ACHIEVEMENT_TIERS[a.tier]), "Catalogue : chaque succès a icône, titre, texte, palier valide et condition");
     assert(ACHIEVEMENTS.filter(a => a.posthumous).length === 4 && ACHIEVEMENTS.filter(a => a.posthumous).every(a => a.secret), "Catalogue : 4 succès posthumes, tous secrets");
-    assert(ACHIEVEMENTS.filter(a => a.tier === 'gold').length === 6, "Catalogue : 6 succès Or (Régicide, Collectionneur, Abysses, Sortie, Main de chirurgien, La banque gagne rarement)");
+    assert(ACHIEVEMENTS.filter(a => a.tier === 'gold').length === 7, "Catalogue : 7 succès Or (Régicide, Collectionneur, Abysses, Sortie, Main de chirurgien, La banque gagne rarement, Résiliation du bail)");
     const fresh = createEmptyRunStats();
     assert(ACHIEVEMENTS.every(a => { try { return a.check(fresh, { type: 'explore' }, { ...gameState, inventory: [], gold: 0, equipment: {}, companion: null, signaturesAwarded: [], hasWon: false, maxInventory: 8 }) === false; } catch (e) { return false; } }),
         "Catalogue : aucun succès débloqué sur une chronique vierge");
@@ -252,5 +252,61 @@ function fillReserve() {
     skipMinigame();
     assert(gameState.runStats.minigamesPlayed === 1, "Passer (jet automatique) n'écrit pas la chronique d'une épreuve jouée");
     delete global.requestAnimationFrame; setMinigameMode('auto');
+    resetTransientState();
+}
+
+// --- Gorgoth le Concierge (chantier 17, lot 9) : chronique et succès ---
+{
+    const fresh = createEmptyRunStats();
+    assert(fresh.demonEncounters === 0 && fresh.demonKnockouts === 0 && fresh.demonExpulsions === 0 && fresh.demonScarMax === 0 && fresh.demonArmoryPicks === 0 && fresh.demonFinalSlain === 0,
+        "Gorgoth : compteurs de chronique à 0 sur un run vierge");
+    const old = normalizeRunStats({ kills: 2 });
+    assert(old.demonKnockouts === 0 && old.demonScarsByStyle && old.demonScarsByStyle.magic === 0, "Gorgoth : une ancienne chronique reçoit les nouveaux compteurs");
+    const partial = normalizeRunStats({ demonScarsByStyle: { ranged: 2 } });
+    assert(partial.demonScarsByStyle.ranged === 2 && partial.demonScarsByStyle.melee === 0, "Gorgoth : Cicatrices partielles complétées sans perte");
+
+    startRealGame();
+    gameState.currentFloor = 4;
+    recordRunEvent('demonEncounter');
+    assert(gameState.runStats.demonEncounters === 1, "demonEncounter : rencontre comptée");
+    assert(!gameState.achievements.demon_ko1, "(contrôle) aucune mise au tapis encore");
+    recordRunEvent('demonKnockout', { scarStyle: 'ranged', final: false });
+    const s = gameState.runStats;
+    assert(s.demonKnockouts === 1 && s.demonScarsByStyle.ranged === 1 && s.demonScarMax === 1 && s.demonLastKnockoutFloor === 4, "demonKnockout : mise au tapis, cran de Cicatrice du style, étage noté");
+    assert(!!gameState.achievements.demon_ko1 && !gameState.achievements.demon_ko3, "1re mise au tapis : « Copropriétaire », pas encore « Récidiviste »");
+    recordRunEvent('demonKnockout', { scarStyle: 'ranged', final: false });
+    assert(!gameState.achievements.demon_scar3, "Cicatrice au cran 2 : « Tu l'as vexé » pas encore");
+    recordRunEvent('demonKnockout', { scarStyle: 'ranged', final: false });
+    assert(s.demonKnockouts === 3 && s.demonScarsByStyle.ranged === 3 && s.demonScarMax === 3, "Trois mises au tapis à distance : Cicatrice au cran 3");
+    assert(!!gameState.achievements.demon_ko3 && !!gameState.achievements.demon_scar3, "3 mises au tapis : « Récidiviste » et « Tu l'as vexé »");
+    recordRunEvent('demonKnockout', { scarStyle: 'ranged', final: false });
+    assert(s.demonScarsByStyle.ranged === 3 && s.demonScarMax === 3, "Cicatrice plafonnée au cran 3");
+    recordRunEvent('demonKnockout', { scarStyle: 'inconnu', final: false });
+    assert(s.demonKnockouts === 5 && Object.values(s.demonScarsByStyle).reduce((a, b) => a + b, 0) === 3, "Style inconnu : mise au tapis comptée, aucune Cicatrice");
+
+    assert(!gameState.achievements.demon_expelled, "(contrôle) jamais expulsé");
+    recordRunEvent('demonExpelled');
+    assert(s.demonExpulsions === 1 && s.demonLastExpelledFloor === 4 && !!gameState.achievements.demon_expelled, "demonExpelled : expulsion comptée, « Rendez-vous manqué » (secret)");
+    assert(getAchievementById('demon_expelled').secret && !getAchievementById('demon_expelled').posthumous, "« Rendez-vous manqué » est secret mais jamais posthume (l'expulsion n'est pas la mort)");
+
+    recordRunEvent('demonArmory', { itemKey: 'blade', kept: false });
+    assert(s.demonArmoryPicks === 0, "demonArmory sans objet emporté : rien de compté");
+    recordRunEvent('demonArmory', { itemKey: 'rulebook', kept: true });
+    assert(s.demonArmoryPicks === 1, "demonArmory : objet démoniaque emporté compté");
+
+    assert(!gameState.achievements.demon_final, "(contrôle) forme finale jamais vaincue");
+    const koBefore = s.demonKnockouts;
+    gameState.currentFloor = 18;
+    recordRunEvent('demonKnockout', { scarStyle: 'magic', final: true });
+    assert(s.demonFinalSlain === 1 && s.demonKnockouts === koBefore && s.demonScarsByStyle.magic === 0, "Victoire finale : comptée à part, ni mise au tapis ni Cicatrice");
+    assert(!!gameState.achievements.demon_final && getAchievementById('demon_final').tier === 'gold', "Forme finale vaincue : « Résiliation du bail » (Or)");
+
+    // Cicatrices persistantes (lot 2) : le cran le plus haut est repris s'il existe déjà dans gameState.demon.
+    startRealGame();
+    const savedDemon = gameState.demon;
+    gameState.demon = { encounters: 3, knockouts: 2, expulsions: 0, scars: { melee: 3, ranged: 0, magic: 0, unarmed: 0 }, lastFloorFought: 6 };
+    recordRunEvent('demonKnockout', { scarStyle: 'magic', final: false });
+    assert(gameState.runStats.demonScarMax === 3 && !!gameState.achievements.demon_scar3, "Cicatrice déjà au cran 3 dans gameState.demon : « Tu l'as vexé »");
+    if (savedDemon === undefined) delete gameState.demon; else gameState.demon = savedDemon;
     resetTransientState();
 }
