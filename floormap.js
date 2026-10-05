@@ -4,7 +4,7 @@
 // Rendu PUR (aucun DOM, aucun gameState) : à partir de gameState.floorMap (géométrie de floorgen.js), produit
 // le contenu SVG de la carte — blocs teintés par quartier, avenues en larges bandes, salles et couloirs
 // connus, brouillard (plein = visité, pointillé = aperçu, rien = inconnu), repères (👑 boss, 🪜 escalier,
-// salle sûre) et pion du crawler. Le panneau, le zoom, le glissement et la bulle « Y aller » vivent dans
+// salle sûre, 🔒/🚪/⛓️ porte colossale du chantier 17) et pion du crawler. Le panneau, le zoom, le glissement et la bulle « Y aller » vivent dans
 // app.js (updateFloorMapUI()). Chargé après floorgen.js, avant app.js.
 // Étages urbains (chantier 12, floorMap.kind === 'urban') : villes en blocs clairs avec leur nom (« ??? » tant
 // qu'aucune de leurs salles n'est visitée), routes en bandes d'asphalte découpées en tronçons, repaires en
@@ -133,6 +133,19 @@ function buildFloorMapSvg(floorMap, options = {}) {
         if (st === 'seen') out.push(`<rect x="${seg.x * S + 1}" y="${seg.y * S + 1}" width="${seg.w * S - 2}" height="${seg.h * S - 2}" fill="none" stroke="#9ca3af" stroke-width="1.2" stroke-dasharray="4 3"/>`);
     });
 
+    // Porte colossale du Concierge (chantier 17) : au carrefour central, toujours visible comme les avenues (c'est
+    // un monument du plan), mais touchable seulement une fois visitée ou aperçue ; son état (scellée, ouverte,
+    // rescellée) se lit au repère posé par listFloorLandmarks() (app.js).
+    rooms.forEach(room => {
+        if (room.zone !== 'gate') return;
+        const st = state[room.id];
+        const x = room.x * S, y = room.y * S, w = room.w * S, h = room.h * S;
+        const known = st !== 'unknown';
+        out.push(`<rect x="${x - 2}" y="${y - 2}" width="${w + 4}" height="${h + 4}" rx="3" fill="${st === 'visited' ? '#3b1212' : '#1a0b0b'}" stroke="${known ? '#f97316' : '#7c2d12'}" stroke-width="${known ? 2 : 1.2}" class="floor-map-gate"${known ? ` data-room-id="${room.id}"` : ''}/>`);
+        out.push(`<line x1="${x + w / 2}" y1="${y + 1}" x2="${x + w / 2}" y2="${y + h - 1}" stroke="#f97316" stroke-width="1" opacity="${known ? 0.7 : 0.35}"/>`);
+        if (st === 'seen') out.push(`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#9ca3af" stroke-width="1.2" stroke-dasharray="4 3"/>`);
+    });
+
     // Couloirs et portes connus : au moins une extrémité visitée, l'autre visitée ou aperçue.
     rooms.forEach(room => {
         if (room.zone !== 'block') return;
@@ -168,8 +181,8 @@ function buildFloorMapSvg(floorMap, options = {}) {
             out.push(`<text x="${x + w / 2}" y="${y + h / 2}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(w, h) * 0.6 + 2}" fill="#9ca3af">?</text>`);
         }
     });
-    // Tronçon d'avenue sélectionné.
-    if (options.selectedRoomId && floorMap.roomsById[options.selectedRoomId] && floorMap.roomsById[options.selectedRoomId].zone === 'avenue') {
+    // Tronçon d'avenue (ou porte colossale) sélectionné.
+    if (options.selectedRoomId && floorMap.roomsById[options.selectedRoomId] && ['avenue', 'gate'].includes(floorMap.roomsById[options.selectedRoomId].zone)) {
         const r = floorMap.roomsById[options.selectedRoomId];
         out.push(`<rect x="${r.x * S}" y="${r.y * S}" width="${r.w * S}" height="${r.h * S}" fill="none" stroke="#facc15" stroke-width="2.5"/>`);
     }

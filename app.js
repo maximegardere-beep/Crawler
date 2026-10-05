@@ -159,6 +159,9 @@ const gameState = {
     raceLastStandFloor: 0,
     // Armure de scénario (chantier 15, lot 4) : dernier étage où elle a servi (1 fois par étage 1-3). Absent d'une ancienne sauvegarde : 0.
     plotArmorFloor: 0,
+    // Porte colossale du Concierge (chantier 17, lot 1) : étage où elle a été rescellée après une expulsion (sealDemonGate()), 0 = jamais.
+    // Absent d'une ancienne sauvegarde : 0.
+    demonGateSealedFloor: 0,
     // Convention collective du Donjon (chantier 15, lot 5) : message de fin affiché une seule fois, à la première élite croisée. Absent d'une ancienne sauvegarde : vrai si elle a déjà dépassé les étages protégés.
     eliteConventionEnded: false,
     // Classe du crawler (chantier 13, lot 2 : choisie à l'étage 3 ; ses effets sont codés au lot 3) : clé d'ORIGIN_CLASSES, null = aucune.
@@ -895,6 +898,7 @@ const ui = {
     anomalyStatusBar: document.getElementById('anomaly-status-bar'),
     starterBuffStatus: document.getElementById('starter-buff-status'),
     trialStatus: document.getElementById('trial-status'),
+    keysStatus: document.getElementById('keys-status'),
     raceStatus: document.getElementById('race-status'),
     classStatus: document.getElementById('class-status'),
     raceChoiceOverlay: document.getElementById('race-choice-overlay'),
@@ -1157,6 +1161,7 @@ function restoreSaveForName(name) {
     if (saved.plotArmorFloor === undefined) gameState.plotArmorFloor = 0;
     gameState.demon = normalizeDemonState(saved.demon); // Gorgoth (chantier 17) : ancienne sauvegarde → état vierge
     gameState.demonFight = null; // jamais restauré en plein combat démoniaque
+    if (saved.demonGateSealedFloor === undefined) gameState.demonGateSealedFloor = 0;
     if (saved.eliteConventionEnded === undefined) gameState.eliteConventionEnded = (saved.currentFloor || 1) > config.earlyGame.maxFloor;
     if (!saved.race || !config.origins.races[saved.race]) gameState.race = null; // ancienne sauvegarde ou clé inconnue : aucune race
     if (!saved.crawlerClass || !ORIGIN_CLASSES[saved.crawlerClass]) gameState.crawlerClass = null;
@@ -1220,8 +1225,11 @@ function restoreSaveForName(name) {
     if (legacyUrbanFloor) {
         generateUrbanFloorMap();
         logEvent("La ville s'est réaménagée pendant votre absence : cet étage a été entièrement redessiné.", "info");
+    } else if (gameState.floorMap && gameState.floorMap.kind === 'urban' && gameState.floorMap.version === 2) {
+        gameState.floorMap.version = FLOOR_MAP_VERSION; // Étage urbain : format inchangé depuis la version 2 (seuls les étages classiques ont gagné la porte colossale, chantier 17)
     } else if (gameState.floorMap && gameState.floorMap.version !== FLOOR_MAP_VERSION) {
-        generateFloorMap();
+        if (gameState.floorMap.kind === 'urban') generateUrbanFloorMap();
+        else generateFloorMap();
         logEvent("Le Donjon s'est réaménagé pendant votre absence : cet étage a été entièrement redessiné.", "info");
     }
 
@@ -1471,6 +1479,7 @@ function updateUI() {
     updateAnomalyStatusUI();
     updateStarterBuffUI();
     updateTrialStatusUI();
+    updateKeysStatusUI();
     updateOriginUI();
 
     // Icônes de statut du joueur
@@ -2972,6 +2981,10 @@ function listFloorLandmarks() {
             if (room.visited) marks.push({ roomId: room.id, kind: 'arcade', icon: '🎰', label: `Salle de jeux${inCity}` });
             return;
         }
+        if (room.type === 'gate') {
+            if (room.visited || isRoomSeen(room)) marks.push(demonGateLandmark(room));
+            return;
+        }
         if (room.type === 'lair') {
             const lair = fm.lairsById && fm.lairsById[room.lairId];
             if (room.visited || isRoomSeen(room)) marks.push({ roomId: room.id, kind: 'lair', icon: lair && lair.cleared ? '🏆' : '💀', label: lair && lair.cleared ? "Repaire nettoyé" : "Repaire" });
@@ -2992,6 +3005,7 @@ function listFloorLandmarks() {
 function floorRoomLabel(room) {
     if (!room) return "Salle";
     if (isUrbanFloor()) return urbanRoomLabel(room);
+    if (roomZone(room) === 'gate') return demonGateLandmark(room).label;
     if (!room.visited) return roomZone(room) === 'avenue' ? "Avenue inexplorée" : `Salle inconnue (${roomDistrict(room)})`;
     const mark = listFloorLandmarks().find(m => m.roomId === room.id);
     if (mark) return mark.label;
@@ -4944,7 +4958,8 @@ function skillLabel(key) {
 
 // Version du format de gameState.floorMap : une sauvegarde d'un format plus ancien ne peut pas reprendre
 // son étage (voir restoreSaveForName()).
-const FLOOR_MAP_VERSION = 2;
+// 3 : porte colossale du Concierge au carrefour central des étages classiques (chantier 17, lot 1).
+const FLOOR_MAP_VERSION = 3;
 
 // Salle courante de l'étage classique (null hors étage classique).
 function currentFloorRoom() {
@@ -5218,6 +5233,9 @@ function enterUrbanRoom(room, firstVisit) {
 // tard (même choix qu'un boss de quartier, triggerBossEncounter()), sinon escalier libre (choix Descendre /
 // Rester) ou victoire immédiate pour la Sortie de l'étage final.
 function enterUrbanStairs(room) {
+    if (gameState.hasWon) return; // Partie déjà gagnée : plus rien à franchir
+    // Étage final (chantier 17) : Gorgoth, en forme finale, garde la Sortie à la place du gardien habituel.
+    if (room.isExit && !room.defeated && startFinalDemonFight(room)) return;
     if (room.guarded && !room.defeated) {
         triggerBossEncounter(room);
         return;
@@ -5806,6 +5824,12 @@ function enterRoom(room) {
     // Étage urbain (chantier 12) : place, boutique, professeur, escalier et repaire ont leur propre entrée.
     if (isUrbanFloor() && enterUrbanRoom(room, firstVisit)) return;
 
+    // Porte colossale du Concierge (chantier 17) : jamais un événement aléatoire.
+    if (room.type === 'gate') {
+        enterDemonGate(room);
+        return;
+    }
+
     if (room.type === 'boss') {
         if (room.defeated && room.guardsStairs) {
             offerStairsChoice({ kind: 'room', roomId: room.id }); // Retour à un escalier laissé pour plus tard
@@ -5966,10 +5990,156 @@ function triggerCafetRoom(room) {
     logEvent("Malgré le piège, un trésor bien caché récompense votre prudence.", "success");
 }
 
+// ==========================================
+// PORTE DU CONCIERGE (chantier 17, lot 1 : clés, porte colossale, étage 18)
+// ==========================================
+// Chaque boss de quartier vaincu d'un étage classique donne une clé (dérivée de floorMap.quadrants[*].bossRoomId,
+// aucun compteur à part). Avec les 4, la porte colossale du carrefour central (salle `gate`, floorgen.js) s'ouvre
+// sur l'antre de Gorgoth le Concierge — combat du lot 2 (startDemonFight()), appelé seulement s'il existe.
+
+const DEMON_GATE_KEYS_NEEDED = 4;
+
+// Vignette de la porte (lot 6) : son nom seulement si elle existe, sinon rien (l'emoji recouvre la scène).
+function demonVignette(name) {
+    return (typeof EXPLORE_VIGNETTES !== 'undefined' && EXPLORE_VIGNETTES[name]) ? name : undefined;
+}
+
+// Son du chantier 17 (lot 8) : joué seulement si sa clé existe dans le catalogue.
+function playDemonSfx(key) {
+    if (typeof playSfx !== 'function') return;
+    if (typeof SFX_CATALOG !== 'undefined' && !SFX_CATALOG[key]) return;
+    playSfx(key);
+}
+
+// Nombre de clés : boss de quartier vaincus de l'étage classique courant (0 sur un étage urbain).
+function demonKeysCount(state = gameState) {
+    const fm = state && state.floorMap;
+    if (!fm || fm.kind === 'urban' || !Array.isArray(fm.quadrants) || !fm.roomsById) return 0;
+    return fm.quadrants.filter(q => fm.roomsById[q.bossRoomId] && fm.roomsById[q.bossRoomId].defeated).length;
+}
+
+// Salle de la porte colossale de l'étage courant (null sur un étage urbain ou une carte sans porte).
+function demonGateRoom() {
+    const fm = gameState.floorMap;
+    if (!fm || fm.kind === 'urban' || !fm.roomsById) return null;
+    return Object.values(fm.roomsById).find(r => r.type === 'gate') || null;
+}
+
+// Rescelle la porte pour le reste de l'étage (expulsion par Gorgoth, lot 2).
+function sealDemonGate() {
+    gameState.demonGateSealedFloor = gameState.currentFloor;
+}
+
+function isDemonGateSealed() {
+    return gameState.currentFloor > 0 && gameState.demonGateSealedFloor === gameState.currentFloor;
+}
+
+// Gorgoth déjà mis au tapis sur CET étage : il a été affronté ici (lot 2) et la porte n'a pas été rescellée.
+function isDemonLairEmpty() {
+    const d = gameState.demon;
+    return !!(d && d.lastFloorFought === gameState.currentFloor && !isDemonGateSealed());
+}
+
+// Repère de la porte sur la carte (listFloorLandmarks()) : 🔒 scellée, 🚪 ouverte (4 clés), ⛓️ rescellée.
+function demonGateLandmark(room) {
+    const keys = demonKeysCount();
+    if (isDemonGateSealed()) return { roomId: room.id, kind: 'demonGateSealed', icon: '⛓️', label: "Porte colossale (rescellée)" };
+    if (isDemonLairEmpty()) return { roomId: room.id, kind: 'demonGateOpen', icon: '🚪', label: "Antre du Concierge (vide)" };
+    if (keys >= DEMON_GATE_KEYS_NEEDED) return { roomId: room.id, kind: 'demonGateOpen', icon: '🚪', label: "Porte colossale (ouverte)" };
+    return { roomId: room.id, kind: 'demonGateLocked', icon: '🔒', label: `Porte colossale (${keys}/${DEMON_GATE_KEYS_NEEDED} clés)` };
+}
+
+// Annonce une nouvelle clé (appelée par winCombat() après qu'une salle de boss est marquée vaincue).
+function announceDemonKey(keysBefore) {
+    const keys = demonKeysCount();
+    if (keys <= keysBefore) return;
+    logEvent(`🗝️ Clé ${keys}/${DEMON_GATE_KEYS_NEEDED}${keys >= DEMON_GATE_KEYS_NEEDED ? " — au carrefour central, quatre serrures viennent de cliqueter." : ""}`, "success");
+    playDemonSfx('demonKeyGet');
+}
+
+// Entrée dans la salle de la porte colossale.
+function enterDemonGate(room) {
+    const keys = demonKeysCount();
+    if (isDemonGateSealed()) {
+        const vignette = demonVignette('demonGateLocked');
+        setSceneHeader('⛓️', 'Porte Rescellée', 'Porte colossale', vignette);
+        logEvent("Des chaînes neuves barrent la porte, avec un écriteau : « Fermé pour l'étage. Merci de votre compréhension. — La Direction. »", "normal");
+        return;
+    }
+    if (isDemonLairEmpty()) {
+        const vignette = demonVignette('demonKnockout');
+        setSceneHeader('🚪', 'Antre du Concierge', 'Porte colossale', vignette);
+        logEvent("L'antre est vide, à part un seau renversé et une odeur de soufre. Le Concierge cuve sa raclée ailleurs.", "normal");
+        return;
+    }
+    if (keys < DEMON_GATE_KEYS_NEEDED) {
+        const vignette = demonVignette('demonGateLocked');
+        setSceneHeader('🔒', 'Porte Colossale', 'Porte colossale', vignette);
+        logEvent(`Quatre serrures. Tu as ${keys} ${keys > 1 ? 'clés' : 'clé'}. Le Concierge ne fait pas crédit.`, "normal");
+        return;
+    }
+    const vignette = demonVignette('demonGateOpen');
+    setSceneHeader('🚪', 'Porte Colossale', 'Porte colossale', vignette);
+    playDemonSfx('demonGateOpen');
+    if (typeof startDemonFight === 'function') {
+        logEvent("Les quatre clés tournent ensemble. La porte colossale s'ouvre dans un souffle de fournaise...", "danger");
+        startDemonFight({ final: false });
+        return;
+    }
+    logEvent("Les quatre clés tournent. La porte s'entrouvre... puis se referme. (Bientôt.)", "info");
+}
+
+// Étage final : la Sortie est gardée par Gorgoth en forme finale (lot 2) si le combat existe. Renvoie vrai si le
+// combat a été lancé (sinon, l'appelant garde le comportement habituel : gardien de la Sortie).
+function startFinalDemonFight(room) {
+    if (typeof startDemonFight !== 'function') return false;
+    if (gameState.hasWon) return true; // Déjà gagné : rien à relancer
+    const vignette = demonVignette('demonGateOpen');
+    setSceneHeader('🚪', 'La Sortie', 'Gardien de la Sortie', vignette);
+    logEvent("🎬 Vous atteignez la Sortie... Une silhouette colossale déplie ses ailes de fumée devant la porte. Le Concierge vous attendait.", "danger");
+    startDemonFight({
+        final: true,
+        onVictory: () => {
+            room.defeated = true;
+            if (!gameState.hasWon) winGame();
+        },
+        onDefeat: null
+    });
+    return true;
+}
+
+// Badge 🗝️ N/4 (#keys-status) : visible sur un étage classique dès la première clé.
+function updateKeysStatusUI() {
+    const el = ui.keysStatus;
+    if (!el) return;
+    const keys = demonKeysCount();
+    const visible = keys > 0 && !isUrbanFloor();
+    el.classList.toggle('hidden', !visible);
+    if (!visible) return;
+    el.innerText = `🗝️ ${keys}/${DEMON_GATE_KEYS_NEEDED}`;
+    el.title = keys >= DEMON_GATE_KEYS_NEEDED
+        ? (isDemonGateSealed() ? "Les 4 clés de l'étage... mais la porte colossale a été rescellée pour l'étage." : "Les 4 clés de l'étage : la porte colossale du carrefour central est ouverte. Le Concierge attend.")
+        : `Clés de la porte colossale : ${keys}/${DEMON_GATE_KEYS_NEEDED}. Chaque boss de quartier vaincu sur cet étage en donne une ; la porte est au carrefour central des avenues.`;
+}
+
+// DEV (console) : marque les 4 boss de quartier de l'étage classique courant comme vaincus (4 clés).
+function devGiveDemonKeys() {
+    const fm = gameState.floorMap;
+    if (!fm || fm.kind === 'urban') {
+        logEvent("🛠️ DEV : pas de clés sur un étage urbain.", "info");
+        return 0;
+    }
+    fm.quadrants.forEach(q => { if (fm.roomsById[q.bossRoomId]) fm.roomsById[q.bossRoomId].defeated = true; });
+    logEvent(`🛠️ DEV : ${demonKeysCount()}/${DEMON_GATE_KEYS_NEEDED} clés de la porte colossale.`, "info");
+    updateUI();
+    return demonKeysCount();
+}
+
 // Présente le choix "combattre maintenant / repérer et partir" pour une salle de boss (celle qui
 // garde l'escalier y compris). Le boss est généré une seule fois et mis en cache sur la pièce
 // (room.bossInstance), pour rester le même monstre si le joueur repère puis revient plus tard.
 function triggerBossEncounter(room) {
+    if (room.isExit && !room.defeated && startFinalDemonFight(room)) return; // Étage final : Gorgoth en forme finale (chantier 17)
     if (!room.bossInstance) {
         const district = roomDistrict(room) || gameState.currentDistrict;
         room.bossInstance = generateBoss(district) || generateMob(district);
@@ -9228,8 +9398,10 @@ function winCombat() {
     const defeatedBossRoomId = gameState.pendingBossRoomId;
     if (gameState.pendingBossRoomId) {
         const bossRoom = gameState.floorMap && gameState.floorMap.roomsById[gameState.pendingBossRoomId];
+        const keysBefore = demonKeysCount();
         if (bossRoom) bossRoom.defeated = true;
         gameState.pendingBossRoomId = null;
+        announceDemonKey(keysBefore); // Boss de quartier vaincu : une clé de la porte colossale (chantier 17)
     }
 
     // Plongée dans un repaire en cours (voir diveIntoLair()) : enchaîne les combats forcés restants, puis le
@@ -9346,7 +9518,7 @@ function announceZoneChange(from, to, changedQuadrant) {
         if (roomZone(to) === 'road' && roomZone(from) === 'city') logEvent("Vous quittez la ville : la route est à découvert, restez sur vos gardes.", "info");
         return;
     }
-    if (roomZone(to) === 'avenue' && roomZone(from) !== 'avenue') {
+    if (roomZone(to) === 'avenue' && !['avenue', 'gate'].includes(roomZone(from))) { // la porte colossale (chantier 17) est au carrefour des avenues
         logEvent("Vous débouchez sur une avenue : large, éclairée, et pleine de monde.", "info");
     } else if (roomZone(to) === 'block' && (changedQuadrant || roomZone(from) === 'avenue')) {
         logEvent(`Vous franchissez une porte. Vous entrez dans : ${gameState.currentDistrict}.`, "info");
