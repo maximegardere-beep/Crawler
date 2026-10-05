@@ -135,6 +135,8 @@ function resetTransientState() {
     if (ui.showZone) ui.showZone.classList.add('hidden');
     gameState.pendingMinigame = null; // Mini-jeu ouvert (chantier 6)
     gameState.occasion = createOccasionState(); // Occasions de combat (chantier 6, V2)
+    gameState.demon = createEmptyDemonState(); // Gorgoth le Concierge (chantier 17) : aucun antécédent
+    gameState.demonFight = null;
     abortMinigame();
     if (ui.gameOverOverlay) ui.gameOverOverlay.classList.add('hidden');
 }

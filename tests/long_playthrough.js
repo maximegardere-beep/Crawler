@@ -247,6 +247,36 @@ try {
     seenErrors.push(err);
 }
 
+// Intégration Gorgoth le Concierge (chantier 17, lot 2) : un combat démoniaque joué avec de VRAIES actions (attaques,
+// déplacements, charge), sans jamais rester bloqué ; il se conclut par une mise au tapis ou une expulsion, jamais un Game Over.
+let demonOutcome = null;
+try {
+    gameState.inCombat = false;
+    gameState.currentEnemy = null;
+    gameState.hp = gameState.maxHp;
+    const knockoutsBefore = gameState.demon.knockouts, expulsionsBefore = gameState.demon.expulsions;
+    startDemonFight({});
+    assert(gameState.inCombat && gameState.currentEnemy && gameState.currentEnemy.isDemon, "startDemonFight() lance bien le combat démoniaque");
+    let demonTurns = 0;
+    while (gameState.inCombat && gameState.demonFight && demonTurns < 400) {
+        demonTurns++;
+        if (gameState.encounterIntroPending) { dismissEncounterIntro(true); continue; }
+        if (gameState.pendingMinigame) { skipMinigame(); continue; }
+        if (gameState.hp > gameState.maxHp * 0.3) gameState.hp = Math.min(gameState.maxHp, gameState.hp + Math.round(gameState.maxHp * 0.05));
+        const d = gameState.combatDistance;
+        const roll = demonTurns % 5;
+        if (roll === 0 && d < combatMaxDistance()) attemptRetreat();
+        else if (d > 0) { if (roll % 2 === 0) attackRanged(); else attemptEngage(); }
+        else attackWeapon();
+    }
+    if (gameState.inCombat && gameState.currentEnemy && gameState.currentEnemy.isDemon) { gameState.currentEnemy.hp = -1; winCombat(); }
+    demonOutcome = gameState.demon.knockouts > knockoutsBefore ? 'knockout' : (gameState.demon.expulsions > expulsionsBefore ? 'expelled' : 'none');
+    assert(!gameState.inCombat && gameState.demonFight === null && gameState.hp > 0, `Le combat démoniaque se conclut proprement (${demonTurns} tours, ${demonOutcome})`);
+    assert(demonOutcome !== 'none', "Le combat démoniaque finit en mise au tapis ou en expulsion");
+} catch (err) {
+    seenErrors.push(err);
+}
+
 // Intégration étage final : force l'arrivée à l'étage 18 (urbain, final) et vérifie que la victoire
 // se déclenche bien en atteignant sa Sortie, gardée ou non, sans jamais générer d'étage 19.
 let reachedFinalWin = false;
@@ -313,7 +343,7 @@ try {
     seenErrors.push(err);
 }
 
-console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${mapTravels} voyages sur carte, ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), ${showsSeen} émissions DeathWatch, ${originChoicesSeen} choix de race/classe, ${classAbilitiesUsed} capacités de classe, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}.`);
+console.log(`Simulation : ${steps} pas, étage ${floorsCleared}, ${combatsWon} combats, ${bossesEncountered} boss, ${stealthEncounters} furtifs, ${companionEncounters} rencontres compagnon (${companionGifts} dons), ${eliteMobsSeen} élites, ${armorMechanicProcs} procs armure, ${urbanFloorsSeen} pas urbains (${cityTravels} trajets), ${mapTravels} voyages sur carte, ${shopEncounters} boutiques, ${lairEncounters} repaires, ${floorTransitionsSeen} écrans d'escalier, ${pactChoicesSeen} pactes du crawler, ${safehouseEncounters} salles sécurisées, ${stairsChoices} choix d'escalier, ${Object.keys(gameState.achievements).length} succès (${gameState.runStats.overflowSold} reventes d'office), ${gameState.bounty.huntersKilled} chasseurs de primes tués (prime max ${gameState.runStats.maxBounty}, actuelle ${gameState.bounty.value}), ${showsSeen} émissions DeathWatch, ${originChoicesSeen} choix de race/classe, ${classAbilitiesUsed} capacités de classe, victoire étage 3-7=${winTriggered}, victoire étage finale=${reachedFinalWin}, Gorgoth=${demonOutcome}.`);
 if (seenErrors.length > 0) console.error(seenErrors[0].stack);
 
 assert(seenErrors.length === 0, "Aucune exception ne doit interrompre la simulation");

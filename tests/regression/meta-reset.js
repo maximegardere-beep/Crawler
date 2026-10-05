@@ -37,7 +37,7 @@ const KNOWN_GAMESTATE_KEYS = [
     'pendingSafehouseRoomId', 'pendingShopCityId', 'pendingArcadeCityId', 'arcadeSession', 'starterBuff', 'race', 'raceLastStandFloor', 'plotArmorFloor', 'eliteConventionEnded', 'crawlerClass', 'classAbilityUsed', 'raceChoicePending', 'classChoicePending', 'pendingOriginOffers', 'pendingPactAfterOrigin', 'pendingSneakAttack', 'pendingStairAfterCombat', 'pendingStairsChoice',
     'pendingStealthEncounter', 'pendingTravel', 'playerName', 'safehouseChoicePending', 'saveEnabled', 'stairsChoicePending',
     'shopChoicePending', 'signaturesAwarded', 'skills', 'spellbook', 'status', 'stealthChoicePending', 'timeLeft',
-    'xp', 'xpToNextLevel'
+    'xp', 'xpToNextLevel', 'demon', 'demonFight'
 ];
 
 // --- Complétude : gameState n'a ni plus ni moins de clés que la liste blanche ci-dessus ----------

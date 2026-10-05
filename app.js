@@ -201,7 +201,13 @@ const gameState = {
     // Tirage anticipé des anomalies du PROCHAIN étage (voir getUpcomingAnomalyAnnouncement()), pour
     // que rollAndApplyFloorAnomalies() applique exactement ce qui a été annoncé sur l'écran d'escalier
     // plutôt que de retirer au hasard. Purement transitoire, jamais utile hors de cette fenêtre.
-    pendingNextFloorAnomalies: null
+    pendingNextFloorAnomalies: null,
+    // Boss de Niveau — Gorgoth le Concierge (chantier 17, voir demon.js) : état PERSISTANT (sauvegardé) —
+    // { encounters, knockouts, expulsions, scars: { melee, ranged, magic, unarmed }, lastFloorFought }.
+    demon: createEmptyDemonState(),
+    // Combat démoniaque EN COURS (transitoire, null hors combat, jamais restauré) : { act, maxActs, final, emprise,
+    // intent: { key, hidden, revealed }, countdown, chainsLeft, possessedThisTurn, dmgByStyle } (+ champs internes au moteur).
+    demonFight: null
 };
 // anomalyEffects initialisé après coup (dépend de anomalies.js, chargé juste avant app.js — voir
 // index.html) plutôt qu'en dur dans le littéral ci-dessus, pour ne dépendre que d'un seul endroit
@@ -588,6 +594,41 @@ const config = {
         // divisé par 2. Un glyphe raté, passé ou résolu en jet automatique n'a aucun effet (sort normal, jamais de malus).
         glyphDamageMult: 1.25,
         glyphBackfireMult: 0.5
+    },
+
+    // Boss de Niveau — Gorgoth le Concierge (chantier 17, lot 2 ; chiffres validés avec le plan du chantier). Lu par les
+    // fonctions pures de demon.js (paramètre `tuning`) et par la section « BOSS DE NIVEAU » plus bas.
+    demonBoss: {
+        hpMult: 5,              // PV = 5 × PV max du joueur
+        defShare: 0.40,         // DEF = 40 % de l'ATQ effective du joueur (getPlayerCombatProfile())
+        baseHitPct: 0.12,       // coup de base = 12 % des PV max du joueur, avant mitigation (rollDamage)
+        perKnockout: 0.12,      // +12 % de PV et de dégâts par mise au tapis passée
+        startDistance: 3,       // écart de départ (toutes les attaques restent jouables)
+        act2At: 2 / 3,          // acte 2 sous 66 % des PV
+        act3At: 1 / 3,          // acte 3 sous 33 %
+        finalActAt: 0.15,       // forme finale : 4e acte « Dernier souffle » sous 15 %
+        maxDistanceByAct: { 2: 6, 3: 4, 4: 4 }, // la salle se resserre
+        chains: 4,              // acte 1 : 4 chaînes, une se brise tous les 8 % de PV perdus (visuel/sonore)
+        chainBreakPct: 0.08,
+        cataclysmCountdown: 5,  // acte 3 : compte à rebours avant le Cataclysme
+        finalCountdown: 3,      // 4e acte
+        cataclysmPct: 0.80,     // Cataclysme : 80 % des PV max du joueur
+        cataclysmParry: { perfect: 0, success: 0.5, fail: 1 },
+        intents: { scythe: 0.18, blaze: 0.15, whip: 0.10 }, // dégâts des intentions (part des PV max, avant mitigation)
+        intentWeights: { scythe: 3, blaze: 3, grip: 2, guard: 1.5, whip: 1.5 },
+        guardDefMult: 2,        // Garde : DEF ×2 pendant le tour, brisée par Charger
+        scytheCounterBonus: 1.3, // Fauche contrée en reculant : +30 % au prochain coup
+        hiddenChance: 0.25,     // 25 % des intentions masquées « ??? »
+        skillChancePerLevel: 8, // révélation (Furtivité) et résistance à l'Emprise (Magie) : 8 % par niveau, max 60 %
+        skillChanceMax: 60,
+        emprise: { perTurn: 8, hpLostFactor: 0.5, gripGain: 25, goodAnswer: 10, perfect: 15, bigHit: 5, bigHitPct: 0.08, max: 100, possessionReset: 40 },
+        scarResist: [0, 0.20, 0.40, 0.60], // Cicatrices : résistance par cran (plafond cran 3, jamais d'immunité)
+        scarWeaknessPerRank: 0.15,         // +15 % de dégâts subis du style opposé par cran
+        dominantShare: 0.5,                // style dominant = au moins 50 % des dégâts, sinon celui du coup final
+        fatigue: 0.05,          // forme finale : −5 % de PV par mise au tapis passée
+        fatigueCap: 0.30,       // plafond −30 %
+        expelTimeCost: 10,      // défaite = expulsion : 1 PV, −10 H (jamais sous 1 H)
+        expelMinTime: 1
     },
 
     // Budget temps par étage (chantier "QoL/équilibrage" — voir advanceToNextFloor()) : grandit avec
@@ -1114,6 +1155,8 @@ function restoreSaveForName(name) {
     if (saved.starterBuff === undefined) gameState.starterBuff = null;
     if (saved.raceLastStandFloor === undefined) gameState.raceLastStandFloor = 0;
     if (saved.plotArmorFloor === undefined) gameState.plotArmorFloor = 0;
+    gameState.demon = normalizeDemonState(saved.demon); // Gorgoth (chantier 17) : ancienne sauvegarde → état vierge
+    gameState.demonFight = null; // jamais restauré en plein combat démoniaque
     if (saved.eliteConventionEnded === undefined) gameState.eliteConventionEnded = (saved.currentFloor || 1) > config.earlyGame.maxFloor;
     if (!saved.race || !config.origins.races[saved.race]) gameState.race = null; // ancienne sauvegarde ou clé inconnue : aucune race
     if (!saved.crawlerClass || !ORIGIN_CLASSES[saved.crawlerClass]) gameState.crawlerClass = null;
@@ -1612,7 +1655,7 @@ function updateUI() {
             ui.btnSprint.classList.toggle('pointer-events-none', !approachUsable);
         }
         if (ui.btnRetreat) {
-            const retreatUsable = !!gameState.currentEnemy && distance < config.rangedCombat.maxDistance;
+            const retreatUsable = !!gameState.currentEnemy && distance < combatMaxDistance();
             ui.btnRetreat.disabled = !retreatUsable;
             ui.btnRetreat.classList.toggle('opacity-40', !retreatUsable);
             ui.btnRetreat.classList.toggle('pointer-events-none', !retreatUsable);
@@ -1674,6 +1717,11 @@ function updateUI() {
     // l'état, donc un seul point d'accroche suffit à couvrir toute la boucle de jeu.
     updateAchievementsButton(); // Compteur 🏆 X/N de l'en-tête (chantier 2)
     updateBountyUI(); // Badge 🎯 de la prime (chantier 3)
+    // Combat démoniaque (chantier 17) : interface de stress (lot 3) et scène haute (lot 7), si ces lots sont présents.
+    if (gameState.demonFight) {
+        if (typeof updateDemonUI === 'function') updateDemonUI();
+        if (typeof renderScene === 'function') renderScene('demon');
+    } else if (typeof updateDemonUI === 'function') updateDemonUI();
     saveGame();
 }
 
@@ -6205,6 +6253,7 @@ function initiateCombat(forcedEnemy = null, options = {}) {
 function beginCombat(enemy, options = {}) {
     // Suivi du combat pour la chronique (chantier 2) : dégâts subis au départ, ouverture furtive, nombre
     // d'attaques portées (victoire en un coup) — voir recordRunEvent('win').
+    if (enemy && !enemy.isDemon) demonFightJustEnded = false; // nouveau combat ordinaire : la garde de fin de combat démoniaque tombe
     if (enemy) enemy.runTrack = { startDamageTaken: gameState.runStats ? gameState.runStats.damageTaken : 0, startTrialAvoided: gameState.runStats ? (gameState.runStats.trialAvoided || 0) : 0, sneak: !!gameState.pendingSneakAttack, playerAttacks: 0 };
     gameState.currentEnemy = enemy;
     gameState.inCombat = true;
@@ -6410,7 +6459,7 @@ function endMobEnrage(enemy) {
 // un tour de kiting (Chantier 3) : peut déclencher une ruée d'enrage à la place du simple blocage.
 function safeEnemyCounterAttack() {
     const enemy = gameState.currentEnemy;
-    if (!enemy) { enemyCounterAttack(); return; }
+    if (!enemy || enemy.isDemon) { enemyCounterAttack(); return; } // Gorgoth (chantier 17) : son tour ne dépend pas de la portée
     const ctx = getCombatRangeContext();
     if (ctx.playerAdvantaged) {
         if (noteMobKitingRound(enemy)) return; // ruée d'enrage déclenchée : a déjà attaqué
@@ -6432,6 +6481,7 @@ function safeEnemyCounterAttack() {
 function resolveEnemyReaction() {
     const enemy = gameState.currentEnemy;
     if (!enemy) return;
+    if (enemy.isDemon) { enemyCounterAttack(); return; } // Gorgoth (chantier 17) : intention annoncée, quelle que soit la portée
     if (consumeSurprise(enemy)) { updateUI(); return; } // tireur surpris : aucune réaction ce tour
     const ctx = getCombatRangeContext();
 
@@ -6482,7 +6532,7 @@ function resolveEnemyReaction() {
 // un updateUI() à ce stade rendrait un état transitoire (avant que renderCombatMobPanel() etc.
 // n'aient fini d'installer la carte de combat) ; l'updateUI() déjà garanti en fin de fonction suffit.
 function setCombatDistance(value) {
-    gameState.combatDistance = Math.max(0, Math.min(config.rangedCombat.maxDistance, value));
+    gameState.combatDistance = Math.max(0, Math.min(combatMaxDistance(), value));
     updateUI();
 }
 
@@ -6569,6 +6619,7 @@ function getEffectiveDef() {
 // agir ce tour-ci (combat terminé entre-temps, ou étourdi).
 function tryPlayerAction() {
     if (!gameState.inCombat || !gameState.currentEnemy) return false;
+    if (gameState.demonFight) demonBeginPlayerTurn(); // Gorgoth (chantier 17) : action du tour remise à zéro
     // Une action = un tour : l'Occasion proposée (chantier 6, V2) s'éteint, que le joueur l'ait prise ou non.
     if (gameState.occasion) { gameState.occasion.current = null; gameState.occasion.turn += 1; }
     // Un skip demandé pendant le tour précédent ne doit jamais escamoter l'effet de CETTE attaque (fx.js).
@@ -6759,6 +6810,14 @@ function performPlayerAttack(attackerAtk, options, label) {
         effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * precise.mult };
         gearNote += " (critique !)";
     }
+    // Gorgoth le Concierge (chantier 17) : Garde annoncée (DEF ×2, sauf Charge), bonus de Fauche contrée, Cicatrices.
+    let demonNote = "";
+    if (enemy.isDemon) {
+        const demonMods = demonPlayerAttackMods(enemy);
+        effectiveEnemyDef = Math.round(effectiveEnemyDef * demonMods.defMult);
+        effectiveOptions = { ...effectiveOptions, atkMultiplier: (effectiveOptions.atkMultiplier ?? 1) * demonMods.atkMult };
+        demonNote = demonMods.note;
+    }
     let playerDamage = rollDamage(attackerAtk, effectiveEnemyDef, effectiveOptions);
     // Électrique/Explosif : dégâts bonus proportionnels au coup, qui ignorent la DEF (ajoutés au coup
     // lui-même, avant le test de victoire). Explosif peut aussi blesser le porteur, sans jamais le tuer.
@@ -6786,6 +6845,7 @@ function performPlayerAttack(attackerAtk, options, label) {
         }
     }
     enemy.hp -= playerDamage;
+    if (enemy.isDemon) demonRecordPlayerHit(enemy, playerDamage);
     if (enemy.runTrack) enemy.runTrack.playerAttacks += 1;
     gameState._lastPlayerDamage = playerDamage; // Utilisé par la mécanique d'arme "Vampirique" (lifesteal)
     animateDieHit(ui.combatPlayerDie, 'left', playerDamage);
@@ -6801,7 +6861,7 @@ function performPlayerAttack(attackerAtk, options, label) {
     // infligez ... à" — toutes les notes d'état restent conservées telles quelles (chacune explique
     // le calcul du coup en cours : DEF ennemie effective modifiée, dégâts joueur modifiés — jamais de
     // pure redite de ce que les badges du Chantier 2 montrent déjà sans rapport avec CE coup précis).
-    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${vanishNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyWasExposed ? " (garde ouverte)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}.`, "normal");
+    logEvent(`Vous attaquez ${label} : ${playerDamage} dégâts à [${enemy.name}]${gearNote}${slowedNote}${adrenalineNote}${sneakNote}${vanishNote}${enemyWasBlinded ? " (ennemi ébloui)" : ""}${enemyWasCorroded ? " (ennemi corrodé)" : ""}${enemyWasDefBuffed ? " (garde hérissée)" : ""}${enemyWasExposed ? " (garde ouverte)" : ""}${enemyIsFrenzied ? " (garde effondrée)" : ""}${enemyIsEnragedForPlayer ? " (garde baissée)" : ""}${demonNote}.`, "normal");
 
     // Appui du compagnon : sort donné, Frappe d'appoint ou coup d'opportunité (voir companionCombatSupport())
     companionCombatSupport(enemy);
@@ -6960,6 +7020,7 @@ function applyWeaponMechanic(weaponOverride = null) {
     const weapon = weaponOverride || gameState.equipment.weapon;
     const enemy = gameState.currentEnemy;
     if (!weapon || !enemy) return;
+    if (enemy.isDemon && demonIgnoresCurrentStyleEffects()) return; // Cicatrice au cran 3 (chantier 17)
     triggerItemQualifiers(weapon, qualifierTarget(weapon.category) || 'weapon', enemy, gameState._lastPlayerDamage || 0);
 }
 
@@ -7238,7 +7299,7 @@ function applyGuardBreak(enemy, outcome) {
 // Coup de grâce : l'épreuve dépend de la dernière attaque. Le boss est de toute façon achevé (il n'y a pas de pénalité) ; seul un Parfait
 // ouvre l'objet signature. Renvoie vrai si l'épreuve a été ouverte (l'appelant ne conclut pas le combat lui-même).
 function offerCoupDeGrace(enemy) {
-    if (!enemy.isBoss || enemy.finisherDone || !minigameIsInteractive()) return false;
+    if (!enemy.isBoss || enemy.isDemon || enemy.finisherDone || !minigameIsInteractive()) return false; // Gorgoth : jamais de Coup de grâce (mise au tapis)
     enemy.finisherDone = true;
     const kinds = { ranged: 'target', unarmed: 'choke' };
     const kind = kinds[gameState.lastAttackKind] || 'timing';
@@ -7565,6 +7626,13 @@ function resolveEnemyCounterAttack(onDone) {
         }
     }
 
+    // Gorgoth le Concierge (chantier 17) : tour démoniaque propre (intention annoncée, Emprise, actes, Cataclysme) — un
+    // colosse ignore étourdissement, immobilisation et distraction ; seul le saignement ci-dessus le ronge.
+    if (enemy.isDemon) {
+        performDemonTurn(enemy, onDone);
+        return;
+    }
+
     // Étourdissement en cours sur l'ennemi : il rate son tour
     if (enemy.status && enemy.status.stunned) {
         logEvent(`[${enemy.name}] est étourdi et ne peut pas riposter !`, "info");
@@ -7720,6 +7788,459 @@ function resolveNonBossCounterAttack(enemy) {
     // fonction (voir le commentaire d'enemyCounterAttack()).
 }
 
+// ==========================================
+// BOSS DE NIVEAU : GORGOTH LE CONCIERGE (chantier 17, lot 2 — voir demon.js)
+// ==========================================
+// Combat propre greffé sur le moteur existant par `enemy.isDemon` : la riposte (resolveEnemyCounterAttack()) passe par
+// performDemonTurn() quelle que soit la portée, la mort du démon par handleDemonDefeated() (winCombat()), celle du
+// crawler par handleDemonPlayerDown() (et gameOver() en filet de sécurité). Un tour = l'action du joueur, puis la
+// résolution de l'intention ANNONCÉE au tour précédent (selon cette action), l'Emprise, et l'annonce de la suivante.
+// Les chiffres vivent dans config.demonBoss ; les calculs purs dans demon.js. Tout appel vers un autre lot du
+// chantier (porte, armurerie, interface, scène, sons, vignettes) est gardé.
+let demonFightCallbacks = null; // { onVictory, onDefeat } du combat en cours (fonctions : jamais dans gameState)
+let demonFightJustEnded = false; // le coup fatal a déjà conclu le combat (un second appel de winCombat() est ignoré)
+
+// Vignette du lot 6, seulement si elle existe (sinon l'emoji de setSceneHeader() recouvre la scène).
+function demonVignette(name) {
+    return (typeof EXPLORE_VIGNETTES !== 'undefined' && EXPLORE_VIGNETTES[name]) ? name : undefined;
+}
+
+// Son du lot 8, seulement s'il est déclaré (playSfx() ignore déjà une clé absente : double garde inoffensive).
+function demonSfx(key) {
+    if (typeof playSfx === 'function' && typeof SFX_CATALOG !== 'undefined' && SFX_CATALOG[key]) playSfx(key);
+}
+
+// Écart maximal du combat en cours : celui du combat à distance, resserré par l'acte de Gorgoth.
+function combatMaxDistance() {
+    const base = config.rangedCombat.maxDistance;
+    const fight = gameState.demonFight;
+    if (!fight || !gameState.currentEnemy || !gameState.currentEnemy.isDemon) return base;
+    const cap = demonMaxDistanceForAct(fight.act, config.demonBoss);
+    return cap === null ? base : Math.min(base, cap);
+}
+
+function demonStyleOf(attackKind) {
+    return DEMON_ATTACK_KIND_STYLES[attackKind] || null;
+}
+
+// Début d'une action du joueur (tryPlayerAction()) : l'action du tour repart de « autre » (capacité, Occasion...).
+function demonBeginPlayerTurn() {
+    const fight = gameState.demonFight;
+    if (!fight) return;
+    fight.action = 'other';
+    fight.bigHitThisTurn = false;
+    fight.possessedThisTurn = false;
+}
+
+// Action jouée ce tour-ci (lue par resolveIntentResponse()).
+function demonNoteAction(action) {
+    if (gameState.demonFight && gameState.currentEnemy && gameState.currentEnemy.isDemon) gameState.demonFight.action = action;
+}
+
+// Modificateurs d'un coup du joueur contre Gorgoth (performPlayerAttack()) : Garde annoncée (DEF ×2 sauf Charge),
+// ouverture d'une Fauche contrée (+30 %, consommée), Cicatrices du style utilisé.
+function demonPlayerAttackMods(enemy) {
+    const fight = gameState.demonFight;
+    const t = config.demonBoss;
+    const mods = { defMult: 1, atkMult: 1, note: "" };
+    if (!fight || !enemy || !enemy.isDemon) return mods;
+    const notes = [];
+    if (fight.intent && fight.intent.key === 'guard' && fight.action !== 'engage') {
+        mods.defMult *= t.guardDefMult;
+        notes.push("garde de basalte");
+    }
+    if (fight.nextHitBonus > 1) {
+        mods.atkMult *= fight.nextHitBonus;
+        notes.push(`ouverture +${Math.round((fight.nextHitBonus - 1) * 100)} %`);
+        fight.nextHitBonus = 1;
+    }
+    const scarMult = scarResistMult(gameState.demon.scars, demonStyleOf(gameState.lastAttackKind), t);
+    if (Math.abs(scarMult - 1) > 1e-9) {
+        mods.atkMult *= scarMult;
+        notes.push(scarMult < 1 ? `Cicatrice −${Math.round((1 - scarMult) * 100)} %` : `point faible +${Math.round((scarMult - 1) * 100)} %`);
+    }
+    mods.note = notes.length ? ` (${notes.join(', ')})` : "";
+    return mods;
+}
+
+// Dégâts portés à Gorgoth : cumul par style (Cicatrice à la mise au tapis) et « gros coup » (baisse d'Emprise).
+function demonRecordPlayerHit(enemy, damage) {
+    const fight = gameState.demonFight;
+    if (!fight) return;
+    const style = demonStyleOf(gameState.lastAttackKind);
+    if (style) {
+        fight.dmgByStyle[style] = (fight.dmgByStyle[style] || 0) + damage;
+        fight.lastStyle = style;
+    }
+    if (enemy.maxHp && damage >= enemy.maxHp * config.demonBoss.emprise.bigHitPct) fight.bigHitThisTurn = true;
+}
+
+// Cicatrice au cran maximal sur le style du coup en cours : ses effets (qualificatifs, effets de sort) ne prennent pas.
+function demonIgnoresCurrentStyleEffects() {
+    return demonImmuneToStyleEffects(gameState.demon && gameState.demon.scars, demonStyleOf(gameState.lastAttackKind), config.demonBoss);
+}
+
+// L'ennemi Gorgoth, calé sur le profil du crawler (computeDemonStats()).
+function buildDemonEnemy(final) {
+    const stats = computeDemonStats(getPlayerCombatProfile(), { knockouts: gameState.demon.knockouts, final: !!final, tuning: config.demonBoss });
+    return {
+        name: final ? `${DEMON_NAME} (forme finale)` : DEMON_NAME,
+        baseName: DEMON_NAME,
+        isDemon: true,
+        isBoss: true,
+        demonFinal: !!final,
+        hp: stats.hp,
+        atk: stats.atk,
+        def: stats.def,
+        xpReward: 0,
+        visualArchetype: 'shade',
+        effect: null,
+        ranged: false,
+        description: "Concierge infernal du Donjon : un colosse d'ombre et de flammes, une casquette de gardien vissée entre les cornes."
+    };
+}
+
+function createDemonFightState(final) {
+    return {
+        act: 1, maxActs: final ? 4 : 3, final: !!final, emprise: 0,
+        intent: null, countdown: 0, chainsLeft: config.demonBoss.chains, possessedThisTurn: false,
+        dmgByStyle: { melee: 0, ranged: 0, magic: 0, unarmed: 0 },
+        // Champs internes au moteur : action du tour, gros coup ce tour, bonus du prochain coup, dernier style, tours joués.
+        action: 'other', bigHitThisTurn: false, nextHitBonus: 1, lastStyle: null, turn: 0
+    };
+}
+
+// Point d'entrée (lot 1 : porte colossale et Sortie de l'étage 18). `onVictory` : mise au tapis (après l'armurerie) ou
+// victoire finale ; `onDefeat` : expulsion. Renvoie false si un combat est déjà en cours.
+function startDemonFight({ final = false, onVictory = null, onDefeat = null } = {}) {
+    if (gameState.inCombat) return false;
+    gameState.demon = normalizeDemonState(gameState.demon);
+    gameState.demon.encounters += 1;
+    demonFightCallbacks = { onVictory, onDefeat };
+    const enemy = buildDemonEnemy(final);
+    recordRunEvent('demonEncounter', { final: !!final });
+    const start = () => {
+        demonFightJustEnded = false;
+        gameState.demonFight = createDemonFightState(final);
+        beginCombat(enemy, { startDistance: config.demonBoss.startDistance });
+        setSceneHeader('👹', enemy.name, final ? 'Boss final' : 'Boss de Niveau', { key: 'bossSpotted', enemy });
+        logEvent(final
+            ? `👹 ${DEMON_NAME} se dresse devant la Sortie, ses chaînes chauffées à blanc. Cette fois, pas d'assommage : l'un de vous deux ne repartira pas.`
+            : `👹 ${DEMON_NAME} ouvre un œil de braise. « Fermeture du Donjon dans cinq minutes. » Il fait craquer son trousseau de clés.`, "danger");
+        logEvent("🔒 La porte se referme derrière vous : impossible de fuir.", "danger");
+        demonSfx('demonRoar');
+        if (gameState.demonFight && !gameState.demonFight.intent) announceDemonIntent(enemy);
+        updateUI();
+    };
+    if (typeof ENCOUNTER_KINDS !== 'undefined' && ENCOUNTER_KINDS.demon) showEncounterIntro('demon', enemy, start);
+    else start();
+    return true;
+}
+
+// Annonce l'intention du prochain tour (masquée 25 % du temps, révélée sur un jet de Furtivité).
+function announceDemonIntent(enemy) {
+    const fight = gameState.demonFight;
+    const t = config.demonBoss;
+    if (!fight) return;
+    const intent = pickDemonIntent(Math.random, { act: fight.act, distance: gameState.combatDistance, lastKey: fight.intent ? fight.intent.key : null }, t);
+    if (intent.hidden && Math.random() * 100 < demonSkillChance(effectiveStealthLevel(), t)) intent.revealed = true;
+    fight.intent = intent;
+    const def = DEMON_INTENTS[intent.key];
+    if (intent.hidden && !intent.revealed) logEvent(`❓ [${enemy.name}] prépare quelque chose… intention masquée (???).`, "danger");
+    else logEvent(`${def.icon} [${enemy.name}] prépare : ${def.label}${intent.hidden ? " (percée à jour par votre Furtivité)" : ""}. ${def.answer}`, "danger");
+}
+
+// Changement d'acte : bannière de phase réutilisée, écart resserré, compte à rebours du Cataclysme.
+function announceDemonActChange(enemy, act) {
+    const t = config.demonBoss;
+    const cap = demonMaxDistanceForAct(act, t);
+    const capNote = cap !== null ? ` La salle se resserre (écart max ${cap}).` : "";
+    const messages = {
+        2: `🔥 Acte II — ${DEMON_NAME} arrache ses dernières chaînes.${capNote}`,
+        3: `☄️ Acte III — Le plafond se fend : Cataclysme dans ${t.cataclysmCountdown} tours.${capNote}`,
+        4: `💀 Dernier souffle — ${DEMON_NAME} brûle ses dernières forces : Cataclysme dans ${t.finalCountdown} tours.${capNote}`
+    };
+    const text = messages[act] || `${DEMON_NAME} change d'acte.`;
+    demonSfx('demonAct');
+    logEvent(text, "danger");
+    if (ui.phaseTransitionBanner) {
+        ui.phaseTransitionBanner.innerText = text;
+        ui.phaseTransitionBanner.classList.remove('hidden');
+        setTimeout(() => ui.phaseTransitionBanner.classList.add('hidden'), 900);
+    }
+}
+
+// Parade du Cataclysme : épreuve de parade de boss (sans plafond d'épreuves), 'fail' sans interface.
+function runDemonParry(enemy, cb) {
+    if (typeof requestAnimationFrame !== 'function' || typeof startMinigame !== 'function' || typeof buildMinigameSpec !== 'function') { cb('fail'); return; }
+    const spec = buildMinigameSpec('parry', { boss: true, label: 'Parade : Cataclysme', icon: '☄️', hint: "Parez au moment de l'impact !", autoRates: bossAutoRates(gameState.skills.weapon.level) });
+    if (!spec) { cb('fail'); return; }
+    startMinigame(spec, (outcome) => cb(outcome || 'fail'));
+}
+
+// Frappe d'une intention (part des PV max du joueur, avant mitigation) : executeBossStrike() réutilisée telle quelle.
+function demonStrike(enemy, pct, label, heavy = false) {
+    const atk = Math.max(1, Math.round(enemy.atk * pct / config.demonBoss.baseHitPct));
+    const dealt = executeBossStrike(enemy, atk, label, undefined, heavy);
+    if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => handleDemonPlayerDown(enemy), COMBAT_BEAT_MS); }
+    return dealt;
+}
+
+// Coup direct, sans mitigation (Cataclysme).
+function demonDirectHit(enemy, amount, label) {
+    const hpBefore = gameState.hp;
+    const dealt = applyPlayerDamage(Math.max(1, Math.round(amount)));
+    animateDieHit(ui.combatEnemyDie, 'right', dealt);
+    playMobAttackFx(enemy, { heavy: true, heldPlayerHp: hpBefore }, () => {
+        showFloatingDamage(ui.sceneCrawlerAnchor, dealt, { toPlayer: true, heavy: true });
+        triggerHeavyImpact();
+    });
+    logEvent(`${label} ${dealt} dégâts.`, "danger");
+    if (gameState.hp <= 0) { gameState.hp = 0; setTimeout(() => handleDemonPlayerDown(enemy), COMBAT_BEAT_MS); }
+    return dealt;
+}
+
+// Possession (Emprise au maximum) : le crawler frappe son compagnon s'il en a un debout, sinon son prochain tour est perdu.
+function demonPossession(enemy) {
+    const fight = gameState.demonFight;
+    if (fight) fight.possessedThisTurn = true;
+    demonSfx('demonPossession');
+    const companion = activeCompanion();
+    if (companion) {
+        const dmg = Math.max(1, Math.round(gameState.atk * (0.8 + Math.random() * 0.4)));
+        companion.hp = Math.max(0, companion.hp - dmg);
+        logEvent(`👁️ POSSESSION ! ${DEMON_NAME} prend le contrôle de vos bras : vous frappez ${companion.name} (−${dmg} PV).`, "danger");
+        checkCompanionDowned();
+    } else {
+        gameState.status.stunned = true;
+        logEvent(`👁️ POSSESSION ! Votre corps n'obéit plus qu'à ${DEMON_NAME} : votre prochain tour est perdu.`, "danger");
+    }
+    logEvent(`L'Emprise retombe à ${config.demonBoss.emprise.possessionReset}.`, "info");
+}
+
+// Tour de Gorgoth (depuis resolveEnemyCounterAttack()). Toutes les décisions sont prises tout de suite (écart, acte,
+// réponse du joueur) ; les étapes ne font que jouer les coups et les annonces au rythme des beats.
+function performDemonTurn(enemy, onDone) {
+    const fight = gameState.demonFight;
+    const t = config.demonBoss;
+    const rhythm = config.combatRhythm;
+    if (!fight) { if (onDone) onDone(); return; }
+    if (!fight.intent) { announceDemonIntent(enemy); if (onDone) onDone(); return; }
+    fight.turn += 1;
+    const hpStart = gameState.hp;
+    const action = fight.action;
+    const bigHit = !!fight.bigHitThisTurn;
+    const alive = () => !!gameState.demonFight && gameState.currentEnemy === enemy && gameState.hp > 0;
+    const steps = [];
+    const ratio = enemy.maxHp ? Math.max(0, enemy.hp) / enemy.maxHp : 1;
+
+    // Chaînes de l'acte 1 (visuel/sonore).
+    const chains = demonChainsLeft(ratio, t);
+    if (chains < fight.chainsLeft) {
+        const broken = fight.chainsLeft - chains;
+        fight.chainsLeft = chains;
+        steps.push({ run: () => { demonSfx('demonChainBreak'); logEvent(`⛓️ ${broken > 1 ? `${broken} chaînes cèdent` : "Une chaîne cède"} dans un fracas de métal (${chains}/${t.chains}).`, "info"); }, delay: 0 });
+    }
+
+    // Changement d'acte : écart resserré tout de suite (la réponse du joueur se lit sur l'écart réel).
+    const newAct = demonActFor(ratio, fight.final, t);
+    let actJustChanged = false;
+    if (newAct > fight.act) {
+        fight.act = newAct;
+        actJustChanged = true;
+        fight.countdown = demonCountdownForAct(newAct, t);
+        const cap = combatMaxDistance();
+        if (gameState.combatDistance > cap) gameState.combatDistance = cap;
+        steps.push({ run: () => announceDemonActChange(enemy, newAct), delay: rhythm.beatHeavyEvent });
+    }
+
+    let countered = false;
+    let gripped = false;
+    let perfect = false;
+    let cataclysmNow = false;
+    if (fight.act >= 3 && !actJustChanged && fight.countdown > 0) {
+        fight.countdown -= 1;
+        const left = fight.countdown;
+        if (left <= 0) cataclysmNow = true;
+        else steps.push({ run: () => { demonSfx('demonHeartbeat'); logEvent(`💓 Le plafond tremble : Cataclysme dans ${left} tour${left > 1 ? 's' : ''}.`, "danger"); }, delay: 0 });
+    }
+
+    if (cataclysmNow) {
+        // Cataclysme : l'intention annoncée est balayée ; Parade Parfaite ×0, Réussie ×0,5, sinon coup plein.
+        let parry = 'fail';
+        steps.push({
+            interactive: true,
+            run: (done) => {
+                if (!alive()) { done(); return; }
+                demonSfx('demonCataclysm');
+                logEvent(`☄️ CATACLYSME ! ${DEMON_NAME} fait s'effondrer la voûte sur vous !`, "danger");
+                runDemonParry(enemy, (o) => { parry = o; done(); });
+            }
+        });
+        steps.push({
+            run: () => {
+                if (!alive()) return;
+                const mult = t.cataclysmParry[parry] ?? 1;
+                if (mult <= 0) {
+                    perfect = true;
+                    logEvent("🛡️ Parade parfaite ! Vous détournez le Cataclysme : pas une égratignure.", "success");
+                } else {
+                    demonDirectHit(enemy, gameState.maxHp * t.cataclysmPct * mult, `☄️ Cataclysme${mult < 1 ? " (paré à moitié)" : ""} :`);
+                }
+                if (gameState.demonFight) gameState.demonFight.countdown = demonCountdownForAct(fight.act, t);
+            },
+            delay: rhythm.beatHeavyEvent
+        });
+    } else {
+        const intent = fight.intent;
+        const def = DEMON_INTENTS[intent.key];
+        const magicResist = intent.key === 'grip' && action !== 'magic' && Math.random() * 100 < demonSkillChance(gameState.skills.magic.level, t);
+        const res = resolveIntentResponse(intent.key, action, { distance: gameState.combatDistance, magicResist }, t);
+        countered = res.countered;
+        gripped = intent.key === 'grip' && !res.countered;
+        if (res.bonusMult > 1) fight.nextHitBonus = res.bonusMult;
+        const name = `[${enemy.name}]`;
+        const heavyIntent = intent.key === 'scythe' || intent.key === 'blaze';
+        if (intent.hidden && !intent.revealed && def) steps.push({ run: () => logEvent(`❓ L'intention masquée était : ${def.icon} ${def.label}.`, "info"), delay: 0 });
+        steps.push({
+            run: () => {
+                if (!alive()) return;
+                switch (intent.key) {
+                    case 'scythe':
+                        if (!countered) demonStrike(enemy, t.intents.scythe, `🌙 Fauche : ${name}`, true);
+                        else if (action === 'retreat') logEvent(`🌙 La Fauche de ${name} passe sous vos pieds : vous reculez à temps (prochain coup +${Math.round((res.bonusMult - 1) * 100)} %).`, "success");
+                        else logEvent(`🌙 La Fauche de ${name} siffle dans le vide : vous êtes hors de portée.`, "success");
+                        break;
+                    case 'blaze':
+                        demonSfx('demonBlaze');
+                        if (!countered) demonStrike(enemy, t.intents.blaze, `🔥 Brasier : ${name}`, true);
+                        else logEvent(`🔥 Collé à ${name}, vous laissez le Brasier vous passer au-dessus.`, "success");
+                        break;
+                    case 'grip':
+                        if (!countered) logEvent(`🫳 L'Emprise de ${name} se referme sur votre esprit (+${t.emprise.gripGain}).`, "danger");
+                        else logEvent(`🫳 ${action === 'magic' ? "Votre magie" : "Votre volonté de sorcier"} repousse l'Emprise de ${name}.`, "success");
+                        break;
+                    case 'guard':
+                        if (countered) logEvent(`🛡️ Votre charge brise la garde de basalte de ${name} !`, "success");
+                        else logEvent(`🛡️ ${name} tenait sa garde de basalte : vos coups ont glissé dessus.`, "info");
+                        break;
+                    case 'whip':
+                    default:
+                        demonSfx('demonWhip');
+                        if (gameState.combatDistance > 0) setCombatDistance(0);
+                        demonStrike(enemy, t.intents.whip, `⛓️ Fouet : ${name} vous ramène au contact et`, false);
+                        break;
+                }
+            },
+            delay: heavyIntent && !countered ? rhythm.beatHeavyEvent : rhythm.beatActionToRiposte
+        });
+    }
+
+    // Fin du tour : Emprise, Possession, puis annonce de l'intention suivante.
+    steps.push({
+        run: () => {
+            if (!alive()) return;
+            const hpLostPct = gameState.maxHp > 0 ? Math.max(0, hpStart - gameState.hp) / gameState.maxHp * 100 : 0;
+            const result = empriseAfterTurn(fight.emprise, { hpLostPct, countered, perfect, bigHit, gripped }, t);
+            fight.emprise = result.value;
+            if (result.possessed) demonPossession(enemy);
+            announceDemonIntent(enemy);
+        },
+        delay: 0
+    });
+    runCombatBeats(steps, onDone);
+}
+
+// Remet le crawler hors combat après un combat démoniaque (mise au tapis, victoire finale, expulsion).
+function endDemonCombatState() {
+    gameState.currentEnemy = null;
+    gameState.inCombat = false;
+    gameState.pendingSneakAttack = false;
+    gameState.demonFight = null;
+    gameState.combatDistance = 0;
+    gameState.status = { bleed: null, stunned: false, slowed: null, confused: null, disarmed: null, blinded: null, corroded: null, feared: null, adrenaline: null, plotShield: false };
+    demonFightJustEnded = true;
+}
+
+// PV de Gorgoth à 0 (winCombat()). Forme finale : victoire (onVictory, sinon winGame()). Sinon : mise au tapis — il n'est
+// qu'assommé, garde une Cicatrice du style dominant (plafond cran 3) et reviendra ; puis l'armurerie (lot 4).
+function handleDemonDefeated(enemy) {
+    const fight = gameState.demonFight;
+    const t = config.demonBoss;
+    const final = !!(enemy.demonFinal || (fight && fight.final));
+    const callbacks = demonFightCallbacks || {};
+    demonFightCallbacks = null;
+    const scarStyle = dominantStyle(fight ? fight.dmgByStyle : null, demonStyleOf(gameState.lastAttackKind) || (fight && fight.lastStyle), t.dominantShare);
+    gameState.demon = normalizeDemonState(gameState.demon);
+    gameState.demon.lastFloorFought = gameState.currentFloor;
+    endDemonCombatState();
+    demonSfx('demonKnockout');
+    triggerHaptic('heavy');
+    if (final) {
+        logEvent(`👑 ${DEMON_NAME} s'écroule pour de bon. Son trousseau de clés roule jusqu'à vos pieds : la Sortie est à vous.`, "success");
+        recordRunEvent('demonKnockout', { scarStyle, final: true });
+        if (typeof callbacks.onVictory === 'function') callbacks.onVictory();
+        else winGame();
+        return;
+    }
+    gameState.demon.knockouts += 1;
+    const maxRank = t.scarResist.length - 1;
+    let scarNote = "";
+    if (scarStyle) {
+        const before = gameState.demon.scars[scarStyle] || 0;
+        gameState.demon.scars[scarStyle] = Math.min(maxRank, before + 1);
+        const labels = { melee: "la mêlée", ranged: "les tirs", magic: "la magie", unarmed: "les poings" };
+        scarNote = gameState.demon.scars[scarStyle] > before
+            ? ` Il garde une Cicatrice de ${labels[scarStyle]} (cran ${gameState.demon.scars[scarStyle]}) : la prochaine fois, ce style portera moins.`
+            : ` Ses Cicatrices de ${labels[scarStyle]} sont déjà au maximum.`;
+    }
+    const vignette = demonVignette('demonKnockout');
+    setSceneHeader('💫', `${DEMON_NAME} est au tapis`, 'Boss de Niveau', vignette);
+    logEvent(`💫 ${DEMON_NAME} s'effondre dans un nuage de cendres… assommé, pas vaincu. Il reviendra.${scarNote}`, "success");
+    recordRunEvent('demonKnockout', { scarStyle, final: false });
+    const finish = () => {
+        if (typeof callbacks.onVictory === 'function') callbacks.onVictory();
+        updateUI();
+    };
+    if (typeof openDemonArmory === 'function') openDemonArmory(finish);
+    else finish();
+}
+
+// PV du crawler à 0 face à Gorgoth : forme finale = mort réelle ; sinon expulsion de l'antre.
+function handleDemonPlayerDown(enemy) {
+    const fight = gameState.demonFight;
+    if (!fight || gameState.currentEnemy !== enemy) return; // combat déjà conclu (double appel)
+    if (fight.final) { gameOver(false, enemy); return; }
+    expelFromDemonLair();
+}
+
+// Expulsion : le crawler se réveille devant la porte à 1 PV, −10 H (jamais sous 1 H), la porte est rescellée pour l'étage.
+function expelFromDemonLair() {
+    const t = config.demonBoss;
+    const callbacks = demonFightCallbacks || {};
+    demonFightCallbacks = null;
+    gameState.demon = normalizeDemonState(gameState.demon);
+    gameState.demon.expulsions += 1;
+    gameState.demon.lastFloorFought = gameState.currentFloor;
+    endDemonCombatState();
+    gameState.hp = 1;
+    const before = gameState.timeLeft;
+    gameState.timeLeft = Math.max(Math.min(before, t.expelMinTime), before - t.expelTimeCost);
+    if (typeof sealDemonGate === 'function') sealDemonGate();
+    const vignette = demonVignette('demonExpelled');
+    setSceneHeader('🚪', "Expulsé de l'antre", 'Boss de Niveau', vignette);
+    logEvent(`🚪 ${DEMON_NAME} vous saisit par le col et vous jette dehors comme un sac de linge sale. Vous vous réveillez devant la porte, à 1 PV, ${Math.round((before - gameState.timeLeft) * 10) / 10} H plus tard. Elle est rescellée pour cet étage.`, "danger");
+    recordRunEvent('demonExpelled');
+    if (typeof callbacks.onDefeat === 'function') callbacks.onDefeat();
+    updateUI();
+}
+
+// DEV (console) : lance un combat contre Gorgoth sans passer par la porte. Exemple : devStartDemonFight({ final: true }).
+function devStartDemonFight({ final = false } = {}) {
+    if (gameState.inCombat || isActionBlocked()) { logEvent("🛠️ DEV : terminez d'abord la situation en cours.", "info"); return false; }
+    return startDemonFight({ final, onVictory: final ? winGame : null });
+}
+
 // --- Les 3 types d'attaque ---
 // Chacune est reliée à sa propre compétence : plus elle est utilisée en combat, plus elle progresse
 // (XP dédiée, indépendante des autres compétences et du niveau général du joueur).
@@ -7739,6 +8260,7 @@ function attackWeapon() {
         return;
     }
     if (!tryPlayerAction()) return;
+    demonNoteAction('weapon');
     gameState.lastAttackKind = 'weapon'; // Posture du crawler (scene.js) : l'arme de mêlée en main
 
     // Arme arrachée par un effet magnétique en cours : l'attaque à l'arme est indisponible
@@ -7776,6 +8298,7 @@ function attackRanged() {
         return;
     }
     if (!tryPlayerAction()) return;
+    demonNoteAction('ranged');
     gameState.lastAttackKind = 'ranged'; // Posture du crawler (scene.js) : l'arme à distance en main
 
     if (gameState.status.disarmed && gameState.status.disarmed.rounds > 0) {
@@ -7808,6 +8331,7 @@ function attackUnarmed() {
         return;
     }
     if (!tryPlayerAction()) return;
+    demonNoteAction('unarmed');
     gameState.lastAttackKind = 'unarmed'; // Posture du crawler (scene.js) : garde du boxeur
 
     const skill = gameState.skills.unarmed;
@@ -8182,6 +8706,8 @@ function rollCombatOccasion() {
         turn: occ.turn, lastOfferTurn: occ.lastOfferTurn, pity: occ.pity
     });
     if (!type) return;
+    // Gorgoth (chantier 17) : un colosse ne s'immobilise pas et son tour ignore les états d'un Point faible — seule la Cible de précision reste.
+    if (gameState.currentEnemy.isDemon && type !== 'target') return;
     occ.current = { type };
     occ.lastOfferTurn = occ.turn;
     occ.pity = 0;
@@ -8299,6 +8825,7 @@ function resolveOccasion(type, outcome, detail) {
 // de portée à l'issue du jet — voir safeEnemyCounterAttack()).
 function attemptSprint() {
     if (!tryPlayerAction()) return;
+    demonNoteAction('sprint');
     const enemy = gameState.currentEnemy;
     if (!enemy || gameState.combatDistance <= 0) {
         logEvent("Rien à rattraper pour l'instant.", "info");
@@ -8338,8 +8865,9 @@ function attemptSprint() {
 // safeEnemyCounterAttack() bloque la riposte d'un mob de mêlée désormais hors de portée.
 function attemptRetreat() {
     if (!tryPlayerAction()) return;
+    demonNoteAction('retreat');
     const enemy = gameState.currentEnemy;
-    if (!enemy || gameState.combatDistance >= config.rangedCombat.maxDistance) {
+    if (!enemy || gameState.combatDistance >= combatMaxDistance()) {
         logEvent("Impossible de vous éloigner davantage.", "info");
         return;
     }
@@ -8389,6 +8917,7 @@ function attemptEngage() {
         return;
     }
     if (!tryPlayerAction()) return;
+    demonNoteAction('engage');
 
     setCombatDistance(0);
     showDie(ui.combatPlayerDie, "⚔️");
@@ -8464,6 +8993,7 @@ function maybeGlyphSpec(spell) {
 function castEquippedSpell(spell, manaCost, glyphBoost) {
     const anyRange = spell.spellCategory === 'any';
     if (!tryPlayerAction()) return;
+    demonNoteAction('magic');
     gameState.lastAttackKind = 'magic'; // Posture du crawler (scene.js) : paume ouverte, lueur du sort
 
     gameState.mana -= manaCost;
@@ -8540,6 +9070,7 @@ function castSpellEffect(spell) {
     const effect = spell && spell.spellEffect;
     const enemy = gameState.currentEnemy;
     if (!effect || !enemy) return;
+    if (enemy.isDemon && demonIgnoresCurrentStyleEffects()) return; // Cicatrice au cran 3 (chantier 17)
     const dealt = gameState._lastPlayerDamage || 0;
     if (effect.kind === 'lifesteal') {
         resolveQualifierEffect('lifesteal', { pct: effect.pct }, enemy, dealt, 'spell');
@@ -8571,7 +9102,7 @@ function castUtilitySpell(spell) {
         logEvent(`🔰 [${spell.spellName}] : un bouclier de mana vous entoure (dégâts reçus −${effect.pct} % pendant ${effect.rounds} tours).`, "success");
     } else if (effect.kind === 'shadowStep') {
         const before = gameState.combatDistance;
-        gameState.combatDistance = Math.min(config.rangedCombat.maxDistance, before + effect.gap);
+        gameState.combatDistance = Math.min(combatMaxDistance(), before + effect.gap);
         logEvent(`🌑 [${spell.spellName}] : vous glissez dans l'ombre et reculez (écart ${before} → ${gameState.combatDistance}).`, "success");
     }
     playPlayerAttackFx('magic', { self: true }, () => {});
@@ -8582,6 +9113,10 @@ function castUtilitySpell(spell) {
 function attemptFlee() {
     if (!gameState.inCombat || !gameState.currentEnemy) return;
     const enemy = gameState.currentEnemy;
+    if (enemy.isDemon) { // Gorgoth (chantier 17) : fuir est impossible, et la tentative ne coûte pas le tour
+        logEvent("🔒 La porte est scellée : impossible de fuir l'antre de Gorgoth.", "danger");
+        return;
+    }
     // Échec de furtivité punitif (voir attemptStealthEvasion()) : ce mob-là ne laisse plus filer.
     if (enemy.alerted) {
         logEvent(`[${enemy.name}] vous a repéré et ne vous laissera pas filer aussi facilement !`, "danger");
@@ -8632,6 +9167,9 @@ function attemptFlee() {
 }
 
 function winCombat() {
+    // Gorgoth le Concierge (chantier 17) : ni victoire classique ni butin de boss — mise au tapis (ou victoire finale).
+    if (gameState.currentEnemy && gameState.currentEnemy.isDemon) { handleDemonDefeated(gameState.currentEnemy); return; }
+    if (!gameState.currentEnemy && demonFightJustEnded) return; // second appel de fin de combat (coup fatal déjà résolu)
     const defeatedEnemy = gameState.currentEnemy;
     const wasBoss = defeatedEnemy && defeatedEnemy.isBoss;
     if (defeatedEnemy) gameState.floorStats.mobsKilled += 1;
@@ -9142,6 +9680,10 @@ function devJumpToUrbanFloor() {
 // (riposte de combat — voir resolveEnemyCounterAttack()), ou omis (filet de sécurité). Sert
 // uniquement à generateEpitaph() : n'affecte aucune autre logique de fin de partie.
 function gameOver(timeout = false, killer = null) {
+    // Gorgoth (chantier 17) : tomber face à lui hors forme finale = expulsion de l'antre, jamais la mort.
+    if (!timeout && gameState.demonFight && !gameState.demonFight.final) { expelFromDemonLair(); return; }
+    if (!timeout && gameState.demonFight && killer === 'bleed' && gameState.currentEnemy) killer = gameState.currentEnemy;
+    gameState.demonFight = null;
     gameState.inCombat = true; // Bloque toute action supplémentaire
     ui.combatZone.classList.add('hidden'); // Cache la zone de combat
     triggerHeavyImpact(); // Chantier 4 : la mort du joueur est l'un des 4 moments à hiérarchie forte
