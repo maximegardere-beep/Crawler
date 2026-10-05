@@ -9718,6 +9718,340 @@ function giveTestKit() {
 }
 
 // ==========================================
+// COMBAT DÉMONIAQUE : INTERFACE (chantier 17, lot 3)
+// ==========================================
+// HUD de stress du combat contre Gorgoth le Concierge, à l'intérieur de #combat-zone (#demon-hud) : barre de PV en
+// chaînes (maillons qui cassent pendant l'acte I, repères d'acte), jauge d'Emprise (violet -> rouge, pulsation au-delà
+// de 75), bannière d'intention (#demon-intent-banner : « ??? » tant qu'elle est masquée et non révélée), compte à
+// rebours du Cataclysme, indicateur d'acte et Cicatrices. Voile plein écran #demon-emprise-veil (veines rouges sur les
+// bords, pointer-events: none) dont l'opacité suit l'Emprise, battement visuel + son 'demonHeartbeat' (au plus un par
+// tour, aucun minuteur : simple redémarrage d'une animation CSS) dès 60 d'Emprise, flash violet à la Possession.
+// Le moteur (lot 2) pose gameState.demonFight / currentEnemy.isDemon ; ici on ne fait que LIRE. Tout le calcul est dans
+// demonHudModel() (pure, testée sans DOM) ; updateDemonUI() ne fait qu'écrire le modèle dans la page.
+
+const DEMON_INTENT_LABELS = {
+    scythe: { icon: '🪓', name: 'Fauche', hint: 'Recule !', tone: 'scythe' },
+    blaze: { icon: '🔥', name: 'Brasier', hint: 'Colle-toi à lui !', tone: 'blaze' },
+    grip: { icon: '🫳', name: 'Emprise', hint: 'Magie ou volonté !', tone: 'grip' },
+    guard: { icon: '🛡️', name: 'Garde', hint: 'Charge pour briser la garde !', tone: 'guard' },
+    whip: { icon: '➰', name: 'Fouet', hint: 'Il va te ramener à lui', tone: 'whip' }
+};
+const DEMON_INTENT_HIDDEN = { icon: '❓', name: '???', hint: 'Intention inconnue : reste sur tes gardes.', tone: 'hidden' };
+const DEMON_INTENT_UNKNOWN = { icon: '⚠️', name: 'Il prépare quelque chose…', hint: 'Reste sur tes gardes.', tone: 'hidden' };
+
+// Styles des Cicatrices (contrat : melee/ranged/magic/unarmed) et style opposé (mêlée <-> distance, magie <-> mains nues).
+const DEMON_SCAR_STYLES = {
+    melee: { icon: '⚔️', label: 'Mêlée', noun: 'coups de mêlée', opposite: 'ranged' },
+    ranged: { icon: '🏹', label: 'Distance', noun: 'tirs', opposite: 'melee' },
+    magic: { icon: '✨', label: 'Magie', noun: 'sorts', opposite: 'unarmed' },
+    unarmed: { icon: '👊', label: 'Mains nues', noun: 'coups à mains nues', opposite: 'magic' }
+};
+const DEMON_SCAR_MAX_RANK = 3;
+const DEMON_SCAR_RESIST_PER_RANK = 20;   // % de résistance par cran (20/40/60)
+const DEMON_SCAR_WEAKNESS_PER_RANK = 15; // % de dégâts subis en plus du style opposé, par cran
+const DEMON_ACT_ROMAN = ['I', 'II', 'III', 'IV'];
+const DEMON_HUD_CHAINS = 4;
+const DEMON_EMPRISE_PULSE = 75;      // pulsation de la jauge au-delà
+const DEMON_EMPRISE_HEARTBEAT = 60;  // battement du voile (et son) à partir de
+const DEMON_EMPRISE_COLOR_LOW = [139, 92, 246];  // violet (#8b5cf6)
+const DEMON_EMPRISE_COLOR_HIGH = [220, 38, 38];  // rouge (#dc2626)
+
+function demonClampPct(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return 0;
+    return Math.max(0, Math.min(100, n));
+}
+
+// Couleur de la jauge d'Emprise : interpolation linéaire violet -> rouge, en #rrggbb.
+function demonEmpriseColor(emprise) {
+    const t = demonClampPct(emprise) / 100;
+    return '#' + DEMON_EMPRISE_COLOR_LOW.map((lo, i) => {
+        const c = Math.round(lo + (DEMON_EMPRISE_COLOR_HIGH[i] - lo) * t);
+        return c.toString(16).padStart(2, '0');
+    }).join('');
+}
+
+// Infobulle d'une Cicatrice : résistance du style marqué, faiblesse du style opposé (chiffres validés du plan).
+function describeDemonScar(style, rank) {
+    const def = DEMON_SCAR_STYLES[style];
+    if (!def) return '';
+    const r = Math.max(0, Math.min(DEMON_SCAR_MAX_RANK, Math.floor(Number(rank) || 0)));
+    if (r === 0) return `${def.label} : aucune cicatrice, aucune résistance.`;
+    const opp = DEMON_SCAR_STYLES[def.opposite];
+    const resist = r * DEMON_SCAR_RESIST_PER_RANK;
+    const weak = r * DEMON_SCAR_WEAKNESS_PER_RANK;
+    const immune = r >= DEMON_SCAR_MAX_RANK ? ' et ignore leurs effets' : '';
+    return `Cicatrice ${def.label} (cran ${r}/${DEMON_SCAR_MAX_RANK}) : Gorgoth résiste à ${resist} % aux ${def.noun}${immune}. ` +
+        `Faiblesse : +${weak} % de dégâts subis des ${opp.noun} (${opp.label}).`;
+}
+
+// Modèle PUR du HUD : aucun accès au DOM ni à gameState. demonFight = gameState.demonFight, enemy = currentEnemy,
+// demonState = gameState.demon (Cicatrices). Renvoie { visible: false } si rien à afficher.
+function demonHudModel(demonFight, enemy, demonState) {
+    if (!demonFight || !enemy || !enemy.isDemon) return { visible: false };
+    const final = !!(demonFight.final || enemy.demonFinal);
+    const maxActs = Math.max(1, Math.min(4, Math.floor(Number(demonFight.maxActs) || (final ? 4 : 3))));
+    const act = Math.max(1, Math.min(maxActs, Math.floor(Number(demonFight.act) || 1)));
+    const roman = DEMON_ACT_ROMAN[act - 1];
+    const actLabel = act === 4 ? `Acte ${roman} — Dernier souffle` : `Acte ${roman}`;
+
+    const maxHp = Math.max(1, Number(enemy.maxHp) || Number(enemy.hp) || 1);
+    const hp = Math.max(0, Math.min(maxHp, Number(enemy.hp) || 0));
+    const hpPct = Math.round(demonClampPct(hp / maxHp * 100) * 10) / 10;
+    // Repères d'acte sur la barre : 66 % et 33 % (et 15 % pour le 4e acte de l'étage 18).
+    const actMarks = [66, 33];
+    if (maxActs >= 4) actMarks.push(15);
+
+    const rawChains = Number(demonFight.chainsLeft);
+    const chainsLeft = Number.isFinite(rawChains) ? Math.max(0, Math.min(DEMON_HUD_CHAINS, Math.floor(rawChains))) : (act === 1 ? DEMON_HUD_CHAINS : 0);
+    const chains = [];
+    for (let i = 0; i < DEMON_HUD_CHAINS; i++) chains.push(i < chainsLeft);
+
+    const emprise = Math.round(demonClampPct(demonFight.emprise));
+    const empriseLevel = emprise >= 90 ? 'critical' : emprise > DEMON_EMPRISE_PULSE ? 'high' : emprise >= 40 ? 'mid' : 'low';
+    const veilOpacity = Math.round(Math.max(0, Math.min(1, (emprise - 15) / 85)) * 0.9 * 100) / 100;
+
+    let intent = null;
+    const rawIntent = demonFight.intent;
+    if (rawIntent && rawIntent.key) {
+        const masked = !!rawIntent.hidden && !rawIntent.revealed;
+        const def = masked ? DEMON_INTENT_HIDDEN : (DEMON_INTENT_LABELS[rawIntent.key] || DEMON_INTENT_UNKNOWN);
+        intent = { key: rawIntent.key, masked, revealed: !!rawIntent.hidden && !!rawIntent.revealed, icon: def.icon, name: def.name, hint: def.hint, tone: def.tone };
+    }
+
+    const rawCountdown = Number(demonFight.countdown);
+    const showCountdown = act >= 3 && demonFight.countdown !== null && demonFight.countdown !== undefined && Number.isFinite(rawCountdown);
+    const countdownValue = showCountdown ? Math.max(0, Math.floor(rawCountdown)) : null;
+    const countdown = {
+        show: showCountdown,
+        value: countdownValue,
+        urgent: showCountdown && countdownValue <= 2,
+        critical: showCountdown && countdownValue <= 1
+    };
+
+    const rawScars = (demonState && demonState.scars) || {};
+    const scars = Object.keys(DEMON_SCAR_STYLES).map(style => {
+        const rank = Math.max(0, Math.min(DEMON_SCAR_MAX_RANK, Math.floor(Number(rawScars[style]) || 0)));
+        const def = DEMON_SCAR_STYLES[style];
+        return {
+            style, rank, icon: def.icon, label: def.label,
+            pips: '●'.repeat(rank) + '○'.repeat(DEMON_SCAR_MAX_RANK - rank),
+            resistPct: rank * DEMON_SCAR_RESIST_PER_RANK,
+            title: describeDemonScar(style, rank)
+        };
+    }).filter(s => s.rank > 0);
+
+    return {
+        visible: true,
+        final,
+        act, maxActs, actLabel, actRoman: roman,
+        hp, maxHp, hpPct, hpText: `${Math.ceil(hp)}/${Math.ceil(maxHp)}`, actMarks,
+        chainsLeft, chains, showChains: act === 1 || chainsLeft > 0,
+        emprise, empriseColor: demonEmpriseColor(emprise), empriseLevel,
+        emprisePulse: emprise > DEMON_EMPRISE_PULSE,
+        heartbeat: emprise >= DEMON_EMPRISE_HEARTBEAT,
+        veilOpacity,
+        intent,
+        countdown,
+        possessed: !!demonFight.possessedThisTurn,
+        scars
+    };
+}
+
+function demonEscapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// HTML PUR de la barre de PV en chaînes : remplissage, repères d'acte, maillons (entiers ou brisés).
+function buildDemonChainsHtml(model) {
+    if (!model || !model.visible) return '';
+    const marks = model.actMarks.map(p => `<span class="demon-act-mark" style="left:${p}%"></span>`).join('');
+    const track = `<div class="demon-hp-track"><div class="demon-hp-fill" style="width:${model.hpPct}%"></div>${marks}</div>`;
+    if (!model.showChains) return track;
+    const links = model.chains.map((intact, i) =>
+        `<span class="demon-chain-link ${intact ? 'is-intact' : 'is-broken'}" title="${intact ? 'Chaîne intacte' : 'Chaîne brisée'}" data-chain="${i}">⛓️</span>`
+    ).join('');
+    return track + `<div class="demon-chain-row" aria-label="Chaînes restantes : ${model.chainsLeft} sur ${model.chains.length}">${links}</div>`;
+}
+
+// HTML PUR des Cicatrices (une pastille par style marqué, infobulle explicative).
+function buildDemonScarsHtml(model) {
+    if (!model || !model.visible || !model.scars.length) return '';
+    return model.scars.map(s =>
+        `<span class="demon-scar" data-style="${s.style}" title="${demonEscapeHtml(s.title)}">${s.icon}<span class="demon-scar-pips">${s.pips}</span></span>`
+    ).join('');
+}
+
+// État du battement / du flash (variables de module, jamais sauvegardées) : au plus un par tour.
+let demonUiLastFight = null;
+let demonUiLastBeatKey = null;
+let demonUiLastPossessKey = null;
+
+function demonUiTurnKey(fight) {
+    const occ = gameState.occasion;
+    if (occ && typeof occ.turn === 'number') return 't' + occ.turn;
+    return `e${fight.emprise}|c${fight.countdown}|a${fight.act}`;
+}
+
+// Redémarre une animation CSS ponctuelle (aucun minuteur : retirer la classe, forcer un recalcul, la remettre).
+function demonRestartAnim(el, cls) {
+    if (!el || !el.classList) return;
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+}
+
+function hideDemonHud() {
+    const hud = document.getElementById('demon-hud');
+    if (hud) hud.classList.add('hidden');
+    const veil = document.getElementById('demon-emprise-veil');
+    if (veil) {
+        veil.classList.add('hidden');
+        veil.style.opacity = '0';
+        veil.classList.remove('demon-veil-beat', 'demon-veil-possess');
+    }
+    demonUiLastFight = null;
+    demonUiLastBeatKey = null;
+    demonUiLastPossessKey = null;
+}
+
+// Point d'entrée du contrat (lot 3) : appelé par updateUI() et par le moteur du lot 2 après chaque rendu.
+function updateDemonUI() {
+    const hud = document.getElementById('demon-hud');
+    if (!hud) return;
+    const fight = gameState.demonFight || null;
+    const model = demonHudModel(fight, gameState.currentEnemy, gameState.demon);
+    if (!model.visible) { hideDemonHud(); return; }
+    if (fight !== demonUiLastFight) {
+        demonUiLastFight = fight;
+        demonUiLastBeatKey = null;
+        demonUiLastPossessKey = null;
+    }
+    hud.classList.remove('hidden');
+    hud.classList.toggle('demon-hud-final', model.final);
+
+    const el = (id) => document.getElementById(id);
+    const actLabel = el('demon-act-label');
+    if (actLabel) {
+        actLabel.textContent = model.actLabel;
+        actLabel.classList.toggle('demon-act-last', model.act === 4);
+    }
+    const finalBadge = el('demon-final-badge');
+    if (finalBadge) finalBadge.classList.toggle('hidden', !model.final);
+    const hpText = el('demon-hp-text');
+    if (hpText) hpText.textContent = model.hpText;
+    const chains = el('demon-hp-chains');
+    if (chains) chains.innerHTML = buildDemonChainsHtml(model);
+
+    const empFill = el('demon-emprise-fill');
+    if (empFill) {
+        empFill.style.width = model.emprise + '%';
+        empFill.style.backgroundColor = model.empriseColor;
+    }
+    const empTrack = el('demon-emprise-track');
+    if (empTrack) {
+        empTrack.classList.toggle('demon-emprise-pulse', model.emprisePulse);
+        empTrack.setAttribute('aria-valuenow', String(model.emprise));
+    }
+    const empValue = el('demon-emprise-value');
+    if (empValue) {
+        empValue.textContent = `${model.emprise}/100`;
+        empValue.style.color = model.empriseColor;
+    }
+
+    const banner = el('demon-intent-banner');
+    if (banner) {
+        if (!model.intent) {
+            banner.classList.add('hidden');
+        } else {
+            banner.classList.remove('hidden');
+            banner.setAttribute('data-intent', model.intent.tone);
+            banner.classList.toggle('demon-intent-masked', model.intent.masked);
+            const icon = el('demon-intent-icon'), name = el('demon-intent-name'), hint = el('demon-intent-hint');
+            if (icon) icon.textContent = model.intent.icon;
+            if (name) name.textContent = model.intent.revealed ? `${model.intent.name} (démasquée)` : model.intent.name;
+            if (hint) hint.textContent = model.intent.hint;
+        }
+    }
+
+    const cd = el('demon-countdown');
+    if (cd) {
+        cd.classList.toggle('hidden', !model.countdown.show);
+        cd.classList.toggle('demon-countdown-urgent', model.countdown.urgent);
+        cd.classList.toggle('demon-countdown-critical', model.countdown.critical);
+        const cdValue = el('demon-countdown-value');
+        if (cdValue) cdValue.textContent = model.countdown.show ? String(model.countdown.value) : '';
+    }
+
+    const scars = el('demon-scars');
+    if (scars) {
+        scars.innerHTML = buildDemonScarsHtml(model);
+        scars.classList.toggle('hidden', !model.scars.length);
+    }
+
+    const veil = el('demon-emprise-veil');
+    const turnKey = demonUiTurnKey(fight);
+    if (veil) {
+        veil.classList.remove('hidden');
+        veil.style.opacity = String(model.veilOpacity);
+        if (model.heartbeat && turnKey !== demonUiLastBeatKey) {
+            demonRestartAnim(veil, 'demon-veil-beat');
+        } else if (!model.heartbeat) {
+            veil.classList.remove('demon-veil-beat');
+        }
+        if (model.possessed && turnKey !== demonUiLastPossessKey) {
+            demonRestartAnim(veil, 'demon-veil-possess');
+            demonRestartAnim(hud, 'demon-hud-possess');
+        }
+    }
+    if (model.heartbeat && turnKey !== demonUiLastBeatKey) {
+        demonUiLastBeatKey = turnKey;
+        if (typeof playSfx === 'function') {
+            try { playSfx('demonHeartbeat'); } catch (e) { /* son absent : sans effet */ }
+        }
+    }
+    if (model.possessed) demonUiLastPossessKey = turnKey;
+}
+
+// DEV (console) : pose un combat démoniaque simulé et rafraîchit le HUD. partialState complète gameState.demonFight
+// (act, emprise, countdown, intent, chainsLeft, possessedThisTurn…), plus hpPct (PV du démon en %) et scars.
+// Réutilise l'ennemi du combat en cours s'il y en a un (marqué isDemon), sinon un ennemi factice (HUD seul).
+function devPreviewDemonHud(partialState = {}) {
+    const p = partialState || {};
+    const final = !!p.final;
+    const maxActs = p.maxActs || (final ? 4 : 3);
+    const act = Math.max(1, Math.min(maxActs, p.act || 1));
+    const defaultPct = { 1: 90, 2: 50, 3: 20, 4: 10 }[act];
+    const hpPct = demonClampPct(p.hpPct !== undefined ? p.hpPct : defaultPct);
+    let enemy = gameState.currentEnemy;
+    if (!enemy) {
+        enemy = { name: 'Gorgoth le Concierge', maxHp: 500, hp: 500 };
+        gameState.currentEnemy = enemy;
+    }
+    Object.assign(enemy, { isDemon: true, isBoss: true, baseName: 'Gorgoth le Concierge', demonFinal: final });
+    if (!enemy.maxHp) enemy.maxHp = enemy.hp || 500;
+    enemy.hp = Math.max(1, Math.round(enemy.maxHp * hpPct / 100));
+    gameState.demonFight = Object.assign({
+        act, maxActs, final,
+        emprise: 10,
+        intent: { key: 'scythe', hidden: false, revealed: false },
+        countdown: act >= 3 ? (final && act === 4 ? 3 : 5) : null,
+        chainsLeft: act === 1 ? Math.max(0, Math.min(4, Math.ceil((hpPct - 66) / 8.5))) : 0,
+        possessedThisTurn: false,
+        dmgByStyle: { melee: 0, ranged: 0, magic: 0, unarmed: 0 }
+    }, p, { act, maxActs, final });
+    if (p.intent) gameState.demonFight.intent = Object.assign({ hidden: false, revealed: false }, p.intent);
+    delete gameState.demonFight.hpPct;
+    delete gameState.demonFight.scars;
+    if (p.scars) {
+        if (!gameState.demon) gameState.demon = { encounters: 0, knockouts: 0, expulsions: 0, scars: { melee: 0, ranged: 0, magic: 0, unarmed: 0 }, lastFloorFought: 0 };
+        gameState.demon.scars = Object.assign({ melee: 0, ranged: 0, magic: 0, unarmed: 0 }, gameState.demon.scars, p.scars);
+    }
+    updateDemonUI();
+    return demonHudModel(gameState.demonFight, gameState.currentEnemy, gameState.demon);
+}
+
+// ==========================================
 // ÉCRAN PLEIN ÉCRAN DE RENCONTRE (chantier 16, lot 1)
 // ==========================================
 // Overlay statique qui annonce une altercation (« il t'a vu », embuscade, « tu l'as vu », boss, chasseur) AVANT que
