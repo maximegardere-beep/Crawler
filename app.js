@@ -3682,9 +3682,40 @@ function recordRunEvent(type, data = {}) {
             s.arcadeNet += (data.payout || 0) - (data.stake || 0);
             if (data.tier === 'lose') s.arcadeLost += data.stake || 0;
             break;
+        // Gorgoth le Concierge (chantier 17, lot 9) : les lots du combat et de l'armurerie émettent ces 4 événements.
+        case 'demonEncounter': s.demonEncounters = (s.demonEncounters || 0) + 1; break;
+        case 'demonKnockout': recordDemonKnockout(s, data); break;
+        case 'demonExpelled':
+            s.demonExpulsions = (s.demonExpulsions || 0) + 1;
+            s.demonLastExpelledFloor = gameState.currentFloor;
+            break;
+        case 'demonArmory':
+            if (data.kept) s.demonArmoryPicks = (s.demonArmoryPicks || 0) + 1;
+            break;
         default: break; // 'explore', 'equip', 'itemStored', 'loyalty', 'death', 'victory'… : simple réévaluation
     }
     evaluateAchievements({ type, ...data });
+}
+
+// Mise au tapis de Gorgoth (chantier 17, lot 9) : `final` = victoire définitive de l'étage 18 (aucune Cicatrice) ;
+// sinon +1 mise au tapis et un cran de Cicatrice pour le style qui l'a battu (plafonné à DEMON_SCAR_MAX_RANK).
+// demonScarMax garde le cran le plus haut atteint pendant le run, en lisant aussi gameState.demon.scars s'il existe (lot 2).
+const DEMON_SCAR_STYLES = ['melee', 'ranged', 'magic', 'unarmed'];
+const DEMON_SCAR_MAX_RANK = 3;
+function recordDemonKnockout(s, data = {}) {
+    if (data.final) {
+        s.demonFinalSlain = (s.demonFinalSlain || 0) + 1;
+        return;
+    }
+    s.demonKnockouts = (s.demonKnockouts || 0) + 1;
+    s.demonLastKnockoutFloor = gameState.currentFloor;
+    if (!s.demonScarsByStyle || typeof s.demonScarsByStyle !== 'object') s.demonScarsByStyle = { melee: 0, ranged: 0, magic: 0, unarmed: 0 };
+    if (DEMON_SCAR_STYLES.includes(data.scarStyle)) {
+        s.demonScarsByStyle[data.scarStyle] = Math.min(DEMON_SCAR_MAX_RANK, (s.demonScarsByStyle[data.scarStyle] || 0) + 1);
+    }
+    const persisted = (gameState.demon && gameState.demon.scars) || {};
+    const ranks = DEMON_SCAR_STYLES.map(k => Math.max(s.demonScarsByStyle[k] || 0, Math.min(DEMON_SCAR_MAX_RANK, persisted[k] || 0)));
+    s.demonScarMax = Math.max(s.demonScarMax || 0, ...ranks);
 }
 
 // Rejoue le `check` de chaque succès encore verrouillé. Les succès posthumes ne sont évalués qu'à la mort.
@@ -4003,7 +4034,13 @@ function buildShowContext(lastFloor = {}) {
         essaiPct: Math.round((1 - trialDamageMult(gameState.level, gameState.currentFloor)) * 100),
         finEssai: config.earlyGame.enabled && gameState.currentFloor === config.earlyGame.maxFloor + 1,
         scenario: gameState.plotArmorFloor > 0 && gameState.plotArmorFloor === gameState.currentFloor - 1,
-        interimKills: rs.interimKills || 0
+        interimKills: rs.interimKills || 0,
+        // Gorgoth le Concierge (chantier 17, lot 9) : mises au tapis, expulsions, et ce qui s'est passé sur l'étage qui vient de finir.
+        demonKO: rs.demonKnockouts || 0,
+        demonExpulsions: rs.demonExpulsions || 0,
+        demonFresh: (rs.demonLastKnockoutFloor || 0) > 0 && rs.demonLastKnockoutFloor === gameState.currentFloor - 1,
+        demonExpelledFresh: (rs.demonLastExpelledFloor || 0) > 0 && rs.demonLastExpelledFloor === gameState.currentFloor - 1,
+        demonScarMax: rs.demonScarMax || 0
     };
 }
 
@@ -4555,7 +4592,8 @@ const DEATH_CAUSE_LABELS = {
     backfire: "par un sort qui a mal tourné",
     trap: "dans un piège",
     bleed: "d'une hémorragie",
-    timeout: "faute de temps"
+    timeout: "faute de temps",
+    demon: "des mains de Gorgoth le Concierge"
 };
 
 // Pool de templates par cause de mort, tirage aléatoire (voir pick()). {{mob}}/{{etage}}/
@@ -4605,6 +4643,14 @@ const EPITAPH_TEMPLATES = {
         "Le sort est parti de travers, et le crawler avec, à l'étage {{etage}}. La magie est une maîtresse cruelle.",
         "Tué(e) par son propre sortilège à l'étage {{etage}}. Le grimoire n'assume aucune responsabilité.",
         "Backfire fatal à l'étage {{etage}} : la magie a repris ce qu'elle avait prêté."
+    ],
+    // Cause dédiée (chantier 17, lot 9) : tué par Gorgoth le Concierge (seule sa forme finale, à l'étage 18, tue pour de vrai).
+    demon: [
+        "{{crawler}} est mort(e) à l'étage {{etage}}, la main sur la poignée de la Sortie. Gorgoth a encaissé le loyer.",
+        "Ici repose {{crawler}}, expulsé(e) pour de bon par [{{mob}}] à l'étage {{etage}}. Motif : impayés. Le trousseau de clés fume encore.",
+        "[{{mob}}] a fait l'état des lieux à l'étage {{etage}}. Il a gardé la caution. Et le crawler.",
+        "Le Concierge ne rend jamais les clés. {{crawler}} l'a appris à l'étage {{etage}}, en dernière lecture du règlement intérieur.",
+        "Étage {{etage}} : {{crawler}} voulait sortir sans faire le ménage. Gorgoth n'a jamais toléré ça."
     ]
 };
 
@@ -9154,7 +9200,10 @@ function gameOver(timeout = false, killer = null) {
     let cause = 'timeout';
     let enemyName = null;
     if (!timeout) {
-        if (killer === 'trap') {
+        if (killer && typeof killer === 'object' && killer.isDemon) {
+            cause = 'demon'; // Gorgoth le Concierge (chantier 17, lot 9) : cause dédiée, prioritaire même sur un backfire
+            enemyName = killer.name || 'Gorgoth le Concierge';
+        } else if (killer === 'trap') {
             cause = 'trap';
         } else if (killer === 'bleed') {
             cause = 'bleed';

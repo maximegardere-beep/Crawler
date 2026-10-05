@@ -1863,7 +1863,30 @@ const GAME_OVER_CAUSE_PROPS = {
         <g transform="translate(58 128) rotate(70)">
             <path d="M-6 -10 H6 L0 0 L6 10 H-6 L0 0 Z" fill="#d8d6cc" fill-opacity="0.35" stroke="#caa23a" stroke-width="1.5"/>
             <path d="M-8 -10 H8 M-8 10 H8" stroke="#6b4a2a" stroke-width="2.5"/>
-        </g>`
+        </g>`,
+    // Gorgoth le Concierge (chantier 17, lot 9) : empreintes de sabot calcinées, braises encore rougeoyantes, clé fondue
+    // et casquette de concierge roussie abandonnée près du corps. Il est reparti travailler.
+    demon: `
+        <g fill="#05060c" opacity="0.7">
+            ${[[34, 150, -14], [58, 124, -8], [40, 96, -16], [66, 70, -6]].map(([x, y, a]) => `
+            <g transform="translate(${x} ${y}) rotate(${a})"><path d="M-7 6 Q-9 -6 -2 -9 L-1 6 Z M7 6 Q9 -6 2 -9 L1 6 Z"/><ellipse rx="11" ry="9" opacity="0.35"/></g>`).join('')}
+        </g>
+        <g class="bd-crackle" fill="#f59e0b" opacity="0.75">
+            <circle cx="36" cy="146" r="1.4"/><circle cx="60" cy="120" r="1.2"/><circle cx="42" cy="92" r="1.3"/><circle cx="68" cy="66" r="1.1"/>
+        </g>
+        <g transform="translate(96 140) rotate(-30)">
+            <path d="M-12 0 Q-6 -3 0 -1 Q6 2 10 0 Q14 6 8 8 Q2 10 -4 7 Q-10 6 -12 0 Z" fill="#7a5a1e" opacity="0.6"/>
+            <circle cx="-8" cy="0" r="4.5" fill="none" stroke="#caa23a" stroke-width="2"/>
+            <path d="M-3.5 0 H6 Q9 2 7 5 M2 0 v3 M5 0 v2" fill="none" stroke="#caa23a" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="7" cy="5" r="1.6" fill="#f59e0b"/>
+        </g>
+        <g transform="translate(226 44) rotate(18)">
+            <ellipse cx="0" cy="4" rx="17" ry="5" fill="#1e2433" stroke="#05060c" stroke-width="1.2"/>
+            <path d="M-12 3 Q-12 -10 0 -11 Q12 -10 12 3 Z" fill="#2b3446" stroke="#05060c" stroke-width="1.2"/>
+            <rect x="-5" y="-6" width="10" height="4" rx="1" fill="#caa23a" stroke="#05060c" stroke-width="0.6"/>
+            <path d="M-9 -4 q4 -3 7 0 M3 -8 q4 1 5 4" fill="none" stroke="#05060c" stroke-width="1.4" opacity="0.8"/>
+        </g>
+        <g class="bd-steam"><circle cx="222" cy="30" r="4" fill="#9ca3af" opacity="0.3"/></g>`
 };
 
 if (typeof module !== 'undefined' && module.exports) {

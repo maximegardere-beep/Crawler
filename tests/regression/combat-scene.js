@@ -497,6 +497,9 @@ function isRedHex(hex) {
     assert(content.innerHTML.includes('data-cause="trap"') && content.innerHTML.includes(GAME_OVER_CAUSE_PROPS.trap), "gameOver() sur un piège : scène du cadavre avec la plaque à pointes");
     gameOver(true);
     assert(content.innerHTML.includes('data-cause="timeout"'), "gameOver() par épuisement du temps : indice des gravats");
+    gameOver(false, { isDemon: true, name: 'Gorgoth le Concierge', baseName: 'Gorgoth le Concierge' });
+    assert(content.innerHTML.includes('data-cause="demon"') && content.innerHTML.includes(GAME_OVER_CAUSE_PROPS.demon), "gameOver() par Gorgoth (chantier 17) : empreintes de sabot, clé fondue et casquette de concierge");
+    assert(!/Math\.random/.test(GAME_OVER_CAUSE_PROPS.demon) && !(GAME_OVER_CAUSE_PROPS.demon.match(/#[0-9a-fA-F]{6}\b/g) || []).some(isRedHex), "Indice Gorgoth : SVG pur, sans rouge vif (les braises restent orange)");
     gameState.necrologie = savedNecro;
     document.getElementById('game-over-overlay').classList.add('hidden');
     resetTransientState();

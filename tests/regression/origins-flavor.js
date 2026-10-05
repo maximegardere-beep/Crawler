@@ -75,7 +75,7 @@ const choose = (race, cls) => {
     resetTransientState(); gameState.saveEnabled = true; gameState.playerName = 'Succès';
     assert(createEmptyRunStats().classAbilities === 0 && createEmptyRunStats().lastStands === 0 && normalizeRunStats({ kills: 3 }).synergyAbilities === 0, "Chronique : nouveaux compteurs à 0, y compris sur une ancienne chronique");
     ['origin_chosen', 'ability_first', 'ability_10', 'ability_boss', 'synergy_used', 'last_stand'].forEach(id => assert(!!getAchievementById(id) && getAchievementById(id).check, `Succès ${id} au catalogue`));
-    assert(!getAchievementById('last_stand').secret && ACHIEVEMENTS.filter(a => a.tier === 'gold').length === 6, "Aucun nouveau succès Or ni secret : les paliers existants sont inchangés");
+    assert(!getAchievementById('last_stand').secret && ACHIEVEMENTS.filter(a => a.tier === 'gold').length === 7, "Aucun nouveau succès Or ni secret côté origines : les paliers existants sont inchangés (7 Or avec celui de Gorgoth, chantier 17)");
     assert(!gameState.achievements.origin_chosen, "(contrôle) rien de débloqué au départ");
     choose('elf', 'occultist');
     answerShow('refuse');
