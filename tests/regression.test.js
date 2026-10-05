@@ -46,6 +46,7 @@ require('./regression/origins-flavor.js');
 require('./regression/early-game.js');
 require('./regression/encounters.js');
 require('./regression/sounds.js');
+require('./regression/demon-ui.js');
 
 console.log(`${counts.passed} test(s) OK, ${counts.failures} échec(s).`);
 process.exit(counts.failures === 0 ? 0 : 1);
