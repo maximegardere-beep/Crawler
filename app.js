@@ -1618,7 +1618,7 @@ function updateUI() {
             // la bannière de transition suffit pour l'ANNONCE, ce badge est le rappel permanent).
             if (ui.bossPhaseBadge) {
                 const phase = gameState.currentEnemy.isBoss ? getBossPhase(gameState.currentEnemy) : 1;
-                if (gameState.currentEnemy.isBoss && phase >= 2) {
+                if (gameState.currentEnemy.isBoss && !gameState.currentEnemy.isDemon && phase >= 2) { // Gorgoth : l'acte du HUD (chantier 17) remplace la phase
                     ui.bossPhaseBadge.innerText = `Phase ${phase}`;
                     ui.bossPhaseBadge.classList.remove('hidden');
                 } else {

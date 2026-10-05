@@ -48,7 +48,7 @@ Une fois codé, un chantier est **condensé** ici (demande, décisions, livraiso
 | 14 | Buff de départ « Foutu pour foutu » (crawler sans arme) | S | Codé (à playtester) | chiffres à valider |
 | 15 | Rééquilibrage du début de partie (étages 1-3) | M | Codé (lots 0 à 5 : outil `sim:early`, Convention collective, Remplaçant intérimaire, Période d'essai, Armure de scénario, habillage satirique) — à playtester | `NOTES_DEBUT_DE_PARTIE.md` — playtest réel avant merge |
 | 16 | Entrées en combat : écrans plein écran par mob + départ à distance ou au corps à corps | L | Planifié — lots 0 à 3 et 6 codés (catalogue `encounters.js`, overlay + repli sprite agrandi), toutes les images livrées en SVG : 13 boss (face, Vibe), 39 mobs (face + dos) et 3 chasseurs (face) dessinés par Claude | playtest de l'ensemble (lisibilité des écrans sur téléphone) |
-| 17 | Boss de Niveau : le démon de l'antre (4 clés, armurerie démoniaque, combat en 3 actes, adaptation) | XL | Suggéré (décisions des rounds 1-2 prises) | chiffres à proposer en liste, plan en lots |
+| 17 | Boss de Niveau : Gorgoth le Concierge (4 clés, armurerie démoniaque, combat en actes, Cicatrices, étage 18) | XL | Codé (9 lots fusionnés, PR #38 à #46 → branche `claude/chantier-17-demon`), à playtester | `NOTES_DEMON.md` — difficulté à vérifier en priorité |
 
 ### Codés (à playtester)
 
@@ -99,6 +99,7 @@ Leviers à regarder en premier ; le détail est dans la section « À surveiller
 - **Sons** (8) : écoute réelle de tous les sons (composés sans écoute), volume combat / événements, fatigue
   d'écoute, déblocage du son sur iOS.
 - **Sorts** (11) : combo Bouclier de Mana + Soin Express, Pas de l'Ombre et le kiting, étourdissement à 30 %.
+- **Gorgoth** (17) : difficulté (simulation toujours expulsée), temps d'un étage « 4 boss + Gorgoth », objets démoniaques trop forts ?
 - **Hérité du backlog** (`CLAUDE.md`) : table D100 des événements, furtivité, boss plus punitifs que les mobs
   en fin de run, économie urbaine.
 
@@ -556,7 +557,7 @@ attaque furtive (`attemptStealthAttack()`, `pendingSneakAttack`), embuscade de t
 - [x] Studio de Télé-Achat Abandonné : Mannequin Vitrine Possédé (essaie une perruque devant un écran éteint), Caméra de Surveillance Autonome (filme avec passion une plante en plastique), Présentateur Télé-Achat Hystérique (démonstration d'un éplucheur miracle devant des chaises vides).
 - [x] Chasseurs de primes (face seulement, décor de route de nuit, affiche RECHERCHÉ sans lettres) : Gobelin Pisteur de Primes (compare l'avis à ta tête, arbalète armée), Gobelin Cogneur de Primes (gourdin clouté levé, filet prêt), Chef d'Escouade Gobelin (hurle dans son porte-voix, sbires au loin).
 
-## 17. Boss de Niveau : le démon de l'antre — XL — Suggéré
+## 17. Boss de Niveau : Gorgoth le Concierge — XL — Codé (à playtester)
 
 **Demande** : un nouveau type de boss, hors du système actuel. Un démon, le MÊME d'un étage à l'autre : vaincu, il n'est qu'assommé.
 Pour l'affronter, vaincre les 4 boss de quartier d'un étage → 4 clés → porte colossale → antre du démon. Son armurerie contient une arme,
@@ -595,4 +596,10 @@ coûteux ; une immunité totale casserait un build déjà engagé.
 
 **Reste à proposer / valider** : nom du démon, chiffres en LISTE (stats calées sur le joueur, montée par rencontre, vitesse de l'Emprise,
 crans de Cicatrice, coût de l'expulsion, 4 objets et leurs malédictions), découpage en lots.
+
+**Décidé (round 3)** : nom **Gorgoth le Concierge** ; chiffres validés avec le plan (liste complète dans `NOTES_DEMON.md`) ; 9 lots codés en
+parallèle (PR #38 à #46) vers la branche d'intégration `claude/chantier-17-demon`, fusionnés et vérifiés (tests + parcours Chromium complet).
+
+**À playtester** : difficulté (la simulation longue est toujours expulsée), temps pour 4 boss + Gorgoth sur un étage, lisibilité de la scène
+haute + HUD sur téléphone, puissance des objets démoniaques face à leurs malédictions. Détail dans `NOTES_DEMON.md`.
 
