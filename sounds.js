@@ -51,6 +51,7 @@ const SFX_CATALOG = {
     confettiPop:  sfx('ranged', 'Confettis', 'Pop festif et pétillant.', [2.4, .05, 500, 0, .02, .12, 1, 1, 10, 0, 700, .04, 0, .5, 0, 0, .03, .6, 0]),
     stampThrow:   sfx('ranged', 'Tampon', 'Tampon encreur lancé : tchac.', [1.4, .05, 140, 0, .02, .1, 2, 1, -2, 0, 0, 0, 0, .5, 0, .1, 0, .5, 0]),
     pulseBeam:    sfx('ranged', "Canon à impulsions", 'Rayon laser.', [1.2, 0, 1100, 0, .06, .2, 2, 1, -30, 0, 0, 0, 0, 0, 20, 0, 0, .7, 0]),
+    emberKeyShot: layered('ranged', 'Clé ardente', 'Lance-Clés Infernal : corde qui claque, cliquetis de clés, souffle de braises.', [[0, [1.2, .05, 900, 0, .005, .03, 4, 1, 0, 0, 0, 0, 0, 3, 0, 0, 0, .5, 0]], [.01, [1.3, .05, 160, 0, .03, .22, 2, 1.5, -1, 0, 0, 0, 0, 0, 9, 0, 0, .6, .02]], [.03, [.5, 0, 2400, 0, .02, .06, 1, 1, 0, 0, 600, .02, .03, 0, 0, 0, 0, .5, 0]], [.04, [.7, .05, 300, .03, .15, .25, 4, 1, -2, 0, 0, 0, 0, 8, 0, 0, 0, .4, 0]]]),
     // Sorts : un son par école d'effet (style de FX_SPELLS, sprites/fx.js) + sort raté.
     spellZap:     recipe('spell', 'Éclair', 'Arc électrique (Éclair, Ampoule…).', 0.4, 2.22),
     spellPunch:   sfx('spell', 'Poing magique', 'Poing de glace ou de force.', [1.3, .05, 400, 0, .04, .12, 1, 1, -8, 0, 300, .03, 0, 0, 0, 0, 0, .6, 0]),
@@ -107,7 +108,8 @@ const SFX_MINIGAME_OUTCOMES = { perfect: 'minigamePerfect', success: 'minigameSu
 const SFX_MELEE_STYLES = { slash: 'swordSlash', smash: 'bluntSmash', thrust: 'thrustStab' };
 const SFX_PROJECTILES = {
     stone: 'slingStone', arrow: 'bowShot', bolt: 'crossbowShot', nail: 'nailGun', pellets: 'shotgunBlast',
-    dart: 'blowDart', water: 'waterJet', confetti: 'confettiPop', stamp: 'stampThrow', pulse: 'pulseBeam'
+    dart: 'blowDart', water: 'waterJet', confetti: 'confettiPop', stamp: 'stampThrow', pulse: 'pulseBeam',
+    emberKey: 'emberKeyShot'
 };
 const SFX_SPELL_STYLES = {
     zap: 'spellZap', punch: 'spellPunch', cone: 'spellCone', arc: 'spellArc', sky: 'spellSky',

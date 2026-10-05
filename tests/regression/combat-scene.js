@@ -658,7 +658,8 @@ function isRedHex(hex) {
     });
     assert(missing.length === 0, `Chaque objet du catalogue et chaque objet signature a son sprite (manquants : ${missing.join(', ')})`);
     assert(wrongKind.length === 0, `Le type de chaque sprite correspond à la catégorie de l'objet (${wrongKind.join(', ')})`);
-    const orphans = Object.keys(ITEM_SPRITES).filter(k => !k.startsWith('generic:') && !catalog.some(i => i.name === k));
+    // Les objets démoniaques de Gorgoth (chantier 17, sprites/items-demonic.js) sont dessinés par nom avant d'exister au catalogue.
+    const orphans = Object.keys(ITEM_SPRITES).filter(k => !k.startsWith('generic:') && !catalog.some(i => i.name === k) && !DEMONIC_ITEM_SPRITE_NAMES.includes(k));
     assert(orphans.length === 0, `Chaque sprite correspond à un objet existant (orphelins : ${orphans.join(', ')})`);
     const badTip = Object.keys(ITEM_SPRITES).filter(k => !Array.isArray(ITEM_SPRITES[k].tip) || ITEM_SPRITES[k].tip.length !== 2);
     assert(badTip.length === 0, `Chaque sprite a son point d'enchantement (tip) (${badTip.join(', ')})`);
@@ -701,6 +702,50 @@ function isRedHex(hex) {
     assert(!currentCrawler().markup.includes('ench-spark'), "Objet sans enchantement : aucune étincelle");
     gameState.equipment = savedEq;
     resetTransientState();
+}
+
+// ============================================================
+// Objets démoniaques de Gorgoth le Concierge (chantier 17, lot 5 : sprites/items-demonic.js + sprites/fx.js)
+// ============================================================
+{
+    const CONTRACT = ['Trousseau Ardent de Gorgoth', 'Bleu de Travail Ignifugé', 'Lance-Clés Infernal', 'Règlement Intérieur'];
+    const KIND = { 'Trousseau Ardent de Gorgoth': 'melee', 'Bleu de Travail Ignifugé': 'armor', 'Lance-Clés Infernal': 'ranged', 'Règlement Intérieur': 'spell' };
+    const clean = str => typeof str === 'string' && str.length > 0 && !/undefined|NaN|id=|<defs|Gradient|<filter|filter=/.test(str);
+    assert(CONTRACT.every(n => DEMONIC_ITEM_ART[n] && DEMONIC_ITEM_ART[n].kind === KIND[n]) && Object.keys(DEMONIC_ITEM_ART).length === 4, "Objets démoniaques : les 4 noms du contrat, chacun avec son type de dessin");
+    assert(DEMONIC_ITEM_SPRITE_NAMES.length === 3 && !DEMONIC_ITEM_SPRITE_NAMES.includes('Règlement Intérieur'), "Objets démoniaques : trois sprites d'équipement, le sort passe par son effet");
+    const bad = DEMONIC_ITEM_SPRITE_NAMES.filter(n => {
+        const sp = ITEM_SPRITES[n];
+        return !sp || sp.kind !== KIND[n] || !Array.isArray(sp.tip) || sp.tip.length !== 2 || !sp.tip.every(Number.isFinite) || !clean(sp.art);
+    });
+    assert(bad.length === 0, `Objets démoniaques : sprite du bon type, point d'enchantement, dessin sans valeur manquante, identifiant, dégradé ni filtre (${bad.join(', ')})`);
+    const icons = DEMONIC_ITEM_SPRITE_NAMES.map(n => itemIconSvg({ name: n, baseName: n, category: DEMONIC_ITEM_ART[n].category }, 24));
+    assert(icons.every(svg => svg.startsWith('<svg') && clean(svg)), "Objets démoniaques : icône d'inventaire valide (24 px)");
+    assert(DEMONIC_ITEM_SPRITE_NAMES.every(n => resolveItemSpriteKey({ name: `${n} +3`, category: DEMONIC_ITEM_ART[n].category }) === n), "Objets démoniaques : un nom suffixé retrouve son sprite");
+    const rule = demonicRulebookIconSvg(24);
+    assert(rule.startsWith('<svg') && clean(rule) && DEMONIC_ITEM_ART['Règlement Intérieur'].icon === DEMONIC_SPELL_ICON, "Règlement Intérieur : icône dessinée pour l'armurerie");
+    // Effets : style et éclat du fouet, clé ardente qui tourne, pages-sceaux du sort, lueur de paume
+    assert(MELEE_SWING_STYLES['Trousseau Ardent de Gorgoth'] === 'slash' && MELEE_IMPACTS['Trousseau Ardent de Gorgoth'] === 'brand', "Trousseau Ardent : claque en arc fin, marque au fer rouge");
+    assert(RANGED_PROJECTILES['Lance-Clés Infernal'] === 'emberKey' && FX_PROJECTILES.emberKey.spin && clean(FX_PROJECTILES.emberKey.art), "Lance-Clés Infernal : tire une clé ardente qui tourne sur elle-même");
+    const fx = FX_SPELLS[DEMONIC_SPELL_ICON];
+    assert(fx && fx.style === 'bolt' && fx.projectile === 'sealPage' && clean(FX_PROJECTILES.sealPage.art) && !spellCatalog.some(sp => sp.icon === DEMONIC_SPELL_ICON), "Règlement Intérieur : icône réservée, pages-sceaux enflammées");
+    assert(['brand', 'infernalSeal'].every(k => clean(FX_IMPACTS[k]()) && clean(FX_IMPACTS[k]('#ff0000'))), "Objets démoniaques : éclats d'impact propres");
+    assert(CRAWLER_SPELL_GLOWS[DEMONIC_SPELL_ICON] === '#f97316', "Règlement Intérieur : paume ardente en posture magie");
+    // Rendu sur le crawler (arme en main, lance-clés rangé, bleu de travail) et spécifications d'effet
+    resetTransientState();
+    const savedEq = gameState.equipment;
+    const fake = n => ({ name: n, baseName: n, category: DEMONIC_ITEM_ART[n].category });
+    gameState.equipment = Object.assign({}, savedEq, { weapon: fake('Trousseau Ardent de Gorgoth'), ranged: fake('Lance-Clés Infernal'), armor: fake('Bleu de Travail Ignifugé'), spell: { name: 'Règlement Intérieur', category: 'scrolls', spellCategory: 'ranged', icon: DEMONIC_SPELL_ICON } });
+    gameState.lastAttackKind = 'weapon';
+    const markup = currentCrawler().markup;
+    assert(DEMONIC_ITEM_SPRITE_NAMES.every(n => markup.includes(ITEM_SPRITES[n].art)) && clean(markup.replace(/id="[^"]*"/g, '')), "Crawler : porte les trois objets démoniaques sans valeur manquante");
+    const melee = playerAttackFxSpec('weapon');
+    const ranged = playerAttackFxSpec('ranged');
+    const magic = playerAttackFxSpec('magic');
+    assert(melee.style === 'slash' && melee.impact === 'brand' && ranged.projectile === 'emberKey' && ranged.impact === 'brand' && magic.projectile === 'sealPage' && magic.impact === 'infernalSeal', "Spécifications d'effet : fouet, clé ardente, pages-sceaux");
+    assert(playerAttackSfxKey(melee) === 'swordSlash' && playerAttackSfxKey(ranged) === 'emberKeyShot' && playerAttackSfxKey(magic) === 'spellBolt', "Sons : le fouet claque, la clé ardente a son propre son, le Règlement suit l'école projectile");
+    gameState.equipment = savedEq;
+    resetTransientState();
+    assert(typeof devPreviewDemonicItems === 'function', "Aide console : devPreviewDemonicItems()");
 }
 
 // ============================================================
