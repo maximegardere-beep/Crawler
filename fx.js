@@ -112,10 +112,14 @@ function fxArcPoint(from, to, arc, p) {
 }
 
 // --- Positions dans la scène -----------------------------------------------------------------------------
-function fxMobSprite() { return resolveMobSprite(gameState.currentEnemy); }
-function fxMobX() { return distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance, crawlerFrontExtent()); }
+// Combat contre Gorgoth (chantier 17) : la scène haute (#demon-scene, scene.js) accueille les MÊMES groupes
+// (#scene-mob, #scene-crawler, #scene-fx) dans un repère identique à celui de la scène de combat ; seule la position
+// et la taille de Gorgoth diffèrent (demonFxGeometry(), null hors de cette scène).
+function fxDemon() { return typeof demonFxGeometry === 'function' ? demonFxGeometry() : null; }
+function fxMobSprite() { const d = fxDemon(); return d ? { top: d.top } : resolveMobSprite(gameState.currentEnemy); }
+function fxMobX() { const d = fxDemon(); return d ? d.x : distanceToX(gameState.combatDistance, config.rangedCombat.maxDistance, crawlerFrontExtent()); }
 function fxMobHitPoint() { return [fxMobX() + 6, SCENE_GROUND_Y + fxMobSprite().top * 0.55]; }
-function fxMobFront() { return [fxMobX() + 14, SCENE_GROUND_Y + fxMobSprite().top * 0.55]; }
+function fxMobFront() { const d = fxDemon(); return d ? d.front : [fxMobX() + 14, SCENE_GROUND_Y + fxMobSprite().top * 0.55]; }
 function fxCrawlerHitPoint() { return [CRAWLER_X - 4, SCENE_GROUND_Y - 50]; }
 function fxCrawlerHand() {
     const arm = CRAWLER_ARMS[crawlerPosture()] || CRAWLER_ARMS.rest;

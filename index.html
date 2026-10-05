@@ -283,6 +283,33 @@
             80% { transform: translateX(1px); }
         }
         .scene-hit { animation: sceneHitShake 0.28s ease-out; }
+        /* Gorgoth le Concierge (sprites/demon.js, scène haute #demon-scene) : respiration, flammes, braises, fumée. */
+        .dmn-breathe { transform-box: fill-box; transform-origin: 50% 100%; animation: dmnBreathe 3.2s ease-in-out infinite; }
+        @keyframes dmnBreathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.012, 1.022); } }
+        .dmn-flame { transform-box: fill-box; transform-origin: 50% 100%; animation: dmnFlame 0.9s ease-in-out infinite; }
+        .dmn-flame-1 { animation-duration: 1.15s; animation-delay: -0.3s; }
+        .dmn-flame-2 { animation-duration: 0.75s; animation-delay: -0.55s; }
+        @keyframes dmnFlame { 0%, 100% { transform: scale(1, 1) skewX(0deg); } 30% { transform: scale(0.9, 1.12) skewX(-4deg); } 65% { transform: scale(1.06, 0.92) skewX(3deg); } }
+        .dmn-glow, .dmn-rune { animation: dmnGlow 2.4s ease-in-out infinite; }
+        @keyframes dmnGlow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        .dmn-wing { transform-box: view-box; transform-origin: 0 0; animation: dmnWing 5s ease-in-out infinite; }
+        .dmn-wing-far { animation-delay: -1.7s; }
+        @keyframes dmnWing { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-3deg); } }
+        .dmn-smoke-wisp { animation: dmnWisp 4.2s ease-in-out infinite alternate; }
+        @keyframes dmnWisp { from { transform: translate(0, 0); opacity: 0.6; } to { transform: translate(-4px, -3px); opacity: 0.3; } }
+        .dmn-ember { animation: dmnGlow 1.3s steps(2) infinite; }
+        .dmn-ember-rise { animation: dmnEmberRise 3.6s linear infinite; }
+        .dmn-ember-1 { animation-delay: -1.2s; animation-duration: 4.4s; }
+        .dmn-ember-2 { animation-delay: -2.5s; animation-duration: 3s; }
+        @keyframes dmnEmberRise { 0% { transform: translate(0, 0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(6px, -70px); opacity: 0; } }
+        .dmn-grip-aura, .dmn-brazier { transform-box: fill-box; transform-origin: center; animation: dmnPulse 1.1s ease-in-out infinite; }
+        @keyframes dmnPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+        .dmn-ko-stars { transform-box: fill-box; transform-origin: center; animation: dmnKoSpin 3s linear infinite; }
+        @keyframes dmnKoSpin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) {
+            .dmn-breathe, .dmn-flame, .dmn-glow, .dmn-rune, .dmn-wing, .dmn-smoke-wisp, .dmn-ember, .dmn-ember-rise,
+            .dmn-grip-aura, .dmn-brazier, .dmn-ko-stars { animation: none; }
+        }
         /* Décors (backdrops.js) : flammes de torche, halos qui vacillent, néons qui grésillent. */
         .bd-flame { transform-box: fill-box; transform-origin: 50% 100%; animation: bdFlameFlicker 1.6s ease-in-out infinite; }
         @keyframes bdFlameFlicker {
@@ -821,6 +848,18 @@
                 </svg>
                 <div id="scene-mob-anchor" class="absolute w-0 h-0 pointer-events-none"></div>
                 <div id="scene-crawler-anchor" class="absolute w-0 h-0 pointer-events-none"></div>
+            </div>
+
+            <!-- Scène HAUTE du combat contre Gorgoth le Concierge (chantier 17, lot 7) : remplace #combat-scene pendant
+                 un combat contre un ennemi isDemon (renderScene('demon'), scene.js). SVG séparé 360 x 300 ; les groupes
+                 #scene-mob/#scene-companion/#scene-crawler/#scene-fx et les deux ancres de chiffres de dégâts y sont
+                 DÉPLACÉS le temps du combat (#demon-stage reprend le repère de la scène de combat), puis rendus. -->
+            <div id="demon-scene" class="hidden relative w-full rounded-lg overflow-hidden border border-orange-900/60" style="aspect-ratio: 360 / 300;">
+                <svg id="demon-scene-svg" viewBox="0 0 360 300" class="absolute inset-0 w-full h-full" role="img" aria-label="Gorgoth le Concierge à gauche, vous à droite">
+                    <g id="demon-scene-backdrop"></g>
+                    <g id="demon-stage" transform="translate(0 156)"></g>
+                    <g id="demon-scene-front" pointer-events="none"></g>
+                </svg>
             </div>
 
             <!-- Distance (sous la scène), remplie par renderCombatScene(), puis la jauge de tension
@@ -1526,6 +1565,7 @@
     <script src="sprites/mob-auras.js?v=97"></script>
     <script src="sprites/bosses-a.js?v=97"></script>
     <script src="sprites/bosses-b.js?v=97"></script>
+    <script src="sprites/demon.js?v=97"></script>
     <script src="sprites/items-generic.js?v=97"></script>
     <script src="sprites/items-melee.js?v=97"></script>
     <script src="sprites/items-ranged.js?v=97"></script>
