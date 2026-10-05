@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
+  <defs>
+    <linearGradient id="gg-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#060205"/>
+      <stop offset="0.55" stop-color="#1a0707"/>
+      <stop offset="0.78" stop-color="#2c0c06"/>
+      <stop offset="1" stop-color="#0b0404"/>
+    </linearGradient>
+    <radialGradient id="gg-glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#f97316" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#b91c1c" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#7f1d1d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gg-eye" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff7ed" stop-opacity="0.9"/>
+      <stop offset="0.4" stop-color="#fb923c" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#f97316" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="gg-fire" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#b91c1c"/>
+      <stop offset="0.45" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#fde68a"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Antre d'obsidienne -->
+  <rect width="750" height="1334" fill="url(#gg-bg)"/>
+  <g fill="#0e0709" stroke="#05060c" stroke-width="6">
+    <path d="M0 0 H70 L96 180 L78 420 L104 700 L86 1000 H0 Z"/>
+    <path d="M750 0 H680 L654 200 L674 460 L646 720 L664 1000 H750 Z"/>
+  </g>
+  <g fill="none" stroke="#3b120c" stroke-width="4" opacity="0.8">
+    <path d="M30 120 l30 60 l-20 80 M40 520 l40 70 M20 820 l50 40"/>
+    <path d="M720 160 l-34 70 l24 90 M714 600 l-40 60 M730 860 l-46 30"/>
+  </g>
+  <ellipse cx="375" cy="560" rx="380" ry="500" fill="url(#gg-glow)"/>
+
+  <!-- Ailes de fumée -->
+  <g>
+    <path d="M330 480 C250 380 160 300 30 240 C70 300 30 330 0 370 C60 390 30 440 0 490 C70 490 60 550 30 610 C110 580 130 630 120 690 C180 630 240 610 300 640 Z" fill="#191315" stroke="#05060c" stroke-width="6" opacity="0.96"/>
+    <path d="M320 490 C250 420 170 360 70 320 M310 520 C230 480 140 470 40 500 M300 560 C230 560 170 600 110 660" fill="none" stroke="#3a2f33" stroke-width="7" stroke-linecap="round"/>
+    <path d="M60 360 C90 380 70 410 40 430 M70 540 C100 560 90 590 60 610" fill="none" stroke="#2a2124" stroke-width="10" stroke-linecap="round" opacity="0.8"/>
+  </g>
+  <g transform="matrix(-1 0 0 1 750 0)">
+    <path d="M330 480 C250 380 160 300 30 240 C70 300 30 330 0 370 C60 390 30 440 0 490 C70 490 60 550 30 610 C110 580 130 630 120 690 C180 630 240 610 300 640 Z" fill="#191315" stroke="#05060c" stroke-width="6" opacity="0.96"/>
+    <path d="M320 490 C250 420 170 360 70 320 M310 520 C230 480 140 470 40 500 M300 560 C230 560 170 600 110 660" fill="none" stroke="#3a2f33" stroke-width="7" stroke-linecap="round"/>
+    <path d="M60 360 C90 380 70 410 40 430 M70 540 C100 560 90 590 60 610" fill="none" stroke="#2a2124" stroke-width="10" stroke-linecap="round" opacity="0.8"/>
+  </g>
+
+  <!-- Crinière de flammes -->
+  <path d="M215 500 C195 420 235 400 215 330 C255 360 265 300 250 250 C290 290 305 240 300 180 C330 225 345 170 345 110 C365 160 375 130 375 90 C375 130 385 160 405 110 C405 170 420 225 450 180 C445 240 460 290 500 250 C485 300 495 360 535 330 C515 400 555 420 535 500 Z" fill="#c2410c" opacity="0.9"/>
+  <path d="M250 480 C240 420 270 400 255 350 C290 370 300 320 295 280 C325 310 340 260 345 210 C360 250 375 220 375 190 C375 220 390 250 405 210 C410 260 425 310 455 280 C450 320 460 370 495 350 C480 400 510 420 500 480 Z" fill="#f59e0b" opacity="0.85"/>
+
+  <!-- Bras gauche : le trousseau ardent -->
+  <path d="M245 480 Q140 520 122 610 Q108 520 122 440" fill="none" stroke="#05060c" stroke-width="92" stroke-linecap="round"/>
+  <path d="M245 480 Q140 520 122 610 Q108 520 122 440" fill="none" stroke="#2a1210" stroke-width="76" stroke-linecap="round"/>
+  <path d="M200 500 l-30 30 l-10 40 M118 560 l12 -40 l-14 -30" fill="none" stroke="#f97316" stroke-width="5" stroke-linecap="round"/>
+  <path d="M20 800 C60 700 20 620 70 520 C90 480 100 440 104 410" fill="none" stroke="#7c2d12" stroke-width="8" stroke-dasharray="14 8"/>
+  <path d="M20 800 C60 700 20 620 70 520 C90 480 100 440 104 410" fill="none" stroke="#f97316" stroke-width="3" stroke-dasharray="14 8"/>
+  <circle cx="128" cy="350" r="70" fill="url(#gg-eye)" opacity="0.7"/>
+  <circle cx="128" cy="350" r="50" fill="none" stroke="#05060c" stroke-width="16"/>
+  <circle cx="128" cy="350" r="50" fill="none" stroke="#f97316" stroke-width="9"/>
+  <circle cx="128" cy="350" r="50" fill="none" stroke="#fde68a" stroke-width="2.5"/>
+  <g fill="#fbbf24" stroke="#05060c" stroke-width="4">
+    <path d="M82 300 l-30 -30 m0 0 a12 12 0 1 1 -1 0 M60 278 l-8 8 M70 288 l-8 8"/>
+    <path d="M128 298 v-40 m0 0 a12 12 0 1 1 0 -1 M128 270 h-10 M128 282 h-10"/>
+    <path d="M174 300 l30 -30 m0 0 a12 12 0 1 1 1 0 M196 278 l8 8 M186 288 l8 8"/>
+    <path d="M178 390 l32 26 M200 408 l6 -10 M190 400 l6 -10"/>
+    <path d="M60 540 l-24 10 M40 548 l4 10 M74 640 l-26 6 M52 644 l3 10 M40 730 l-26 4"/>
+    <circle cx="20" cy="542" r="12"/><circle cx="34" cy="648" r="11"/><circle cx="8" cy="736" r="10"/>
+  </g>
+  <circle cx="120" cy="430" r="46" fill="#2a1210" stroke="#05060c" stroke-width="8"/>
+  <path d="M86 410 l-14 -14 M100 396 l-8 -18 M120 390 v-20 M142 396 l8 -18" stroke="#d6d3c4" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Torse de magma -->
+  <path d="M200 520 C190 450 260 410 375 405 C490 410 560 450 550 520 C570 640 560 760 520 860 C500 930 470 980 450 1010 H300 C280 980 250 930 230 860 C190 760 180 640 200 520 Z" fill="#2a1210" stroke="#05060c" stroke-width="10"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M375 430 l-20 50 l30 40 l-24 60 M375 520 l60 30 l30 -30 M300 470 l-30 60 l20 50 M470 470 l30 50 l-20 60" stroke="#f97316" stroke-width="8"/>
+    <path d="M375 430 l-20 50 l30 40 l-24 60 M375 520 l60 30 l30 -30 M300 470 l-30 60 l20 50 M470 470 l30 50 l-20 60" stroke="#fde68a" stroke-width="2.5"/>
+  </g>
+
+  <!-- Bleu de travail en lambeaux -->
+  <path d="M285 610 L248 455 M465 610 L502 455" stroke="#05060c" stroke-width="44" stroke-linecap="round"/>
+  <path d="M285 610 L248 455 M465 610 L502 455" stroke="#1e40af" stroke-width="32" stroke-linecap="round"/>
+  <path d="M268 600 L300 590 L320 606 L350 588 L378 604 L410 588 L440 606 L482 596 L502 900 C450 935 300 935 248 900 Z" fill="#1e3a8a" stroke="#05060c" stroke-width="8" stroke-linejoin="round"/>
+  <circle cx="288" cy="612" r="10" fill="#facc15" stroke="#05060c" stroke-width="4"/>
+  <circle cx="462" cy="612" r="10" fill="#facc15" stroke="#05060c" stroke-width="4"/>
+  <rect x="340" y="660" width="74" height="54" rx="6" fill="#1e40af" stroke="#05060c" stroke-width="5"/>
+  <path d="M356 650 v30" stroke="#d6d3c4" stroke-width="6" stroke-linecap="round"/>
+  <ellipse cx="300" cy="650" rx="24" ry="14" fill="#d8c9a3" stroke="#05060c" stroke-width="4"/>
+  <path d="M290 650 h16 m-4 0 v6 m-6 -6 v4" stroke="#7f1d1d" stroke-width="3"/>
+  <g stroke="#05060c" stroke-width="5" stroke-linejoin="round">
+    <path d="M290 760 l30 -20 l26 24 l-10 36 l-38 6 Z" fill="#f97316"/>
+    <path d="M430 800 l34 -14 l10 40 l-30 22 l-22 -18 Z" fill="#f97316"/>
+    <path d="M360 860 l40 -6 l8 30 l-46 12 Z" fill="#f97316"/>
+  </g>
+  <path d="M305 768 l18 -6 l10 14 l-6 16 l-16 2 Z M440 806 l16 -4 l6 18 l-12 8 Z M372 866 l18 -2 l4 14 l-20 4 Z" fill="#fde68a"/>
+  <path d="M270 880 l-8 30 M300 900 l-4 24 M450 900 l6 26 M480 880 l10 24" stroke="#1e3a8a" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Bras droit : la lame de feu -->
+  <path d="M505 480 Q620 530 612 690" fill="none" stroke="#05060c" stroke-width="92" stroke-linecap="round"/>
+  <path d="M505 480 Q620 530 612 690" fill="none" stroke="#2a1210" stroke-width="76" stroke-linecap="round"/>
+  <path d="M560 520 l30 30 l-6 40 M610 600 l-14 40" fill="none" stroke="#f97316" stroke-width="5" stroke-linecap="round"/>
+  <path d="M594 690 C584 600 620 560 606 480 C616 420 640 400 630 330 C642 280 652 230 656 120 C672 230 676 290 668 340 C680 410 662 450 666 520 C670 590 648 630 632 690 Z" fill="url(#gg-fire)" stroke="#05060c" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M608 670 C604 600 630 560 620 490 C630 430 646 400 640 340 C648 300 652 260 656 200 C662 270 662 310 656 350 C664 410 650 450 652 520 C654 590 636 630 624 670 Z" fill="#fff7ed" opacity="0.55"/>
+  <path d="M560 700 L680 676" stroke="#05060c" stroke-width="22" stroke-linecap="round"/>
+  <path d="M560 700 L680 676" stroke="#3a3034" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="616" cy="728" r="44" fill="#2a1210" stroke="#05060c" stroke-width="8"/>
+  <path d="M584 712 h60 M586 732 h58" stroke="#05060c" stroke-width="5"/>
+
+  <!-- Cornes -->
+  <g>
+    <path d="M318 262 C270 236 200 206 168 152 C148 112 158 70 190 36 C182 90 196 132 232 162 C262 186 302 206 334 228 Z" fill="#2b2124" stroke="#05060c" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M210 176 l16 -16 M186 132 l20 -6 M178 92 l20 2" stroke="#4a3f42" stroke-width="6" stroke-linecap="round"/>
+  </g>
+  <g transform="matrix(-1 0 0 1 750 0)">
+    <path d="M318 262 C270 236 200 206 168 152 C148 112 158 70 190 36 C182 90 196 132 232 162 C262 186 302 206 334 228 Z" fill="#2b2124" stroke="#05060c" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M210 176 l16 -16 M186 132 l20 -6 M178 92 l20 2" stroke="#4a3f42" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <!-- Tête -->
+  <path d="M300 300 C300 236 334 200 375 200 C416 200 450 236 450 300 C455 352 430 402 375 424 C320 402 295 352 300 300 Z" fill="#241010" stroke="#05060c" stroke-width="10"/>
+  <path d="M302 292 L375 324 L448 292 L442 268 L375 298 L308 268 Z" fill="#120808" stroke="#05060c" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="340" cy="314" r="34" fill="url(#gg-eye)"/>
+  <circle cx="410" cy="314" r="34" fill="url(#gg-eye)"/>
+  <path d="M316 302 L362 318 L354 330 L320 316 Z" fill="#fde68a" stroke="#05060c" stroke-width="3"/>
+  <path d="M434 302 L388 318 L396 330 L430 316 Z" fill="#fde68a" stroke="#05060c" stroke-width="3"/>
+  <path d="M366 346 l-6 12 M384 346 l6 12" stroke="#05060c" stroke-width="5" stroke-linecap="round"/>
+  <path d="M326 366 Q375 400 424 366 L414 398 Q375 424 336 398 Z" fill="#3b0a06" stroke="#05060c" stroke-width="6" stroke-linejoin="round"/>
+  <ellipse cx="375" cy="392" rx="26" ry="8" fill="#f97316" opacity="0.75"/>
+  <path d="M338 372 l8 16 l6 -12 M404 372 l-8 16 l-6 -12 M356 404 l6 -12 l6 12 M382 404 l6 -12 l6 12" fill="#e7e2d0" stroke="#05060c" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M312 330 l-10 30 M438 330 l10 30" stroke="#f97316" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Casquette de concierge calcinée -->
+  <path d="M314 232 C316 170 434 170 436 232 Z" fill="#3b4252" stroke="#05060c" stroke-width="8" stroke-linejoin="round" transform="rotate(-6 375 220)"/>
+  <g transform="rotate(-6 375 220)">
+    <rect x="312" y="226" width="126" height="16" fill="#1f2430" stroke="#05060c" stroke-width="5"/>
+    <path d="M326 242 Q375 266 442 240 L438 254 Q375 278 322 254 Z" fill="#111318" stroke="#05060c" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="375" cy="206" r="12" fill="#facc15" stroke="#05060c" stroke-width="4"/>
+    <path d="M375 206 h-4 M379 206 h12 M388 206 v6" stroke="#05060c" stroke-width="3"/>
+    <path d="M336 196 l8 -6 l6 8 l-8 6 Z M410 214 l10 -4 l2 10 l-10 2 Z" fill="#f97316" stroke="#05060c" stroke-width="3"/>
+    <path d="M330 214 q10 -6 20 0 M396 188 q8 -4 16 2" stroke="#05060c" stroke-width="3" fill="none" opacity="0.8"/>
+  </g>
+
+  <!-- Jambes, sabots et fumée au sol -->
+  <path d="M300 960 L278 1020 H356 L364 970 Z M450 960 L472 1020 H394 L386 970 Z" fill="#1d0c0b" stroke="#05060c" stroke-width="8" stroke-linejoin="round"/>
+  <rect x="0" y="1010" width="750" height="324" fill="#100606"/>
+  <path d="M0 1010 H750" stroke="#05060c" stroke-width="8"/>
+  <ellipse cx="375" cy="1030" rx="300" ry="34" fill="#f97316" opacity="0.22"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M40 1060 l60 -10 l40 20 l70 -6 M250 1100 l50 -14 l40 18 M470 1080 l60 -12 l50 22 l90 -8 M120 1180 l60 10 l40 -16 M520 1200 l70 -10" stroke="#7c2d12" stroke-width="10" opacity="0.8"/>
+    <path d="M40 1060 l60 -10 l40 20 l70 -6 M250 1100 l50 -14 l40 18 M470 1080 l60 -12 l50 22 l90 -8 M120 1180 l60 10 l40 -16 M520 1200 l70 -10" stroke="#f97316" stroke-width="4"/>
+  </g>
+  <g fill="#3a3034" opacity="0.6">
+    <ellipse cx="230" cy="1010" rx="90" ry="22"/><ellipse cx="520" cy="1012" rx="100" ry="24"/><ellipse cx="375" cy="1022" rx="70" ry="16"/>
+  </g>
+  <g fill="#fdba74">
+    <circle cx="190" cy="880" r="4"/><circle cx="570" cy="920" r="3"/><circle cx="240" cy="160" r="3"/><circle cx="520" cy="120" r="4"/><circle cx="110" cy="980" r="3"/><circle cx="660" cy="860" r="3"/>
+  </g>
+
+  <!-- Le crawler, minuscule, de dos -->
+  <g transform="translate(375 1056)">
+    <ellipse cx="0" cy="2" rx="34" ry="8" fill="#05060c" opacity="0.7"/>
+    <path d="M-12 0 L-10 -34 H-2 L-2 0 Z M12 0 L10 -34 H2 L2 0 Z" fill="#1c1a22" stroke="#05060c" stroke-width="3"/>
+    <path d="M-18 -32 Q-20 -70 0 -72 Q20 -70 18 -32 Z" fill="#2a2830" stroke="#05060c" stroke-width="3"/>
+    <rect x="-14" y="-68" width="28" height="32" rx="6" fill="#5b4632" stroke="#05060c" stroke-width="3"/>
+    <path d="M-14 -56 h28" stroke="#3a2c1f" stroke-width="3"/>
+    <path d="M-18 -60 L-26 -36 M18 -60 L26 -36" stroke="#2a2830" stroke-width="8" stroke-linecap="round"/>
+    <path d="M26 -36 L34 -58" stroke="#9ca3af" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="0" cy="-84" r="13" fill="#2a2830" stroke="#05060c" stroke-width="3"/>
+    <path d="M-12 -88 Q0 -100 12 -88" fill="none" stroke="#3a2c1f" stroke-width="5"/>
+    <path d="M-13 -84 a13 13 0 0 1 26 0 M-18 -60 Q-20 -36 -12 -4 M18 -60 Q20 -36 12 -4" fill="none" stroke="#f97316" stroke-width="2" opacity="0.8"/>
+  </g>
+</svg>

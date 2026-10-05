@@ -109,6 +109,17 @@ const BACKDROP_WALL_PATTERNS = {
             <rect y="13" width="60" height="1" fill="${p.mortar}"/>
             <rect x="38" width="1" height="13" fill="${p.mortar}"/>
             <path d="M3 5 q10 -2 20 0 t14 0 M42 8 q8 2 16 0" fill="none" stroke="${p.wallAlt}" stroke-width="0.8"/>
+        </pattern>`,
+    // Obsidienne de l'antre de Gorgoth (chantier 17) : gros blocs vitreux, joints de braise (mortar = lueur sourde).
+    obsidian: (id, p) => `
+        <pattern id="${id}" width="56" height="32" patternUnits="userSpaceOnUse">
+            <rect width="56" height="32" fill="${p.mortar}"/>
+            <path d="M1 1 H30 L27 15 H1 Z" fill="${p.wall}"/>
+            <path d="M32 1 H55 V15 H29 Z" fill="${p.wallAlt}"/>
+            <path d="M1 17 H14 L17 31 H1 Z" fill="${p.wallAlt}"/>
+            <path d="M16 17 H42 L44 31 H19 Z" fill="${p.wall}"/>
+            <path d="M44 17 H55 V31 H46 Z" fill="${p.wallAlt}"/>
+            <path d="M6 4 l9 6 M36 4 l6 3 M24 21 l8 5" fill="none" stroke="#ffffff" stroke-opacity="0.05" stroke-width="1.2"/>
         </pattern>`
 };
 
@@ -1433,6 +1444,167 @@ const BACKDROP_PROPS = {
     lightShaft: {
         markup: (o) => `<path d="M-10 0 L10 0 L46 108 L-20 108 Z" fill="${o.color || '#86efac'}" opacity="0.06"/>`,
         light: (o) => ({ dx: 14, dy: 70, color: o.color || '#86efac', radius: 44, flicker: false })
+    },
+
+    // --- Antre de Gorgoth le Concierge (chantier 17, lot 6) -------------------------------------------
+    // Porte colossale de l'antre : arche d'obsidienne cornue, deux battants cerclés de fer, rouge qui filtre
+    // par les jointures. Origine : milieu du bas (au sol). Options : `w`/`h` (par défaut 150 x 150 : elle
+    // déborde du haut d'une scène de 150), `locks` (serrures allumées, 0-4 : une par clé de boss de
+    // quartier), `open` (battants entrouverts, lueur intense), `chains` (chaînes en croix, par défaut quand
+    // elle est fermée), `seal` (sceau rouge de porte rescellée).
+    colossalGate: {
+        markup: (o) => {
+            const w = o.w || 150;
+            const h = o.h || 150;
+            const half = w / 2;
+            const lit = Math.max(0, Math.min(4, Math.floor(o.locks || 0)));
+            const chains = o.chains != null ? !!o.chains : !o.open;
+            const r = (n) => Math.round(n * 10) / 10;
+            const arch = `M${r(-half - 16)} 0 V${r(-h + 26)} Q0 ${r(-h - 34)} ${r(half + 16)} ${r(-h + 26)} V0 Z`;
+            const inner = `M${r(-half)} 0 V${r(-h + 30)} Q0 ${r(-h - 14)} ${r(half)} ${r(-h + 30)} V0 Z`;
+            // Cornes sur la clé de voûte et crâne aux yeux rouges (repère local centré sur le sommet de la porte,
+            // à l'échelle de sa largeur : une petite porte garde des cornes à sa taille).
+            const ks = r(Math.min(1, w / 150));
+            const keystone = `
+                <g transform="translate(0 ${r(-h)}) scale(${ks})">
+                <path d="M-14 -2 Q-34 -30 -52 -22 Q-34 -18 -22 6 Z" fill="#2b2124" stroke="#05060c" stroke-width="1.5"/>
+                <path d="M14 -2 Q34 -30 52 -22 Q34 -18 22 6 Z" fill="#2b2124" stroke="#05060c" stroke-width="1.5"/>
+                <path d="M-15 10 Q-16 -12 0 -12 Q16 -12 15 10 L8 14 H-8 Z" fill="#3a2e30" stroke="#05060c" stroke-width="1.5"/>
+                <circle class="bd-halo-flicker" cx="-6" cy="1" r="3" fill="#dc2626"/>
+                <circle class="bd-halo-flicker" cx="6" cy="1" r="3" fill="#dc2626"/>
+                </g>`;
+            const straps = [0.22, 0.5, 0.78].map(f => r(-h * f));
+            let leaves;
+            if (o.open) {
+                // Battants entrouverts vers l'intérieur : une gueule de lumière rouge entre les deux.
+                const gap = half * 0.62;
+                leaves = `
+                <path d="${inner}" fill="#450a0a"/>
+                <path class="bd-halo-flicker" d="M${r(-gap)} 0 V${r(-h + 34)} Q0 ${r(-h - 6)} ${r(gap)} ${r(-h + 34)} V0 Z" fill="#b91c1c" opacity="0.85"/>
+                <ellipse class="bd-halo-flicker" cx="0" cy="${r(-h * 0.3)}" rx="${r(gap * 0.75)}" ry="${r(h * 0.3)}" fill="#ea580c" opacity="0.7"/>
+                <ellipse cx="0" cy="${r(-h * 0.12)}" rx="${r(gap * 0.45)}" ry="${r(h * 0.12)}" fill="#fdba74" opacity="0.55"/>
+                <path d="M${r(-half)} 0 V${r(-h + 30)} L${r(-gap)} ${r(-h + 40)} V-4 Z" fill="#2a2023" stroke="#05060c" stroke-width="1.5"/>
+                <path d="M${r(half)} 0 V${r(-h + 30)} L${r(gap)} ${r(-h + 40)} V-4 Z" fill="#2a2023" stroke="#05060c" stroke-width="1.5"/>
+                ${straps.map(y => `<path d="M${r(-half)} ${y} L${r(-gap)} ${r(y * 0.94)} M${r(half)} ${y} L${r(gap)} ${r(y * 0.94)}" stroke="#4a3f42" stroke-width="5"/>`).join('')}`;
+            } else {
+                const studs = [];
+                straps.forEach(y => { for (let x = -half + 8; x < half - 4; x += 14) studs.push(`<circle cx="${r(x)}" cy="${y}" r="1.5"/>`); });
+                leaves = `
+                <path d="${inner}" fill="#251c1f" stroke="#05060c" stroke-width="1.5"/>
+                <path d="M${r(-half + 8)} -6 V${r(-h + 36)} M${r(half - 8)} -6 V${r(-h + 36)}" stroke="#1a1316" stroke-width="2"/>
+                ${straps.map(y => `<rect x="${r(-half)}" y="${r(y - 4)}" width="${w}" height="8" fill="#3d3336" stroke="#05060c" stroke-width="1"/><path class="bd-halo-flicker" d="M${r(-half)} ${r(y + 5)} H${r(half)}" stroke="#dc2626" stroke-width="1" opacity="0.55"/>`).join('')}
+                <g fill="#6b5f62">${studs.join('')}</g>
+                <path class="bd-halo-flicker" d="M0 -2 V${r(-h - 8)}" stroke="#ef4444" stroke-width="2.2" opacity="0.9"/>
+                <path d="M0 -2 V${r(-h - 8)}" stroke="#fca5a5" stroke-width="0.8" opacity="0.8"/>
+                <path class="bd-halo-flicker" d="M${r(-half + 2)} -1 H${r(half - 2)}" stroke="#f97316" stroke-width="2" opacity="0.8"/>`;
+            }
+            // Chaînes en croix (maillons alternés, positions fixes).
+            let chainMarkup = '';
+            if (chains) {
+                const links = [];
+                [[-half + 4, -h + 34, half - 4, -14], [half - 4, -h + 34, -half + 4, -14]].forEach(([x1, y1, x2, y2]) => {
+                    const n = Math.max(6, Math.round(Math.hypot(x2 - x1, y2 - y1) / 7));
+                    const angle = r(Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI);
+                    for (let i = 0; i <= n; i++) {
+                        const cx = r(x1 + (x2 - x1) * i / n), cy = r(y1 + (y2 - y1) * i / n);
+                        links.push(`<ellipse cx="${cx}" cy="${cy}" rx="${i % 2 ? 4.2 : 4.6}" ry="${i % 2 ? 1.4 : 2.6}" transform="rotate(${angle} ${cx} ${cy})"/>`);
+                    }
+                });
+                chainMarkup = `<g fill="none" stroke="#05060c" stroke-width="3.2">${links.join('')}</g><g fill="none" stroke="#8a8086" stroke-width="1.6">${links.join('')}</g>`;
+            }
+            // 4 serrures en carré autour de la jointure : allumées (clé obtenue) ou éteintes.
+            const lockPos = [[-15, -0.62], [15, -0.62], [-15, -0.42], [15, -0.42]];
+            const locks = o.open ? '' : lockPos.map(([x, f], i) => {
+                const y = r(h * f);
+                const on = i < lit;
+                const glow = on ? `<circle class="bd-halo-flicker" cx="${x}" cy="${y}" r="10" fill="#f97316" opacity="0.35"/>` : '';
+                return `${glow}<path d="M${x - 4} ${r(y - 4)} V${r(y - 8)} A4 4 0 0 1 ${x + 4} ${r(y - 8)} V${r(y - 4)}" fill="none" stroke="${on ? '#fdba74' : '#5a5054'}" stroke-width="2"/>
+                <rect class="${on ? 'demon-lock-lit' : 'demon-lock'}" x="${x - 6}" y="${r(y - 4)}" width="12" height="10" rx="2" fill="${on ? '#f97316' : '#3a3236'}" stroke="#05060c" stroke-width="1.2"/>
+                <path d="M${x} ${r(y - 1)} v4" stroke="${on ? '#fef3c7' : '#05060c'}" stroke-width="1.8" stroke-linecap="round"/>`;
+            }).join('');
+            const sy = r(-h * 0.52);
+            const seal = o.seal ? `<g class="bd-halo-flicker" fill="none" stroke="#ef4444" stroke-width="2" opacity="0.9"><circle cx="0" cy="${sy}" r="13"/><path d="M0 ${r(sy - 13)} L8 ${r(sy + 10)} L-12 ${r(sy - 4)} H12 L-8 ${r(sy + 10)} Z" stroke-width="1.2"/></g>` : '';
+            return `
+            <path d="${arch}" fill="#1a1214" stroke="#05060c" stroke-width="2"/>
+            ${leaves}${chainMarkup}${locks}${seal}${keystone}
+            <path d="M${r(-half - 16)} 0 h${r(w + 32)}" stroke="#05060c" stroke-width="3"/>`;
+        },
+        light: (o) => ({ dx: 0, dy: -Math.round((o.h || 150) * 0.4), color: '#dc2626', radius: o.open ? 90 : 56, flicker: true })
+    },
+    // Trône de Gorgoth : obsidienne cornue, coussin calciné, et l'attirail du concierge posé à côté (seau et
+    // serpillière, panneau « sol glissant »). Origine : milieu du bas (au sol).
+    demonThrone: {
+        markup: () => `
+            <ellipse class="bd-halo-flicker" cx="0" cy="-56" rx="46" ry="52" fill="#b91c1c" opacity="0.18"/>
+            <path d="M-34 0 V-70 Q-38 -96 -52 -112 Q-30 -104 -22 -86 L-18 -100 Q0 -118 18 -100 L22 -86 Q30 -104 52 -112 Q38 -96 34 -70 V0 Z" fill="#1d1518" stroke="#05060c" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M-24 -40 V-82 Q0 -98 24 -82 V-40 Z" fill="#2b1f22" stroke="#05060c" stroke-width="1.5"/>
+            <path d="M-22 -80 l8 10 l-4 12 M18 -86 l-6 14 l6 10" fill="none" stroke="#f97316" stroke-width="1.2" opacity="0.75"/>
+            <rect x="-44" y="-42" width="88" height="12" rx="3" fill="#2b2124" stroke="#05060c" stroke-width="1.5"/>
+            <rect x="-30" y="-36" width="60" height="8" rx="3" fill="#5c1a14" stroke="#05060c" stroke-width="1"/>
+            <path d="M-44 -30 V0 M44 -30 V0" stroke="#2b2124" stroke-width="8"/>
+            <path class="bd-halo-flicker" d="M-6 -104 l6 -10 l6 10 Z" fill="#dc2626"/>
+            <g transform="translate(-56 0)">
+                <path d="M-8 0 L-10 -14 H10 L8 0 Z" fill="#4a5058" stroke="#05060c" stroke-width="1.2"/>
+                <path d="M-10 -14 Q0 -20 10 -14" fill="none" stroke="#6b7078" stroke-width="1.2"/>
+                <path d="M4 -16 L18 -62" stroke="#6b4a2a" stroke-width="2.4" stroke-linecap="round"/>
+                <path d="M1 -14 q3 -8 7 -4 q3 -6 6 0" fill="none" stroke="#8a8070" stroke-width="2"/>
+            </g>
+            <g transform="translate(58 0)">
+                <path d="M-8 0 L0 -22 L8 0" fill="#ca8a04" stroke="#05060c" stroke-width="1.2" stroke-linejoin="round"/>
+                <path d="M-3 -6 q2 -6 4 -2 q2 3 3 -1" fill="none" stroke="#05060c" stroke-width="1"/>
+            </g>`,
+        light: () => ({ dx: 0, dy: -70, color: '#ef4444', radius: 70, flicker: true })
+    },
+    // Râtelier de l'armurerie : 4 emplacements (fouet de clés, bleu de travail, lance-clés, registre).
+    // Origine : centre de la planche (au mur). `taken` : clés d'emplacement vides ('blade', 'overalls',
+    // 'keyLauncher', 'rulebook', mêmes clés que DEMONIC_ITEMS) — l'objet emporté laisse son crochet nu.
+    armoryRack: {
+        markup: (o) => {
+            const taken = Array.isArray(o.taken) ? o.taken : [];
+            const slot = (key, x, art) => {
+                const empty = taken.includes(key);
+                return `<g transform="translate(${x} 0)">
+                    <path d="M0 -24 v4" stroke="#8a8086" stroke-width="1.6"/><circle cx="0" cy="-25" r="1.6" fill="#8a8086"/>
+                    ${empty ? '<path d="M-7 -8 h14" stroke="#05060c" stroke-width="1" stroke-dasharray="2 2" opacity="0.6"/>' : art}
+                    <circle class="bd-halo-flicker" cx="0" cy="22" r="1.8" fill="${empty ? '#3a3236' : '#ef4444'}"/>
+                </g>`;
+            };
+            const whip = `<path d="M-2 -20 L-4 -4" stroke="#3a2a20" stroke-width="3" stroke-linecap="round"/>
+                <path d="M-4 -4 q-8 6 -2 12 q8 4 10 -4 q2 -8 -6 -6 q-6 2 -2 8" fill="none" stroke="#f97316" stroke-width="1.6"/>
+                <g fill="#fbbf24" stroke="#05060c" stroke-width="0.5"><circle cx="-6" cy="8" r="1.6"/><circle cx="4" cy="6" r="1.6"/><circle cx="0" cy="12" r="1.6"/></g>`;
+            const overalls = `<path d="M-9 -20 h18" stroke="#6b5f62" stroke-width="1.5"/>
+                <path d="M-8 -19 L-7 -10 H7 L8 -19 M-7 -10 L-9 14 H-2 L0 2 L2 14 H9 L7 -10 Z" fill="#1e40af" stroke="#05060c" stroke-width="1"/>
+                <path d="M-6 0 l3 -2 l-1 4 M4 6 l2 -3" stroke="#f97316" stroke-width="1"/><rect x="-3" y="-8" width="6" height="4" fill="#1e3a8a"/>`;
+            const launcher = `<path d="M-12 -8 H10 V-3 H-12 Z" fill="#3d3336" stroke="#05060c" stroke-width="1"/>
+                <path d="M-2 -3 L-6 8 H-1 L2 -3" fill="#3a2a20" stroke="#05060c" stroke-width="1"/>
+                <path d="M8 -15 Q14 -5 8 4" fill="none" stroke="#6b5f62" stroke-width="1.6"/>
+                <path d="M10 -6 h6 M14 -8 v4" stroke="#f97316" stroke-width="1.6"/><circle cx="18" cy="-6" r="2" fill="none" stroke="#f97316" stroke-width="1.4"/>`;
+            const rulebook = `<rect x="-9" y="-16" width="18" height="24" rx="1.5" fill="#5c1a14" stroke="#05060c" stroke-width="1.2"/>
+                <rect x="-6" y="-12" width="12" height="5" fill="#d8c9a3" opacity="0.8"/><path d="M-5 -10 h10" stroke="#5c1a14" stroke-width="0.8"/>
+                <path d="M-9 4 h18" stroke="#d8c9a3" stroke-width="1.2" opacity="0.6"/><circle cx="0" cy="-1" r="2.4" fill="none" stroke="#f97316" stroke-width="1"/>`;
+            return `
+            <rect x="-58" y="-30" width="116" height="60" rx="3" fill="#1a1214" stroke="#05060c" stroke-width="2"/>
+            <rect x="-54" y="-26" width="108" height="52" rx="2" fill="#241a1d" stroke="#3a2e30" stroke-width="1"/>
+            <path d="M-58 -30 l-6 -8 M58 -30 l6 -8" stroke="#2b2124" stroke-width="4" stroke-linecap="round"/>
+            ${slot('blade', -39, whip)}${slot('overalls', -13, overalls)}${slot('keyLauncher', 13, launcher)}${slot('rulebook', 39, rulebook)}`;
+        },
+        light: () => null
+    },
+    // Crevasses de lave au sol (antre). Origine : extrémité gauche (au sol). Option : `length` (360).
+    lavaCracks: {
+        markup: (o) => {
+            const len = o.length || 360;
+            const cracks = [];
+            for (let x = 8, i = 0; x < len - 20; x += 46, i++) {
+                const dy = [4, 10, 6, 14, 8, 12][i % 6];
+                cracks.push(`M${x} ${dy} l9 -3 l7 5 l10 -2 l6 4 M${x + 16} ${dy + 2} l3 6 l-4 5`);
+            }
+            const d = cracks.join(' ');
+            return `<path d="${d}" fill="none" stroke="#7c2d12" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+            <path class="bd-halo-flicker" d="${d}" fill="none" stroke="#f97316" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="${d}" fill="none" stroke="#fde68a" stroke-width="0.6" stroke-linecap="round" opacity="0.8"/>`;
+        },
+        light: () => null
     }
 };
 
@@ -1740,6 +1912,30 @@ const URBAN_COMBAT_BACKDROPS = {
     }
 };
 
+// --- Antre de Gorgoth le Concierge (chantier 17, lot 6) ------------------------------------------------
+// Fiche SÉPARÉE (jamais une clé de SCENE_BACKDROPS, réservées aux quartiers de districts.js), au même
+// format, passée telle quelle à composeBackdrop(). Obsidienne aux joints de braise, torches à flamme rouge,
+// râtelier de l'armurerie, trône vide (Gorgoth se tient devant), porte colossale entrouverte derrière le
+// crawler et crevasses de lave au sol. Lue par la scène haute du combat (lot 7) si elle existe.
+const DEMON_LAIR_BACKDROP = {
+    label: 'Antre du Concierge',
+    palette: {
+        wall: '#1b1418', wallAlt: '#161014', mortar: '#3b120c', ceiling: '#0a0608',
+        floor: '#1a1214', floorAlt: '#140e10', joint: '#2a0d08', pipe: '#2a1c1e'
+    },
+    wall: 'obsidian', floor: 'flagstones', ceiling: 'vault', debris: true,
+    props: [
+        { type: 'torch', x: 22, y: 70, lightColor: '#dc2626', radius: 48 },
+        { type: 'armoryRack', x: 86, y: 62 },
+        { type: 'demonThrone', x: 196, y: 124 },
+        { type: 'torch', x: 262, y: 70, lightColor: '#dc2626', radius: 48, phase: 0.9 },
+        { type: 'colossalGate', x: 330, y: 124, w: 44, h: 92, open: true }
+    ],
+    floorProps: [
+        { type: 'lavaCracks', x: 0, y: 127, length: 360 }
+    ]
+};
+
 // --- Salles sécurisées ---------------------------------------------------------------------------------
 // Fiche de base commune (ne dépend pas du quartier : une salle sécurisée est un abri clos) : béton
 // chaud, porte blindée, panneau « ZONE SÛRE », éclairage chaud et apaisé — aucun rouge, aucune
@@ -1872,6 +2068,6 @@ if (typeof module !== 'undefined' && module.exports) {
         BACKDROP_CEILINGS, BACKDROP_PROPS, BACKDROP_DEBRIS, SCENE_BACKDROPS, SHOP_SIGN_STYLES, TRAINER_BOARD_STYLES,
         SAFEHOUSE_BACKDROP, SAFEHOUSE_SIGNATURES, safehouseBackdropFor,
         GAME_OVER_VIEW, GAME_OVER_BODY, GAME_OVER_BLOOD_POOL, GAME_OVER_CAUSE_PROPS, evidenceMarker,
-        URBAN_COMBAT_BACKDROPS
+        URBAN_COMBAT_BACKDROPS, DEMON_LAIR_BACKDROP
     };
 }

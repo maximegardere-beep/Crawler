@@ -9030,7 +9030,7 @@ function encounterIntroWanted(kind, enemy) {
     const mode = getEncounterIntroMode();
     if (mode === 'off') return false;
     if (mode === 'all') return true;
-    return kind === 'boss' || kind === 'hunter' || kind === 'ambush' || !!(enemy && isEliteMob(enemy));
+    return kind === 'boss' || kind === 'demon' || kind === 'hunter' || kind === 'ambush' || !!(enemy && isEliteMob(enemy));
 }
 
 function encounterIntroAvailable() {
@@ -9094,7 +9094,10 @@ function dismissEncounterIntro(force) {
 // DEV : prévisualiser un écran sans déclencher de combat (console du navigateur). Exemple : devPreviewEncounter('unseen', 'Rat Goulot').
 function devPreviewEncounter(kind = 'spotted', mobName = null) {
     let enemy = null;
-    if (mobName) {
+    // Boss de Niveau (chantier 17) : ennemi factice suffisant pour l'écran (image du manifeste, type 'demon').
+    if (typeof DEMON_ENCOUNTER_NAME !== 'undefined' && mobName === DEMON_ENCOUNTER_NAME) {
+        enemy = { name: mobName, baseName: mobName, hp: 1, maxHp: 1, atk: 1, def: 0, isBoss: true, isDemon: true };
+    } else if (mobName) {
         const boss = Object.values(districtBosses).find(b => b.name === mobName);
         const base = boss || findMobByName(mobName) || bountyHunters.find(h => h.name === mobName);
         if (base) enemy = Object.assign({}, base, { baseName: base.name, hp: base.hp || 1, isBoss: !!boss });
